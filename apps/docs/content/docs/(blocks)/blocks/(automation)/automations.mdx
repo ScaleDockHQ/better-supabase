@@ -84,7 +84,7 @@ const rule = await rules
 await rules.setEnabled(rule.id, true).orThrow();
 ```
 
-`upsert` creates a rule, or changes the one with `id`. Keys you leave out keep their value, and the subject type can't change. Pass the `version` the editor read and a newer stored version fails with `RULE_CONFLICT`, so two editors don't overwrite each other. Every change bumps `version` and keeps the previous tree in `versions(id)`. A new rule is disabled and goes last; `move(id, rank)` takes a key from `rankBetween` over its neighbours ([rank keys](/docs/blocks/rank)).
+`upsert` creates a rule, or changes the one with `id`. Keys you leave out keep their value, and the subject type can't change. Pass the `version` the editor read and a newer stored version fails with `AUTOMATION_CONFLICT`, so two editors don't overwrite each other. Every change bumps `version` and keeps the previous tree in `versions(id)`. A new rule is disabled and goes last; `move(id, rank)` takes a key from `rankBetween` over its neighbours ([rank keys](/docs/blocks/rank)).
 
 The database checks every tree: fields must be in the catalog, operators must suit the field's type, values must fit the operator (two for "between", a list for "is any of"), and the tree stays within `maxDepth` and `maxConditions`. Conditions without an operator take no part, so an editor can save a half-finished row.
 
@@ -192,7 +192,7 @@ Each takes `clients`, which returns the block clients for one organization, such
 
 ## Default automations
 
-A block that feeds another ships default automations: rows its SQL module writes to `rule_defaults`, which every organization gets its own copy of the first time its rules run or are listed. The organization turns them off or edits them like any rule. `resetDefault(id)` puts the shipped version back, and removing one fails with the hint `RULE_DEFAULT`.
+A block that feeds another ships default automations: rows its SQL module writes to `rule_defaults`, which every organization gets its own copy of the first time its rules run or are listed. The organization turns them off or edits them like any rule. `resetDefault(id)` puts the shipped version back, and removing one fails with the hint `AUTOMATION_DEFAULT`.
 
 | Default                                | Block    | Trigger                     | Action                       | Ships when               |
 | -------------------------------------- | -------- | --------------------------- | ---------------------------- | ------------------------ |
@@ -404,23 +404,23 @@ blocks: {
 
 ## Errors
 
-| Hint                    | Cause                                                                    |
-| ----------------------- | ------------------------------------------------------------------------ |
-| `RULE_FORBIDDEN`        | the caller lacks the permission for this                                 |
-| `RULE_NOT_FOUND`        | no rule the caller can see has this id                                   |
-| `RULE_CONFLICT`         | the rule changed since the editor read `version`                         |
-| `RULE_SUBJECT_UNKNOWN`  | the subject type has no synced fields                                    |
-| `RULE_INVALID`          | a malformed tree, a missing name or trigger, or a tree over the limits   |
-| `RULE_FIELD_UNKNOWN`    | a condition names a field the catalog doesn't have                       |
-| `RULE_OPERATOR_INVALID` | the operator doesn't suit the field's type                               |
-| `RULE_VALUE_INVALID`    | the value doesn't fit the operator                                       |
-| `RULE_ACTIONS_INVALID`  | actions aren't a list of `{ kind, config }` with a dotted lowercase kind |
-| `RULE_RANK_INVALID`     | the rank isn't a rank key                                                |
-| `RULE_FIELDS_INVALID`   | `syncFields` got a field with a bad id, type or column type              |
-| `RULE_DEFAULT`          | the rule is a block's default automation; turn it off instead            |
-| `RULE_NOT_DEFAULT`      | `resetDefault` got a rule no block ships                                 |
-| `ACTION_UNKNOWN`        | no action in the registry handles the kind                               |
-| `ACTION_CONFIG_INVALID` | the action's config fails its schema                                     |
+| Hint                         | Cause                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `AUTOMATION_FORBIDDEN`       | the caller lacks the permission for this                                 |
+| `AUTOMATION_NOT_FOUND`       | no rule the caller can see has this id                                   |
+| `AUTOMATION_CONFLICT`        | the rule changed since the editor read `version`                         |
+| `RULE_SUBJECT_UNKNOWN`       | the subject type has no synced fields                                    |
+| `AUTOMATION_INVALID`         | a malformed tree, a missing name or trigger, or a tree over the limits   |
+| `RULE_FIELD_UNKNOWN`         | a condition names a field the catalog doesn't have                       |
+| `RULE_OPERATOR_INVALID`      | the operator doesn't suit the field's type                               |
+| `RULE_VALUE_INVALID`         | the value doesn't fit the operator                                       |
+| `AUTOMATION_ACTIONS_INVALID` | actions aren't a list of `{ kind, config }` with a dotted lowercase kind |
+| `AUTOMATION_RANK_INVALID`    | the rank isn't a rank key                                                |
+| `AUTOMATION_FIELDS_INVALID`  | `syncFields` got a field with a bad id, type or column type              |
+| `AUTOMATION_DEFAULT`         | the rule is a block's default automation; turn it off instead            |
+| `AUTOMATION_NOT_DEFAULT`     | `resetDefault` got a rule no block ships                                 |
+| `ACTION_UNKNOWN`             | no action in the registry handles the kind                               |
+| `ACTION_CONFIG_INVALID`      | the action's config fails its schema                                     |
 
 ## Events
 

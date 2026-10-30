@@ -95,6 +95,23 @@ describe("withTableTags", () => {
     expect(next.subjects[name]?.title).toBe("kept");
   });
 
+  it("rejects a tag that declares a block's subject type", async () => {
+    const { name } = await first();
+    const tables = await tagged(name, "@bsb subject type=task");
+    const config = resolveConfig({ blocks: { tasks: {} } }, "/tmp");
+
+    expect(() => withTableTags(config, tables)).toThrow(
+      /declares "task", which the tasks block registers itself/u,
+    );
+
+    const renamed = resolveConfig(
+      { blocks: { tasks: { names: { task: "work_item" } } } },
+      "/tmp",
+    );
+
+    expect(withTableTags(renamed, tables).subjects["task"]).toBeDefined();
+  });
+
   it("skips tables outside the schemas and unusable tags", async () => {
     const { name, key } = await first();
     const config = resolveConfig({ blocks: {} }, "/tmp");

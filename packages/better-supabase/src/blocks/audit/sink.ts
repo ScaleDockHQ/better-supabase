@@ -1,6 +1,6 @@
 import type { AsyncResult, Result } from "../../core/result.ts";
 import type { CloudEvent, EventSink } from "../../events/cloud-event.ts";
-import type { AuditCategory } from "../../sql/context.ts";
+import type { AuditCategory } from "../../sql/audit-actions.ts";
 import type { AuditEventInput } from "./audit-log.ts";
 
 import { MAX_BATCH } from "../../core/batch-limit.ts";

@@ -3,7 +3,9 @@ import type { BlockSqlNames } from "../sql/context.ts";
 import type { AnyBlocksConfig } from "./blocks.ts";
 import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
+import { SUBJECT_TYPE_RENAMES } from "../core/renames.ts";
 import { PRESET_CATALOG } from "../preset/catalog.generated.ts";
+import { clientFunctions } from "../sql/client-functions.ts";
 import { resolveNames } from "../sql/resolved-names.ts";
 import { blockColumnName } from "../sql/tenant-column.ts";
 import { resolveBlock } from "./blocks.ts";
@@ -69,6 +71,72 @@ export function blockEntityRenames(
           entity.to.plural !== entity.from.plural),
     )
     .map((entity) => ({ from: entity.from, to: entity.to }));
+}
+
+/**
+ * The SQL name of each client function of `module` that the entity renames
+ * write under the noun it had before 0.47: with `tasks: { names: { task:
+ * "ticket" } }`, `create_task` is still `create_ticket`, as it was from
+ * `create_work_item`. Empty when no renamed entity changed its singular.
+ */
+export function blockFormerFunctions(
+  module: string,
+  blocks: AnyBlocksConfig,
+): Readonly<Record<string, string>> {
+  const names = catalogNames(module);
+
+  if (names === undefined) {
+    return {};
+  }
+
+  const resolved = resolveNames(module, names, blocks);
+
+  if (!resolved.functionNouns.renamed) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    clientFunctions(module).flatMap((name) => {
+      const former = resolved.functionNouns.rename(name);
+      const written = resolved.naming.rename(former);
+
+      return former === name || written === name ? [] : [[name, written]];
+    }),
+  );
+}
+
+/**
+ * The subject types of the installed blocks that 0.47 renamed, new to old:
+ * `task` to `work_item` for a tasks block that names no entity. An install that
+ * names the entity keeps its type, and so does an old type `subjects` still
+ * declares.
+ */
+export function blockFormerSubjectTypes(
+  installed: readonly string[],
+  blocks: AnyBlocksConfig,
+  subjects: SubjectsConfig,
+): ReadonlyMap<string, string> {
+  return new Map(
+    installed.flatMap((module) => {
+      const names = catalogNames(module);
+
+      return names === undefined
+        ? []
+        : Object.values(resolveNames(module, names, blocks).entities).flatMap(
+            (entity): [string, string][] => {
+              const old = entity.formerly?.from.singular;
+              const next = entity.to.singular;
+
+              return old === undefined ||
+                entity.subject === undefined ||
+                SUBJECT_TYPE_RENAMES[old] !== next ||
+                Object.hasOwn(subjects, old)
+                ? []
+                : [[next, old]];
+            },
+          );
+    }),
+  );
 }
 
 /** One installed block's entity under the name the config gives it. */

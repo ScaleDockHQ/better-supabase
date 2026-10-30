@@ -280,7 +280,7 @@ describe.skipIf(!live)("service levels and targets", () => {
             ...quarter,
           }),
         ),
-      ).toBe("TARGET_INVALID");
+      ).toBe("GOAL_INVALID");
 
       await s.as(rep);
 
@@ -330,7 +330,7 @@ describe.skipIf(!live)("service levels and targets", () => {
             ...quarter,
           }),
         ),
-      ).toBe("TARGET_FORBIDDEN");
+      ).toBe("GOAL_FORBIDDEN");
     } finally {
       await s.close();
     }

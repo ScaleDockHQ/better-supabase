@@ -109,23 +109,23 @@ declare
   v_id uuid;
 begin
   ${SERVICE}
-  v_row := better_supabase.log_engagement('${TENANT}', '{"type": "call", "title": "Intro", "dueAt": "2099-01-01T10:00:00Z", "durationSeconds": 60}'::jsonb, '[]'::jsonb);
+  v_row := better_supabase.log_activity('${TENANT}', '{"type": "call", "title": "Intro", "dueAt": "2099-01-01T10:00:00Z", "durationSeconds": 60}'::jsonb, '[]'::jsonb);
   v_id := (v_row ->> 'id')::uuid;
   if v_row ->> 'kind' <> 'call' or v_row -> 'duration_seconds' <> 'null'::jsonb then
     raise exception 'logged %', v_row;
   end if;
-  v_row := better_supabase.update_engagement(v_id, '{"type": "meeting", "outcome": "booked"}'::jsonb, null);
+  v_row := better_supabase.update_activity(v_id, '{"type": "meeting", "outcome": "booked"}'::jsonb, null);
   if (select kind from public.activities where id = v_id) <> 'meeting' or v_row ->> 'outcome' <> 'booked' then
     raise exception 'updated %', v_row;
   end if;
-  v_row := better_supabase.complete_engagement(v_id, true, 'done');
+  v_row := better_supabase.complete_activity(v_id, true, 'done');
   if (select done_at from public.activities where id = v_id) is null then
     raise exception 'completed %', v_row;
   end if;
-  if jsonb_array_length(better_supabase.open_engagements('${TENANT}', null, null, 50)) <> 0 then
+  if jsonb_array_length(better_supabase.open_activities('${TENANT}', null, null, 50)) <> 0 then
     raise exception 'still open';
   end if;
-  if not better_supabase.delete_engagement(v_id) then
+  if not better_supabase.delete_activity(v_id) then
     raise exception 'delete';
   end if;
 end;

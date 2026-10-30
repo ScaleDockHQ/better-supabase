@@ -11,6 +11,7 @@ import { entityNames } from "../../blocks/index.ts";
 import {
   blockEntities,
   blockEntityRenames,
+  blockFormerFunctions,
   tenantNameOf,
 } from "../../config/index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
@@ -134,6 +135,9 @@ function namingOf(
   instanceFunctionNames: Readonly<Record<string, string>> = {},
 ): BlockNaming | undefined {
   const functions = Object.fromEntries([
+    ...modules.flatMap((module) =>
+      Object.entries(blockFormerFunctions(module, config.blocks)),
+    ),
     ...modules.flatMap((module) =>
       module === "permissions"
         ? []

@@ -721,7 +721,7 @@ export function createIncidents<
       ).andThen(fields.rows),
     savePostmortem: (incidentId, input) =>
       call(
-        "save_postmortem",
+        "save_incident_postmortem",
         {
           incident_id: incidentId,
           attrs: {
@@ -732,13 +732,13 @@ export function createIncidents<
             ...optional("actionItems", input.actionItems),
           },
         },
-        postmortem("save_postmortem"),
+        postmortem("save_incident_postmortem"),
       ),
     publishPostmortem: (incidentId) =>
       call(
-        "publish_postmortem",
+        "publish_incident_postmortem",
         { incident_id: incidentId },
-        postmortem("publish_postmortem"),
+        postmortem("publish_incident_postmortem"),
       ),
     saveStatusPage: (organizationId, input) =>
       call(

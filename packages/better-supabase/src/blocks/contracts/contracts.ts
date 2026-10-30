@@ -479,7 +479,7 @@ export function createContracts<
       ),
     saveObligation: (contractId, input) =>
       call(
-        "save_obligation",
+        "save_contract_obligation",
         {
           contract_id: contractId,
           title: input.title,
@@ -488,23 +488,23 @@ export function createContracts<
           description: input.description ?? null,
           obligation_id: input.obligationId ?? null,
         },
-        obligation("save_obligation"),
+        obligation("save_contract_obligation"),
       ),
     setObligationStatus: (obligationId, status) =>
       call(
-        "set_obligation_status",
+        "set_contract_obligation_status",
         { obligation_id: obligationId, status },
-        obligation("set_obligation_status"),
+        obligation("set_contract_obligation_status"),
       ),
     deleteObligation: (obligationId) =>
       call(
-        "delete_obligation",
+        "delete_contract_obligation",
         { obligation_id: obligationId },
-        obligation("delete_obligation"),
+        obligation("delete_contract_obligation"),
       ),
     obligations: (organizationId, list = {}) =>
       call(
-        "list_obligations",
+        "list_contract_obligations",
         {
           tenant: organizationId,
           contract_id: list.contractId ?? null,
@@ -514,8 +514,8 @@ export function createContracts<
           page_size: list.pageSize ?? null,
         },
         (value) =>
-          recordsOf(value, "list_obligations").map((row) =>
-            obligationOf(row, "list_obligations"),
+          recordsOf(value, "list_contract_obligations").map((row) =>
+            obligationOf(row, "list_contract_obligations"),
           ),
       ),
   };

@@ -382,8 +382,8 @@ describe("createIncidents", () => {
 
   it("drafts and publishes a postmortem", async () => {
     const t = fieldsTransport({
-      save_postmortem: () => BARE_POSTMORTEM,
-      publish_postmortem: () => POSTMORTEM,
+      save_incident_postmortem: () => BARE_POSTMORTEM,
+      publish_incident_postmortem: () => POSTMORTEM,
     });
 
     const incidents = createIncidents({ transport: t });
@@ -406,9 +406,9 @@ describe("createIncidents", () => {
     expect(draft).not.toHaveProperty("summary");
     expect(published.publishedAt?.toString()).toBe(AT);
     expect(t.calls).toEqual([
-      ["save_postmortem", { incident_id: "i2", attrs: {} }],
+      ["save_incident_postmortem", { incident_id: "i2", attrs: {} }],
       [
-        "save_postmortem",
+        "save_incident_postmortem",
         {
           incident_id: "i1",
           attrs: {
@@ -420,7 +420,7 @@ describe("createIncidents", () => {
           },
         },
       ],
-      ["publish_postmortem", { incident_id: "i1" }],
+      ["publish_incident_postmortem", { incident_id: "i1" }],
     ]);
   });
 
@@ -588,7 +588,7 @@ describe("createIncidents", () => {
     const t = fieldsTransport({
       get_incident: () => ({ ...BARE_INCIDENT, severity: "sev9" }),
       list_status_components: () => [{ ...COMPONENT, status: "down" }],
-      publish_postmortem: () => ({ ...POSTMORTEM, status: "final" }),
+      publish_incident_postmortem: () => ({ ...POSTMORTEM, status: "final" }),
       list_incidents: () => [{ ...INCIDENT, fields: { team: "ops" } }],
     });
 

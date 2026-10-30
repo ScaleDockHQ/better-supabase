@@ -58,7 +58,7 @@ const EVENTS: BlockSqlEvents<WorkflowEditorEvents> = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    definition: {
+    workflow_definition: {
       table: "definitions",
       singular: "workflow_definition",
       primary: true,

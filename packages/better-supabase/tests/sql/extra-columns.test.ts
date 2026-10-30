@@ -35,8 +35,8 @@ const CASES: readonly {
     module: "activities",
     table: "engagements",
     writes: [
-      `"region" = case when log_engagement.attrs -> 'fields' ? 'region'`,
-      `"region" = case when update_engagement.attrs -> 'fields' ? 'region'`,
+      `"region" = case when log_activity.attrs -> 'fields' ? 'region'`,
+      `"region" = case when update_activity.attrs -> 'fields' ? 'region'`,
     ],
     reads: [`'fields', jsonb_build_object('region', x."region")`],
   },

@@ -130,7 +130,7 @@ declare
   v_result jsonb;
 begin
   ${SERVICE}
-  v_item := (better_supabase.create_work_item('${TENANT}', '{"title": "Ship it"}'::jsonb, null) ->> 'id')::uuid;
+  v_item := (better_supabase.create_task('${TENANT}', '{"title": "Ship it"}'::jsonb, null) ->> 'id')::uuid;
   select id, subject_type into v_board, v_type from public.boards;
   if v_board is null or (select count(*) from public.board_columns where board_id = v_board) = 0 then
     raise exception 'no default board';
@@ -141,7 +141,7 @@ begin
     raise exception 'saved %', v_stage;
   end if;
   select id into v_done from public.board_columns where board_id = v_board and outcome = 'success' limit 1;
-  v_result := better_supabase.update_work_items(jsonb_build_array(
+  v_result := better_supabase.update_tasks(jsonb_build_array(
     jsonb_build_object('workItemId', v_item, 'field', 'stageId', 'value', v_done)));
   if jsonb_array_length(v_result -> 'rejected') <> 0 then
     raise exception 'move %', v_result;

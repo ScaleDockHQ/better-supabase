@@ -1,6 +1,6 @@
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:25e6bd02f775915dec3c8c0c33542f997b37163f0f30b9097f78941990f82496
+-- @bsb-hash sha256:c3cde2291cd829686e8721e5875ca70ef916f28099bc7a6de904030f10810366
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -278,7 +278,7 @@ begin
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -299,7 +299,7 @@ begin
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -401,7 +401,7 @@ begin
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -422,7 +422,7 @@ begin
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -693,7 +693,7 @@ revoke execute on function "better_supabase"."run_contract_renewals"(date) from 
 grant execute on function "better_supabase"."run_contract_renewals"(date) to service_role;
 
 -- Adds an obligation to a contract, or changes one (obligation_id).
-create or replace function "better_supabase"."save_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
+create or replace function "better_supabase"."save_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -707,30 +707,30 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_contract from "better_supabase"."contracts" x where x."id" = save_obligation.contract_id;
+  select * into v_contract from "better_supabase"."contracts" x where x."id" = save_contract_obligation.contract_id;
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
-  if nullif(trim(save_obligation.title), '') is null then
+  if nullif(trim(save_contract_obligation.title), '') is null then
     raise exception 'an obligation needs a title' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_obligation.owner_id is not null and not exists (select 1 from "public"."memberships" m where m."organization_id" = v_contract."tenant_id" and m."user_id" = save_obligation.owner_id) then
+  if save_contract_obligation.owner_id is not null and not exists (select 1 from "public"."memberships" m where m."organization_id" = v_contract."tenant_id" and m."user_id" = save_contract_obligation.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_obligation.obligation_id is null then
+  if save_contract_obligation.obligation_id is null then
     insert into "better_supabase"."contract_obligations" ("tenant_id", "contract_id", "title", "description", "due_on", "owner_id")
-    values (v_contract."tenant_id", v_contract."id", trim(save_obligation.title), nullif(trim(save_obligation.description), ''), save_obligation.due_on, save_obligation.owner_id)
+    values (v_contract."tenant_id", v_contract."id", trim(save_contract_obligation.title), nullif(trim(save_contract_obligation.description), ''), save_contract_obligation.due_on, save_contract_obligation.owner_id)
     returning * into v_row;
   else
-    update "better_supabase"."contract_obligations" x set "title" = trim(save_obligation.title), "description" = nullif(trim(save_obligation.description), ''),
-      "due_on" = save_obligation.due_on, "owner_id" = save_obligation.owner_id, "updated_at" = now()
-      where x."id" = save_obligation.obligation_id and x."contract_id" = v_contract."id"
+    update "better_supabase"."contract_obligations" x set "title" = trim(save_contract_obligation.title), "description" = nullif(trim(save_contract_obligation.description), ''),
+      "due_on" = save_contract_obligation.due_on, "owner_id" = save_contract_obligation.owner_id, "updated_at" = now()
+      where x."id" = save_contract_obligation.obligation_id and x."contract_id" = v_contract."id"
       returning * into v_row;
     if not found then
-      raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
+      raise exception 'obligation not found' using errcode = 'P0002', hint = 'CONTRACT_OBLIGATION_NOT_FOUND';
     end if;
   end if;
   perform "better_supabase".emit_event('obligation.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'obligationId', v_row."id", 'contractId', v_row."contract_id", 'status', v_row."status"), 'obligations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/contracts');
@@ -746,11 +746,11 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'contractId', v_row."contract_id", 'title', v_row."title", 'description', v_row."description", 'dueOn', v_row."due_on", 'ownerId', v_row."owner_id", 'status', v_row."status", 'overdue', (v_row."status" = 'open' and v_row."due_on" < current_date), 'completedAt', v_row."completed_at", 'completedBy', v_row."completed_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
 
 -- Marks an obligation open, done or waived. Its owner may mark it too.
-create or replace function "better_supabase"."set_obligation_status"(obligation_id uuid, status text)
+create or replace function "better_supabase"."set_contract_obligation_status"(obligation_id uuid, status text)
 returns jsonb
 language plpgsql
 security definer
@@ -763,19 +763,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."contract_obligations" x where x."id" = set_obligation_status.obligation_id for update;
+  select * into v_row from "better_supabase"."contract_obligations" x where x."id" = set_contract_obligation_status.obligation_id for update;
   if not found then
-    raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
+    raise exception 'obligation not found' using errcode = 'P0002', hint = 'CONTRACT_OBLIGATION_NOT_FOUND';
   end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) or coalesce(v_row."owner_id" = auth.uid(), false)) then
     raise exception 'not allowed to change this obligation' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
-  if set_obligation_status.status is null or set_obligation_status.status not in ('open', 'done', 'waived') then
+  if set_contract_obligation_status.status is null or set_contract_obligation_status.status not in ('open', 'done', 'waived') then
     raise exception 'status must be open, done or waived' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  update "better_supabase"."contract_obligations" x set "status" = set_obligation_status.status,
-    "completed_at" = case when set_obligation_status.status = 'open' then null else now() end,
-    "completed_by" = case when set_obligation_status.status = 'open' then null else auth.uid() end,
+  update "better_supabase"."contract_obligations" x set "status" = set_contract_obligation_status.status,
+    "completed_at" = case when set_contract_obligation_status.status = 'open' then null else now() end,
+    "completed_by" = case when set_contract_obligation_status.status = 'open' then null else auth.uid() end,
     "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -792,10 +792,10 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'contractId', v_row."contract_id", 'title', v_row."title", 'description', v_row."description", 'dueOn', v_row."due_on", 'ownerId', v_row."owner_id", 'status', v_row."status", 'overdue', (v_row."status" = 'open' and v_row."due_on" < current_date), 'completedAt', v_row."completed_at", 'completedBy', v_row."completed_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."set_obligation_status"(uuid, text) from public, anon;
-grant execute on function "better_supabase"."set_obligation_status"(uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."set_contract_obligation_status"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_contract_obligation_status"(uuid, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_obligation"(obligation_id uuid)
+create or replace function "better_supabase"."delete_contract_obligation"(obligation_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -807,9 +807,9 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."contract_obligations" x where x."id" = delete_obligation.obligation_id;
+  select * into v_row from "better_supabase"."contract_obligations" x where x."id" = delete_contract_obligation.obligation_id;
   if not found then
-    raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
+    raise exception 'obligation not found' using errcode = 'P0002', hint = 'CONTRACT_OBLIGATION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
@@ -818,11 +818,11 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'contractId', v_row."contract_id", 'title', v_row."title", 'description', v_row."description", 'dueOn', v_row."due_on", 'ownerId', v_row."owner_id", 'status', v_row."status", 'overdue', (v_row."status" = 'open' and v_row."due_on" < current_date), 'completedAt', v_row."completed_at", 'completedBy', v_row."completed_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."delete_obligation"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_obligation"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_contract_obligation"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_contract_obligation"(uuid) to authenticated, service_role;
 
 -- The obligations the caller can read, the earliest due first.
-create or replace function "better_supabase"."list_obligations"(tenant uuid, contract_id uuid default null, owner_id uuid default null, open_only boolean default false, due_before date default null, page_size integer default 100)
+create or replace function "better_supabase"."list_contract_obligations"(tenant uuid, contract_id uuid default null, owner_id uuid default null, open_only boolean default false, due_before date default null, page_size integer default 100)
 returns jsonb
 language sql
 stable
@@ -832,17 +832,17 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'contractId', x."contract_id", 'title', x."title", 'description', x."description", 'dueOn', x."due_on", 'ownerId', x."owner_id", 'status', x."status", 'overdue', (x."status" = 'open' and x."due_on" < current_date), 'completedAt', x."completed_at", 'completedBy', x."completed_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."due_on" nulls last, x."created_at"), '[]'::jsonb)
   from (
     select * from "better_supabase"."contract_obligations" y
-    where y."tenant_id" = list_obligations.tenant
-      and (list_obligations.contract_id is null or y."contract_id" = list_obligations.contract_id)
-      and (list_obligations.owner_id is null or y."owner_id" = list_obligations.owner_id)
-      and (not coalesce(list_obligations.open_only, false) or y."status" = 'open')
-      and (list_obligations.due_before is null or y."due_on" <= list_obligations.due_before)
+    where y."tenant_id" = list_contract_obligations.tenant
+      and (list_contract_obligations.contract_id is null or y."contract_id" = list_contract_obligations.contract_id)
+      and (list_contract_obligations.owner_id is null or y."owner_id" = list_contract_obligations.owner_id)
+      and (not coalesce(list_contract_obligations.open_only, false) or y."status" = 'open')
+      and (list_contract_obligations.due_before is null or y."due_on" <= list_contract_obligations.due_before)
     order by y."due_on" nulls last, y."created_at"
-    limit least(greatest(coalesce(list_obligations.page_size, 100), 1), 500)
+    limit least(greatest(coalesce(list_contract_obligations.page_size, 100), 1), 500)
   ) x
 $$;
-revoke execute on function "better_supabase"."list_obligations"(uuid, uuid, uuid, boolean, date, integer) from public, anon;
-grant execute on function "better_supabase"."list_obligations"(uuid, uuid, uuid, boolean, date, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_contract_obligations"(uuid, uuid, uuid, boolean, date, integer) from public, anon;
+grant execute on function "better_supabase"."list_contract_obligations"(uuid, uuid, uuid, boolean, date, integer) to authenticated, service_role;
 
 -- Moves this module's rows from one subject record to another when
 -- better_supabase.merge_subject_refs merges them.
@@ -857,7 +857,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['engagement'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.care_plans' then array['care_plan'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.care_plans' then array['care_plan'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     update "better_supabase"."contracts" x set "counterparty_id" = v_keep where x."counterparty_type" = v_type and x."counterparty_id" = v_drop;
   end loop;
 end;
@@ -1015,41 +1015,41 @@ as $$ select "better_supabase"."run_contract_renewals"($1) $$;
 revoke execute on function "api"."run_contract_renewals"(date) from public, anon, authenticated;
 grant execute on function "api"."run_contract_renewals"(date) to service_role;
 
-create or replace function "api"."save_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
+create or replace function "api"."save_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_obligation"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
-grant execute on function "api"."save_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."save_contract_obligation"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
+grant execute on function "api"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
 
-create or replace function "api"."set_obligation_status"(obligation_id uuid, status text)
+create or replace function "api"."set_contract_obligation_status"(obligation_id uuid, status text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."set_obligation_status"($1, $2) $$;
-revoke execute on function "api"."set_obligation_status"(uuid, text) from public, anon;
-grant execute on function "api"."set_obligation_status"(uuid, text) to authenticated, service_role;
+as $$ select "better_supabase"."set_contract_obligation_status"($1, $2) $$;
+revoke execute on function "api"."set_contract_obligation_status"(uuid, text) from public, anon;
+grant execute on function "api"."set_contract_obligation_status"(uuid, text) to authenticated, service_role;
 
-create or replace function "api"."delete_obligation"(obligation_id uuid)
+create or replace function "api"."delete_contract_obligation"(obligation_id uuid)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."delete_obligation"($1) $$;
-revoke execute on function "api"."delete_obligation"(uuid) from public, anon;
-grant execute on function "api"."delete_obligation"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_contract_obligation"($1) $$;
+revoke execute on function "api"."delete_contract_obligation"(uuid) from public, anon;
+grant execute on function "api"."delete_contract_obligation"(uuid) to authenticated, service_role;
 
-create or replace function "api"."list_obligations"(tenant uuid, contract_id uuid default null, owner_id uuid default null, open_only boolean default false, due_before date default null, page_size integer default 100)
+create or replace function "api"."list_contract_obligations"(tenant uuid, contract_id uuid default null, owner_id uuid default null, open_only boolean default false, due_before date default null, page_size integer default 100)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_obligations"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."list_obligations"(uuid, uuid, uuid, boolean, date, integer) from public, anon;
-grant execute on function "api"."list_obligations"(uuid, uuid, uuid, boolean, date, integer) to authenticated, service_role;
+as $$ select "better_supabase"."list_contract_obligations"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."list_contract_obligations"(uuid, uuid, uuid, boolean, date, integer) from public, anon;
+grant execute on function "api"."list_contract_obligations"(uuid, uuid, uuid, boolean, date, integer) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -20,10 +20,7 @@ export const activitiesBlock: BlockOf<
   events: activitiesEvents,
   consumes: { files: "optional" },
   schemas: {
-    engagement: {
-      input: engagementInputSchema,
-      change: engagementChangeSchema,
-    },
+    activity: { input: engagementInputSchema, change: engagementChangeSchema },
   },
   create: createActivities,
   category: "crm",

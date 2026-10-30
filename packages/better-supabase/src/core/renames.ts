@@ -1,11 +1,20 @@
 /**
- * The names the 0.46 naming convention changed (ADR 0130), old to new. The
- * shims, the stored-name migrations, the codemod and doctor read these maps, so
- * each rename is written once.
+ * The names the naming convention changed (ADR 0130), old to new: permission
+ * keys in 0.46, entity keys, subject types and hints in 0.47. The shims, the
+ * stored-name migrations, the codemods and doctor read these maps, so each
+ * rename is written once.
  */
 
-/** The `better-supabase codemod` version that applies these maps. */
+/**
+ * The `better-supabase codemod` version that applies the permission key
+ * renames.
+ */
 export const RENAMES_CODEMOD = "0.46";
+
+/** The codemod that applies the 0.47 entity, subject type and hint renames. */
+export const ENTITY_RENAMES_CODEMOD = "0.47";
+
+export { HINT_RENAMES, legacyHintOf } from "./hint-renames.ts";
 
 const frozen = (
   entries: Readonly<Record<string, string>>,
@@ -130,13 +139,55 @@ export const PERMISSION_KEY_SPLITS: Readonly<
 /** Outbox event types, old to new. */
 export const EVENT_TYPE_RENAMES: Readonly<Record<string, string>> = frozen({});
 
-/** Hint codes in `DbError.details.hint`, old to new. */
-export const HINT_RENAMES: Readonly<Record<string, string>> = frozen({});
+/**
+ * Subject types stored in `subject_type` columns, old to new: the subject
+ * entities whose singular changed. `rename_subject_type` moves stored rows, and
+ * the subjects functions read an old type as its new one for one minor.
+ */
+export const SUBJECT_TYPE_RENAMES: Readonly<Record<string, string>> = frozen({
+  engagement: "activity",
+  policy: "compliance_policy",
+  work_item: "task",
+});
 
-/** Subject types stored in `subject_type` columns, old to new. */
-export const SUBJECT_TYPE_RENAMES: Readonly<Record<string, string>> = frozen(
-  {},
-);
+/**
+ * `blocks.<name>.entities` keys, old to new, by block. A key now equals the
+ * entity's singular; an old key still resolves for one minor.
+ */
+export const ENTITY_KEY_RENAMES: Readonly<
+  Record<string, Readonly<Record<string, string>>>
+> = Object.freeze({
+  "access-requests": frozen({ request: "access_request" }),
+  activities: frozen({ engagement: "activity" }),
+  "ai-chat": frozen({ chat: "ai_chat", project: "ai_project" }),
+  "ai-files": frozen({ document: "ai_document" }),
+  "ai-schedules": frozen({ task: "ai_scheduled_task" }),
+  "api-keys": frozen({ key: "api_key" }),
+  automations: frozen({ rule: "automation" }),
+  collections: frozen({ collection: "subject_collection" }),
+  compliance: frozen({ policy: "compliance_policy" }),
+  connectors: frozen({ server: "connector_server" }),
+  contracts: frozen({ obligation: "contract_obligation" }),
+  "custom-fields": frozen({ field: "field_definition" }),
+  drive: frozen({ node: "drive_node" }),
+  forecasts: frozen({ snapshot: "forecast_snapshot" }),
+  goals: frozen({ target: "goal" }),
+  hiring: frozen({ job: "job_opening" }),
+  incidents: frozen({ postmortem: "incident_postmortem" }),
+  inventory: frozen({ location: "inventory_location" }),
+  knowledge: frozen({ document: "knowledge_document" }),
+  leave: frozen({ request: "leave_request", type: "leave_type" }),
+  "saved-views": frozen({ view: "saved_view" }),
+  "share-links": frozen({ link: "share_link" }),
+  signatures: frozen({ request: "signature_request" }),
+  sla: frozen({ policy: "sla_policy" }),
+  tasks: frozen({ work_item: "task" }),
+  "time-tracking": frozen({ entry: "time_entry" }),
+  timeline: frozen({ entry: "timeline_entry" }),
+  waitlist: frozen({ entry: "waitlist_entry" }),
+  "webhooks-out": frozen({ endpoint: "webhook_endpoint" }),
+  "workflow-editor": frozen({ definition: "workflow_definition" }),
+});
 
 /** `value`'s new name in `map`, or `value` when it was not renamed. */
 export function renamed(

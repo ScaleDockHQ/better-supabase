@@ -72,7 +72,7 @@ describe("project costing", () => {
     expect(alone).toContain("where false");
     expect(booked).not.toContain("where false");
     expect(booked).toContain("'project'");
-    expect(alone).toContain("WORK_ITEM_PROJECT_NOT_FOUND");
+    expect(alone).toContain("TASK_PROJECT_NOT_FOUND");
   });
 
   it("counts work item time only when work items have a project column", () => {

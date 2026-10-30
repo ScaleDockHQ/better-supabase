@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:8644b3e90f808d4999dd4e23945b081b10a673b4d721893ac7dc9a3e79961a78
+-- @bsb-hash sha256:e2cc5e7b3ebaecf3160f39e38957d5e729a319f9c5378d22c8fed40b74820d21
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -149,7 +149,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,qualification_type,risk,care_plan,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[]
+  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,care_plan,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -179,7 +179,7 @@ begin
       return (select s."title"::text from "better_supabase"."courses" s where s."id" = (subject_title.subject_id)::uuid);
     when 'post' then
       return (select s."title"::text from "better_supabase"."posts" s where s."id" = (subject_title.subject_id)::uuid);
-    when 'engagement' then
+    when 'activity', 'engagement' then
       return (select s."title"::text from "better_supabase"."engagements" s where s."id" = (subject_title.subject_id)::uuid);
     when 'quote' then
       return (select s."title"::text from "better_supabase"."quotes" s where s."id" = (subject_title.subject_id)::uuid);
@@ -221,7 +221,7 @@ begin
       return (select s."title"::text from "better_supabase"."contracts" s where s."id" = (subject_title.subject_id)::uuid);
     when 'control' then
       return (select s."title"::text from "better_supabase"."controls" s where s."id" = (subject_title.subject_id)::uuid);
-    when 'policy' then
+    when 'compliance_policy', 'policy' then
       return (select s."title"::text from "better_supabase"."policies" s where s."id" = (subject_title.subject_id)::uuid);
     when 'qualification_type' then
       return (select s."name"::text from "better_supabase"."qualification_types" s where s."id" = (subject_title.subject_id)::uuid);
@@ -367,10 +367,10 @@ begin
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'post')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
-      'type', 'engagement', 'id', s."id"::text,
+      'type', 'activity', 'id', s."id"::text,
       'title', s."title"::text, 'url', null::text))
     from "better_supabase"."engagements" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'engagement')::uuid[])), '[]'::jsonb);
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'activity')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'quote', 'id', s."id"::text,
@@ -493,10 +493,10 @@ begin
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'control')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
-      'type', 'policy', 'id', s."id"::text,
+      'type', 'compliance_policy', 'id', s."id"::text,
       'title', s."title"::text, 'url', null::text))
     from "better_supabase"."policies" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'policy')::uuid[])), '[]'::jsonb);
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'compliance_policy')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'qualification_type', 'id', s."id"::text,
@@ -680,7 +680,7 @@ begin
           else true
         end)
       );
-    when 'engagement' then
+    when 'activity', 'engagement' then
       return exists (
         select 1 from "better_supabase"."engagements" s
         where s."id" = (can_subject.subject_id)::uuid
@@ -891,7 +891,7 @@ begin
           else true
         end)
       );
-    when 'policy' then
+    when 'compliance_policy', 'policy' then
       return exists (
         select 1 from "better_supabase"."policies" s
         where s."id" = (can_subject.subject_id)::uuid
@@ -1193,7 +1193,7 @@ begin
           else false
         end
       );
-    when 'engagement' then
+    when 'activity', 'engagement' then
       return exists (
         select 1 from "better_supabase"."engagements" s
         where s."id" = (can_subject_for.subject_id)::uuid
@@ -1404,7 +1404,7 @@ begin
           else false
         end
       );
-    when 'policy' then
+    when 'compliance_policy', 'policy' then
       return exists (
         select 1 from "better_supabase"."policies" s
         where s."id" = (can_subject_for.subject_id)::uuid

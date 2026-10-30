@@ -1631,7 +1631,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:e6f7c88a2da0e2d1aa5f72217de080880f1e51cc0a9cac7a7f3b7e5595cec55b
+-- @bsb-hash sha256:101634858cbd5024629c0298eb2805dced41dd2a0b0190bcd1b53c7a1f74ee90
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2705,7 +2705,7 @@ begin
   end if;
   select * into v_plan from "better_supabase"."care_plans" x where x."id" = v_row."plan_id";
   if v_row."kind" = 'task' and v_row."task_id" is null then
-    v_task := "better_supabase"."create_work_item"(v_row."tenant_id",
+    v_task := "better_supabase"."create_task"(v_row."tenant_id",
       jsonb_strip_nulls(jsonb_build_object('title', v_row."title", 'body', v_row."instructions")),
       case when v_plan."owner_id" is null then '{}'::uuid[] else array[v_plan."owner_id"] end);
     update "better_supabase"."care_plan_actions" w set "task_id" = (v_task ->> 'id')::uuid where w."id" = v_row."id";

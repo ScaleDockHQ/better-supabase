@@ -91,7 +91,7 @@ ${internal(`${fn("match_mail_thread")}(uuid)`)}
  */
 function engagementSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, h, l } = n;
-  const log = ctx.of("activities").fn("log_engagement");
+  const log = ctx.of("activities").fn("log_activity");
 
   const thread = (column: string): string =>
     n.has("threads", column) ? `x.${h(column)}` : "null::text";

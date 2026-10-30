@@ -140,7 +140,7 @@ export function createGoals<S extends StandardSchemaV1 | undefined = undefined>(
         .args(extra)
         .andThen((checked) =>
           call(
-            "save_target",
+            "save_goal",
             {
               tenant: organizationId,
               target: id ?? null,
@@ -157,14 +157,14 @@ export function createGoals<S extends StandardSchemaV1 | undefined = undefined>(
     },
     progress: (organizationId, progress = {}) =>
       call(
-        "target_progress",
+        "goal_progress",
         {
           tenant: organizationId,
           on_date: progress.on === undefined ? null : progress.on.toString(),
           owner: progress.ownerId ?? null,
         },
         (value) =>
-          recordsOf(value, "target_progress").map((row) => ({
+          recordsOf(value, "goal_progress").map((row) => ({
             ...targetOf(row),
             progress: bigintOf(row["progress"], "target progress"),
             attainment: Number(row["attainment"] ?? 0),

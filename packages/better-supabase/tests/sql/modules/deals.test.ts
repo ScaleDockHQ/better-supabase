@@ -83,9 +83,9 @@ describe("deals module", () => {
 
   it("reads the next step from engagements when installed", () => {
     expect(body("deals", render({}, ["activities"]))).toContain(
-      "next_engagement\"('deal'",
+      "next_activity\"('deal'",
     );
-    expect(body("deals", render())).not.toContain("next_engagement");
+    expect(body("deals", render())).not.toContain("next_activity");
   });
 
   it("renders nothing in custom mode and rejects bad option lists", () => {

@@ -169,7 +169,7 @@ describe("block fields", () => {
         business_hours: false,
         fields: { priority: "high", points: 1 },
       },
-      save_target: {
+      save_goal: {
         id: "g1",
         name: "Q4",
         metric: "deals.won_count",
@@ -177,7 +177,7 @@ describe("block fields", () => {
         period_end: "2026-12-31",
         goal: "10",
       },
-      create_work_item: {
+      create_task: {
         id: "w1",
         tenant_id: "o",
         number: "1",

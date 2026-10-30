@@ -119,14 +119,14 @@ declare
 begin
   select * into v_row from ${t} x where x.${r("id")} = reset_default_rule.id for update;
   if v_row.${r("id")} is null or not ${can(`v_row.${r("tenant")}`, read)} then
-    ${fail("RULE_NOT_FOUND", "No rule you can read has this id", "P0002")}
+    ${fail("AUTOMATION_NOT_FOUND", "No rule you can read has this id", "P0002")}
   end if;
   select * into v_default from ${d} x where x.${rd("key")} = ${defaultKey};
   if v_default.${rd("key")} is null then
-    ${fail("RULE_NOT_DEFAULT", "No block ships this rule", "22023")}
+    ${fail("AUTOMATION_NOT_DEFAULT", "No block ships this rule", "22023")}
   end if;
   if not ${canKey(`v_row.${r("tenant")}`, `(v_row.${r("enabled")} or v_default.${rd("enabled")})`)} then
-    ${raise("You need % to reset this rule", "42501", "RULE_FORBIDDEN", keyFor(`(v_row.${r("enabled")} or v_default.${rd("enabled")})`))}
+    ${raise("You need % to reset this rule", "42501", "AUTOMATION_FORBIDDEN", keyFor(`(v_row.${r("enabled")} or v_default.${rd("enabled")})`))}
   end if;
   update ${t} x set
     ${reset}

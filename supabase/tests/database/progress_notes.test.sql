@@ -18,17 +18,17 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('test.team', better_supabase.log_engagement(
+select set_config('test.team', better_supabase.log_activity(
   '00000000-0000-4000-8000-000000000001',
   '{"type": "note", "title": "Weekly check-in", "category": "care"}',
   '[{"type": "customer", "id": "00000000-0000-4000-8000-00000000a001"}]'
 ) ->> 'id', true);
-select set_config('test.subject', better_supabase.log_engagement(
+select set_config('test.subject', better_supabase.log_activity(
   '00000000-0000-4000-8000-000000000001',
   '{"type": "note", "title": "Shared with the family", "audience": "subject"}',
   '[{"type": "customer", "id": "00000000-0000-4000-8000-00000000a001"}]'
 ) ->> 'id', true);
-select set_config('test.restricted', better_supabase.log_engagement(
+select set_config('test.restricted', better_supabase.log_activity(
   '00000000-0000-4000-8000-000000000001',
   '{"type": "note", "title": "Assessment", "audience": "restricted", "restrictedRoles": ["lead"]}',
   '[{"type": "customer", "id": "00000000-0000-4000-8000-00000000a001"}]'
@@ -45,14 +45,14 @@ select is(
   'a restricted note keeps its roles'
 );
 select throws_ok(
-  $$select better_supabase.log_engagement('00000000-0000-4000-8000-000000000001',
+  $$select better_supabase.log_activity('00000000-0000-4000-8000-000000000001',
     '{"type": "note", "title": "Bad", "audience": "everyone"}', '[]')$$,
   '22023',
   'audience must be one of team, subject, restricted',
   'an unknown audience is refused'
 );
 select throws_ok(
-  $$select better_supabase.log_engagement('00000000-0000-4000-8000-000000000001',
+  $$select better_supabase.log_activity('00000000-0000-4000-8000-000000000001',
     '{"type": "note", "title": "Bad", "category": "gossip"}', '[]')$$,
   '22023',
   null,
@@ -188,35 +188,35 @@ select set_config(
 set local role authenticated;
 
 select throws_ok(
-  format($$select better_supabase.update_engagement('%s', '{"title": "Changed"}', null)$$, current_setting('test.team')),
+  format($$select better_supabase.update_activity('%s', '{"title": "Changed"}', null)$$, current_setting('test.team')),
   '55000',
-  'the engagement is locked: add an addendum with amend_engagement instead',
+  'the engagement is locked: add an addendum with amend_activity instead',
   'a locked note cannot be edited'
 );
 select throws_ok(
-  format($$select better_supabase.complete_engagement('%s', true, null)$$, current_setting('test.team')),
+  format($$select better_supabase.complete_activity('%s', true, null)$$, current_setting('test.team')),
   '55000',
   null,
   'a locked note cannot be completed'
 );
 select is(
-  better_supabase.amend_engagement(current_setting('test.team')::uuid, 'Also spoke with the GP.') ->> 'amends_id',
+  better_supabase.amend_activity(current_setting('test.team')::uuid, 'Also spoke with the GP.') ->> 'amends_id',
   current_setting('test.team'),
   'an addendum links to the note it amends'
 );
 select is(
-  better_supabase.mark_engagement_error(current_setting('test.subject')::uuid, 'Wrong client') ->> 'marked_error_reason',
+  better_supabase.mark_activity_error(current_setting('test.subject')::uuid, 'Wrong client') ->> 'marked_error_reason',
   'Wrong client',
   'a note is marked as entered in error with a reason'
 );
 select throws_ok(
-  format($$select better_supabase.update_engagement('%s', '{"title": "Changed"}', null)$$, current_setting('test.subject')),
+  format($$select better_supabase.update_activity('%s', '{"title": "Changed"}', null)$$, current_setting('test.subject')),
   '55000',
   null,
   'a note marked in error is locked'
 );
 select throws_ok(
-  format($$select better_supabase.mark_engagement_error('%s', 'Again')$$, current_setting('test.subject')),
+  format($$select better_supabase.mark_activity_error('%s', 'Again')$$, current_setting('test.subject')),
   '55000',
   'the engagement is already marked in error',
   'a note is marked in error once'

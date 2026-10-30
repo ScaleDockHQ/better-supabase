@@ -915,6 +915,21 @@ export const blockConfig = {
     schema: "better_supabase",
     api: "api",
     options: {},
+    names: {
+      functions: {
+        archive_task: "archive_work_item",
+        create_task: "create_work_item",
+        delete_task: "delete_work_item",
+        delete_task_checklist_item: "delete_work_item_checklist_item",
+        get_task: "get_work_item",
+        list_task_checklist: "list_work_item_checklist",
+        list_tasks: "list_work_items",
+        save_task_checklist_item: "save_work_item_checklist_item",
+        set_task_assignees: "set_work_item_assignees",
+        task_tree: "work_item_tree",
+        update_tasks: "update_work_items",
+      },
+    },
   },
   maintenance: {
     schema: "better_supabase",
@@ -922,19 +937,19 @@ export const blockConfig = {
     options: {},
     names: {
       functions: {
-        archive_work_item: "archive_maintenance_request",
-        create_work_item: "create_maintenance_request",
-        delete_work_item: "delete_maintenance_request",
-        delete_work_item_checklist_item: "delete_maintenance_request_checklist_item",
-        get_work_item: "get_maintenance_request",
-        list_work_item_checklist: "list_maintenance_request_checklist",
-        list_work_items: "list_maintenance_requests",
+        archive_task: "archive_maintenance_request",
+        create_task: "create_maintenance_request",
+        delete_task: "delete_maintenance_request",
+        delete_task_checklist_item: "delete_maintenance_request_checklist_item",
+        get_task: "get_maintenance_request",
+        list_task_checklist: "list_maintenance_request_checklist",
+        list_tasks: "list_maintenance_requests",
+        save_task_checklist_item: "save_maintenance_request_checklist_item",
+        set_task_assignees: "set_maintenance_request_assignees",
+        task_tree: "maintenance_request_tree",
+        update_tasks: "update_maintenance_requests",
         save_iteration: "maintenance_save_iteration",
         save_project: "maintenance_save_project",
-        save_work_item_checklist_item: "save_maintenance_request_checklist_item",
-        set_work_item_assignees: "set_maintenance_request_assignees",
-        update_work_items: "update_maintenance_requests",
-        work_item_tree: "maintenance_request_tree",
       },
       entities: [{
         from: {
@@ -1214,6 +1229,10 @@ export const permissions = {
     manage: "activities.manage",
     readRestricted: "activities.read_restricted",
   },
+  activity: {
+    read: "activities.read",
+    write: "activities.write",
+  },
   agents: {
     read: "agents.read",
     create: "agents.write",
@@ -1354,6 +1373,10 @@ export const permissions = {
     collect: "compliance.collect",
     acknowledge: "compliance.acknowledge",
   },
+  compliance_policy: {
+    read: "compliance.read",
+    write: "compliance.manage",
+  },
   connectors: {
     read: "connectors.read",
     use: "connectors.use",
@@ -1468,10 +1491,6 @@ export const permissions = {
     read: "employees.read",
     write: "employees.write",
     viewSensitive: "employees.read_sensitive",
-  },
-  engagement: {
-    read: "activities.read",
-    write: "activities.write",
   },
   enrichment: {
     read: "enrichment.read",
@@ -1678,10 +1697,6 @@ export const permissions = {
   pipelines: {
     read: "pipelines.read",
     manage: "pipelines.manage",
-  },
-  policy: {
-    read: "compliance.read",
-    write: "compliance.manage",
   },
   post: {
     read: "posts.read",

@@ -159,12 +159,12 @@ begin
   if v_posture::text not like '%passing%' then
     raise exception 'posture %', v_posture;
   end if;
-  v_policy := better_supabase.save_policy('${TENANT}', 'security', 'Security policy');
-  perform better_supabase.save_policy('${TENANT}', 'security', 'Information security policy');
+  v_policy := better_supabase.save_compliance_policy('${TENANT}', 'security', 'Security policy');
+  perform better_supabase.save_compliance_policy('${TENANT}', 'security', 'Information security policy');
   if (select count(*) from public.rulebooks) <> 1 then
     raise exception 'policy %', v_policy;
   end if;
-  v_policy := better_supabase.publish_policy((v_policy ->> 'id')::uuid, '{"body": "Be careful"}'::jsonb);
+  v_policy := better_supabase.publish_compliance_policy((v_policy ->> 'id')::uuid, '{"body": "Be careful"}'::jsonb);
   if (select version_number from public.rulebooks) <> 1 then
     raise exception 'published %', v_policy;
   end if;

@@ -63,7 +63,7 @@ describe.skipIf(!live)("hiring", () => {
         .orThrow();
 
       expect(hint(await hiring.apply(draft.id, { id: ada.id }))).toBe(
-        "HIRING_JOB_NOT_OPEN",
+        "JOB_OPENING_NOT_OPEN",
       );
 
       const job = await hiring

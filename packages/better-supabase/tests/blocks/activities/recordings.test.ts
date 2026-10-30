@@ -170,8 +170,8 @@ const job = (attempts: number): Job<{ readonly recordingId: string }> =>
 describe("engagement recordings", () => {
   it("attaches a file and lists recordings", async () => {
     const t = transport({
-      attach_engagement_recording: () => RECORDING,
-      engagement_recordings: () => [RECORDING, TRANSCRIBED],
+      attach_activity_recording: () => RECORDING,
+      activity_recordings: () => [RECORDING, TRANSCRIBED],
     });
 
     const engagements = createActivities({ transport: t });
@@ -184,7 +184,7 @@ describe("engagement recordings", () => {
     const all = await engagements.recordings("e1").orThrow();
 
     expect(t.calls[0]).toEqual([
-      "attach_engagement_recording",
+      "attach_activity_recording",
       { engagement: "e1", file: "f1", language: "en" },
     ]);
     expect(t.calls[1]?.[1]).toMatchObject({ language: null });
@@ -200,8 +200,8 @@ describe("engagement recordings", () => {
 
   it("pages a transcript and saves one", async () => {
     const t = transport({
-      engagement_transcript: () => SEGMENTS,
-      save_engagement_transcript: () => TRANSCRIBED,
+      activity_transcript: () => SEGMENTS,
+      save_activity_transcript: () => TRANSCRIBED,
     });
 
     const engagements = createActivities({ transport: t });
@@ -246,8 +246,8 @@ describe("engagement recordings", () => {
     const t = transport({});
 
     const service = transport({
-      get_engagement_recording: () => RECORDING,
-      save_engagement_transcript: () => TRANSCRIBED,
+      get_activity_recording: () => RECORDING,
+      save_activity_transcript: () => TRANSCRIBED,
     });
 
     const store = files();
@@ -269,7 +269,7 @@ describe("engagement recordings", () => {
     expect(store.reads).toEqual(["f1", "f1"]);
     expect(t.calls).toEqual([]);
     expect(service.calls[1]).toEqual([
-      "save_engagement_transcript",
+      "save_activity_transcript",
       {
         recording: "r1",
         segments: [
@@ -292,8 +292,8 @@ describe("engagement recordings", () => {
 
   it("passes no language when the recording has none", async () => {
     const service = transport({
-      get_engagement_recording: () => ({ ...RECORDING, language: null }),
-      save_engagement_transcript: () => TRANSCRIBED,
+      get_activity_recording: () => ({ ...RECORDING, language: null }),
+      save_activity_transcript: () => TRANSCRIBED,
     });
 
     const seen: (string | undefined)[] = [];
@@ -317,7 +317,7 @@ describe("engagement recordings", () => {
   });
 
   it("refuses to transcribe without a transcriber, files or recording", async () => {
-    const service = transport({ get_engagement_recording: () => null });
+    const service = transport({ get_activity_recording: () => null });
 
     const none = await createActivities({ transport: service }).transcribe(
       "r1",
@@ -335,20 +335,20 @@ describe("engagement recordings", () => {
     }).transcribe("r1");
 
     const unsigned = await createActivities({
-      transport: transport({ get_engagement_recording: () => RECORDING }),
+      transport: transport({ get_activity_recording: () => RECORDING }),
       files: files(true).files,
       transcriber: transcriber(),
     }).transcribe("r1");
 
     expect(none.ok || none.error.hint).toBe("ENGAGEMENT_NO_TRANSCRIBER");
     expect(noFiles.ok || noFiles.error.hint).toBe("ENGAGEMENT_NO_FILES");
-    expect(gone.ok || gone.error.hint).toBe("ENGAGEMENT_RECORDING_NOT_FOUND");
+    expect(gone.ok || gone.error.hint).toBe("ACTIVITY_RECORDING_NOT_FOUND");
     expect(unsigned.ok || unsigned.error.kind).toBe("not_found");
   });
 
   it("turns a transcriber error into a result", async () => {
     const result = await createActivities({
-      transport: transport({ get_engagement_recording: () => RECORDING }),
+      transport: transport({ get_activity_recording: () => RECORDING }),
       files: files().files,
       transcriber: transcriber(new Error("quota")),
     }).transcribe("r1");
@@ -362,9 +362,9 @@ describe("engagement recordings", () => {
 
   it("runs as a job and marks the recording failed on the last attempt", async () => {
     const service = transport({
-      get_engagement_recording: () => RECORDING,
-      save_engagement_transcript: () => TRANSCRIBED,
-      fail_engagement_recording: () => true,
+      get_activity_recording: () => RECORDING,
+      save_activity_transcript: () => TRANSCRIBED,
+      fail_activity_recording: () => true,
     });
 
     const working = createActivities({
@@ -386,25 +386,25 @@ describe("engagement recordings", () => {
       failing({ recordingId: "r1" }, job(1), signal),
     ).rejects.toBeInstanceOf(DbException);
     expect(service.calls.map(([fn]) => fn)).not.toContain(
-      "fail_engagement_recording",
+      "fail_activity_recording",
     );
     await expect(
       failing({ recordingId: "r1" }, job(3), signal),
     ).rejects.toBeInstanceOf(DbException);
 
     expect(service.calls.at(-1)).toEqual([
-      "fail_engagement_recording",
+      "fail_activity_recording",
       { recording: "r1", error: "down" },
     ]);
   });
 
   it("drains pending recordings and fails the ones that error", async () => {
     const service = transport({
-      pending_engagement_recordings: () => ["r1", "r2"],
-      get_engagement_recording: (args) =>
+      pending_activity_recordings: () => ["r1", "r2"],
+      get_activity_recording: (args) =>
         args["recording"] === "r1" ? RECORDING : null,
-      save_engagement_transcript: () => TRANSCRIBED,
-      fail_engagement_recording: () => false,
+      save_activity_transcript: () => TRANSCRIBED,
+      fail_activity_recording: () => false,
     });
 
     const engagements = createActivities({
@@ -427,18 +427,18 @@ describe("engagement recordings", () => {
     expect(aborted).toBe(0);
     expect(signalled).toBe(1);
     expect(service.calls[0]).toEqual([
-      "pending_engagement_recordings",
+      "pending_activity_recordings",
       { batch: 5 },
     ]);
     expect(service.calls).toContainEqual([
-      "fail_engagement_recording",
+      "fail_activity_recording",
       { recording: "r2", error: "no such recording" },
     ]);
   });
 
   it("reads nothing pending as an empty drain", async () => {
     const done = await createActivities({
-      transport: transport({ pending_engagement_recordings: () => null }),
+      transport: transport({ pending_activity_recordings: () => null }),
     })
       .drainRecordings()
       .orThrow();
@@ -464,8 +464,8 @@ describe("recording rows", () => {
 describe("engagement notes", () => {
   it("reads and saves a member's notes", async () => {
     const t = transport({
-      engagement_notes: (args) => (args["engagement"] === "e1" ? NOTES : null),
-      save_engagement_notes: () => ({
+      activity_notes: (args) => (args["engagement"] === "e1" ? NOTES : null),
+      save_activity_notes: () => ({
         ...NOTES,
         source: "member",
         model: null,
@@ -512,14 +512,14 @@ describe("engagement notes", () => {
 
   it("summarizes the transcripts with the note taker", async () => {
     const t = transport({
-      engagement_with_transcripts: () => ({
+      activity_with_transcripts: () => ({
         engagement: ENGAGEMENT,
         segments: SEGMENTS.map((segment) => ({
           ...segment,
           recordingId: "r1",
         })),
       }),
-      save_engagement_notes: () => NOTES,
+      save_activity_notes: () => NOTES,
     });
 
     const inputs: unknown[] = [];
@@ -555,7 +555,7 @@ describe("engagement notes", () => {
     ]);
     expect(inputs[1]).toMatchObject([{}, false]);
     expect(t.calls[1]).toEqual([
-      "save_engagement_notes",
+      "save_activity_notes",
       {
         engagement: "e1",
         notes: {
@@ -569,7 +569,7 @@ describe("engagement notes", () => {
   });
 
   it("refuses to summarize without a note taker or engagement", async () => {
-    const t = transport({ engagement_with_transcripts: () => null });
+    const t = transport({ activity_with_transcripts: () => null });
 
     const none = await createActivities({ transport: t }).summarize("e1");
 
@@ -580,7 +580,7 @@ describe("engagement notes", () => {
 
     const broken = await createActivities({
       transport: transport({
-        engagement_with_transcripts: () => ({
+        activity_with_transcripts: () => ({
           engagement: ENGAGEMENT,
           segments: [],
         }),
@@ -592,7 +592,7 @@ describe("engagement notes", () => {
     }).summarize("e1");
 
     expect(none.ok || none.error.hint).toBe("ENGAGEMENT_NO_NOTE_TAKER");
-    expect(gone.ok || gone.error.hint).toBe("ENGAGEMENT_NOT_FOUND");
+    expect(gone.ok || gone.error.hint).toBe("ACTIVITY_NOT_FOUND");
     expect(broken.ok || broken.error.hint).toBe("ENGAGEMENT_SUMMARIZE_FAILED");
   });
 

@@ -620,7 +620,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         .args(extra)
         .andThen((checked) =>
           call(
-            "create_work_item",
+            "create_task",
             {
               tenant: organizationId,
               attrs: {
@@ -653,7 +653,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         return ok(changes);
       }).andThen((checked) =>
         call(
-          "update_work_items",
+          "update_tasks",
           {
             changes: checked.map((change) => ({
               workItemId: change.workItemId,
@@ -666,7 +666,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
             ...(updateOptions.atomic === true ? { atomic: true } : {}),
           },
           (value) => {
-            const row = recordOf(value, "update_work_items");
+            const row = recordOf(value, "update_tasks");
 
             return {
               accepted: recordsOf(row["accepted"], "accepted").map((item) => ({
@@ -687,39 +687,35 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     assign: (workItemId, userIds) =>
       call(
-        "set_work_item_assignees",
+        "set_task_assignees",
         { work_item: workItemId, users: [...userIds] },
         (value) => num(value) ?? 0,
       ),
     archive: (workItemId, archived = true) =>
       call(
-        "archive_work_item",
+        "archive_task",
         { work_item: workItemId, archived },
         (value) => value === true,
       ),
     remove: (workItemId) =>
-      call(
-        "delete_work_item",
-        { work_item: workItemId },
-        (value) => value === true,
-      ),
+      call("delete_task", { work_item: workItemId }, (value) => value === true),
     tree: (rootId) =>
-      call("work_item_tree", { root: rootId }, (value) =>
-        recordsOf(value, "work_item_tree").map(nodeOf),
+      call("task_tree", { root: rootId }, (value) =>
+        recordsOf(value, "task_tree").map(nodeOf),
       ),
     get: (workItemId) =>
-      call("get_work_item", { work_item: workItemId }, (value) =>
+      call("get_task", { work_item: workItemId }, (value) =>
         value === null || value === undefined ? undefined : itemOf(value),
       ).andThen((item) =>
         item === undefined ? AsyncResult.ok(undefined) : fields.row(item),
       ),
     checklist: (workItemId) =>
-      call("list_work_item_checklist", { work_item: workItemId }, (value) =>
-        recordsOf(value, "list_work_item_checklist").map(checklistItemOf),
+      call("list_task_checklist", { work_item: workItemId }, (value) =>
+        recordsOf(value, "list_task_checklist").map(checklistItemOf),
       ),
     saveChecklistItem: (workItemId, input, checklistItemId) =>
       call(
-        "save_work_item_checklist_item",
+        "save_task_checklist_item",
         {
           work_item: workItemId,
           checklist_item: checklistItemId ?? null,
@@ -729,13 +725,13 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     removeChecklistItem: (checklistItemId) =>
       call(
-        "delete_work_item_checklist_item",
+        "delete_task_checklist_item",
         { checklist_item: checklistItemId },
         (value) => value === true,
       ),
     setRecurrence: (workItemId, rule) =>
       call(
-        "set_work_item_recurrence",
+        "set_task_recurrence",
         {
           work_item: workItemId,
           rrule: rule?.rrule ?? null,
@@ -745,25 +741,25 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     repeat: (workItemId, dueAt) =>
       call(
-        "repeat_work_item",
+        "repeat_task",
         { work_item: workItemId, due_at: dueAt.toString() },
         itemOf,
       ).andThen(fields.row),
     watch: (workItemId, level) =>
       call(
-        "watch_work_item",
+        "watch_task",
         { work_item: workItemId, level },
         (value) => value === true,
       ),
     watchers: (workItemId) =>
-      call("list_work_item_watchers", { work_item: workItemId }, (value) =>
-        recordsOf(value, "list_work_item_watchers").map(watcherOf),
+      call("list_task_watchers", { work_item: workItemId }, (value) =>
+        recordsOf(value, "list_task_watchers").map(watcherOf),
       ),
     list: (organizationId, list = {}) => {
       const { search, after, limit, ...filter } = list;
 
       return call(
-        "list_work_items",
+        "list_tasks",
         {
           tenant: organizationId,
           filter,
@@ -771,7 +767,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
           after: after ?? null,
           page_size: limit ?? null,
         },
-        (value) => recordsOf(value, "list_work_items").map(itemOf),
+        (value) => recordsOf(value, "list_tasks").map(itemOf),
       ).andThen(fields.rows);
     },
     saveProject: (organizationId, project) => {

@@ -86,7 +86,7 @@ function actionSteps(ctx: BlockSqlContext, q: CarePlansSql): string {
       ? ""
       : `
   if v_row.${a("kind")} = 'task' and v_row.${a("task")} is null then
-    v_task := ${tasks.fn("create_work_item")}(v_row.${a("tenant")},
+    v_task := ${tasks.fn("create_task")}(v_row.${a("tenant")},
       jsonb_strip_nulls(jsonb_build_object('title', v_row.${a("title")}, 'body', v_row.${a("instructions")})),
       case when v_plan.${p("owner")} is null then '{}'::uuid[] else array[v_plan.${p("owner")}] end);
     update ${actions} w set ${a("task")} = (v_task ->> 'id')::uuid where w.${a("id")} = v_row.${a("id")};

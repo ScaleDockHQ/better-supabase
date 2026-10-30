@@ -432,7 +432,7 @@ export function createActivities<
     transcript,
   ) =>
     service(
-      "save_engagement_transcript",
+      "save_activity_transcript",
       {
         recording: recordingId,
         segments: segmentsArg(transcript.segments),
@@ -460,7 +460,7 @@ export function createActivities<
     }
 
     return service(
-      "get_engagement_recording",
+      "get_activity_recording",
       { recording: recordingId },
       (value) => (value === null ? undefined : recordingOf(value)),
     )
@@ -468,7 +468,7 @@ export function createActivities<
         recording === undefined
           ? AsyncResult.err(
               dbError("not_found", "no such recording", {
-                hint: "ENGAGEMENT_RECORDING_NOT_FOUND",
+                hint: "ACTIVITY_RECORDING_NOT_FOUND",
               }),
             )
           : files.files
@@ -510,7 +510,7 @@ export function createActivities<
 
   const fail = (recordingId: string, error: string) =>
     service(
-      "fail_engagement_recording",
+      "fail_activity_recording",
       { recording: recordingId, error },
       (value) => value === true,
     );
@@ -520,7 +520,7 @@ export function createActivities<
       checked(input)
         .andThen((attrs) =>
           call(
-            "log_engagement",
+            "log_activity",
             { tenant: organizationId, attrs, subjects: subjectsArg(subjects) },
             engagementOf,
           ),
@@ -530,7 +530,7 @@ export function createActivities<
       checked(input)
         .andThen((attrs) =>
           call(
-            "update_engagement",
+            "update_activity",
             {
               engagement: id,
               attrs,
@@ -542,7 +542,7 @@ export function createActivities<
         .andThen(parsed),
     complete: (id, complete = {}) =>
       call(
-        "complete_engagement",
+        "complete_activity",
         {
           engagement: id,
           done: complete.done ?? true,
@@ -551,20 +551,20 @@ export function createActivities<
         engagementOf,
       ).andThen(parsed),
     remove: (id) =>
-      call("delete_engagement", { engagement: id }, (value) => value === true),
+      call("delete_activity", { engagement: id }, (value) => value === true),
     amend: (id, body) =>
-      call("amend_engagement", { engagement: id, body }, engagementOf).andThen(
+      call("amend_activity", { engagement: id, body }, engagementOf).andThen(
         parsed,
       ),
     markError: (id, reason) =>
       call(
-        "mark_engagement_error",
+        "mark_activity_error",
         { engagement: id, reason },
         engagementOf,
       ).andThen(parsed),
     of: (subject, list = {}) =>
       call(
-        "engagements_of",
+        "activities_of",
         {
           subject_type: subject.type,
           subject_id: subject.id,
@@ -572,11 +572,11 @@ export function createActivities<
           before: instantArg(list.before) ?? null,
           page_size: list.limit ?? null,
         },
-        (value) => recordsOf(value, "engagements_of").map(engagementOf),
+        (value) => recordsOf(value, "activities_of").map(engagementOf),
       ).andThen(parsedAll),
     next: (subject) =>
       call(
-        "next_engagement",
+        "next_activity",
         { subject_type: subject.type, subject_id: subject.id },
         (value) => (value === null ? undefined : engagementOf(value)),
       ).andThen((found) =>
@@ -584,18 +584,18 @@ export function createActivities<
       ),
     open: (organizationId, list = {}) =>
       call(
-        "open_engagements",
+        "open_activities",
         {
           tenant: organizationId,
           owner: list.ownerId ?? null,
           due_before: instantArg(list.dueBefore) ?? null,
           page_size: list.limit ?? null,
         },
-        (value) => recordsOf(value, "open_engagements").map(engagementOf),
+        (value) => recordsOf(value, "open_activities").map(engagementOf),
       ).andThen(parsedAll),
     attachRecording: (engagementId, fileId, attach = {}) =>
       call(
-        "attach_engagement_recording",
+        "attach_activity_recording",
         {
           engagement: engagementId,
           file: fileId,
@@ -604,18 +604,18 @@ export function createActivities<
         recordingOf,
       ),
     recordings: (engagementId) =>
-      call("engagement_recordings", { engagement: engagementId }, (value) =>
-        recordsOf(value, "engagement_recordings").map(recordingOf),
+      call("activity_recordings", { engagement: engagementId }, (value) =>
+        recordsOf(value, "activity_recordings").map(recordingOf),
       ),
     transcript: (recordingId, page = {}) =>
       call(
-        "engagement_transcript",
+        "activity_transcript",
         {
           recording: recordingId,
           after: page.after ?? null,
           page_size: page.limit ?? null,
         },
-        (value) => recordsOf(value, "engagement_transcript").map(segmentOf),
+        (value) => recordsOf(value, "activity_transcript").map(segmentOf),
       ),
     saveTranscript,
     transcribe,
@@ -634,7 +634,7 @@ export function createActivities<
     },
     drainRecordings: (drain = {}) =>
       service(
-        "pending_engagement_recordings",
+        "pending_activity_recordings",
         { batch: drain.batch ?? null },
         (value) => (Array.isArray(value) ? value.map(textOf) : []),
       ).andThen((ids) =>
@@ -662,12 +662,12 @@ export function createActivities<
         }),
       ),
     notes: (engagementId) =>
-      call("engagement_notes", { engagement: engagementId }, (value) =>
+      call("activity_notes", { engagement: engagementId }, (value) =>
         value === null ? undefined : notesOf(value),
       ),
     saveNotes: (engagementId, notes) =>
       call(
-        "save_engagement_notes",
+        "save_activity_notes",
         {
           engagement: engagementId,
           notes: notesArg(notes, "member", undefined),
@@ -680,7 +680,7 @@ export function createActivities<
       }
 
       return call(
-        "engagement_with_transcripts",
+        "activity_with_transcripts",
         { engagement: engagementId },
         (value) => value,
       )
@@ -688,7 +688,7 @@ export function createActivities<
           value === null
             ? AsyncResult.err(
                 dbError("not_found", "no such engagement", {
-                  hint: "ENGAGEMENT_NOT_FOUND",
+                  hint: "ACTIVITY_NOT_FOUND",
                 }),
               )
             : parsed(
@@ -712,7 +712,7 @@ export function createActivities<
         )
         .andThen((notes) =>
           call(
-            "save_engagement_notes",
+            "save_activity_notes",
             {
               engagement: engagementId,
               notes: notesArg(notes, "ai", noteTaker.model),

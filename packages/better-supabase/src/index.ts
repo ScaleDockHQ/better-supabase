@@ -9,8 +9,11 @@ export type {
 export { EMPTY_STATS, recordStats, StatsRecorder } from "./core/stats.ts";
 
 export {
+  ENTITY_KEY_RENAMES,
+  ENTITY_RENAMES_CODEMOD,
   EVENT_TYPE_RENAMES,
   HINT_RENAMES,
+  legacyHintOf,
   renamed,
   SUBJECT_TYPE_RENAMES,
 } from "./core/renames.ts";

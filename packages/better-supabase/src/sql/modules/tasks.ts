@@ -11,6 +11,7 @@ import type { WorkItemNames } from "./tasks-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import { entityType } from "../resolved-names.ts";
 import {
   addExtraColumns,
   fail,
@@ -19,13 +20,14 @@ import {
 } from "../shared.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import { subjectTypeRenames } from "./subject-type-renames.ts";
 import { myWorkTenant } from "./subjects.ts";
 import { checklistTable, workItemExtrasContract } from "./tasks-extras.ts";
 import { workItemFunctions } from "./tasks-functions.ts";
 
-/** The subject type of a project, after `blocks.tasks.names`. */
+/** The subject type of a project, after `blocks.tasks.entities`. */
 export function projectType(tasks: BlockSqlContext): string {
-  return tasks.resolved.entities["project"]?.to.singular ?? "project";
+  return entityType(tasks.resolved, "project");
 }
 
 /** A project's budget columns, added to the app's table too. */
@@ -48,9 +50,9 @@ alter table ${ctx.table("projects")} add column if not exists ${p(logical)} ${de
   ].join("");
 }
 
-/** The subject type of a work item, after `blocks.tasks.names`. */
-export function workItemType(tasks: BlockSqlContext): string {
-  return tasks.resolved.entities["work_item"]?.to.singular ?? "work_item";
+/** The subject type of a task, after `blocks.tasks.entities`. */
+export function taskType(tasks: BlockSqlContext): string {
+  return entityType(tasks.resolved, "task");
 }
 
 const ITEM = [
@@ -80,9 +82,10 @@ const EVENTS: BlockSqlEvents<TasksEvents> = {
 const NAMES: BlockSqlNames = {
   events: EVENTS,
   entities: {
-    work_item: {
+    task: {
       table: "items",
-      singular: "work_item",
+      singular: "task",
+      formerly: "work_item",
       primary: true,
       subject: {
         title: "title",
@@ -97,10 +100,10 @@ const NAMES: BlockSqlNames = {
     checklist_item: { table: "checklist", singular: "checklist_item" },
   },
   hooks: [
-    "before_work_item_create",
-    "after_work_item_create",
-    "before_work_item_update",
-    "after_work_item_update",
+    "before_task_create",
+    "after_task_create",
+    "before_task_update",
+    "after_task_update",
   ],
   options: [
     "prefix",
@@ -364,7 +367,7 @@ function guard(ctx: BlockSqlContext, n: WorkItemNames): string {
   const guardName = ctx.naming.rename("bsb_work_item_guard");
 
   const payload = (extra: string): string =>
-    `jsonb_build_object('organizationId', new.${w("tenant")}, 'workItemId', new.${w("id")}, 'subjectType', ${sqlString(n.e("work_item"))}, 'subjectId', new.${w("id")}::text, 'title', new.${w("title")}${extra})`;
+    `jsonb_build_object('organizationId', new.${w("tenant")}, 'workItemId', new.${w("id")}, 'subjectType', ${sqlString(n.type)}, 'subjectId', new.${w("id")}::text, 'title', new.${w("title")}${extra})`;
 
   const subject = `'work-items/' || new.${w("id")}::text`;
   const tenant = `new.${w("tenant")}::text`;
@@ -406,14 +409,14 @@ begin
       )
       select 1 from up where up.id = new.${w("id")}
     ) then
-      ${fail("WORK_ITEM_PARENT_CYCLE", "an item can't sit under itself", "23514")}
+      ${fail("TASK_PARENT_CYCLE", "an item can't sit under itself", "23514")}
     end if;
     if not exists (select 1 from ${t("items")} x where x.${w("id")} = new.${w("parent")} and x.${w("tenant")} = new.${w("tenant")}) then
-      ${fail("WORK_ITEM_PARENT_INVALID", "the parent is in another organization", "22023")}
+      ${fail("TASK_PARENT_INVALID", "the parent is in another organization", "22023")}
     end if;
   end if;
   if tg_op = 'UPDATE' and old.${w("locked")} and not ${n.service} and (${dates}) then
-    ${fail("WORK_ITEM_LOCKED", "the item is locked; its dates can't change", "55000")}
+    ${fail("TASK_LOCKED", "the item is locked; its dates can't change", "55000")}
   end if;
   if tg_op = 'INSERT' then
     if ${closed} then
@@ -488,6 +491,7 @@ function build(ctx: BlockSqlContext): string {
     service: "(auth.role() = 'service_role')",
     extras: ctx.extraColumns("items", ["fields"]),
     e: (name) => ctx.resolved.entityNaming.rename(name),
+    type: taskType(ctx),
   };
 
   return `${schemaPreamble(ctx)}
@@ -499,25 +503,21 @@ ${tables(ctx, n)}${guard(ctx, n)}${workItemFunctions(ctx, n)}`;
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "create_work_item",
+      name: "create_task",
       args: ["{id}", "jsonb", "uuid[]"],
       returns: "jsonb",
     },
-    { name: "update_work_items", args: ["jsonb", "boolean"], returns: "jsonb" },
+    { name: "update_tasks", args: ["jsonb", "boolean"], returns: "jsonb" },
     {
-      name: "set_work_item_assignees",
+      name: "set_task_assignees",
       args: ["uuid", "uuid[]"],
       returns: "integer",
     },
+    { name: "archive_task", args: ["uuid", "boolean"], returns: "boolean" },
+    { name: "delete_task", args: ["uuid"], returns: "boolean" },
+    { name: "task_tree", args: ["uuid"], returns: "jsonb" },
     {
-      name: "archive_work_item",
-      args: ["uuid", "boolean"],
-      returns: "boolean",
-    },
-    { name: "delete_work_item", args: ["uuid"], returns: "boolean" },
-    { name: "work_item_tree", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "list_work_items",
+      name: "list_tasks",
       args: ["{id}", "jsonb", "text", "uuid", "integer"],
       returns: "jsonb",
     },
@@ -595,7 +595,7 @@ const CONTRIBUTES: BlockContributes = {
 
     return [
       {
-        type: own.resolved.entityNaming.rename("work_item"),
+        type: taskType(own),
         table: `${schema}.${name}`,
         tenant: own.colName("items", "tenant"),
         entry: workItemPipeline(own),
@@ -607,7 +607,7 @@ const CONTRIBUTES: BlockContributes = {
 
     return [
       {
-        work: `select 'assigned'::text, ${sqlString(workItemType(own))}::text, ${w("id")}::text, ${w("id")}::text, ${w("title")}::text,
+        work: `select 'assigned'::text, ${sqlString(taskType(own))}::text, ${w("id")}::text, ${w("id")}::text, ${w("title")}::text,
       coalesce(${w("dueAt")}, ${own.has("assignees", "createdAt") ? `a.${own.col("assignees", "createdAt")}` : w("createdAt")})
     from ${own.table("assignees")} a
     join ${own.table("items")} i on ${w("id")} = a.${own.col("assignees", "item")}
@@ -652,4 +652,5 @@ export const WORK_ITEMS: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  data: subjectTypeRenames,
 };

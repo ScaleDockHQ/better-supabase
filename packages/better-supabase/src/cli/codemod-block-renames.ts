@@ -244,7 +244,7 @@ export const REVIEW_0_15: readonly {
     pattern:
       /\b(?:fileMaintenance|updateMaintenance|listMaintenance|maintenanceRequestInputSchema)\b|maintenance_request\.(?:filed|updated)/,
     message:
-      'Leases no longer tracks maintenance requests: install a tasks instance (`maintenance: { block: "tasks", names: { work_item: "maintenance_request" } }`) and call its client; the upgrade renames the old table to `maintenance_requests_legacy`',
+      'Leases no longer tracks maintenance requests: install a tasks instance (`maintenance: { block: "tasks", names: { task: "maintenance_request" } }`) and call its client; the upgrade renames the old table to `maintenance_requests_legacy`',
   },
   {
     pattern: /\bpass_credit_entries\b/,

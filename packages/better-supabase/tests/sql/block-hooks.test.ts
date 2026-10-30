@@ -139,7 +139,7 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_person_save",
     "after_person_save",
   ],
-  activities: ["before_engagement_log", "after_engagement_log"],
+  activities: ["before_activity_log", "after_activity_log"],
   content: ["before_content_entry_publish", "after_content_entry_publish"],
   qualifications: [
     "before_qualification_type_save",
@@ -184,10 +184,10 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_deal_update",
   ],
   tasks: [
-    "before_work_item_create",
-    "after_work_item_create",
-    "before_work_item_update",
-    "after_work_item_update",
+    "before_task_create",
+    "after_task_create",
+    "before_task_update",
+    "after_task_update",
   ],
   quotes: [
     "before_quote_send",

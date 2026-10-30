@@ -86,7 +86,7 @@ describe("tasks over an app table with its own states", () => {
       .join("\n");
 
     expect(sql).not.toContain("work_item_checklist_items");
-    expect(sql).not.toContain("save_work_item_checklist_item");
+    expect(sql).not.toContain("save_task_checklist_item");
     expect(sql).toContain("'checklist', null");
   });
 
@@ -116,7 +116,7 @@ declare
   v_id uuid;
 begin
   perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
-  v_item := better_supabase.create_work_item('${TENANT}', '{"title": "Fix the gate", "priority": "1"}', '{}');
+  v_item := better_supabase.create_task('${TENANT}', '{"title": "Fix the gate", "priority": "1"}', '{}');
   v_id := (v_item ->> 'id')::uuid;
   if (select priority::text from public.tasks where id = v_id) <> 'urgent' then
     raise exception 'priority %', (select jsonb_agg(t) from public.tasks t);
@@ -129,8 +129,8 @@ begin
   if (select closed_at from public.tasks where id = v_id) is not null then
     raise exception 'reopening did not clear closed_at';
   end if;
-  if better_supabase.get_work_item(v_id) ->> 'status' <> 'started' then
-    raise exception 'read label %', better_supabase.get_work_item(v_id);
+  if better_supabase.get_task(v_id) ->> 'status' <> 'started' then
+    raise exception 'read label %', better_supabase.get_task(v_id);
   end if;
 end;
 $$;`,

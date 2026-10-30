@@ -28,7 +28,7 @@ import { onSettings } from "../subjects.ts";
 import { asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { myWorkTenant } from "./subjects.ts";
-import { workItemType } from "./tasks.ts";
+import { taskType } from "./tasks.ts";
 
 const CLOCK = [
   "organizationId",
@@ -47,7 +47,7 @@ const EVENTS: BlockSqlEvents<SlaEvents> = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    policy: {
+    sla_policy: {
       table: "policies",
       singular: "sla_policy",
       plural: "sla_policies",
@@ -828,7 +828,7 @@ const CONTRIBUTES: BlockContributes = {
         work: `select 'sla'::text, ${k("subjectType")}::text, ${k("subjectId")}::text, ${k("id")}::text, null::text,
       ${k("dueAt")}
     from ${own.table("clocks")} k
-    where ${k("subjectType")} = ${sqlString(workItemType(work))}
+    where ${k("subjectType")} = ${sqlString(taskType(work))}
       and ${k("warnedAt")} is not null
       and ${k("metAt")} is null
       and ${myWorkTenant(k("tenant"))}

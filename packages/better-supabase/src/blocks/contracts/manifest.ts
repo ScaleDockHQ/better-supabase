@@ -27,7 +27,7 @@ export const contractsBlock: BlockOf<
   events: contractsEvents,
   schemas: {
     contract: { input: contractInputSchema, change: contractChangesSchema },
-    obligation: { input: obligationInputSchema },
+    contract_obligation: { input: obligationInputSchema },
   },
   create: createContracts,
   record: contractsBinding,

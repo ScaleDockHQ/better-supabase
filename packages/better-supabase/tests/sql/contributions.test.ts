@@ -76,12 +76,12 @@ describe("block contributions", () => {
     const files = render({
       pipelines: {},
       tasks: {},
-      tickets: { block: "tasks", entities: { work_item: "ticket" } },
+      tickets: { block: "tasks", entities: { task: "ticket" } },
     });
 
     const pipelines = sqlOf(files, "pipelines");
 
-    expect(pipelines).toContain("'work_item'");
+    expect(pipelines).toContain("'task'");
     expect(pipelines).toContain("'ticket'");
   });
 

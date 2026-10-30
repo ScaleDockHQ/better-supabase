@@ -66,7 +66,8 @@ stay hidden.
    that has one (`codemod` without a name lists them), then without
    `--dry-run`, and fix the lines it lists for review. From 0.35, one
    `codemod 0.37` covers 0.36 and 0.37; 0.38 to 0.43 have none, and
-   `codemod 0.46` renames permission keys.
+   `codemod 0.46` renames permission keys, and `codemod 0.47` renames
+   entity keys and hint codes.
 2. Run `pnpm better-supabase upgrade`, so the SQL modules get the
    release's SQL and any forward steps land in a migration, then write a
    migration from the changed files (under the `migrations` workflow it

@@ -143,7 +143,7 @@ describe.skipIf(!live)("engagement recordings", () => {
         segmentCount: 0,
       });
       expect(hint(await engagements.attachRecording(call.id, mine))).toBe(
-        "ENGAGEMENT_RECORDING_EXISTS",
+        "ACTIVITY_RECORDING_EXISTS",
       );
       expect(hint(await engagements.attachRecording(call.id, pending))).toBe(
         "AI_FILE_NOT_FOUND",
@@ -156,7 +156,7 @@ describe.skipIf(!live)("engagement recordings", () => {
         segments: [{ startMs: 5, endMs: 1, text: "backwards" }],
       });
 
-      expect(hint(invalid)).toBe("ENGAGEMENT_TRANSCRIPT_INVALID");
+      expect(hint(invalid)).toBe("ACTIVITY_TRANSCRIPT_INVALID");
 
       await s.service();
       const transcribed = await engagements.transcribe(recording.id).orThrow();
@@ -168,7 +168,7 @@ describe.skipIf(!live)("engagement recordings", () => {
       });
       expect(
         await s.value<boolean>(
-          "better_supabase.fail_engagement_recording($1, 'late')",
+          "better_supabase.fail_activity_recording($1, 'late')",
           [recording.id],
         ),
       ).toBe(false);
@@ -208,7 +208,7 @@ describe.skipIf(!live)("engagement recordings", () => {
       expect(edited).toMatchObject({ source: "member", actionItems: [] });
       expect(edited.model).toBeUndefined();
       expect(hint(await engagements.saveNotes(call.id, { summary: "" }))).toBe(
-        "ENGAGEMENT_NOTES_INVALID",
+        "ACTIVITY_NOTES_INVALID",
       );
 
       await s.asRole(stranger);
@@ -216,10 +216,10 @@ describe.skipIf(!live)("engagement recordings", () => {
       expect(await engagements.notes(call.id).orThrow()).toBeUndefined();
       expect(await engagements.transcript(recording.id).orThrow()).toEqual([]);
       expect(hint(await engagements.attachRecording(call.id, mine))).toBe(
-        "ENGAGEMENT_NOT_FOUND",
+        "ACTIVITY_NOT_FOUND",
       );
       expect(hint(await engagements.saveNotes(call.id, { summary: "x" }))).toBe(
-        "ENGAGEMENT_NOT_FOUND",
+        "ACTIVITY_NOT_FOUND",
       );
 
       await s.asRole(rep);

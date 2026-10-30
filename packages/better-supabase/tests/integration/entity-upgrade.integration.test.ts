@@ -97,7 +97,7 @@ describe.skipIf(!live)(
           old: string | null;
         }>(
           `select t.title, c.subject_type as subject,
-           to_regprocedure('better_supabase.create_work_item(uuid, jsonb)')::text as old
+           to_regprocedure('better_supabase.create_task(uuid, jsonb)')::text as old
          from better_supabase.tasks t
          join better_supabase.conversations c on c.subject_id = t.id::text`,
         );

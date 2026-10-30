@@ -151,10 +151,10 @@ export function contractsFunctions(ctx: BlockSqlContext): string {
     [
       ["tenant", `v_contract.${c("tenant")}`],
       ["contract", `v_contract.${c("id")}`],
-      ["title", "trim(save_obligation.title)"],
-      ["description", "nullif(trim(save_obligation.description), '')"],
-      ["dueOn", "save_obligation.due_on"],
-      ["owner", "save_obligation.owner_id"],
+      ["title", "trim(save_contract_obligation.title)"],
+      ["description", "nullif(trim(save_contract_obligation.description), '')"],
+      ["dueOn", "save_contract_obligation.due_on"],
+      ["owner", "save_contract_obligation.owner_id"],
     ] as const
   ).filter(([column]) => obligationKeeps(column));
 
@@ -663,7 +663,7 @@ $$;
 ${serviceGrant(`${fn("run_contract_renewals")}(date)`)}
 
 -- Adds an obligation to a contract, or changes one (obligation_id).
-create or replace function ${fn("save_obligation")}(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
+create or replace function ${fn("save_contract_obligation")}(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -674,35 +674,35 @@ declare
   v_contract ${contracts}%rowtype;
   v_row ${obligations}%rowtype;
 begin
-  select * into v_contract from ${contracts} x where x.${c("id")} = save_obligation.contract_id;
+  select * into v_contract from ${contracts} x where x.${c("id")} = save_contract_obligation.contract_id;
   if not found then
     ${notFound}
   end if;
   if not ${allowed(`v_contract.${c("tenant")}`, write)} then
     ${forbidden("not allowed to change contract obligations")}
   end if;
-  if nullif(trim(save_obligation.title), '') is null then
+  if nullif(trim(save_contract_obligation.title), '') is null then
     ${invalid("an obligation needs a title")}
   end if;
 ${
   obligationKeeps("description")
     ? ""
-    : `  if nullif(trim(save_obligation.description), '') is not null then
+    : `  if nullif(trim(save_contract_obligation.description), '') is not null then
     ${fail("CONTRACT_FIELD_UNSUPPORTED", "this obligations table keeps no description", "0A000")}
   end if;
 `
-}  if save_obligation.owner_id is not null and not ${isMember(`v_contract.${c("tenant")}`, "save_obligation.owner_id")} then
+}  if save_contract_obligation.owner_id is not null and not ${isMember(`v_contract.${c("tenant")}`, "save_contract_obligation.owner_id")} then
     ${invalid("the owner must be a member of the organization")}
   end if;
-  if save_obligation.obligation_id is null then
+  if save_contract_obligation.obligation_id is null then
     insert into ${obligations} (${savedObligation.map(([column]) => o(column)).join(", ")})
     values (${savedObligation.map(([, value]) => value).join(", ")})
     returning * into v_row;
   else
     update ${obligations} x set ${
       obligationKeeps("description") && obligationKeeps("updatedAt")
-        ? `${o("title")} = trim(save_obligation.title), ${o("description")} = nullif(trim(save_obligation.description), ''),
-      ${o("dueOn")} = save_obligation.due_on, ${o("owner")} = save_obligation.owner_id, ${o("updatedAt")} = now()`
+        ? `${o("title")} = trim(save_contract_obligation.title), ${o("description")} = nullif(trim(save_contract_obligation.description), ''),
+      ${o("dueOn")} = save_contract_obligation.due_on, ${o("owner")} = save_contract_obligation.owner_id, ${o("updatedAt")} = now()`
         : [
             ...savedObligation.filter(
               ([column]) => column !== "tenant" && column !== "contract",
@@ -714,20 +714,20 @@ ${
             .map(([column, value]) => `${o(column)} = ${value}`)
             .join(", ")
     }
-      where x.${o("id")} = save_obligation.obligation_id and x.${o("contract")} = v_contract.${c("id")}
+      where x.${o("id")} = save_contract_obligation.obligation_id and x.${o("contract")} = v_contract.${c("id")}
       returning * into v_row;
     if not found then
-      ${fail("OBLIGATION_NOT_FOUND", "obligation not found", "P0002")}
+      ${fail("CONTRACT_OBLIGATION_NOT_FOUND", "obligation not found", "P0002")}
     end if;
   end if;
   ${obligationRecord("obligation.saved", "v_row", "saved obligation")}
   return ${obligationJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_obligation")}(uuid, text, date, uuid, text, uuid)`)}
+${userGrant(`${fn("save_contract_obligation")}(uuid, text, date, uuid, text, uuid)`)}
 
 -- Marks an obligation open, done or waived. Its owner may mark it too.
-create or replace function ${fn("set_obligation_status")}(obligation_id uuid, status text)
+create or replace function ${fn("set_contract_obligation_status")}(obligation_id uuid, status text)
 returns jsonb
 language plpgsql
 security definer
@@ -737,27 +737,27 @@ as $$
 declare
   v_row ${obligations}%rowtype;
 begin
-  select * into v_row from ${obligations} x where x.${o("id")} = set_obligation_status.obligation_id for update;
+  select * into v_row from ${obligations} x where x.${o("id")} = set_contract_obligation_status.obligation_id for update;
   if not found then
-    ${fail("OBLIGATION_NOT_FOUND", "obligation not found", "P0002")}
+    ${fail("CONTRACT_OBLIGATION_NOT_FOUND", "obligation not found", "P0002")}
   end if;
   if not (${allowed(`v_row.${o("tenant")}`, write)} or coalesce(v_row.${o("owner")} = auth.uid(), false)) then
     ${forbidden("not allowed to change this obligation")}
   end if;
-  if set_obligation_status.status is null or set_obligation_status.status not in ('open', 'done', 'waived') then
+  if set_contract_obligation_status.status is null or set_contract_obligation_status.status not in ('open', 'done', 'waived') then
     ${invalid("status must be open, done or waived")}
   end if;
   update ${obligations} x set ${[
-    `${o("status")} = ${ctx.cast("obligations", "status", "set_obligation_status.status")}`,
+    `${o("status")} = ${ctx.cast("obligations", "status", "set_contract_obligation_status.status")}`,
     ...(
       [
         [
           "completedAt",
-          "case when set_obligation_status.status = 'open' then null else now() end",
+          "case when set_contract_obligation_status.status = 'open' then null else now() end",
         ],
         [
           "completedBy",
-          "case when set_obligation_status.status = 'open' then null else auth.uid() end",
+          "case when set_contract_obligation_status.status = 'open' then null else auth.uid() end",
         ],
         ["updatedAt", "now()"],
       ] as const
@@ -771,9 +771,9 @@ begin
   return ${obligationJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("set_obligation_status")}(uuid, text)`)}
+${userGrant(`${fn("set_contract_obligation_status")}(uuid, text)`)}
 
-create or replace function ${fn("delete_obligation")}(obligation_id uuid)
+create or replace function ${fn("delete_contract_obligation")}(obligation_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -782,9 +782,9 @@ as $$
 declare
   v_row ${obligations}%rowtype;
 begin
-  select * into v_row from ${obligations} x where x.${o("id")} = delete_obligation.obligation_id;
+  select * into v_row from ${obligations} x where x.${o("id")} = delete_contract_obligation.obligation_id;
   if not found then
-    ${fail("OBLIGATION_NOT_FOUND", "obligation not found", "P0002")}
+    ${fail("CONTRACT_OBLIGATION_NOT_FOUND", "obligation not found", "P0002")}
   end if;
   if not ${allowed(`v_row.${o("tenant")}`, write)} then
     ${forbidden("not allowed to change contract obligations")}
@@ -793,10 +793,10 @@ begin
   return ${obligationJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("delete_obligation")}(uuid)`)}
+${userGrant(`${fn("delete_contract_obligation")}(uuid)`)}
 
 -- The obligations the caller can read, the earliest due first.
-create or replace function ${fn("list_obligations")}(tenant ${idType}, contract_id uuid default null, owner_id uuid default null, open_only boolean default false, due_before date default null, page_size integer default 100)
+create or replace function ${fn("list_contract_obligations")}(tenant ${idType}, contract_id uuid default null, owner_id uuid default null, open_only boolean default false, due_before date default null, page_size integer default 100)
 returns jsonb
 language sql
 stable
@@ -806,15 +806,15 @@ as $$
   select coalesce(jsonb_agg(${obligationJson("x")} order by x.${o("dueOn")} nulls last, x.${o("createdAt")}), '[]'::jsonb)
   from (
     select * from ${obligations} y
-    where y.${o("tenant")} = list_obligations.tenant
-      and (list_obligations.contract_id is null or y.${o("contract")} = list_obligations.contract_id)
-      and (list_obligations.owner_id is null or y.${o("owner")} = list_obligations.owner_id)
-      and (not coalesce(list_obligations.open_only, false) or y.${o("status")} = 'open')
-      and (list_obligations.due_before is null or y.${o("dueOn")} <= list_obligations.due_before)
+    where y.${o("tenant")} = list_contract_obligations.tenant
+      and (list_contract_obligations.contract_id is null or y.${o("contract")} = list_contract_obligations.contract_id)
+      and (list_contract_obligations.owner_id is null or y.${o("owner")} = list_contract_obligations.owner_id)
+      and (not coalesce(list_contract_obligations.open_only, false) or y.${o("status")} = 'open')
+      and (list_contract_obligations.due_before is null or y.${o("dueOn")} <= list_contract_obligations.due_before)
     order by y.${o("dueOn")} nulls last, y.${o("createdAt")}
-    limit ${pageSize("list_obligations.page_size", 100, 500)}
+    limit ${pageSize("list_contract_obligations.page_size", 100, 500)}
   ) x
 $$;
-${userGrant(`${fn("list_obligations")}(${idType}, uuid, uuid, boolean, date, integer)`)}
+${userGrant(`${fn("list_contract_obligations")}(${idType}, uuid, uuid, boolean, date, integer)`)}
 `;
 }

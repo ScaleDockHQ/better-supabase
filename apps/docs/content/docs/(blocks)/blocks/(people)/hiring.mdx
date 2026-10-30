@@ -89,7 +89,7 @@ await hiring.saveJob(organizationId, {
 
 ## Applications
 
-`apply(jobId, candidate, { source, ownerId })` adds a candidate to an open job (`HIRING_JOB_NOT_OPEN`); applying again returns the same application. The candidate must be in the organization and readable by the caller (`HIRING_CANDIDATE_FORBIDDEN`). Move it between stages with a stage update or [rank](/docs/blocks/rank) on a board, as any pipeline record.
+`apply(jobId, candidate, { source, ownerId })` adds a candidate to an open job (`JOB_OPENING_NOT_OPEN`); applying again returns the same application. The candidate must be in the organization and readable by the caller (`HIRING_CANDIDATE_FORBIDDEN`). Move it between stages with a stage update or [rank](/docs/blocks/rank) on a board, as any pipeline record.
 
 `hire(id)`, `reject(id, reason)` and `withdraw(id)` move the application to its job pipeline's first stage of that category. Hiring stamps `hiredAt` and records `application.hired` with the candidate: call [`employees.fromApplication`](/docs/blocks/employees#from-a-hired-application) from that event, which makes the employee once and links it with a `created_from` [relation](/docs/blocks/relations), or create your own from an `after_application_hire` hook in the same transaction.
 
@@ -223,9 +223,9 @@ The ReUI Recruiting Pipeline board reads its columns from the job's pipeline boa
 | Hint                                | Cause                                                        |
 | ----------------------------------- | ------------------------------------------------------------ |
 | `HIRING_FORBIDDEN`                  | the caller lacks `hiring.manage`                             |
-| `HIRING_JOB_INVALID`                | a job needs a title and a status of draft, open or closed    |
-| `HIRING_JOB_NOT_FOUND`              | no such job the caller can change                            |
-| `HIRING_JOB_NOT_OPEN`               | the job isn't open                                           |
+| `JOB_OPENING_INVALID`               | a job needs a title and a status of draft, open or closed    |
+| `JOB_OPENING_NOT_FOUND`             | no such job the caller can change                            |
+| `JOB_OPENING_NOT_OPEN`              | the job isn't open                                           |
 | `HIRING_CANDIDATE_FORBIDDEN`        | the candidate is unknown or unreadable                       |
 | `HIRING_APPLICATION_NOT_FOUND`      | no application the caller can change or review               |
 | `HIRING_OUTCOME_INVALID`            | close as hired, rejected or withdrawn                        |

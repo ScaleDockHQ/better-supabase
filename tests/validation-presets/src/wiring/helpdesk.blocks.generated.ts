@@ -214,6 +214,19 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
     names: {
+      functions: {
+        archive_task: "archive_ticket",
+        create_task: "create_ticket",
+        delete_task: "delete_ticket",
+        delete_task_checklist_item: "delete_ticket_checklist_item",
+        get_task: "get_ticket",
+        list_task_checklist: "list_ticket_checklist",
+        list_tasks: "list_tickets",
+        save_task_checklist_item: "save_ticket_checklist_item",
+        set_task_assignees: "set_ticket_assignees",
+        task_tree: "ticket_tree",
+        update_tasks: "update_tickets",
+      },
       entities: [{
         from: {
           singular: "work_item",

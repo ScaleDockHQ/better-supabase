@@ -1,7 +1,7 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@2 managed tasks
--- @bsb-hash sha256:352005ba2261b9fb211152e5a1dc2565e8b302ac6cc9140a96bb583e82cea13c
--- @bsb-names maintenance work_item=maintenance_request/maintenance_requests
+-- @bsb-hash sha256:983e8f57eaa5d8b2cefc633bd7e279035464bb02fa6b7537ccdb5fd7d13761e4
+-- @bsb-names maintenance task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -207,14 +207,14 @@ begin
       )
       select 1 from up where up.id = new."id"
     ) then
-      raise exception 'an item can''t sit under itself' using errcode = '23514', hint = 'WORK_ITEM_PARENT_CYCLE';
+      raise exception 'an item can''t sit under itself' using errcode = '23514', hint = 'TASK_PARENT_CYCLE';
     end if;
     if not exists (select 1 from "better_supabase"."maintenance_requests" x where x."id" = new."parent_id" and x."tenant_id" = new."tenant_id") then
-      raise exception 'the parent is in another organization' using errcode = '22023', hint = 'WORK_ITEM_PARENT_INVALID';
+      raise exception 'the parent is in another organization' using errcode = '22023', hint = 'TASK_PARENT_INVALID';
     end if;
   end if;
   if tg_op = 'UPDATE' and old."locked" and not (auth.role() = 'service_role') and (new."start_at" is distinct from old."start_at" or new."end_at" is distinct from old."end_at" or new."due_at" is distinct from old."due_at") then
-    raise exception 'the item is locked; its dates can''t change' using errcode = '55000', hint = 'WORK_ITEM_LOCKED';
+    raise exception 'the item is locked; its dates can''t change' using errcode = '55000', hint = 'TASK_LOCKED';
   end if;
   if tg_op = 'INSERT' then
     if new."state" in ('completed', 'canceled') then
@@ -267,10 +267,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', create_maintenance_request.tenant, 'maintenance.write'), false)) then
-    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'WORK_ITEM_FORBIDDEN';
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
   if nullif(trim(create_maintenance_request.attrs ->> 'title'), '') is null then
-    raise exception 'a title is required' using errcode = '23502', hint = 'WORK_ITEM_TITLE_REQUIRED';
+    raise exception 'a title is required' using errcode = '23502', hint = 'TASK_TITLE_REQUIRED';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_maintenance_request_create"(uuid, jsonb)');
@@ -294,7 +294,7 @@ begin
       (create_maintenance_request.attrs ->> 'pipelineId')::uuid, (create_maintenance_request.attrs ->> 'stageId')::uuid, auth.uid(), case when (create_maintenance_request.attrs -> 'fields') ? 'unit_id' then (jsonb_populate_record(null::"better_supabase"."maintenance_requests", jsonb_build_object('unit_id', (create_maintenance_request.attrs -> 'fields') -> 'unit_id')))."unit_id" else better_supabase.column_default('"better_supabase"."maintenance_requests"', 'unit_id', (null::"better_supabase"."maintenance_requests")."unit_id") end, case when (create_maintenance_request.attrs -> 'fields') ? 'lease_id' then (jsonb_populate_record(null::"better_supabase"."maintenance_requests", jsonb_build_object('lease_id', (create_maintenance_request.attrs -> 'fields') -> 'lease_id')))."lease_id" else better_supabase.column_default('"better_supabase"."maintenance_requests"', 'lease_id', (null::"better_supabase"."maintenance_requests")."lease_id") end)
     returning "id" into v_id;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range or foreign_key_violation then
-    raise exception 'a work item field has an invalid value' using errcode = '22023', hint = 'WORK_ITEM_ATTRS_INVALID';
+    raise exception 'a work item field has an invalid value' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
   end;
   update "better_supabase"."maintenance_requests" x set "unit_id" = case when (create_maintenance_request.attrs -> 'fields') ? 'unit_id' then r."unit_id" else x."unit_id" end, "lease_id" = case when (create_maintenance_request.attrs -> 'fields') ? 'lease_id' then r."lease_id" else x."lease_id" end
   from jsonb_populate_record(null::"better_supabase"."maintenance_requests", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each((create_maintenance_request.attrs -> 'fields')) e where e.key in ('unit_id', 'lease_id'))) r
@@ -304,7 +304,7 @@ begin
   end if;
   select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = v_id;
   if jsonb_typeof(coalesce((create_maintenance_request.attrs -> 'attachments'), '[]'::jsonb)) <> 'array' then
-      raise exception 'attachments must be a list of attachment ids' using errcode = '22023', hint = 'WORK_ITEM_ATTACHMENTS_INVALID';
+      raise exception 'attachments must be a list of attachment ids' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
     end if;
     if jsonb_array_length(coalesce((create_maintenance_request.attrs -> 'attachments'), '[]'::jsonb)) > 0 then
       update "better_supabase"."attachments" f set "subject_type" = 'maintenance_request', "subject_id" = v_row."id"::text
@@ -314,7 +314,7 @@ begin
         and ((auth.role() = 'service_role') or f."uploaded_by" = auth.uid());
       get diagnostics v_linked = row_count;
       if v_linked <> (select count(distinct x) from jsonb_array_elements_text((create_maintenance_request.attrs -> 'attachments')) x) then
-        raise exception 'attach only your own files in this organization that aren''t on another subject' using errcode = '22023', hint = 'WORK_ITEM_ATTACHMENTS_INVALID';
+        raise exception 'attach only your own files in this organization that aren''t on another subject' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
       end if;
     end if;
   perform "better_supabase".emit_event('maintenance_request.created', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/maintenance');
@@ -360,14 +360,14 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if jsonb_typeof(coalesce(update_maintenance_requests.changes, '[]')) <> 'array' then
-    raise exception 'changes must be a list of { maintenanceRequestId, field, value }' using errcode = '22023', hint = 'WORK_ITEM_CHANGES_INVALID';
+    raise exception 'changes must be a list of { maintenanceRequestId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
   end if;
   for v_change in select value from jsonb_array_elements(update_maintenance_requests.changes) loop
     v_field := v_change ->> 'field';
     begin
       v_item := (v_change ->> 'maintenanceRequestId')::uuid;
       if not exists (select 1 from "better_supabase"."maintenance_requests" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.write'), false)) and x."archived_at" is null) then
-        raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
+        raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_maintenance_request_update"(uuid, text, jsonb)');
@@ -408,7 +408,7 @@ begin
         update "better_supabase"."maintenance_requests" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
       when 'window' then
         if jsonb_typeof(v_change -> 'value') <> 'object' then
-          raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'WORK_ITEM_ATTRS_INVALID';
+          raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
         end if;
         update "better_supabase"."maintenance_requests" x set
           "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
@@ -417,7 +417,7 @@ begin
       when 'attachments' then
         select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = v_item;
         if jsonb_typeof(coalesce((v_change -> 'value'), '[]'::jsonb)) <> 'array' then
-      raise exception 'attachments must be a list of attachment ids' using errcode = '22023', hint = 'WORK_ITEM_ATTACHMENTS_INVALID';
+      raise exception 'attachments must be a list of attachment ids' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
     end if;
     if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
       update "better_supabase"."attachments" f set "subject_type" = 'maintenance_request', "subject_id" = v_row."id"::text
@@ -427,7 +427,7 @@ begin
         and ((auth.role() = 'service_role') or f."uploaded_by" = auth.uid());
       get diagnostics v_linked = row_count;
       if v_linked <> (select count(distinct x) from jsonb_array_elements_text((v_change -> 'value')) x) then
-        raise exception 'attach only your own files in this organization that aren''t on another subject' using errcode = '22023', hint = 'WORK_ITEM_ATTACHMENTS_INVALID';
+        raise exception 'attach only your own files in this organization that aren''t on another subject' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
       end if;
     end if;
       when 'unit_id' then
@@ -435,7 +435,7 @@ begin
       when 'lease_id' then
         update "better_supabase"."maintenance_requests" x set "lease_id" = (jsonb_populate_record(null::"better_supabase"."maintenance_requests", jsonb_build_object('lease_id', v_change -> 'value')))."lease_id" where x."id" = v_item;
       else
-        raise exception 'that field can''t be written' using errcode = '22023', hint = 'WORK_ITEM_FIELD_UNKNOWN';
+        raise exception 'that field can''t be written' using errcode = '22023', hint = 'TASK_FIELD_UNKNOWN';
       end case;
       v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('maintenanceRequestId', v_item, 'field', v_field));
       v_touched := array_append(v_touched, v_item);
@@ -486,7 +486,7 @@ begin
   end if;
   select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = set_maintenance_request_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.write'), false));
   if v_row."id" is null then
-    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
+    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   v_new := array(select x from unnest(v_users) x where x is distinct from auth.uid() and not exists (
     select 1 from "better_supabase"."maintenance_request_assignees" y where y."maintenance_request_id" = v_row."id" and y."user_id" = x));
@@ -665,7 +665,7 @@ begin
   end if;
   select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = save_maintenance_request_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
-    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
+    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   begin
     if v_id is null then
@@ -688,11 +688,11 @@ begin
         "done_by" = case when v_done is null then y."done_by" when v_done then coalesce(y."done_by", auth.uid()) end
       where y."id" = v_id and y."maintenance_request_id" = v_row."id";
       if not found then
-        raise exception 'no such checklist item on this work item' using errcode = 'P0002', hint = 'WORK_ITEM_CHECKLIST_ITEM_NOT_FOUND';
+        raise exception 'no such checklist item on this work item' using errcode = 'P0002', hint = 'TASK_CHECKLIST_ITEM_NOT_FOUND';
       end if;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
-    raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'WORK_ITEM_CHECKLIST_ITEM_INVALID';
+    raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
   perform "better_supabase".emit_event('maintenance_request.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/maintenance');
   return (select jsonb_build_object('id', y."id", 'maintenanceRequestId', y."maintenance_request_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."maintenance_request_checklist_items" y where y."id" = v_id);
@@ -755,7 +755,7 @@ grant execute on function "better_supabase"."get_maintenance_request"(uuid) to a
 
 -- Makes an item repeat: rrule is an RFC 5545 RRULE starting at the item's
 -- due date (now without one) in tzid. A null rrule stops it. Completing the
--- item then creates the next one through repeat_work_item.
+-- item then creates the next one through repeat_task.
 create or replace function "better_supabase"."set_maintenance_request_recurrence"(work_item uuid, rrule text, tzid text default 'UTC')
 returns jsonb
 language plpgsql
@@ -770,16 +770,16 @@ begin
   end if;
   select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = set_maintenance_request_recurrence.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
-    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
+    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   if set_maintenance_request_recurrence.rrule is null then
     delete from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = v_row."tenant_id" and rr."subject_type" = 'maintenance_request' and rr."subject_id" = v_row."id"::text;
   else
     if set_maintenance_request_recurrence.rrule !~ '^(RRULE:)?FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;[A-Z]+=[-+,0-9A-Z]+)*$' then
-      raise exception 'rrule must be an RRULE such as FREQ=WEEKLY;BYDAY=MO' using errcode = '22023', hint = 'WORK_ITEM_RECURRENCE_INVALID';
+      raise exception 'rrule must be an RRULE such as FREQ=WEEKLY;BYDAY=MO' using errcode = '22023', hint = 'TASK_RECURRENCE_INVALID';
     end if;
     if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = coalesce(set_maintenance_request_recurrence.tzid, 'UTC')) then
-      raise exception 'tzid must be an IANA time zone' using errcode = '22023', hint = 'WORK_ITEM_RECURRENCE_INVALID';
+      raise exception 'tzid must be an IANA time zone' using errcode = '22023', hint = 'TASK_RECURRENCE_INVALID';
     end if;
     insert into "better_supabase"."recurrence_rules" ("tenant_id", "subject_type", "subject_id", "dtstart", "tzid", "rrule")
     values (v_row."tenant_id", 'maintenance_request', v_row."id"::text, coalesce(v_row."due_at", now()), coalesce(set_maintenance_request_recurrence.tzid, 'UTC'), regexp_replace(set_maintenance_request_recurrence.rrule, '^RRULE:', ''))
@@ -810,7 +810,7 @@ declare
 begin
   select * into v_src from "better_supabase"."maintenance_requests" x where x."id" = repeat_maintenance_request.work_item for update;
   if v_src."id" is null then
-    raise exception 'work item not found' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
+    raise exception 'work item not found' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   select x."id" into v_id from "better_supabase"."maintenance_requests" x where x."recurs_from" = v_src."id";
   if v_id is not null then
@@ -848,7 +848,7 @@ declare
 begin
   select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = watch_maintenance_request.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.read'), false));
   if v_row."id" is null then
-    raise exception 'no such work item you can read' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
+    raise exception 'no such work item you can read' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   perform "better_supabase"."set_notification_subscription"('maintenance_request', v_row."id"::text, watch_maintenance_request.level, v_row."tenant_id");
   return watch_maintenance_request.level is not null;

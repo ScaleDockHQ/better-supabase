@@ -27,13 +27,13 @@ const taskBlock: GeneratorBlock = {
   client: { export: "tasksBlock", subpath: "better-supabase/blocks/tasks" },
   entities: [
     {
-      key: "work_item",
+      key: "task",
       from: { singular: "work_item", plural: "work_items" },
       to: { singular: "task", plural: "tasks" },
       primary: true,
       table: "tasks",
       url: undefined,
-      schemas: workItems?.entitySchemas?.["work_item"] ?? {},
+      schemas: workItems?.entitySchemas?.["task"] ?? {},
     },
   ],
 };

@@ -35,7 +35,7 @@ const EVENTS: BlockSqlEvents<ForecastsEvents> = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    snapshot: {
+    forecast_snapshot: {
       table: "snapshots",
       singular: "forecast_snapshot",
       primary: true,

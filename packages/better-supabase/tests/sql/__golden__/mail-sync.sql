@@ -1044,7 +1044,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:28b4eb367f655a7dbb3307231fe4248447ea348609f4ff80f982c2dc1d9d1b2f
+-- @bsb-hash sha256:36d5bd7408c1b7f595a04f423d1381e66493a8666a8362225465b026a21d3923
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1455,7 +1455,7 @@ begin
   end if;
   v_claims := current_setting('request.jwt.claims', true);
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  v_result := "better_supabase"."log_engagement"(v_row.tenant, jsonb_build_object(
+  v_result := "better_supabase"."log_activity"(v_row.tenant, jsonb_build_object(
     'type', 'email',
     'title', coalesce(nullif(trim(v_row.subject), ''), '(no subject)'),
     'body', v_row.snippet,

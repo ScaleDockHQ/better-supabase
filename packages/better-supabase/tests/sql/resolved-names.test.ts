@@ -4,7 +4,7 @@ import type { AnyBlocksConfig } from "../../src/config/blocks.ts";
 import type { BlockSqlNames } from "../../src/sql/context.ts";
 
 import { SQL_MODULES } from "../../src/sql/index.ts";
-import { resolveNames } from "../../src/sql/resolved-names.ts";
+import { entityType, resolveNames } from "../../src/sql/resolved-names.ts";
 
 const namesOf = (module: string): BlockSqlNames => {
   const names = SQL_MODULES[module]?.names;
@@ -24,8 +24,11 @@ describe("resolveNames", () => {
     const resolved = resolve("tasks", {});
 
     expect(resolved.naming.renamed).toBe(false);
+    expect(resolved.functionNouns.renamed).toBe(false);
     expect(resolved.tenant.singular).toBe("organization");
-    expect(resolved.entities["work_item"]?.to.plural).toBe("work_items");
+    expect(resolved.entities["task"]?.to.plural).toBe("tasks");
+    expect(resolved.formerName("create_task")).toBe("create_work_item");
+    expect(entityType(resolved, "task")).toBe("task");
   });
 
   it("renames the entities a block config names, and the tenant", () => {
@@ -33,7 +36,7 @@ describe("resolveNames", () => {
       memberships: { entities: { organization: "workspace" } },
       tasks: {
         entities: {
-          work_item: { name: "task", url: "/tasks/{identifier}" },
+          task: { name: "ticket", url: "/tickets/{identifier}" },
           project: "initiative",
         },
       },
@@ -45,7 +48,6 @@ describe("resolveNames", () => {
       [
         "work_items",
         "work_item_id",
-        "create_work_item",
         "tasks.read",
         "work_item.created",
         "tasks/",
@@ -55,22 +57,36 @@ describe("resolveNames", () => {
         "organization_id",
       ].map(rename),
     ).toEqual([
-      "tasks",
-      "task_id",
-      "create_task",
+      "tickets",
+      "ticket_id",
       "tasks.read",
-      "task.created",
+      "ticket.created",
       "tasks/",
-      "taskId",
+      "ticketId",
       "saveInitiative",
-      "Task",
+      "Ticket",
       "workspace_id",
     ]);
-    expect(resolved.entities["work_item"]).toMatchObject({
-      to: { singular: "task", plural: "tasks" },
-      url: "/tasks/{identifier}",
+    expect(rename(resolved.functionNouns.rename("create_task"))).toBe(
+      "create_ticket",
+    );
+    expect(resolved.entities["task"]).toMatchObject({
+      from: { singular: "work_item" },
+      to: { singular: "ticket", plural: "tickets" },
+      formerly: { from: { singular: "work_item" }, to: { singular: "task" } },
+      url: "/tickets/{identifier}",
       subject: { title: "title" },
     });
+    expect(entityType(resolved, "task")).toBe("ticket");
+  });
+
+  it("reads an entity key from before 0.47 as the new key", () => {
+    const resolved = resolve("tasks", {
+      tasks: { entities: { work_item: "ticket" } },
+    });
+
+    expect(resolved.entities["task"]?.to.singular).toBe("ticket");
+    expect(resolved.naming.rename("work_items")).toBe("tickets");
   });
 
   it("renames the primary entity from the string shorthand", () => {
@@ -83,28 +99,28 @@ describe("resolveNames", () => {
 
   it("drops the subject when the config sets subject: false", () => {
     const resolved = resolve("tasks", {
-      tasks: { entities: { work_item: { name: "task", subject: false } } },
+      tasks: { entities: { task: { name: "ticket", subject: false } } },
     });
 
-    expect(resolved.entities["work_item"]?.subject).toBeUndefined();
+    expect(resolved.entities["task"]?.subject).toBeUndefined();
   });
 
   it("rejects unknown entities, bad names, placeholders and nested nouns", () => {
     expect(() =>
-      resolve("tasks", { tasks: { entities: { work: "task" } } }),
+      resolve("tasks", { tasks: { entities: { work: "ticket" } } }),
     ).toThrow('blocks.tasks.names: unknown entity "work"');
     expect(() =>
-      resolve("tasks", { tasks: { entities: { work_item: "Task" } } }),
+      resolve("tasks", { tasks: { entities: { task: "Ticket" } } }),
     ).toThrow("is not a lowercase identifier");
     expect(() =>
       resolve("tasks", {
         tasks: {
-          entities: { work_item: { name: "task", url: "/tasks/{slug}" } },
+          entities: { task: { name: "ticket", url: "/tickets/{slug}" } },
         },
       }),
     ).toThrow('"{slug}" is not a column of the entity\'s table');
     expect(() =>
-      resolve("tasks", { tasks: { entities: { work_item: "project_task" } } }),
+      resolve("tasks", { tasks: { entities: { task: "project_task" } } }),
     ).toThrow('"project_task" contains "project"');
     expect(() =>
       resolve("tasks", {

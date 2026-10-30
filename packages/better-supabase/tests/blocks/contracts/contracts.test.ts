@@ -357,10 +357,10 @@ describe("createContracts", () => {
 
   it("saves, settles, deletes and lists obligations", async () => {
     const t = fieldsTransport({
-      save_obligation: () => OBLIGATION,
-      set_obligation_status: () => OBLIGATION,
-      delete_obligation: () => BARE_OBLIGATION,
-      list_obligations: () => [OBLIGATION, BARE_OBLIGATION],
+      save_contract_obligation: () => OBLIGATION,
+      set_contract_obligation_status: () => OBLIGATION,
+      delete_contract_obligation: () => BARE_OBLIGATION,
+      list_contract_obligations: () => [OBLIGATION, BARE_OBLIGATION],
     });
 
     const contracts = createContracts({ transport: t });
@@ -413,7 +413,7 @@ describe("createContracts", () => {
     expect(listed).toHaveLength(2);
     expect(t.calls).toEqual([
       [
-        "save_obligation",
+        "save_contract_obligation",
         {
           contract_id: "k1",
           title: "Quarterly report",
@@ -424,7 +424,7 @@ describe("createContracts", () => {
         },
       ],
       [
-        "save_obligation",
+        "save_contract_obligation",
         {
           contract_id: "k1",
           title: "Kick-off",
@@ -434,10 +434,13 @@ describe("createContracts", () => {
           obligation_id: null,
         },
       ],
-      ["set_obligation_status", { obligation_id: "o1", status: "done" }],
-      ["delete_obligation", { obligation_id: "o2" }],
       [
-        "list_obligations",
+        "set_contract_obligation_status",
+        { obligation_id: "o1", status: "done" },
+      ],
+      ["delete_contract_obligation", { obligation_id: "o2" }],
+      [
+        "list_contract_obligations",
         {
           tenant: "org-1",
           contract_id: null,
@@ -448,7 +451,7 @@ describe("createContracts", () => {
         },
       ],
       [
-        "list_obligations",
+        "list_contract_obligations",
         {
           tenant: "org-1",
           contract_id: "k1",
@@ -464,7 +467,10 @@ describe("createContracts", () => {
   it("rejects malformed rows", async () => {
     const t = fieldsTransport({
       get_contract: () => ({ ...MINIMAL, status: "lost" }),
-      delete_obligation: () => ({ ...BARE_OBLIGATION, status: "late" }),
+      delete_contract_obligation: () => ({
+        ...BARE_OBLIGATION,
+        status: "late",
+      }),
       run_contract_renewals: () => [],
     });
 

@@ -307,7 +307,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "webhooks",
       "entities": {
         "specs": {
-          "endpoint": {
+          "webhook_endpoint": {
             "table": "endpoints",
             "singular": "webhook_endpoint",
             "primary": true
@@ -382,7 +382,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "keys",
       "entities": {
         "specs": {
-          "key": {
+          "api_key": {
             "table": "keys",
             "singular": "api_key",
             "primary": true
@@ -667,7 +667,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "entries",
       "entities": {
         "specs": {
-          "entry": {
+          "waitlist_entry": {
             "table": "entries",
             "singular": "waitlist_entry",
             "plural": "waitlist_entries",
@@ -814,7 +814,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "definitions",
       "entities": {
         "specs": {
-          "definition": {
+          "workflow_definition": {
             "table": "definitions",
             "singular": "workflow_definition",
             "primary": true
@@ -945,12 +945,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "chats",
       "entities": {
         "specs": {
-          "chat": {
+          "ai_chat": {
             "table": "chats",
             "singular": "ai_chat",
             "primary": true
           },
-          "project": {
+          "ai_project": {
             "table": "projects",
             "singular": "ai_project"
           }
@@ -1023,7 +1023,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "files",
       "entities": {
         "specs": {
-          "document": {
+          "ai_document": {
             "table": "documents",
             "singular": "ai_document",
             "primary": true
@@ -1076,7 +1076,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entities": {
         "specs": {
-          "document": {
+          "knowledge_document": {
             "table": "documents",
             "singular": "knowledge_document",
             "primary": true
@@ -1250,7 +1250,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "servers",
       "entities": {
         "specs": {
-          "server": {
+          "connector_server": {
             "table": "servers",
             "singular": "connector_server",
             "primary": true
@@ -1303,7 +1303,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "tasks",
       "entities": {
         "specs": {
-          "task": {
+          "ai_scheduled_task": {
             "table": "tasks",
             "singular": "ai_scheduled_task",
             "primary": true
@@ -1532,9 +1532,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entities": {
         "specs": {
-          "field": {
+          "field_definition": {
             "table": "definitions",
-            "singular": "field",
+            "singular": "field_definition",
+            "formerly": "field",
             "primary": true
           }
         },
@@ -1584,7 +1585,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "links",
       "entities": {
         "specs": {
-          "link": {
+          "share_link": {
             "table": "links",
             "singular": "share_link",
             "primary": true
@@ -1747,7 +1748,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "views",
       "entities": {
         "specs": {
-          "view": {
+          "saved_view": {
             "table": "views",
             "singular": "saved_view",
             "primary": true
@@ -2264,7 +2265,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "requests",
       "entities": {
         "specs": {
-          "request": {
+          "access_request": {
             "table": "requests",
             "singular": "access_request",
             "primary": true
@@ -2512,7 +2513,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "locations",
       "entities": {
         "specs": {
-          "location": {
+          "inventory_location": {
             "table": "locations",
             "singular": "inventory_location",
             "primary": true
@@ -2593,7 +2594,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "nodes",
       "entities": {
         "specs": {
-          "node": {
+          "drive_node": {
             "table": "nodes",
             "singular": "drive_node",
             "primary": true
@@ -2930,7 +2931,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "requests",
       "entities": {
         "specs": {
-          "request": {
+          "signature_request": {
             "table": "requests",
             "singular": "signature_request",
             "primary": true
@@ -2987,7 +2988,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "entries",
       "entities": {
         "specs": {
-          "entry": {
+          "time_entry": {
             "table": "entries",
             "singular": "time_entry",
             "plural": "time_entries",
@@ -3315,9 +3316,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "engagements",
       "entities": {
         "specs": {
-          "engagement": {
+          "activity": {
             "table": "engagements",
-            "singular": "engagement",
+            "singular": "activity",
+            "formerly": "engagement",
             "primary": true,
             "subject": {
               "title": "title",
@@ -3512,9 +3514,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "items",
       "entities": {
         "specs": {
-          "work_item": {
+          "task": {
             "table": "items",
-            "singular": "work_item",
+            "singular": "task",
+            "formerly": "work_item",
             "primary": true,
             "subject": {
               "title": "title",
@@ -3848,7 +3851,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "policies",
       "entities": {
         "specs": {
-          "policy": {
+          "sla_policy": {
             "table": "policies",
             "singular": "sla_policy",
             "plural": "sla_policies",
@@ -3904,9 +3907,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "targets",
       "entities": {
         "specs": {
-          "target": {
+          "goal": {
             "table": "targets",
-            "singular": "target",
+            "singular": "goal",
+            "formerly": "target",
             "primary": true
           }
         },
@@ -3963,7 +3967,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "jobs",
       "entities": {
         "specs": {
-          "job": {
+          "job_opening": {
             "table": "jobs",
             "singular": "job_opening",
             "primary": true
@@ -4143,7 +4147,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "collections",
       "entities": {
         "specs": {
-          "collection": {
+          "subject_collection": {
             "table": "collections",
             "singular": "subject_collection",
             "primary": true
@@ -4362,12 +4366,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "requests",
       "entities": {
         "specs": {
-          "request": {
+          "leave_request": {
             "table": "requests",
             "singular": "leave_request",
             "primary": true
           },
-          "type": {
+          "leave_type": {
             "table": "types",
             "singular": "leave_type"
           }
@@ -4443,9 +4447,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entities": {
         "specs": {
-          "rule": {
+          "automation": {
             "table": "rules",
-            "singular": "rule",
+            "singular": "automation",
+            "formerly": "rule",
             "primary": true
           }
         },
@@ -5650,9 +5655,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               }
             }
           },
-          "obligation": {
+          "contract_obligation": {
             "table": "obligations",
-            "singular": "obligation"
+            "singular": "contract_obligation",
+            "formerly": "obligation"
           }
         },
         "tables": {
@@ -5751,10 +5757,10 @@ export const PRESET_CATALOG: PresetCatalog = {
             "table": "tasks",
             "singular": "evidence_task"
           },
-          "policy": {
+          "compliance_policy": {
             "table": "policies",
-            "singular": "policy",
-            "plural": "policies",
+            "singular": "compliance_policy",
+            "formerly": "policy",
             "subject": {
               "title": "title",
               "permissions": {
@@ -5875,9 +5881,10 @@ export const PRESET_CATALOG: PresetCatalog = {
             "table": "components",
             "singular": "status_component"
           },
-          "postmortem": {
+          "incident_postmortem": {
             "table": "postmortems",
-            "singular": "postmortem"
+            "singular": "incident_postmortem",
+            "formerly": "postmortem"
           },
           "status_page": {
             "table": "pages",
@@ -6284,10 +6291,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entities": {
         "specs": {
-          "entry": {
+          "timeline_entry": {
             "table": "activity",
-            "singular": "activity_entry",
-            "plural": "activity_entries",
+            "singular": "timeline_entry",
+            "formerly": "activity_entry",
             "primary": true
           }
         },
@@ -6588,7 +6595,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entities": {
         "specs": {
-          "snapshot": {
+          "forecast_snapshot": {
             "table": "snapshots",
             "singular": "forecast_snapshot",
             "primary": true
@@ -7031,6 +7038,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "compliance",
+        "tasks",
         "relations",
         "numbering",
         "notifications",
@@ -14332,7 +14340,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         },
-        "obligation": {
+        "contract_obligation": {
           "input": {
             "title": "ObligationInput",
             "fields": {
@@ -14749,7 +14757,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         },
-        "policy": {
+        "compliance_policy": {
           "input": {
             "title": "PolicyInput",
             "fields": {
@@ -15244,7 +15252,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         },
-        "postmortem": {
+        "incident_postmortem": {
           "input": {
             "title": "PostmortemInput",
             "fields": {
@@ -18708,7 +18716,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         }
       ],
       "entitySchemas": {
-        "engagement": {
+        "activity": {
           "input": {
             "title": "EngagementInput",
             "fields": {
@@ -23164,7 +23172,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         }
       ],
       "entitySchemas": {
-        "work_item": {
+        "task": {
           "input": {
             "title": "WorkItemInput",
             "fields": {

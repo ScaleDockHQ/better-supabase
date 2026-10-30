@@ -5,7 +5,7 @@ import { booksAccounting } from "../accounting-sources-sql.ts";
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { subjectsOption } from "../subjects.ts";
 import { moduleOperations } from "./permissions-model.ts";
-import { projectType, workItemType } from "./tasks.ts";
+import { projectType, taskType } from "./tasks.ts";
 import { entryEnded, entrySubjects } from "./time-tracking-owner.ts";
 
 /** Whether billable time renders `project_costs`: tasks has projects. */
@@ -45,7 +45,7 @@ export function projectCostsSql(
     tasks.has("projects", logical) ? `v_project.${p(logical)}` : "null";
 
   const items = tasks.has("items", "project")
-    ? ` or (${subject.type} = ${sqlString(workItemType(tasks))} and ${subject.id} in (
+    ? ` or (${subject.type} = ${sqlString(taskType(tasks))} and ${subject.id} in (
         select y.${w("id")}::text from ${tasks.table("items")} y where y.${w("project")} = v_project.${p("id")}
       ))`
     : "";
@@ -87,7 +87,7 @@ declare
 begin
   select * into v_project from ${tasks.table("projects")} x where x.${p("id")} = project_costs.project_id;
   if not found or not (${SERVICE_CALLER} or ${ctx.can("tenant", `v_project.${p("tenant")}`, read)}) then
-    ${fail("WORK_ITEM_PROJECT_NOT_FOUND", "project not found", "P0002")}
+    ${fail("TASK_PROJECT_NOT_FOUND", "project not found", "P0002")}
   end if;
   with spent as (
     select extract(epoch from ${entryEnded(time, "x")} - x.${e("startedAt")}) as seconds, card.cost, card.currency,

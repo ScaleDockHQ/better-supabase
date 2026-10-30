@@ -65,11 +65,18 @@ export class BlockSession {
     layout: BlockSqlLayout = {},
   ): Promise<void> {
     // The seed's team members belong to the fixture's `public.memberships`,
-    // which a render over another memberships table can't reference.
+    // which a render over another memberships table can't reference. The
+    // fixture keeps the tasks block on the work_item noun, so its pipeline
+    // triggers on work_items would check a render's tasks against work_item
+    // pipelines; a render that keeps that noun creates them again.
     await this.client.query(`do $$
       begin
         if to_regclass('better_supabase.team_members') is not null then
           delete from better_supabase.team_members;
+        end if;
+        if to_regclass('better_supabase.work_items') is not null then
+          drop trigger if exists bsb_pipeline_work_item on better_supabase.work_items;
+          drop trigger if exists bsb_pipeline_status_work_item on better_supabase.work_items;
         end if;
       end
     $$`);

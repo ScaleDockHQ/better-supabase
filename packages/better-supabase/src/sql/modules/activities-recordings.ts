@@ -10,7 +10,7 @@ import {
   userGrant,
 } from "../shared.ts";
 
-/** The queue `attach_engagement_recording` enqueues a transcription job on. */
+/** The queue `attach_activity_recording` enqueues a transcription job on. */
 const TRANSCRIBE_QUEUE = "engagements.transcribe";
 
 /** The most segments one transcript keeps. */
@@ -153,11 +153,11 @@ export function recordingsSql(
   const attached = (
     [
       ["tenant", "v_tenant"],
-      ["engagement", "attach_engagement_recording.engagement"],
+      ["engagement", "attach_activity_recording.engagement"],
       ["file", `fx.${f("id")}`],
       ["filename", `fx.${f("filename")}`],
       ["mediaType", `fx.${f("mediaType")}`],
-      ["language", "nullif(trim(attach_engagement_recording.language), '')"],
+      ["language", "nullif(trim(attach_activity_recording.language), '')"],
       ["createdBy", "auth.uid()"],
     ] as const
   ).filter(([column]) => ctx.has("recordings", column));
@@ -178,17 +178,17 @@ export function recordingsSql(
 
   const noted = (
     [
-      ["engagement", "save_engagement_notes.engagement"],
+      ["engagement", "save_activity_notes.engagement"],
       ["tenant", "v_tenant"],
       ["summary", "v_summary"],
       ["actionItems", "v_items"],
-      ["model", "nullif(save_engagement_notes.notes ->> 'model', '')"],
+      ["model", "nullif(save_activity_notes.notes ->> 'model', '')"],
       [
         "source",
         ctx.cast(
           "notes",
           "source",
-          "case when save_engagement_notes.notes ->> 'source' = 'member' then 'member' else 'ai' end",
+          "case when save_activity_notes.notes ->> 'source' = 'member' then 'member' else 'ai' end",
         ),
       ],
       ["createdBy", "auth.uid()"],
@@ -282,7 +282,7 @@ ${renderPolicy(makePolicy({ table: t("notes"), name: `${ctx.tableName("notes").n
 -- The author, the owner and engagements.manage may attach; the file must be
 -- the caller's own unless they manage engagements. With the jobs block a
 -- transcription job goes on the ${TRANSCRIBE_QUEUE} queue.
-create or replace function ${fn("attach_engagement_recording")}(engagement uuid, file uuid, language text)
+create or replace function ${fn("attach_activity_recording")}(engagement uuid, file uuid, language text)
 returns jsonb
 language plpgsql
 security definer
@@ -296,13 +296,13 @@ declare
   v_first jsonb;
 begin
   select x.${e("tenant")}, x.${e("type")} into v_tenant, v_type
-  from ${t("engagements")} x where x.${e("id")} = attach_engagement_recording.engagement and ${editable("x")};
+  from ${t("engagements")} x where x.${e("id")} = attach_activity_recording.engagement and ${editable("x")};
   if v_tenant is null then
-    ${fail("ENGAGEMENT_NOT_FOUND", "no such engagement you can edit", "P0002")}
+    ${fail("ACTIVITY_NOT_FOUND", "no such engagement you can edit", "P0002")}
   end if;
   if not exists (
     select 1 from ${fileTable} fx
-    where fx.${f("id")} = attach_engagement_recording.file
+    where fx.${f("id")} = attach_activity_recording.file
       and fx.${f("tenant")}::text = v_tenant::text
       and fx.${f("status")} = 'ready'
       and (auth.role() = 'service_role' or fx.${f("owner")} = auth.uid() or ${ctx.scope.can("v_tenant", manage)})
@@ -311,21 +311,21 @@ begin
   end if;
   insert into ${t("recordings")} (${attached.map(([column]) => r(column)).join(", ")})
   select ${attached.map(([, value]) => value).join(", ")}
-  from ${fileTable} fx where fx.${f("id")} = attach_engagement_recording.file
+  from ${fileTable} fx where fx.${f("id")} = attach_activity_recording.file
   on conflict (${r("engagement")}, ${r("file")}) do nothing
   returning ${r("id")} into v_recording;
   if v_recording is null then
-    ${fail("ENGAGEMENT_RECORDING_EXISTS", "the file is already a recording of this engagement", "23505")}
+    ${fail("ACTIVITY_RECORDING_EXISTS", "the file is already a recording of this engagement", "23505")}
   end if;
-  ${loadSubjects("attach_engagement_recording.engagement")}
-  ${record("engagement.recorded", "attach_engagement_recording.engagement", "v_type", "v_tenant", recordingPayload("v_recording"))}${enqueue}
+  ${loadSubjects("attach_activity_recording.engagement")}
+  ${record("engagement.recorded", "attach_activity_recording.engagement", "v_type", "v_tenant", recordingPayload("v_recording"))}${enqueue}
   return ${oneRecording("v_recording")};
 end;
 $$;
-${userGrant(`${fn("attach_engagement_recording")}(uuid, uuid, text)`)}
+${userGrant(`${fn("attach_activity_recording")}(uuid, uuid, text)`)}
 
 -- An engagement's recordings, oldest first, as the caller may read them.
-create or replace function ${fn("engagement_recordings")}(engagement uuid)
+create or replace function ${fn("activity_recordings")}(engagement uuid)
 returns jsonb
 language sql
 stable
@@ -334,12 +334,12 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(${recordingJson("rx")} order by rx.${r("createdAt")}, rx.${r("id")}), '[]'::jsonb)
   from ${t("recordings")} rx
-  where rx.${r("engagement")} = engagement_recordings.engagement
+  where rx.${r("engagement")} = activity_recordings.engagement
 $$;
-${userGrant(`${fn("engagement_recordings")}(uuid)`)}
+${userGrant(`${fn("activity_recordings")}(uuid)`)}
 
 -- One recording, for the transcription job; null when the caller can't read it.
-create or replace function ${fn("get_engagement_recording")}(recording uuid)
+create or replace function ${fn("get_activity_recording")}(recording uuid)
 returns jsonb
 language sql
 stable
@@ -348,12 +348,12 @@ set search_path = ''
 as $$
   select ${recordingJson("rx")}
   from ${t("recordings")} rx
-  where rx.${r("id")} = get_engagement_recording.recording
+  where rx.${r("id")} = get_activity_recording.recording
 $$;
-${userGrant(`${fn("get_engagement_recording")}(uuid)`)}
+${userGrant(`${fn("get_activity_recording")}(uuid)`)}
 
 -- A transcript in order, after position after (0 for the start).
-create or replace function ${fn("engagement_transcript")}(recording uuid, after integer, page_size integer)
+create or replace function ${fn("activity_transcript")}(recording uuid, after integer, page_size integer)
 returns jsonb
 language sql
 stable
@@ -364,26 +364,26 @@ as $$
   from (
     select ${segmentJson("sx")} as value, sx.${s("position")} as position
     from ${t("segments")} sx
-    where sx.${s("recording")} = engagement_transcript.recording
-      and sx.${s("position")} > coalesce(engagement_transcript.after, 0)
+    where sx.${s("recording")} = activity_transcript.recording
+      and sx.${s("position")} > coalesce(activity_transcript.after, 0)
     order by sx.${s("position")}
-    limit ${pageSize("engagement_transcript.page_size", 500, 5000)}
+    limit ${pageSize("activity_transcript.page_size", 500, 5000)}
   ) p
 $$;
-${userGrant(`${fn("engagement_transcript")}(uuid, integer, integer)`)}
+${userGrant(`${fn("activity_transcript")}(uuid, integer, integer)`)}
 
 -- Replaces a recording's transcript: segments is [{ speaker, speakerUserId,
 -- startMs, endMs, text, confidence }] in order, attrs { language,
 -- durationSeconds, model }. The service role (a transcription job) and
 -- whoever may edit the engagement may save one.
-create or replace function ${fn("save_engagement_transcript")}(recording uuid, segments jsonb, attrs jsonb)
+create or replace function ${fn("save_activity_transcript")}(recording uuid, segments jsonb, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_recording uuid := save_engagement_transcript.recording;
+  v_recording uuid := save_activity_transcript.recording;
   v_engagement uuid;
   v_tenant ${ctx.idType};
   v_type text;
@@ -398,13 +398,13 @@ begin
   where rx.${r("id")} = v_recording and ${editable("x")}
   for update of rx;
   if v_engagement is null then
-    ${fail("ENGAGEMENT_RECORDING_NOT_FOUND", "no such recording you can edit", "P0002")}
+    ${fail("ACTIVITY_RECORDING_NOT_FOUND", "no such recording you can edit", "P0002")}
   end if;
-  if jsonb_typeof(save_engagement_transcript.segments) is distinct from 'array'
-    or jsonb_array_length(save_engagement_transcript.segments) > ${MAX_SEGMENTS} then
-    ${fail("ENGAGEMENT_TRANSCRIPT_INVALID", `segments must be a list of at most ${MAX_SEGMENTS} { startMs, endMs, text }`, "22023")}
+  if jsonb_typeof(save_activity_transcript.segments) is distinct from 'array'
+    or jsonb_array_length(save_activity_transcript.segments) > ${MAX_SEGMENTS} then
+    ${fail("ACTIVITY_TRANSCRIPT_INVALID", `segments must be a list of at most ${MAX_SEGMENTS} { startMs, endMs, text }`, "22023")}
   end if;
-  for v_item, v_position in select value, ordinality from jsonb_array_elements(save_engagement_transcript.segments) with ordinality loop
+  for v_item, v_position in select value, ordinality from jsonb_array_elements(save_activity_transcript.segments) with ordinality loop
     if jsonb_typeof(v_item) is distinct from 'object'
       or jsonb_typeof(v_item -> 'text') is distinct from 'string'
       or jsonb_typeof(v_item -> 'startMs') is distinct from 'number'
@@ -412,42 +412,42 @@ begin
       or (v_item ->> 'startMs')::numeric < 0
       or (v_item ->> 'endMs')::numeric < (v_item ->> 'startMs')::numeric
       or jsonb_typeof(coalesce(v_item -> 'confidence', 'null')) not in ('number', 'null') then
-      raise exception 'segment % needs startMs <= endMs and a text', v_position using errcode = '22023', hint = 'ENGAGEMENT_TRANSCRIPT_INVALID';
+      raise exception 'segment % needs startMs <= endMs and a text', v_position using errcode = '22023', hint = 'ACTIVITY_TRANSCRIPT_INVALID';
     end if;
   end loop;
   delete from ${t("segments")} sx where sx.${s("recording")} = v_recording;
   insert into ${t("segments")} (${segmented.map(([column]) => s(column)).join(", ")})
   select ${segmented.map(([, value]) => value).join(", ")}
-  from jsonb_array_elements(save_engagement_transcript.segments) with ordinality i;
+  from jsonb_array_elements(save_activity_transcript.segments) with ordinality i;
   update ${t("recordings")} rx set
-    ${r("status")} = 'transcribed'${set("recordings", "error", "null")}${set("recordings", "language", `coalesce(nullif(save_engagement_transcript.attrs ->> 'language', ''), ${field("recordings", "rx", "language")})`)}${set("recordings", "durationSeconds", `coalesce((save_engagement_transcript.attrs ->> 'durationSeconds')::integer, ${field("recordings", "rx", "durationSeconds")})`)}${set("recordings", "model", `coalesce(nullif(save_engagement_transcript.attrs ->> 'model', ''), ${field("recordings", "rx", "model")})`)}${set("recordings", "transcribedAt", "now()")}
+    ${r("status")} = 'transcribed'${set("recordings", "error", "null")}${set("recordings", "language", `coalesce(nullif(save_activity_transcript.attrs ->> 'language', ''), ${field("recordings", "rx", "language")})`)}${set("recordings", "durationSeconds", `coalesce((save_activity_transcript.attrs ->> 'durationSeconds')::integer, ${field("recordings", "rx", "durationSeconds")})`)}${set("recordings", "model", `coalesce(nullif(save_activity_transcript.attrs ->> 'model', ''), ${field("recordings", "rx", "model")})`)}${set("recordings", "transcribedAt", "now()")}
   where rx.${r("id")} = v_recording;
   ${loadSubjects("v_engagement")}
-  ${record("engagement.transcribed", "v_engagement", "v_type", "v_tenant", recordingPayload("v_recording"), "'engagement.transcribed:' || v_recording::text || ':' || md5(save_engagement_transcript.segments::text)")}
+  ${record("engagement.transcribed", "v_engagement", "v_type", "v_tenant", recordingPayload("v_recording"), "'engagement.transcribed:' || v_recording::text || ':' || md5(save_activity_transcript.segments::text)")}
   return ${oneRecording("v_recording")};
 end;
 $$;
-${userGrant(`${fn("save_engagement_transcript")}(uuid, jsonb, jsonb)`)}
+${userGrant(`${fn("save_activity_transcript")}(uuid, jsonb, jsonb)`)}
 
 -- Marks a recording failed with the transcriber's error. Service only.
-create or replace function ${fn("fail_engagement_recording")}(recording uuid, error text)
+create or replace function ${fn("fail_activity_recording")}(recording uuid, error text)
 returns boolean
 language sql
 security definer
 set search_path = ''
 as $$
   with failed as (
-    update ${t("recordings")} rx set ${r("status")} = 'failed'${ctx.has("recordings", "error") ? `, ${r("error")} = left(fail_engagement_recording.error, 2000)` : ""}
-    where rx.${r("id")} = fail_engagement_recording.recording and rx.${r("status")} <> 'transcribed'
+    update ${t("recordings")} rx set ${r("status")} = 'failed'${ctx.has("recordings", "error") ? `, ${r("error")} = left(fail_activity_recording.error, 2000)` : ""}
+    where rx.${r("id")} = fail_activity_recording.recording and rx.${r("status")} <> 'transcribed'
     returning 1
   )
   select exists (select 1 from failed)
 $$;
-${serviceGrant(`${fn("fail_engagement_recording")}(uuid, text)`)}
+${serviceGrant(`${fn("fail_activity_recording")}(uuid, text)`)}
 
 -- Recordings that wait for a transcript, oldest first, for a drain without
 -- the jobs block. Service only.
-create or replace function ${fn("pending_engagement_recordings")}(batch integer)
+create or replace function ${fn("pending_activity_recordings")}(batch integer)
 returns uuid[]
 language sql
 stable
@@ -460,14 +460,14 @@ as $$
     from ${t("recordings")} rx
     where rx.${r("status")} = 'pending'
     order by rx.${r("createdAt")}
-    limit ${pageSize("pending_engagement_recordings.batch", 20, 200)}
+    limit ${pageSize("pending_activity_recordings.batch", 20, 200)}
   ) p
 $$;
-${serviceGrant(`${fn("pending_engagement_recordings")}(integer)`)}
+${serviceGrant(`${fn("pending_activity_recordings")}(integer)`)}
 
 -- Saves an engagement's notes: notes { summary, actionItems: [{ text,
 -- ownerId, dueAt }], model, source }. Replaces earlier notes.
-create or replace function ${fn("save_engagement_notes")}(engagement uuid, notes jsonb)
+create or replace function ${fn("save_activity_notes")}(engagement uuid, notes jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -476,24 +476,24 @@ as $$
 declare
   v_tenant ${ctx.idType};
   v_type text;
-  v_summary text := nullif(trim(save_engagement_notes.notes ->> 'summary'), '');
-  v_items jsonb := coalesce(save_engagement_notes.notes -> 'actionItems', '[]'::jsonb);
+  v_summary text := nullif(trim(save_activity_notes.notes ->> 'summary'), '');
+  v_items jsonb := coalesce(save_activity_notes.notes -> 'actionItems', '[]'::jsonb);
   v_subjects jsonb;
   v_first jsonb;
 begin
   select x.${e("tenant")}, x.${e("type")} into v_tenant, v_type
-  from ${t("engagements")} x where x.${e("id")} = save_engagement_notes.engagement and ${editable("x")};
+  from ${t("engagements")} x where x.${e("id")} = save_activity_notes.engagement and ${editable("x")};
   if v_tenant is null then
-    ${fail("ENGAGEMENT_NOT_FOUND", "no such engagement you can edit", "P0002")}
+    ${fail("ACTIVITY_NOT_FOUND", "no such engagement you can edit", "P0002")}
   end if;
   if v_summary is null or length(v_summary) > 20000 then
-    ${fail("ENGAGEMENT_NOTES_INVALID", "notes need a summary of at most 20000 characters", "22023")}
+    ${fail("ACTIVITY_NOTES_INVALID", "notes need a summary of at most 20000 characters", "22023")}
   end if;
   if jsonb_typeof(v_items) <> 'array' or exists (
     select 1 from jsonb_array_elements(v_items) i
     where jsonb_typeof(i.value) <> 'object' or jsonb_typeof(i.value -> 'text') is distinct from 'string'
   ) then
-    ${fail("ENGAGEMENT_NOTES_INVALID", "actionItems must be a list of { text }", "22023")}
+    ${fail("ACTIVITY_NOTES_INVALID", "actionItems must be a list of { text }", "22023")}
   end if;
   insert into ${t("notes")} (${noted.map(([column]) => n(column)).join(", ")})
   values (${noted.map(([, value]) => value).join(", ")})
@@ -506,17 +506,17 @@ begin
       `${n("source")} = excluded.${n("source")}`,
       ...(ctx.has("notes", "updatedAt") ? [`${n("updatedAt")} = now()`] : []),
     ].join(", ")};
-  ${loadSubjects("save_engagement_notes.engagement")}
-  ${record("engagement.summarized", "save_engagement_notes.engagement", "v_type", "v_tenant", "", "'engagement.summarized:' || save_engagement_notes.engagement::text || ':' || md5(save_engagement_notes.notes::text)")}
-  return (select ${notesJson("nx")} from ${t("notes")} nx where nx.${n("engagement")} = save_engagement_notes.engagement);
+  ${loadSubjects("save_activity_notes.engagement")}
+  ${record("engagement.summarized", "save_activity_notes.engagement", "v_type", "v_tenant", "", "'engagement.summarized:' || save_activity_notes.engagement::text || ':' || md5(save_activity_notes.notes::text)")}
+  return (select ${notesJson("nx")} from ${t("notes")} nx where nx.${n("engagement")} = save_activity_notes.engagement);
 end;
 $$;
-${userGrant(`${fn("save_engagement_notes")}(uuid, jsonb)`)}
+${userGrant(`${fn("save_activity_notes")}(uuid, jsonb)`)}
 
 -- An engagement with the transcripts of its recordings in order, for a note
 -- taker: { engagement, segments: [{ recordingId, position, ... }] }. Null
 -- when the caller can't read it.
-create or replace function ${fn("engagement_with_transcripts")}(engagement uuid)
+create or replace function ${fn("activity_with_transcripts")}(engagement uuid)
 returns jsonb
 language sql
 stable
@@ -533,21 +533,21 @@ as $$
     ), '[]'::jsonb)
   )
   from ${t("engagements")} x
-  where x.${e("id")} = engagement_with_transcripts.engagement
+  where x.${e("id")} = activity_with_transcripts.engagement
 $$;
-${userGrant(`${fn("engagement_with_transcripts")}(uuid)`)}
+${userGrant(`${fn("activity_with_transcripts")}(uuid)`)}
 
 -- An engagement's notes, or null.
-create or replace function ${fn("engagement_notes")}(engagement uuid)
+create or replace function ${fn("activity_notes")}(engagement uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select ${notesJson("nx")} from ${t("notes")} nx where nx.${n("engagement")} = engagement_notes.engagement
+  select ${notesJson("nx")} from ${t("notes")} nx where nx.${n("engagement")} = activity_notes.engagement
 $$;
-${userGrant(`${fn("engagement_notes")}(uuid)`)}
+${userGrant(`${fn("activity_notes")}(uuid)`)}
 `;
 }
 
@@ -555,38 +555,34 @@ ${userGrant(`${fn("engagement_notes")}(uuid)`)}
 export function recordingsContract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "attach_engagement_recording",
+      name: "attach_activity_recording",
       args: ["uuid", "uuid", "text"],
       returns: "jsonb",
     },
-    { name: "engagement_recordings", args: ["uuid"], returns: "jsonb" },
-    { name: "get_engagement_recording", args: ["uuid"], returns: "jsonb" },
+    { name: "activity_recordings", args: ["uuid"], returns: "jsonb" },
+    { name: "get_activity_recording", args: ["uuid"], returns: "jsonb" },
     {
-      name: "engagement_transcript",
+      name: "activity_transcript",
       args: ["uuid", "integer", "integer"],
       returns: "jsonb",
     },
     {
-      name: "save_engagement_transcript",
+      name: "save_activity_transcript",
       args: ["uuid", "jsonb", "jsonb"],
       returns: "jsonb",
     },
     {
-      name: "fail_engagement_recording",
+      name: "fail_activity_recording",
       args: ["uuid", "text"],
       returns: "boolean",
     },
     {
-      name: "pending_engagement_recordings",
+      name: "pending_activity_recordings",
       args: ["integer"],
       returns: "uuid[]",
     },
-    {
-      name: "save_engagement_notes",
-      args: ["uuid", "jsonb"],
-      returns: "jsonb",
-    },
-    { name: "engagement_notes", args: ["uuid"], returns: "jsonb" },
-    { name: "engagement_with_transcripts", args: ["uuid"], returns: "jsonb" },
+    { name: "save_activity_notes", args: ["uuid", "jsonb"], returns: "jsonb" },
+    { name: "activity_notes", args: ["uuid"], returns: "jsonb" },
+    { name: "activity_with_transcripts", args: ["uuid"], returns: "jsonb" },
   ];
 }

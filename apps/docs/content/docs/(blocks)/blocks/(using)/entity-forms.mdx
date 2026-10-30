@@ -20,7 +20,7 @@ with your shadcn components.
 import { workItemInputSchema } from "better-supabase/blocks/tasks";
 import { recordForm } from "better-supabase/records";
 
-const fields = await db.customFields.listDefinitions("work_item").orThrow();
+const fields = await db.customFields.listDefinitions("task").orThrow();
 
 const form = recordForm(workItemInputSchema, {
   fields: ["title", "priority", "dueAt"],

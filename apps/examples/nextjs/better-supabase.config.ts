@@ -381,15 +381,17 @@ export default defineConfig({
       },
     },
     rank: {},
-    // The app already has `projects` and `saved_views` tables (appTables).
+    // The app already has `projects` and `saved_views` tables (appTables), and
+    // its own `tasks` table is the `task` subject, so the block keeps the
+    // work_item noun.
     tasks: {
       tables: { projects: "work_projects" },
-      names: { work_item: { url: "/work" } },
+      names: { task: { name: "work_item", url: "/work" } },
     },
     // A second tasks instance: maintenance requests on leased units.
     maintenance: {
       block: "tasks",
-      names: { work_item: "maintenance_request" },
+      names: { task: "maintenance_request" },
       tables: { projects: null, iterations: null },
       options: {
         prefix: "MR",
@@ -458,7 +460,7 @@ export default defineConfig({
     // assigned, directly, through a team or through their role.
     acknowledgements: {
       on: {
-        policy: {
+        compliance_policy: {
           table: "better_supabase.policies",
           idType: "uuid",
           tenant: "tenant_id",

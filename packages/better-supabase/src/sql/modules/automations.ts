@@ -49,7 +49,14 @@ const EVENTS: BlockSqlEvents<AutomationsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
-  entities: { rule: { table: "rules", singular: "rule", primary: true } },
+  entities: {
+    automation: {
+      table: "rules",
+      singular: "automation",
+      formerly: "rule",
+      primary: true,
+    },
+  },
   events: EVENTS,
   options: ["maxConditions", "maxDepth", "maxActions", "enable", "disable"],
   hooks: [],
@@ -413,7 +420,7 @@ ${rulesTablesSql(ctx)}
 ${rulesEvaluator(ctx)}
 
 -- Checks a tree against a field map and the operator table; returns the
--- number of conditions. Raises RULE_INVALID with the reason.
+-- number of conditions. Raises AUTOMATION_INVALID with the reason.
 create or replace function ${fn("rule_check")}(node jsonb, fields jsonb, depth integer default 1)
 returns integer
 language plpgsql
@@ -431,11 +438,11 @@ declare
 begin
   if jsonb_typeof(node) is distinct from 'object' or jsonb_typeof(node -> 'id') is distinct from 'string'
     or length(node ->> 'id') not between 1 and 64 then
-    ${fail("RULE_INVALID", "Every condition and group needs an id", "22023")}
+    ${fail("AUTOMATION_INVALID", "Every condition and group needs an id", "22023")}
   end if;
   if node ->> 'type' = 'rule' then
     if jsonb_typeof(node -> 'path') is distinct from 'array' or jsonb_array_length(node -> 'path') = 0 then
-      ${fail("RULE_INVALID", "A condition needs a field path", "22023")}
+      ${fail("AUTOMATION_INVALID", "A condition needs a field path", "22023")}
     end if;
     v_operator := coalesce(node ->> 'operator', '');
     if v_operator = '' then
@@ -464,24 +471,24 @@ begin
   end if;
   if node ->> 'type' is distinct from 'group' or coalesce(node ->> 'combinator', '') not in ('and', 'or')
     or jsonb_typeof(node -> 'rules') is distinct from 'array' then
-    ${fail("RULE_INVALID", "A group needs a combinator (and, or) and a list of rules", "22023")}
+    ${fail("AUTOMATION_INVALID", "A group needs a combinator (and, or) and a list of rules", "22023")}
   end if;
   if depth > ${String(maxDepth)} then
-    ${fail("RULE_INVALID", `Groups nest at most ${String(maxDepth)} deep`, "22023")}
+    ${fail("AUTOMATION_INVALID", `Groups nest at most ${String(maxDepth)} deep`, "22023")}
   end if;
   for v_child in select x.value from jsonb_array_elements(node -> 'rules') x loop
     v_count := v_count + ${fn("rule_check")}(v_child, fields, depth + 1);
   end loop;
   if v_count > ${String(maxConditions)} then
-    ${fail("RULE_INVALID", `A rule holds at most ${String(maxConditions)} conditions`, "22023")}
+    ${fail("AUTOMATION_INVALID", `A rule holds at most ${String(maxConditions)} conditions`, "22023")}
   end if;
   return v_count;
 end;
 $$;
 
--- Replaces a subject type's field catalog (service role). fields is an array
--- of { id, label, description, type, column, columnType, nullable, options,
--- operators }; returns how many fields the subject type has.
+-- Replaces a subject type's field catalog (service role). fields is an array of { id,
+-- label, description, type, column, columnType, nullable, options, operators }; returns
+-- how many fields the subject type has.
 create or replace function ${fn("sync_rule_fields")}(subject_type text, fields jsonb)
 returns integer
 language plpgsql
@@ -493,10 +500,10 @@ declare
   v_count integer;
 begin
   if not (${SERVICE_CALLER}) then
-    ${fail("RULE_FORBIDDEN", "Only the service role syncs rule fields")}
+    ${fail("AUTOMATION_FORBIDDEN", "Only the service role syncs rule fields")}
   end if;
   if jsonb_typeof(fields) is distinct from 'array' then
-    ${fail("RULE_FIELDS_INVALID", "fields must be an array", "22023")}
+    ${fail("AUTOMATION_FIELDS_INVALID", "fields must be an array", "22023")}
   end if;
   insert into ${f} (${fieldInsert.map(([column]) => rf(column)).join(", ")})
   select ${values(fieldInsert)}
@@ -521,7 +528,7 @@ begin
   select count(*) into v_count from ${f} x where x.${rf("subjectType")} = sync_rule_fields.subject_type;
   return v_count;
 exception when check_violation or not_null_violation then
-  ${fail("RULE_FIELDS_INVALID", "A rule field has an invalid id, type, column or column type", "22023")}
+  ${fail("AUTOMATION_FIELDS_INVALID", "A rule field has an invalid id, type, column or column type", "22023")}
 end;
 $$;
 
@@ -553,11 +560,10 @@ as $$
   from ${f} x where x.${rf("subjectType")} = rule_field_map.subject_type
 $$;
 
--- Creates or changes a rule. rule is { id?, version?, subjectType, trigger,
--- name, description, conditions, actions, enabled, stopProcessing }; keys
--- left out keep their value. Creating or changing a disabled rule takes the
--- edit permission; enabling one, or changing an enabled one, takes publish.
--- version, when given, must be the stored one.
+-- Creates or changes a rule. rule is { id?, version?, subjectType, trigger, name,
+-- description, conditions, actions, enabled, stopProcessing }; keys left out keep
+-- their value. Creating or changing a disabled rule takes the edit permission;
+-- enabling one, or changing an enabled one, takes publish. version must be the stored one.
 create or replace function ${fn("save_rule")}(tenant ${id}, rule jsonb)
 returns jsonb
 language plpgsql
@@ -581,19 +587,19 @@ declare
   v_action jsonb;
 begin
   if jsonb_typeof(rule) is distinct from 'object' then
-    ${fail("RULE_INVALID", "rule must be an object", "22023")}
+    ${fail("AUTOMATION_INVALID", "rule must be an object", "22023")}
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from ${t} x where x.${r("id")} = v_id and x.${r("tenant")} = save_rule.tenant for update;
     if v_old.${r("id")} is null then
-      ${fail("RULE_NOT_FOUND", "No rule in this organization has this id", "P0002")}
+      ${fail("AUTOMATION_NOT_FOUND", "No rule in this organization has this id", "P0002")}
     end if;
     if rule ? 'version' and (rule ->> 'version')::integer is distinct from v_old.${r("version")} then
-      ${fail("RULE_CONFLICT", "The rule changed since it was read", "40001")}
+      ${fail("AUTOMATION_CONFLICT", "The rule changed since it was read", "40001")}
     end if;
     if rule ? 'subjectType' and rule ->> 'subjectType' is distinct from v_old.${r("subjectType")} then
-      ${fail("RULE_INVALID", "A rule's subject type can't change", "22023")}
+      ${fail("AUTOMATION_INVALID", "A rule's subject type can't change", "22023")}
     end if;
   end if;
   v_subject_type := coalesce(v_old.${r("subjectType")}, rule ->> 'subjectType');
@@ -605,16 +611,16 @@ begin
   v_enabled := coalesce((rule ->> 'enabled')::boolean, v_old.${r("enabled")}, false);
   v_stop := coalesce((rule ->> 'stopProcessing')::boolean, ${columnOr("rules", "v_old", "stopProcessing", "null")}, false);
   if not ${canKey("save_rule.tenant", `(v_enabled or coalesce(v_old.${r("enabled")}, false))`)} then
-    ${raise("You need % to save this rule", "42501", "RULE_FORBIDDEN", keyFor(`(v_enabled or coalesce(v_old.${r("enabled")}, false))`))}
+    ${raise("You need % to save this rule", "42501", "AUTOMATION_FORBIDDEN", keyFor(`(v_enabled or coalesce(v_old.${r("enabled")}, false))`))}
   end if;
   if v_subject_type is null or v_subject_type !~ ${sqlString(SUBJECT_TYPE)} then
-    ${fail("RULE_INVALID", "A rule needs a subject type", "22023")}
+    ${fail("AUTOMATION_INVALID", "A rule needs a subject type", "22023")}
   end if;
   if v_trigger is null or length(v_trigger) > 128 or v_trigger !~ ${sqlString(TRIGGER)} then
-    ${fail("RULE_INVALID", "A rule needs a trigger such as expense.submitted", "22023")}
+    ${fail("AUTOMATION_INVALID", "A rule needs a trigger such as expense.submitted", "22023")}
   end if;
   if v_name is null or length(v_name) > 200 then
-    ${fail("RULE_INVALID", "A rule needs a name of at most 200 characters", "22023")}
+    ${fail("AUTOMATION_INVALID", "A rule needs a name of at most 200 characters", "22023")}
   end if;
   v_fields := ${fn("rule_field_map")}(v_subject_type);
   if v_fields = '{}'::jsonb${ctx.has("rules", "defaultKey") ? ` and v_old.${r("defaultKey")} is null` : ""} then
@@ -622,13 +628,13 @@ begin
   end if;
   perform ${fn("rule_check")}(v_conditions, v_fields, 1);
   if jsonb_typeof(v_actions) is distinct from 'array' or jsonb_array_length(v_actions) > ${String(maxActions)} then
-    ${fail("RULE_ACTIONS_INVALID", `actions must be an array of at most ${String(maxActions)} entries`, "22023")}
+    ${fail("AUTOMATION_ACTIONS_INVALID", `actions must be an array of at most ${String(maxActions)} entries`, "22023")}
   end if;
   for v_action in select x.value from jsonb_array_elements(v_actions) x loop
     if jsonb_typeof(v_action) is distinct from 'object' or v_action ->> 'kind' is null
       or length(v_action ->> 'kind') > 128 or v_action ->> 'kind' !~ ${sqlString(ACTION_KIND)}
       or (v_action ? 'config' and jsonb_typeof(v_action -> 'config') is distinct from 'object') then
-      ${fail("RULE_ACTIONS_INVALID", "Every action needs a kind such as approvals.request and an optional config object", "22023")}
+      ${fail("AUTOMATION_ACTIONS_INVALID", "Every action needs a kind such as approvals.request and an optional config object", "22023")}
     end if;
   end loop;
   if v_old.${r("id")} is null then
@@ -673,8 +679,7 @@ begin
 end;
 $$;
 
--- An organization's rules in evaluation order, filtered by subject type,
--- trigger and enabled when given.
+-- An organization's rules in evaluation order, by subject type, trigger and enabled.
 create or replace function ${fn("rules_list")}(tenant ${id}, subject_type text default null, trigger text default null, enabled boolean default null)
 returns jsonb
 language plpgsql
@@ -683,7 +688,7 @@ set search_path = ''
 as $$
 begin
   if not ${can("rules_list.tenant", read)} then
-    ${fail("RULE_FORBIDDEN", "You may not read this organization's rules")}
+    ${fail("AUTOMATION_FORBIDDEN", "You may not read this organization's rules")}
   end if;
   perform ${fn("install_default_rules")}(rules_list.tenant);
   return (
@@ -754,10 +759,10 @@ declare
 begin
   select * into v_row from ${t} x where x.${r("id")} = set_rule_enabled.id for update;
   if v_row.${r("id")} is null or not ${can(`v_row.${r("tenant")}`, read)} then
-    ${fail("RULE_NOT_FOUND", "No rule you can read has this id", "P0002")}
+    ${fail("AUTOMATION_NOT_FOUND", "No rule you can read has this id", "P0002")}
   end if;
   if not ${can(`v_row.${r("tenant")}`, publish)} then
-    ${fail("RULE_FORBIDDEN", "Publishing rules needs the publish permission")}
+    ${fail("AUTOMATION_FORBIDDEN", "Publishing rules needs the publish permission")}
   end if;
   if v_row.${r("enabled")} = coalesce(set_rule_enabled.enabled, false) then
     return ${ruleJson("v_row")};
@@ -793,13 +798,13 @@ declare
 begin
   select * into v_row from ${t} x where x.${r("id")} = rank_rule.id for update;
   if v_row.${r("id")} is null or not ${can(`v_row.${r("tenant")}`, read)} then
-    ${fail("RULE_NOT_FOUND", "No rule you can read has this id", "P0002")}
+    ${fail("AUTOMATION_NOT_FOUND", "No rule you can read has this id", "P0002")}
   end if;
   if not ${canKey(`v_row.${r("tenant")}`, `v_row.${r("enabled")}`)} then
-    ${raise("You need % to move this rule", "42501", "RULE_FORBIDDEN", keyFor(`v_row.${r("enabled")}`))}
+    ${raise("You need % to move this rule", "42501", "AUTOMATION_FORBIDDEN", keyFor(`v_row.${r("enabled")}`))}
   end if;
   if rank_rule.rank is null or rank_rule.rank !~ ${RANK_KEY_PATTERN} then
-    ${fail("RULE_RANK_INVALID", "rank must be a key from rankBetween", "22023")}
+    ${fail("AUTOMATION_RANK_INVALID", "rank must be a key from rankBetween", "22023")}
   end if;
   update ${t} x set ${r("rank")} = rank_rule.rank, ${r("updatedAt")} = now()
   where x.${r("id")} = v_row.${r("id")} returning * into v_row;
@@ -825,7 +830,7 @@ begin
 ${
   ctx.has("rules", "defaultKey")
     ? `  if v_row.${r("defaultKey")} is not null then
-    ${fail("RULE_DEFAULT", "A block ships this automation; turn it off instead of removing it", "22023")}
+    ${fail("AUTOMATION_DEFAULT", "A block ships this automation; turn it off instead of removing it", "22023")}
   end if;
 `
     : ""
@@ -851,7 +856,7 @@ declare
   v_matches jsonb := '[]'::jsonb;
 begin
   if not ${can("matching_rules.tenant", read)} then
-    ${fail("RULE_FORBIDDEN", "You may not read this organization's rules")}
+    ${fail("AUTOMATION_FORBIDDEN", "You may not read this organization's rules")}
   end if;
   v_fields := ${fn("rule_field_map")}(matching_rules.subject_type);
   for v_rule in
@@ -883,16 +888,16 @@ declare
 begin
   select * into v_rule from ${t} x where x.${r("id")} = record_rule_evaluation.rule;
   if v_rule.${r("id")} is null then
-    ${fail("RULE_NOT_FOUND", "No rule has this id", "P0002")}
+    ${fail("AUTOMATION_NOT_FOUND", "No rule has this id", "P0002")}
   end if;
   if coalesce(record_rule_evaluation.mode, 'live') not in ('live', 'test') then
-    ${fail("RULE_INVALID", "mode is live or test", "22023")}
+    ${fail("AUTOMATION_INVALID", "mode is live or test", "22023")}
   end if;
   if coalesce(record_rule_evaluation.mode, 'live') = 'live' and not (${SERVICE_CALLER}) then
-    ${fail("RULE_FORBIDDEN", "Only the service role records live evaluations")}
+    ${fail("AUTOMATION_FORBIDDEN", "Only the service role records live evaluations")}
   end if;
   if not ${can(`v_rule.${r("tenant")}`, edit)} then
-    ${fail("RULE_FORBIDDEN", "Testing rules needs the edit permission")}
+    ${fail("AUTOMATION_FORBIDDEN", "Testing rules needs the edit permission")}
   end if;
   insert into ${e} (${evaluationInsert.map(([column]) => re(column)).join(", ")})
   values (${values(evaluationInsert)})
@@ -904,10 +909,9 @@ begin
 end;
 $$;
 
--- For database triggers and jobs (service role): evaluates the enabled rules
--- for a trigger, logs each one live and returns the matches as
--- matching_rules does. A null subject_type tests every rule for the trigger,
--- each against its own subject type's fields.
+-- For database triggers and jobs (service role): evaluates the enabled rules for a
+-- trigger, logs each one live and returns the matches as matching_rules does. A null
+-- subject_type tests every rule for the trigger against its own subject type's fields.
 create or replace function ${fn("run_rules")}(tenant ${id}, subject_type text, trigger text, subject_id text, subject jsonb, time_zone text default 'UTC')
 returns jsonb
 language plpgsql
@@ -921,7 +925,7 @@ declare
   v_matches jsonb := '[]'::jsonb;
 begin
   if not (${SERVICE_CALLER}) then
-    ${fail("RULE_FORBIDDEN", "Only the service role runs rules")}
+    ${fail("AUTOMATION_FORBIDDEN", "Only the service role runs rules")}
   end if;
   perform ${fn("install_default_rules")}(run_rules.tenant);
   v_fields := ${fn("rule_field_map")}(run_rules.subject_type);

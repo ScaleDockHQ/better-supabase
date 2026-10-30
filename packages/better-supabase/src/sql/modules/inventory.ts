@@ -138,7 +138,7 @@ const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: BlockSqlNames = {
   entities: {
-    location: {
+    inventory_location: {
       table: "locations",
       singular: "inventory_location",
       primary: true,

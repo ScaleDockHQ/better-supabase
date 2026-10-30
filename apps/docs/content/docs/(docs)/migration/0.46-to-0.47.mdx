@@ -1,0 +1,151 @@
+---
+title: From 0.46 to 0.47
+description: What to check when upgrading from better-supabase 0.46 to 0.47, where block entity keys equal the entity's singular, three subject types and the hint codes take the new nouns, block functions are renamed and doctor adds BS423.
+---
+
+0.47.0 finishes the naming convention (ADR 0130): the key of every entity in
+`blocks.<name>.entities` is the entity's singular, and the subject types, hint
+codes and function names follow the new nouns. Run
+`better-supabase codemod 0.47` and check what it lists for review. Old entity
+keys and the old subject types keep working until 0.48, with a warning.
+
+| Section                             | Needs code                                          |
+| ----------------------------------- | --------------------------------------------------- |
+| [Entity keys](#entity-keys)         | Run `codemod 0.47`                                  |
+| [Subject types](#subject-types)     | Run `upgrade`; rename stored types outside SQL      |
+| [Hint codes](#hint-codes)           | Run `codemod 0.47`, then check `ACTIVITY_FORBIDDEN` |
+| [Function names](#function-names)   | Rename calls in your own SQL                        |
+| [The SQL modules](#the-sql-modules) | Run `upgrade` and generate a migration              |
+
+## Entity keys
+
+A key in `blocks.<name>.entities` now equals the entity's singular, so a
+config that renames the tasks entity writes `entities: { task: ... }`
+instead of `entities: { work_item: ... }`. Run the codemod; it renames the
+keys in `better-supabase.config.ts` and in a JSON config:
+
+```sh
+npx better-supabase@latest codemod 0.47
+```
+
+| Block             | 0.46 key     | 0.47 key              |
+| ----------------- | ------------ | --------------------- |
+| `access-requests` | `request`    | `access_request`      |
+| `activities`      | `engagement` | `activity`            |
+| `ai-chat`         | `chat`       | `ai_chat`             |
+| `ai-chat`         | `project`    | `ai_project`          |
+| `ai-files`        | `document`   | `ai_document`         |
+| `ai-schedules`    | `task`       | `ai_scheduled_task`   |
+| `api-keys`        | `key`        | `api_key`             |
+| `automations`     | `rule`       | `automation`          |
+| `collections`     | `collection` | `subject_collection`  |
+| `compliance`      | `policy`     | `compliance_policy`   |
+| `connectors`      | `server`     | `connector_server`    |
+| `contracts`       | `obligation` | `contract_obligation` |
+| `custom-fields`   | `field`      | `field_definition`    |
+| `drive`           | `node`       | `drive_node`          |
+| `forecasts`       | `snapshot`   | `forecast_snapshot`   |
+| `goals`           | `target`     | `goal`                |
+| `hiring`          | `job`        | `job_opening`         |
+| `incidents`       | `postmortem` | `incident_postmortem` |
+| `inventory`       | `location`   | `inventory_location`  |
+| `knowledge`       | `document`   | `knowledge_document`  |
+| `leave`           | `request`    | `leave_request`       |
+| `leave`           | `type`       | `leave_type`          |
+| `saved-views`     | `view`       | `saved_view`          |
+| `share-links`     | `link`       | `share_link`          |
+| `signatures`      | `request`    | `signature_request`   |
+| `sla`             | `policy`     | `sla_policy`          |
+| `tasks`           | `work_item`  | `task`                |
+| `time-tracking`   | `entry`      | `time_entry`          |
+| `timeline`        | `entry`      | `timeline_entry`      |
+| `waitlist`        | `entry`      | `waitlist_entry`      |
+| `webhooks-out`    | `endpoint`   | `webhook_endpoint`    |
+| `workflow-editor` | `definition` | `workflow_definition` |
+
+The full list is `ENTITY_KEY_RENAMES` in `better-supabase`. An old key still
+resolves, with a warning, and doctor reports it
+([BS423](/docs/cli/doctor#bs423)). An entry that sets both the old and the new
+key is listed for review instead of renamed. The tasks binding
+`workItemChecklistBinding` is now `taskChecklistBinding`; the codemod moves
+the import.
+
+An install that names an entity keeps its tables, events and subject type. An
+install that doesn't keeps its tables and events too: the tasks block still
+writes `work_items` and emits `work_item.created`.
+
+## Subject types
+
+Three block subjects take the new noun as their type:
+
+| 0.46         | 0.47                |
+| ------------ | ------------------- |
+| `work_item`  | `task`              |
+| `engagement` | `activity`          |
+| `policy`     | `compliance_policy` |
+
+`upgrade` renders a data step for each module that moves the stored rows:
+every `subject_type`, `source_type` and `target_type` column of the installed
+blocks (relations, comments, attachments, the timeline and the rest) that
+holds the old type gets the new one. The audit log and the ledger, accounting
+and billable time entries are append-only and keep the type they recorded.
+The step skips a type when the install
+names the entity, and skips `policy` when your `config.subjects` declares a
+`policy` subject of its own. It can run again without changing anything.
+
+If one of your own tables is already a `task`, `activity` or
+`compliance_policy` subject (a `@bsb subject` tag or a `config.subjects`
+entry), the CLI stops with an error naming the table. Keep the block on its
+old noun, which also keeps its subject type and function names:
+
+```ts title="better-supabase.config.ts"
+tasks: { names: { task: "work_item" } },
+```
+
+Until 0.48 the subject functions (`subject_title`, `can_subject` and the rest)
+still accept the old type. Rename the types your code passes, such as
+`{ type: "work_item", id }`; the codemod lists them for review. Rename them
+in `blocks.<name>.on` too (`on: { compliance_policy: ... }`); doctor reports an
+`on` type that is no record type (BS346). Rename types you store outside
+better-supabase tables yourself.
+
+## Hint codes
+
+Hint codes follow the entity's new noun: `WORK_ITEM_NOT_FOUND` becomes
+`TASK_NOT_FOUND`, `ENGAGEMENT_FORBIDDEN` becomes `ACTIVITY_FORBIDDEN` and
+`RULE_CONFLICT` becomes `AUTOMATION_CONFLICT`. The codemod renames the quoted
+codes in your code and SQL. The full list is `HINT_RENAMES`, and
+`legacyHintOf(hint)` returns a hint's 0.46 code for code that compares stored
+errors.
+
+`ACTIVITY_FORBIDDEN` was the timeline's code and is now the activities
+block's. The timeline uses `TIMELINE_ENTRY_FORBIDDEN`. The codemod lists every
+`ACTIVITY_FORBIDDEN` for review instead of renaming it.
+
+## Function names
+
+Block functions take the entity's new noun. The client methods don't change;
+rename the calls in your own SQL:
+
+| Block        | 0.46 noun in the name | 0.47 noun             | Example                                                    |
+| ------------ | --------------------- | --------------------- | ---------------------------------------------------------- |
+| `tasks`      | `work_item`           | `task`                | `create_work_item` becomes `create_task`                   |
+| `activities` | `engagement`          | `activity`            | `log_engagement` becomes `log_activity`                    |
+| `goals`      | `target`              | `goal`                | `save_target` becomes `save_goal`                          |
+| `compliance` | `policy`              | `compliance_policy`   | `publish_policy` becomes `publish_compliance_policy`       |
+| `contracts`  | `obligation`          | `contract_obligation` | `save_obligation` becomes `save_contract_obligation`       |
+| `incidents`  | `postmortem`          | `incident_postmortem` | `publish_postmortem` becomes `publish_incident_postmortem` |
+
+A key in `blocks.<name>.functions` that names an old function still applies
+to the new one.
+
+## The SQL modules
+
+Regenerate the module SQL and the migration. The schema diff drops the old
+function names and creates the new ones, and the data step moves the subject
+types:
+
+```sh
+npx better-supabase@latest upgrade
+npx better-supabase@latest db diff -f upgrade_0_46
+```

@@ -131,7 +131,7 @@ blocks: {
 With [bookings](/docs/blocks/bookings) installed, booking resources get an
 `asset_id` column, so a meeting room or vehicle you book is an asset. With
 [work items](/docs/blocks/tasks) installed, work items get one for the
-asset a job is about. `link({ type: "booking_resource" | "work_item", id },
+asset a job is about. `link({ type: "booking_resource" | "task", id },
 assetId)` sets it, and `null` clears it. Locations and assets are registered
 subjects, so [relations](/docs/blocks/relations), comments and attachments
 work on them.

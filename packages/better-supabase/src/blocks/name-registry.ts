@@ -12,6 +12,8 @@ export interface BlockSqlNameSet {
   /** Entity to the default column names of its table. */
   readonly entities: { readonly [entity: string]: string };
   readonly primary: string;
+  /** Entity keys before the 0.47 renames, which still resolve. */
+  readonly formerKeys: string;
 }
 
 /** The names of a module the registry doesn't know: every name is a string. */

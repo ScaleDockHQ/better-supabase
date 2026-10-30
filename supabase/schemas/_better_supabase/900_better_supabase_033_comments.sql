@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:5cf5a58d2ba7504958b9c1edb911ce7c0588a46a9ff1fdafac723d5f5caeeed2
+-- @bsb-hash sha256:4c3b8b95871f2e794ebc1596c54f9159346c34c133c49942fd835d283d2643af
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -433,7 +433,7 @@ grant execute on function "better_supabase"."copy_comments"(uuid, text, text, te
 
 -- Turns a comment into a work item: the title (attrs.title, else the
 -- comment's first 120 characters), its body, and assignee when given; the
--- other attrs go to create_work_item. A comment links to one work item;
+-- other attrs go to create_task. A comment links to one work item;
 -- assigning it again returns that one's id.
 create or replace function "better_supabase"."assign_comment"(message uuid, assignee uuid default null, attrs jsonb default '{}')
 returns uuid

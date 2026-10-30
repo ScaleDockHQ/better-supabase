@@ -407,7 +407,11 @@ function entityTypesOf(
     Object.values(SQL_MODULES[name]?.names?.entities ?? {})
       .filter((entity) => entity.global !== true)
       .map((entity) => ({
-        from: entityNoun(entity.singular, entity.plural),
+        // The TypeScript types keep the noun a 0.47 rename left behind.
+        from:
+          entity.formerly === undefined
+            ? entityNoun(entity.singular, entity.plural)
+            : entityNoun(entity.formerly),
         to: entityNoun("bsb_sentinel"),
         cases: ["pascal" as const],
       })),

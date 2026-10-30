@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:cf9f7fe6a5e9055fd6e53b9a100130f512897e7a0659e2672d5cca0c417dbf51
+-- @bsb-hash sha256:8a75dad0945cf0f0ec49cc785ff17e492d13bb7b2d86b9d25612eca9fe284644
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -263,7 +263,7 @@ begin
   if save_job.job is not null then
     select * into v_job from "better_supabase"."job_openings" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
     if v_job."id" is null then
-      raise exception 'job not found' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
+      raise exception 'job not found' using errcode = 'P0002', hint = 'JOB_OPENING_NOT_FOUND';
     end if;
     v_was := v_job."status";
   end if;
@@ -288,7 +288,7 @@ begin
       returning * into v_job;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
-    raise exception 'a job needs a title and a status of draft, open or closed' using errcode = '22023', hint = 'HIRING_JOB_INVALID';
+    raise exception 'a job needs a title and a status of draft, open or closed' using errcode = '22023', hint = 'JOB_OPENING_INVALID';
   end;
   update "better_supabase"."job_openings" x set "app_note" = case when save_job.attrs -> 'fields' ? 'app_note' then r."app_note" else x."app_note" end
   from jsonb_populate_record(null::"better_supabase"."job_openings", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(save_job.attrs -> 'fields') e where e.key in ('app_note'))) r
@@ -328,10 +328,10 @@ begin
   end if;
   select * into v_job from "better_supabase"."job_openings" x where x."id" = apply_to_job.job;
   if v_job."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_job."tenant_id", 'hiring.write'), false)) then
-    raise exception 'no such job you can add applications to' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
+    raise exception 'no such job you can add applications to' using errcode = 'P0002', hint = 'JOB_OPENING_NOT_FOUND';
   end if;
   if v_job."status" <> 'open' then
-    raise exception 'the job isn''t open' using errcode = '55000', hint = 'HIRING_JOB_NOT_OPEN';
+    raise exception 'the job isn''t open' using errcode = '55000', hint = 'JOB_OPENING_NOT_OPEN';
   end if;
   if v_id is null or not false then
     raise exception 'the candidate is unknown or not readable in this organization' using errcode = '42501', hint = 'HIRING_CANDIDATE_FORBIDDEN';

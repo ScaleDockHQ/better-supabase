@@ -15,14 +15,14 @@ import { defineConfig } from "better-supabase/config";
 export default defineConfig({
   blocks: {
     memberships: { names: { organization: "workspace" } },
-    tasks: { names: { work_item: { name: "task", url: "/tasks/{id}" } } },
+    tasks: { entities: { task: { name: "ticket", url: "/tickets/{id}" } } },
   },
 });
 ```
 
-With this config the SQL writes a `tasks` table with a `workspace_id`
-column, `create_task` and `task.created`, and `gen` writes `tasksBlock`,
-`Task` and `TasksEvents` into `blocks.generated.ts`. The tenant rename stays
+With this config the SQL writes a `tickets` table with a `workspace_id`
+column, `create_ticket` and `ticket.created`, and `gen` writes `ticketsBlock`,
+`Ticket` and `TicketsEvents` into `blocks.generated.ts`. The tenant rename stays
 in SQL: event payloads and client types keep `organizationId`, so code that
 reads them works under any tenant name.
 
@@ -31,16 +31,16 @@ reads them works under any tenant name.
 `defineConfig` returns the config with its literal types, and the `blocks`
 key is typed from each block's names:
 
-| Key                               | Checked against                                           |
-| --------------------------------- | --------------------------------------------------------- |
-| `blocks.<name>`                   | the installable blocks                                    |
-| `blocks.<name>.names.<entity>`    | the block's own entities, such as `work_item` for `tasks` |
-| `entities.<entity>.url`           | `{column}` placeholders from the entity's columns         |
-| `blocks.<name>.tables`, `columns` | the block's tables and the columns of each one            |
-| `blocks.<name>.functions`         | the block's function names                                |
-| `blocks.<name>.permissions`       | the block's actions                                       |
-| `blocks.<name>.hooks.functions`   | the `before_*` and `after_*` hooks the block calls        |
-| `blocks.<name>.options`           | the options schema in the block's manifest                |
+| Key                               | Checked against                                      |
+| --------------------------------- | ---------------------------------------------------- |
+| `blocks.<name>`                   | the installable blocks                               |
+| `blocks.<name>.entities.<entity>` | the block's own entities, such as `task` for `tasks` |
+| `entities.<entity>.url`           | `{column}` placeholders from the entity's columns    |
+| `blocks.<name>.tables`, `columns` | the block's tables and the columns of each one       |
+| `blocks.<name>.functions`         | the block's function names                           |
+| `blocks.<name>.permissions`       | the block's actions                                  |
+| `blocks.<name>.hooks.functions`   | the `before_*` and `after_*` hooks the block calls   |
+| `blocks.<name>.options`           | the options schema in the block's manifest           |
 
 The package ships the same keys as JSON Schema, in
 `better-supabase/schemas/config-v1.json`, for editors that read it.
@@ -49,8 +49,8 @@ The package ships the same keys as JSON Schema, in
 
 A block's entities register as subjects on their own: `deals` registers
 `deal`, `catalog` registers `product` and `product_variant`, `tasks`
-registers `work_item` under its final name. The collaboration blocks register
-`comment`, `engagement`, `document` and `calendar_event`. Comments,
+registers `task` under its final name. The collaboration blocks register
+`comment`, `activity`, `document` and `calendar_event`. Comments,
 attachments, reactions and the other subject blocks then accept them with no
 entry in `subjects`.
 `url` sets the page `subject_url` returns, and `subject: false` keeps an

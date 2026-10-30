@@ -38,9 +38,10 @@ import {
   recordingsSql,
 } from "./activities-recordings.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import { subjectTypeRenames } from "./subject-type-renames.ts";
 
 /** The engagement types `options.types` falls back to. */
-const ENGAGEMENT_TYPES = ["call", "email", "meeting", "note", "task"] as const;
+const ACTIVITY_TYPES = ["call", "email", "meeting", "note", "task"] as const;
 
 const PAYLOAD = [
   "organizationId",
@@ -81,9 +82,10 @@ const EVENTS: BlockSqlEvents<ActivitiesEvents> = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    engagement: {
+    activity: {
       table: "engagements",
-      singular: "engagement",
+      singular: "activity",
+      formerly: "engagement",
       primary: true,
       subject: {
         title: "title",
@@ -93,7 +95,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  hooks: ["before_engagement_log", "after_engagement_log"],
+  hooks: ["before_activity_log", "after_activity_log"],
   options: ["types", "extraColumns", "recordings", "bookings", ...NOTE_OPTIONS],
   tables: {
     engagements: {
@@ -164,7 +166,7 @@ function rowJson(ctx: BlockSqlContext, table: string, alias: string): string {
 }
 
 function types(ctx: BlockSqlContext): readonly string[] {
-  const list = ctx.list("types", ENGAGEMENT_TYPES);
+  const list = ctx.list("types", ACTIVITY_TYPES);
 
   if (list.length === 0 || list.some((item) => !TYPE.test(item))) {
     throw new TypeError(
@@ -262,16 +264,13 @@ function build(ctx: BlockSqlContext): string {
 )${member === "true" ? "" : ` and ${member}`}`;
   };
 
-  /**
-   * Fails with ENGAGEMENT_LOCKED when the caller may edit `id` but it is
-   * locked.
-   */
+  /** Fails with ACTIVITY_LOCKED when the caller may edit `id` but it is locked. */
   const refuseLocked = (id: string): string =>
     notes.locked("x.") === "false"
       ? ""
       : `
   if exists (select 1 from ${t("engagements")} x where x.${e("id")} = ${id} and ${editable("x")} and ${notes.locked("x.")}) then
-    ${fail("ENGAGEMENT_LOCKED", "the engagement is locked: add an addendum with amend_engagement instead", "55000")}
+    ${fail("ACTIVITY_LOCKED", "the engagement is locked: add an addendum with amend_activity instead", "55000")}
   end if;`;
 
   const subjectsOf = (id: string): string =>
@@ -286,11 +285,11 @@ function build(ctx: BlockSqlContext): string {
     tenant: string,
   ): string => `
   if jsonb_typeof(coalesce(${list}, '[]')) <> 'array' then
-    ${fail("ENGAGEMENT_SUBJECTS_INVALID", "subjects must be a list of { type, id }", "22023")}
+    ${fail("ACTIVITY_SUBJECTS_INVALID", "subjects must be a list of { type, id }", "22023")}
   end if;
   for v_item in select value from jsonb_array_elements(coalesce(${list}, '[]')) loop
     if not ${subjectInTenant(ctx, "(v_item ->> 'type')", "(v_item ->> 'id')", tenant)} then
-      ${fail("ENGAGEMENT_SUBJECT_FORBIDDEN", "a subject is unknown or not readable in this organization", "42501")}
+      ${fail("ACTIVITY_SUBJECT_FORBIDDEN", "a subject is unknown or not readable in this organization", "42501")}
     end if;
   end loop;
   delete from ${t("links")} x where x.${l("engagement")} = ${engagement};
@@ -309,25 +308,25 @@ function build(ctx: BlockSqlContext): string {
       ["tenant", "v_tenant"],
       ["type", ctx.cast("engagements", "type", "v_type")],
       ["title", "v_title"],
-      ["body", attrs("log_engagement", "body")],
-      ["outcome", attrs("log_engagement", "outcome")],
+      ["body", attrs("log_activity", "body")],
+      ["outcome", attrs("log_activity", "outcome")],
       ["owner", "v_owner"],
-      ["dueAt", `(${attrs("log_engagement", "dueAt")})::timestamptz`],
-      ["doneAt", `(${attrs("log_engagement", "doneAt")})::timestamptz`],
+      ["dueAt", `(${attrs("log_activity", "dueAt")})::timestamptz`],
+      ["doneAt", `(${attrs("log_activity", "doneAt")})::timestamptz`],
       [
         "durationSeconds",
-        `(${attrs("log_engagement", "durationSeconds")})::integer`,
+        `(${attrs("log_activity", "durationSeconds")})::integer`,
       ],
-      ["externalRef", attrs("log_engagement", "externalRef")],
+      ["externalRef", attrs("log_activity", "externalRef")],
       ["createdBy", "auth.uid()"],
       [
         "audience",
-        `coalesce(nullif(${attrs("log_engagement", "audience")}, ''), 'team')`,
+        `coalesce(nullif(${attrs("log_activity", "audience")}, ''), 'team')`,
       ],
-      ["restrictedRoles", `nullif(${notes.roles("log_engagement")}, '{}')`],
-      ["category", `nullif(${attrs("log_engagement", "category")}, '')`],
+      ["restrictedRoles", `nullif(${notes.roles("log_activity")}, '{}')`],
+      ["category", `nullif(${attrs("log_activity", "category")}, '')`],
       ["lockedAt", notes.lockAt("v_type", "now()")],
-      ["goal", `nullif(${attrs("log_engagement", "goalId")}, '')::uuid`],
+      ["goal", `nullif(${attrs("log_activity", "goalId")}, '')::uuid`],
     ] as const
   ).filter(([column]) => owned(column));
 
@@ -424,7 +423,7 @@ ${renderPolicy(
 -- is its main record). attrs: type, title, body, outcome, ownerId, dueAt,
 -- doneAt, durationSeconds, externalRef and fields (the extra columns by
 -- name). A known externalRef updates instead.
-create or replace function ${fn("log_engagement")}(tenant ${ctx.idType}, attrs jsonb, subjects jsonb)
+create or replace function ${fn("log_activity")}(tenant ${ctx.idType}, attrs jsonb, subjects jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -432,10 +431,10 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
-  v_tenant ${ctx.idType} := log_engagement.tenant;
-  v_type text := ${attrs("log_engagement", "type")};
-  v_title text := nullif(trim(${attrs("log_engagement", "title")}), '');
-  v_owner uuid := coalesce(nullif(${attrs("log_engagement", "ownerId")}, '')::uuid, auth.uid());
+  v_tenant ${ctx.idType} := log_activity.tenant;
+  v_type text := ${attrs("log_activity", "type")};
+  v_title text := nullif(trim(${attrs("log_activity", "title")}), '');
+  v_owner uuid := coalesce(nullif(${attrs("log_activity", "ownerId")}, '')::uuid, auth.uid());
   v_previous_owner uuid;
   v_item jsonb;
   v_subjects jsonb;
@@ -443,25 +442,25 @@ declare
   v_claims text;
 begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", write)}) then
-    ${fail("ENGAGEMENT_FORBIDDEN", "not allowed to log engagements")}
+    ${fail("ACTIVITY_FORBIDDEN", "not allowed to log engagements")}
   end if;
   if v_type is null or not (v_type = any (${typeList})) then
-    ${fail("ENGAGEMENT_TYPE_INVALID", "unknown engagement type", "22023")}
+    ${fail("ACTIVITY_TYPE_INVALID", "unknown engagement type", "22023")}
   end if;
   if v_title is null then
-    ${fail("ENGAGEMENT_TITLE_REQUIRED", "a title is required", "23502")}
-  end if;${notes.validate("log_engagement")}${
+    ${fail("ACTIVITY_TITLE_REQUIRED", "a title is required", "23502")}
+  end if;${notes.validate("log_activity")}${
     owned("externalRef") && notes.locked("x.") !== "false"
       ? `
-  if exists (select 1 from ${t("engagements")} x where x.${e("tenant")} = v_tenant and x.${e("externalRef")} = ${attrs("log_engagement", "externalRef")} and ${notes.locked("x.")}) then
-    ${fail("ENGAGEMENT_LOCKED", "the engagement is locked: add an addendum with amend_engagement instead", "55000")}
+  if exists (select 1 from ${t("engagements")} x where x.${e("tenant")} = v_tenant and x.${e("externalRef")} = ${attrs("log_activity", "externalRef")} and ${notes.locked("x.")}) then
+    ${fail("ACTIVITY_LOCKED", "the engagement is locked: add an addendum with amend_activity instead", "55000")}
   end if;`
       : ""
   }
-  ${ctx.hook("before_engagement_log", [
-    [ctx.idType, "log_engagement.tenant"],
-    ["jsonb", "log_engagement.attrs"],
-    ["jsonb", "log_engagement.subjects"],
+  ${ctx.hook("before_activity_log", [
+    [ctx.idType, "log_activity.tenant"],
+    ["jsonb", "log_activity.attrs"],
+    ["jsonb", "log_activity.subjects"],
   ])}
   insert into ${t("engagements")} (${logged.map(([column]) => e(column)).join(", ")})
   values (${logged.map(([, value]) => value).join(", ")})${
@@ -472,25 +471,25 @@ begin
     ${e("dueAt")} = excluded.${e("dueAt")}, ${e("doneAt")} = excluded.${e("doneAt")}${set("durationSeconds", (x) => `excluded.${x}`)}${set("updatedAt", () => "now()")}`
       : ""
   }
-  returning ${e("id")} into v_id;${writeExtraColumns(t("engagements"), extras, "log_engagement.attrs -> 'fields'", `x.${e("id")} = v_id`)}
-  ${setSubjects("v_id", "log_engagement.subjects", "v_tenant")}
+  returning ${e("id")} into v_id;${writeExtraColumns(t("engagements"), extras, "log_activity.attrs -> 'fields'", `x.${e("id")} = v_id`)}
+  ${setSubjects("v_id", "log_activity.subjects", "v_tenant")}
   ${record("engagement.logged", "v_id", "v_type", "v_tenant")}${notifyOwner}
-  ${ctx.hook("after_engagement_log", [["uuid", "v_id"]])}
+  ${ctx.hook("after_activity_log", [["uuid", "v_id"]])}
   return (select ${row("x")} from ${t("engagements")} x where x.${e("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("log_engagement")}(${ctx.idType}, jsonb, jsonb)`)}
+${userGrant(`${fn("log_activity")}(${ctx.idType}, jsonb, jsonb)`)}
 
 -- Changes the keys attrs names, and the records when subjects isn't null.
 -- The author, the owner and members with engagements.manage may edit.
-create or replace function ${fn("update_engagement")}(engagement uuid, attrs jsonb, subjects jsonb)
+create or replace function ${fn("update_activity")}(engagement uuid, attrs jsonb, subjects jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := update_engagement.engagement;
+  v_id uuid := update_activity.engagement;
   v_tenant ${ctx.idType};
   v_type text;
   v_title text;
@@ -504,28 +503,28 @@ begin
   select x.${e("tenant")}, x.${e("type")}, x.${e("owner")} into v_tenant, v_type, v_previous_owner
   from ${t("engagements")} x where x.${e("id")} = v_id and ${editable("x")};
   if v_tenant is null then
-    ${fail("ENGAGEMENT_NOT_FOUND", "no such engagement you can edit", "P0002")}
+    ${fail("ACTIVITY_NOT_FOUND", "no such engagement you can edit", "P0002")}
   end if;
-  if ${has("update_engagement", "type")} and not (${attrs("update_engagement", "type")} = any (${typeList})) then
-    ${fail("ENGAGEMENT_TYPE_INVALID", "unknown engagement type", "22023")}
-  end if;${notes.validate("update_engagement")}${refuseLocked("v_id")}
+  if ${has("update_activity", "type")} and not (${attrs("update_activity", "type")} = any (${typeList})) then
+    ${fail("ACTIVITY_TYPE_INVALID", "unknown engagement type", "22023")}
+  end if;${notes.validate("update_activity")}${refuseLocked("v_id")}
   update ${t("engagements")} x set
-    ${e("type")} = coalesce(${ctx.cast("engagements", "type", attrs("update_engagement", "type"))}, x.${e("type")}),
-    ${e("title")} = coalesce(nullif(trim(${attrs("update_engagement", "title")}), ''), x.${e("title")}),
+    ${e("type")} = coalesce(${ctx.cast("engagements", "type", attrs("update_activity", "type"))}, x.${e("type")}),
+    ${e("title")} = coalesce(nullif(trim(${attrs("update_activity", "title")}), ''), x.${e("title")}),
     ${["body", "outcome", "externalRef"]
       .filter(owned)
       .map(
         (key) =>
-          `${e(key)} = case when ${has("update_engagement", key)} then ${attrs("update_engagement", key)} else x.${e(key)} end`,
+          `${e(key)} = case when ${has("update_activity", key)} then ${attrs("update_activity", key)} else x.${e(key)} end`,
       )
       .join(",\n    ")},
-    ${e("owner")} = case when ${has("update_engagement", "ownerId")} then nullif(${attrs("update_engagement", "ownerId")}, '')::uuid else x.${e("owner")} end,
-    ${e("dueAt")} = case when ${has("update_engagement", "dueAt")} then (${attrs("update_engagement", "dueAt")})::timestamptz else x.${e("dueAt")} end,
-    ${e("doneAt")} = case when ${has("update_engagement", "doneAt")} then (${attrs("update_engagement", "doneAt")})::timestamptz else x.${e("doneAt")} end${set("durationSeconds", (x) => `case when ${has("update_engagement", "durationSeconds")} then (${attrs("update_engagement", "durationSeconds")})::integer else x.${x} end`, "\n    ")}${set("audience", (x) => `case when ${has("update_engagement", "audience")} then coalesce(nullif(${attrs("update_engagement", "audience")}, ''), 'team') else x.${x} end`, "\n    ")}${set("restrictedRoles", (x) => `case when ${has("update_engagement", "restrictedRoles")} then nullif(${notes.roles("update_engagement")}, '{}') else x.${x} end`, "\n    ")}${set("category", (x) => `case when ${has("update_engagement", "category")} then nullif(${attrs("update_engagement", "category")}, '') else x.${x} end`, "\n    ")}${set("goal", (x) => `case when ${has("update_engagement", "goalId")} then nullif(${attrs("update_engagement", "goalId")}, '')::uuid else x.${x} end`, "\n    ")}${set("lockedAt", (x) => `case when ${has("update_engagement", "type")} then coalesce(x.${x}, ${notes.lockAt(attrs("update_engagement", "type"), `x.${e("createdAt")}`)}) else x.${x} end`, "\n    ")}${set("updatedAt", () => "now()", "\n    ")}
+    ${e("owner")} = case when ${has("update_activity", "ownerId")} then nullif(${attrs("update_activity", "ownerId")}, '')::uuid else x.${e("owner")} end,
+    ${e("dueAt")} = case when ${has("update_activity", "dueAt")} then (${attrs("update_activity", "dueAt")})::timestamptz else x.${e("dueAt")} end,
+    ${e("doneAt")} = case when ${has("update_activity", "doneAt")} then (${attrs("update_activity", "doneAt")})::timestamptz else x.${e("doneAt")} end${set("durationSeconds", (x) => `case when ${has("update_activity", "durationSeconds")} then (${attrs("update_activity", "durationSeconds")})::integer else x.${x} end`, "\n    ")}${set("audience", (x) => `case when ${has("update_activity", "audience")} then coalesce(nullif(${attrs("update_activity", "audience")}, ''), 'team') else x.${x} end`, "\n    ")}${set("restrictedRoles", (x) => `case when ${has("update_activity", "restrictedRoles")} then nullif(${notes.roles("update_activity")}, '{}') else x.${x} end`, "\n    ")}${set("category", (x) => `case when ${has("update_activity", "category")} then nullif(${attrs("update_activity", "category")}, '') else x.${x} end`, "\n    ")}${set("goal", (x) => `case when ${has("update_activity", "goalId")} then nullif(${attrs("update_activity", "goalId")}, '')::uuid else x.${x} end`, "\n    ")}${set("lockedAt", (x) => `case when ${has("update_activity", "type")} then coalesce(x.${x}, ${notes.lockAt(attrs("update_activity", "type"), `x.${e("createdAt")}`)}) else x.${x} end`, "\n    ")}${set("updatedAt", () => "now()", "\n    ")}
   where x.${e("id")} = v_id
-  returning x.${e("type")}, x.${e("title")}, x.${e("owner")} into v_type, v_title, v_owner;${writeExtraColumns(t("engagements"), extras, "update_engagement.attrs -> 'fields'", `x.${e("id")} = v_id`)}
-  if update_engagement.subjects is not null then
-    ${setSubjects("v_id", "update_engagement.subjects", "v_tenant")}
+  returning x.${e("type")}, x.${e("title")}, x.${e("owner")} into v_type, v_title, v_owner;${writeExtraColumns(t("engagements"), extras, "update_activity.attrs -> 'fields'", `x.${e("id")} = v_id`)}
+  if update_activity.subjects is not null then
+    ${setSubjects("v_id", "update_activity.subjects", "v_tenant")}
   else
     v_subjects := ${subjectsOf("v_id")};
     v_first := v_subjects -> 0;
@@ -534,49 +533,49 @@ begin
   return (select ${row("x")} from ${t("engagements")} x where x.${e("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("update_engagement")}(uuid, jsonb, jsonb)`)}
+${userGrant(`${fn("update_activity")}(uuid, jsonb, jsonb)`)}
 
 -- Marks an engagement done now (done true) or open again.
-create or replace function ${fn("complete_engagement")}(engagement uuid, done boolean, outcome text)
+create or replace function ${fn("complete_activity")}(engagement uuid, done boolean, outcome text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := complete_engagement.engagement;
+  v_id uuid := complete_activity.engagement;
   v_tenant ${ctx.idType};
   v_type text;
-  v_subjects jsonb := ${subjectsOf("complete_engagement.engagement")};
+  v_subjects jsonb := ${subjectsOf("complete_activity.engagement")};
   v_first jsonb := v_subjects -> 0;
 begin${refuseLocked("v_id")}
   update ${t("engagements")} x set
-    ${e("doneAt")} = case when complete_engagement.done then coalesce(x.${e("doneAt")}, now()) end,
-    ${e("outcome")} = coalesce(complete_engagement.outcome, x.${e("outcome")})${set("updatedAt", () => "now()", "\n    ")}
+    ${e("doneAt")} = case when complete_activity.done then coalesce(x.${e("doneAt")}, now()) end,
+    ${e("outcome")} = coalesce(complete_activity.outcome, x.${e("outcome")})${set("updatedAt", () => "now()", "\n    ")}
   where x.${e("id")} = v_id and ${editable("x")}
   returning x.${e("tenant")}, x.${e("type")} into v_tenant, v_type;
   if v_tenant is null then
-    ${fail("ENGAGEMENT_NOT_FOUND", "no such engagement you can edit", "P0002")}
+    ${fail("ACTIVITY_NOT_FOUND", "no such engagement you can edit", "P0002")}
   end if;
-  if complete_engagement.done then
+  if complete_activity.done then
     ${record("engagement.completed", "v_id", "v_type", "v_tenant")}
   end if;
   return (select ${row("x")} from ${t("engagements")} x where x.${e("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("complete_engagement")}(uuid, boolean, text)`)}
+${userGrant(`${fn("complete_activity")}(uuid, boolean, text)`)}
 
-create or replace function ${fn("delete_engagement")}(engagement uuid)
+create or replace function ${fn("delete_activity")}(engagement uuid)
 returns boolean
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := delete_engagement.engagement;
+  v_id uuid := delete_activity.engagement;
   v_tenant ${ctx.idType};
   v_type text;
-  v_subjects jsonb := ${subjectsOf("delete_engagement.engagement")};
+  v_subjects jsonb := ${subjectsOf("delete_activity.engagement")};
   v_first jsonb := v_subjects -> 0;
 begin${refuseLocked("v_id")}
   delete from ${t("engagements")} x where x.${e("id")} = v_id and ${editable("x")}
@@ -588,12 +587,12 @@ begin${refuseLocked("v_id")}
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_engagement")}(uuid)`)}
+${userGrant(`${fn("delete_activity")}(uuid)`)}
 
 -- A record's engagements the caller can see, newest first: done ones by
 -- when they happened, open ones by when they are due. before continues
 -- after the last row of the previous page.
-create or replace function ${fn("engagements_of")}(subject_type text, subject_id text, types text[], before timestamptz, page_size integer)
+create or replace function ${fn("activities_of")}(subject_type text, subject_id text, types text[], before timestamptz, page_size integer)
 returns jsonb
 language sql
 stable
@@ -605,18 +604,18 @@ as $$
     select ${row("x")} as value, coalesce(x.${e("doneAt")}, x.${e("dueAt")}, x.${e("createdAt")}) as at, x.${e("id")} as id
     from ${t("engagements")} x
     join ${t("links")} k on k.${l("engagement")} = x.${e("id")}
-    where k.${l("subjectType")} = engagements_of.subject_type and k.${l("subjectId")} = engagements_of.subject_id
-      and (engagements_of.types is null or ${typeText("x")} = any (engagements_of.types))
-      and (engagements_of.before is null or coalesce(x.${e("doneAt")}, x.${e("dueAt")}, x.${e("createdAt")}) < engagements_of.before)
+    where k.${l("subjectType")} = activities_of.subject_type and k.${l("subjectId")} = activities_of.subject_id
+      and (activities_of.types is null or ${typeText("x")} = any (activities_of.types))
+      and (activities_of.before is null or coalesce(x.${e("doneAt")}, x.${e("dueAt")}, x.${e("createdAt")}) < activities_of.before)
     order by at desc, id desc
-    limit ${pageSize("engagements_of.page_size", 50, 200)}
+    limit ${pageSize("activities_of.page_size", 50, 200)}
   ) p
 $$;
-${userGrant(`${fn("engagements_of")}(text, text, text[], timestamptz, integer)`)}
+${userGrant(`${fn("activities_of")}(text, text, text[], timestamptz, integer)`)}
 
 -- The next open engagement with a due time on a record, earliest first,
 -- for a "next step" and an overdue flag; null when none is planned.
-create or replace function ${fn("next_engagement")}(subject_type text, subject_id text)
+create or replace function ${fn("next_activity")}(subject_type text, subject_id text)
 returns jsonb
 language sql
 stable
@@ -626,15 +625,15 @@ as $$
   select ${row("x")}
   from ${t("engagements")} x
   join ${t("links")} k on k.${l("engagement")} = x.${e("id")}
-  where k.${l("subjectType")} = next_engagement.subject_type and k.${l("subjectId")} = next_engagement.subject_id
+  where k.${l("subjectType")} = next_activity.subject_type and k.${l("subjectId")} = next_activity.subject_id
     and x.${e("doneAt")} is null and x.${e("dueAt")} is not null
   order by x.${e("dueAt")}, x.${e("id")}
   limit 1
 $$;
-${userGrant(`${fn("next_engagement")}(text, text)`)}
+${userGrant(`${fn("next_activity")}(text, text)`)}
 
 -- A member's open engagements in a tenant, earliest due first: a task list.
-create or replace function ${fn("open_engagements")}(tenant ${ctx.idType}, owner uuid, due_before timestamptz, page_size integer)
+create or replace function ${fn("open_activities")}(tenant ${ctx.idType}, owner uuid, due_before timestamptz, page_size integer)
 returns jsonb
 language sql
 stable
@@ -645,15 +644,15 @@ as $$
   from (
     select ${row("x")} as value, x.${e("dueAt")} as due, x.${e("id")} as id
     from ${t("engagements")} x
-    where x.${e("tenant")} = open_engagements.tenant
-      and x.${e("owner")} = coalesce(open_engagements.owner, auth.uid())
+    where x.${e("tenant")} = open_activities.tenant
+      and x.${e("owner")} = coalesce(open_activities.owner, auth.uid())
       and x.${e("doneAt")} is null
-      and (open_engagements.due_before is null or x.${e("dueAt")} < open_engagements.due_before)
+      and (open_activities.due_before is null or x.${e("dueAt")} < open_activities.due_before)
     order by x.${e("dueAt")} nulls last, x.${e("id")}
-    limit ${pageSize("open_engagements.page_size", 50, 200)}
+    limit ${pageSize("open_activities.page_size", 50, 200)}
   ) p
 $$;
-${userGrant(`${fn("open_engagements")}(${ctx.idType}, uuid, timestamptz, integer)`)}
+${userGrant(`${fn("open_activities")}(${ctx.idType}, uuid, timestamptz, integer)`)}
 ${
   recordingsOn(ctx)
     ? recordingsSql(ctx, {
@@ -683,29 +682,29 @@ ${
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "log_engagement",
+      name: "log_activity",
       args: ["{id}", "jsonb", "jsonb"],
       returns: "jsonb",
     },
     {
-      name: "update_engagement",
+      name: "update_activity",
       args: ["uuid", "jsonb", "jsonb"],
       returns: "jsonb",
     },
     {
-      name: "complete_engagement",
+      name: "complete_activity",
       args: ["uuid", "boolean", "text"],
       returns: "jsonb",
     },
-    { name: "delete_engagement", args: ["uuid"], returns: "boolean" },
+    { name: "delete_activity", args: ["uuid"], returns: "boolean" },
     {
-      name: "engagements_of",
+      name: "activities_of",
       args: ["text", "text", "text[]", "timestamptz", "integer"],
       returns: "jsonb",
     },
-    { name: "next_engagement", args: ["text", "text"], returns: "jsonb" },
+    { name: "next_activity", args: ["text", "text"], returns: "jsonb" },
     {
-      name: "open_engagements",
+      name: "open_activities",
       args: ["{id}", "uuid", "timestamptz", "integer"],
       returns: "jsonb",
     },
@@ -741,4 +740,5 @@ export const ENGAGEMENTS: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  data: subjectTypeRenames,
 };

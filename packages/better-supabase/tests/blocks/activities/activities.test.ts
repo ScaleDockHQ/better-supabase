@@ -43,7 +43,7 @@ const ROW = {
 
 describe("engagements block", () => {
   it("logs with instants as ISO text and reads the row", async () => {
-    const t = transport({ log_engagement: () => ROW });
+    const t = transport({ log_activity: () => ROW });
     const due = Temporal.Instant.from("2026-10-16T09:00:00Z");
 
     const engagement = await createActivities({ transport: t })
@@ -53,7 +53,7 @@ describe("engagements block", () => {
       .orThrow();
 
     expect(t.calls[0]).toEqual([
-      "log_engagement",
+      "log_activity",
       {
         tenant: "o",
         attrs: {
@@ -90,8 +90,8 @@ describe("engagements block", () => {
     };
 
     const t = transport({
-      amend_engagement: () => NOTE,
-      mark_engagement_error: () => ({
+      amend_activity: () => NOTE,
+      mark_activity_error: () => ({
         ...NOTE,
         audience: "everyone",
         marked_error_at: "2026-10-14T10:00:00Z",
@@ -122,13 +122,13 @@ describe("engagements block", () => {
     expect(flagged.audience).toBeUndefined();
     expect(flagged.markedErrorAt).toBeDefined();
     expect(t.calls).toEqual([
-      ["amend_engagement", { engagement: "e0", body: "Also ate well" }],
-      ["mark_engagement_error", { engagement: "e1", reason: "Wrong client" }],
+      ["amend_activity", { engagement: "e0", body: "Also ate well" }],
+      ["mark_activity_error", { engagement: "e1", reason: "Wrong client" }],
     ]);
   });
 
   it("clears with null and keeps records unless given", async () => {
-    const t = transport({ update_engagement: () => ROW });
+    const t = transport({ update_activity: () => ROW });
     await createActivities({ transport: t })
       .update("e1", { dueAt: null, body: null })
       .orThrow();
@@ -141,11 +141,11 @@ describe("engagements block", () => {
 
   it("completes, removes and reads lists", async () => {
     const t = transport({
-      complete_engagement: () => ({ ...ROW, done_at: "2026-10-14T10:00:00Z" }),
-      delete_engagement: () => true,
-      engagements_of: () => [ROW],
-      next_engagement: () => null,
-      open_engagements: () => [ROW],
+      complete_activity: () => ({ ...ROW, done_at: "2026-10-14T10:00:00Z" }),
+      delete_activity: () => true,
+      activities_of: () => [ROW],
+      next_activity: () => null,
+      open_activities: () => [ROW],
     });
 
     const engagements = createActivities({ transport: t });
@@ -163,13 +163,10 @@ describe("engagements block", () => {
     ).toBeUndefined();
     expect(await engagements.open("o").orThrow()).toHaveLength(1);
     expect(t.calls.map(([fn, args]) => [fn, args])).toEqual([
+      ["complete_activity", { engagement: "e1", done: true, outcome: "sent" }],
+      ["delete_activity", { engagement: "e1" }],
       [
-        "complete_engagement",
-        { engagement: "e1", done: true, outcome: "sent" },
-      ],
-      ["delete_engagement", { engagement: "e1" }],
-      [
-        "engagements_of",
+        "activities_of",
         {
           subject_type: "deal",
           subject_id: "d1",
@@ -178,9 +175,9 @@ describe("engagements block", () => {
           page_size: 10,
         },
       ],
-      ["next_engagement", { subject_type: "deal", subject_id: "d1" }],
+      ["next_activity", { subject_type: "deal", subject_id: "d1" }],
       [
-        "open_engagements",
+        "open_activities",
         { tenant: "o", owner: null, due_before: null, page_size: null },
       ],
     ]);
@@ -200,8 +197,8 @@ describe("engagements block, optional fields", () => {
     };
 
     const t = transport({
-      complete_engagement: () => full,
-      next_engagement: () => full,
+      complete_activity: () => full,
+      next_activity: () => full,
     });
 
     const logged: unknown[] = [];
@@ -237,9 +234,9 @@ describe("engagements block, optional fields", () => {
 
   it("passes list windows and owners", async () => {
     const t = transport({
-      engagements_of: () => [],
-      open_engagements: () => [],
-      update_engagement: () => ROW,
+      activities_of: () => [],
+      open_activities: () => [],
+      update_activity: () => ROW,
     });
 
     const engagements = createActivities({ transport: t });

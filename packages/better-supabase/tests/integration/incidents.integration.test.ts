@@ -139,7 +139,7 @@ describe.skipIf(!live)("incidents", () => {
         .postUpdate(secret.id, { status: "resolved", body: "Keys rotated." })
         .orThrow();
       expect(await incidents.publishPostmortem(secret.id).then(hint)).toBe(
-        "POSTMORTEM_NOT_FOUND",
+        "INCIDENT_POSTMORTEM_NOT_FOUND",
       );
 
       await s.asRole(outsider);

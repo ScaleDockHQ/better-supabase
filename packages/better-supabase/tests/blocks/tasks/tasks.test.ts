@@ -58,7 +58,7 @@ const ROW = {
 
 describe("tasks block", () => {
   it("creates with instants as ISO text and reads every field", async () => {
-    const t = transport({ create_work_item: () => ROW });
+    const t = transport({ create_task: () => ROW });
 
     const item = await createTasks({ transport: t })
       .create(
@@ -99,7 +99,7 @@ describe("tasks block", () => {
       customer_id: undefined,
     };
 
-    const t = transport({ list_work_items: () => [sparse] });
+    const t = transport({ list_tasks: () => [sparse] });
 
     const [item] = await createTasks({ transport: t })
       .list("o", {
@@ -125,21 +125,21 @@ describe("tasks block", () => {
 
   it("sends changes, assigns, archives, removes and reads the tree", async () => {
     const t = transport({
-      update_work_items: () => ({
+      update_tasks: () => ({
         accepted: [{ workItemId: "w1", field: "endAt" }],
         rejected: [
           {
             workItemId: "w1",
             field: "dueAt",
-            hint: "WORK_ITEM_LOCKED",
+            hint: "TASK_LOCKED",
             reason: "locked",
           },
         ],
       }),
-      set_work_item_assignees: () => 2,
-      archive_work_item: () => true,
-      delete_work_item: () => true,
-      work_item_tree: () => [
+      set_task_assignees: () => 2,
+      archive_task: () => true,
+      delete_task: () => true,
+      task_tree: () => [
         {
           id: "w1",
           parentId: null,
@@ -168,7 +168,7 @@ describe("tasks block", () => {
       ])
       .orThrow();
 
-    expect(result.rejected[0]?.hint).toBe("WORK_ITEM_LOCKED");
+    expect(result.rejected[0]?.hint).toBe("TASK_LOCKED");
     expect(t.calls[0]?.[1]).toEqual({
       changes: [
         { workItemId: "w1", field: "endAt", value: "2026-10-23T09:00:00Z" },
@@ -283,8 +283,8 @@ describe("tasks block, sparse rows and options", () => {
     };
 
     const t = transport({
-      create_work_item: () => sparse,
-      work_item_tree: () => [
+      create_task: () => sparse,
+      task_tree: () => [
         {
           id: "w1",
           parentId: "w0",
@@ -385,21 +385,20 @@ describe("tasks block, sparse rows and options", () => {
     };
 
     const t = transport({
-      create_work_item: () => full,
-      get_work_item: (args) => (args["work_item"] === "w1" ? full : null),
-      list_work_item_checklist: () => [entry],
-      save_work_item_checklist_item: () => ({
+      create_task: () => full,
+      get_task: (args) => (args["work_item"] === "w1" ? full : null),
+      list_task_checklist: () => [entry],
+      save_task_checklist_item: () => ({
         ...entry,
         done: false,
         doneAt: null,
         doneBy: null,
       }),
-      delete_work_item_checklist_item: () => true,
-      set_work_item_recurrence: (args) =>
-        args["rrule"] === null ? null : rule,
-      repeat_work_item: () => ({ ...full, id: "w2", recurs_from: "w1" }),
-      watch_work_item: () => true,
-      list_work_item_watchers: () => [{ userId: "u2", level: "all" }],
+      delete_task_checklist_item: () => true,
+      set_task_recurrence: (args) => (args["rrule"] === null ? null : rule),
+      repeat_task: () => ({ ...full, id: "w2", recurs_from: "w1" }),
+      watch_task: () => true,
+      list_task_watchers: () => [{ userId: "u2", level: "all" }],
     });
 
     const items = createTasks({ transport: t });

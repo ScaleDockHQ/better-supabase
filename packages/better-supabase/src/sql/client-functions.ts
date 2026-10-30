@@ -12,7 +12,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   accounting:
     "accounting_balance_sheet accounting_budget_vs_actual accounting_fx_rate accounting_general_ledger accounting_period_close_blockers accounting_profit_and_loss accounting_tax_report accounting_trial_balance archive_accounting_account close_accounting_period close_fiscal_year delete_accounting_entry get_accounting_budget get_accounting_entry get_accounting_settings list_accounting_accounts list_accounting_budgets list_accounting_dimensions list_accounting_entries list_accounting_journals list_accounting_periods list_accounting_tax_codes open_fiscal_year post_accounting_entry post_accounting_source reopen_accounting_period reverse_accounting_entry save_accounting_account save_accounting_budget save_accounting_dimension save_accounting_dimension_value save_accounting_entry save_accounting_journal save_accounting_tax_code set_accounting_account_role set_accounting_fx_rate set_accounting_lock_date setup_accounting",
   activities:
-    "amend_engagement complete_engagement delete_engagement engagements_of log_engagement mark_engagement_error next_engagement open_engagements update_engagement",
+    "activities_of amend_activity complete_activity delete_activity log_activity mark_activity_error next_activity open_activities update_activity",
   agents:
     "delete_agent get_agent install_agent list_agents publish_agent rate_agent save_agent set_agent_skills",
   "ai-cache": "ai_cache_delete ai_cache_get ai_cache_set purge_ai_cache",
@@ -62,7 +62,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   comments:
     "comment_conversation comment_counts copy_comments create_comment get_comment list_comments list_file_comments",
   compliance:
-    "acknowledge_policy add_control_evidence archive_policy control_posture get_control list_control_frameworks list_controls list_evidence_tasks list_policies notify_overdue_evidence_tasks policy_acknowledgements publish_policy remove_control_evidence save_control save_control_framework save_evidence_task save_policy",
+    "acknowledge_compliance_policy add_control_evidence archive_compliance_policy compliance_policy_acknowledgements control_posture get_control list_compliance_policies list_control_frameworks list_controls list_evidence_tasks notify_overdue_evidence_tasks publish_compliance_policy remove_control_evidence save_compliance_policy save_control save_control_framework save_evidence_task",
   connectors:
     "check_connector_fingerprint decide_connector_fingerprint delete_connector_server expiring_connector_grants get_connector get_connector_session list_connector_servers purge_connector_sessions record_connector_grant renew_connector_grant revoke_connector_grant save_connector_server save_connector_session",
   consents:
@@ -72,7 +72,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   content:
     "archive_content_entry create_content_entry get_content_entry list_content_entries public_content_entries public_content_entry publish_content_entry publish_due_content_entries schedule_content_entry update_content_entry",
   contracts:
-    "create_contract delete_obligation get_contract list_contracts list_obligations run_contract_renewals save_obligation send_contract_for_signature set_obligation_status transition_contract update_contract",
+    "create_contract delete_contract_obligation get_contract list_contract_obligations list_contracts run_contract_renewals save_contract_obligation send_contract_for_signature set_contract_obligation_status transition_contract update_contract",
   courses:
     "complete_course_lesson course_lesson course_outline course_progress delete_course delete_course_lesson delete_course_module enroll_in_course list_course_learners list_courses revoke_course_certificate save_course save_course_lesson save_course_module start_course_lesson unenroll_from_course verify_course_certificate",
   credentials: "credential_delete credential_get credential_set",
@@ -108,7 +108,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "forecast_changes forecast_snapshot forecast_snapshots take_forecast_snapshot",
   forms:
     "create_form delete_form_submission form_nps get_form get_form_submission get_form_version list_form_submissions list_forms publish_form_version review_form_submission submit_form update_form",
-  goals: "save_target target_progress",
+  goals: "goal_progress save_goal",
   guests:
     "accept_guest_invite grant_guest_access guest_can invite_guest list_guest_grants list_guests my_guest_access revoke_guest revoke_guest_access",
   hiring:
@@ -121,7 +121,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   inbox:
     "assign_conversation cancel_inbox_message create_inbox create_inbox_attachment create_inbox_team delete_message_template discard_inbox_draft edit_inbox_message get_conversation get_inbox_message inbox_counts inbox_file_failed list_conversation_events list_inbox_conversations list_inbox_drafts list_inbox_messages list_scheduled_inbox_messages mark_conversation_read pending_inbound_events pending_inbox_files publish_due_inbox_messages purge_contact purge_inbound_events react_to_inbox_message record_delivery record_inbound reschedule_inbox_message save_inbox_draft schedule_inbox_message send_inbox_draft send_inbox_message set_bot_mode set_conversation_status set_delivery_status set_inbound_event_status set_inbox_member set_inbox_team_member start_conversation store_inbound_event suggest_inbox_draft update_inbox upsert_contact upsert_message_template wake_snoozed_conversations",
   incidents:
-    "delete_status_component get_incident get_status_page list_incidents list_status_components open_incident post_incident_update public_status_page publish_postmortem save_postmortem save_status_component save_status_page set_incident_impacts update_incident",
+    "delete_status_component get_incident get_status_page list_incidents list_status_components open_incident post_incident_update public_status_page publish_incident_postmortem save_incident_postmortem save_status_component save_status_page set_incident_impacts update_incident",
   inventory:
     "adjust_stock allocate_stock cancel_purchase_order cancel_transfer commit_reservation count_stock create_transfer delete_location expire_lots expire_reservations expiring_lots fulfill_allocation list_allocations place_purchase_order receive_purchase_order receive_transfer release_allocations release_reservation reserve_stock restore_allocation save_bin save_location save_lot save_purchase_order set_location_active set_reorder_point set_stock_item ship_transfer stock_detail stock_valuation",
   invitations:
@@ -228,7 +228,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "add_subject_member can_subject_for end_subject_member list_subject_members my_subjects my_work record_summary subject_titles subject_types",
   tags: "create_tag delete_tag list_tags rank_tag subject_tags tag untag update_tag",
   tasks:
-    "archive_work_item create_work_item delete_work_item delete_work_item_checklist_item get_work_item list_work_item_checklist list_work_items save_iteration save_project save_work_item_checklist_item set_work_item_assignees update_work_items work_item_tree",
+    "archive_task create_task delete_task delete_task_checklist_item get_task list_task_checklist list_tasks save_iteration save_project save_task_checklist_item set_task_assignees task_tree update_tasks",
   teams:
     "add_team_member archive_team create_team delete_team list_teams remove_team_member update_team",
   templates:

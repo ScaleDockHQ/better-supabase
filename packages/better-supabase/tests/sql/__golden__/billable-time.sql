@@ -702,7 +702,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:c378f6e2b4c3a84fa1f503d75b967273d8249b64fdd7d7a41c5454b7a354ce45
+-- @bsb-hash sha256:a4f42a68368474382a7ddeef63ad65ee2b4e1d710ff6d4c20ef541648e530c4c
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1344,7 +1344,7 @@ declare
 begin
   select * into v_project from "better_supabase"."projects" x where x."id" = project_costs.project_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_project."tenant_id", 'billable_time.read'), false)) then
-    raise exception 'project not found' using errcode = 'P0002', hint = 'WORK_ITEM_PROJECT_NOT_FOUND';
+    raise exception 'project not found' using errcode = 'P0002', hint = 'TASK_PROJECT_NOT_FOUND';
   end if;
   with spent as (
     select extract(epoch from x."ended_at" - x."started_at") as seconds, card.cost, card.currency,
@@ -1363,7 +1363,7 @@ begin
     left join "better_supabase"."time_invoice_entries" d on d."entry_id" = x."id"
     where x."tenant_id" = v_project."tenant_id"
       and x."ended_at" is not null
-      and ((x."subject_type" = 'project' and x."subject_id" = v_project."id"::text) or (x."subject_type" = 'work_item' and x."subject_id" in (
+      and ((x."subject_type" = 'project' and x."subject_id" = v_project."id"::text) or (x."subject_type" = 'task' and x."subject_id" in (
         select y."id"::text from "better_supabase"."work_items" y where y."project_id" = v_project."id"
       )))
   ),

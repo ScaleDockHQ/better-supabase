@@ -70,7 +70,7 @@ describe("compliance module", () => {
       expect.arrayContaining([
         "save_control",
         "control_posture",
-        "acknowledge_policy",
+        "acknowledge_compliance_policy",
       ]),
     );
   });

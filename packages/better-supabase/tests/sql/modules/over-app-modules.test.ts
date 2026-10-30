@@ -398,7 +398,7 @@ describe("blocks next to the app's tables", () => {
       { tasks: { columns: { items: { tenant: "org_id" } } } },
     );
 
-    expect(sql).toContain("default_pipeline(new.org_id, 'work_item'");
+    expect(sql).toContain("default_pipeline(new.org_id, 'task'");
     expect(sql).not.toContain("new.tenant_id");
   });
 

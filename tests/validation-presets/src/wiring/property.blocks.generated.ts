@@ -200,19 +200,19 @@ export const blockConfig = {
     options: {},
     names: {
       functions: {
-        archive_work_item: "archive_maintenance_request",
-        create_work_item: "create_maintenance_request",
-        delete_work_item: "delete_maintenance_request",
-        delete_work_item_checklist_item: "delete_maintenance_request_checklist_item",
-        get_work_item: "get_maintenance_request",
-        list_work_item_checklist: "list_maintenance_request_checklist",
-        list_work_items: "list_maintenance_requests",
+        archive_task: "archive_maintenance_request",
+        create_task: "create_maintenance_request",
+        delete_task: "delete_maintenance_request",
+        delete_task_checklist_item: "delete_maintenance_request_checklist_item",
+        get_task: "get_maintenance_request",
+        list_task_checklist: "list_maintenance_request_checklist",
+        list_tasks: "list_maintenance_requests",
+        save_task_checklist_item: "save_maintenance_request_checklist_item",
+        set_task_assignees: "set_maintenance_request_assignees",
+        task_tree: "maintenance_request_tree",
+        update_tasks: "update_maintenance_requests",
         save_iteration: "maintenance_save_iteration",
         save_project: "maintenance_save_project",
-        save_work_item_checklist_item: "save_maintenance_request_checklist_item",
-        set_work_item_assignees: "set_maintenance_request_assignees",
-        update_work_items: "update_maintenance_requests",
-        work_item_tree: "maintenance_request_tree",
       },
       entities: [{
         from: {
@@ -468,6 +468,10 @@ export const permissions = {
   subjects: {
     manage: "subjects.manage",
   },
+  task: {
+    read: "tasks.read",
+    write: "tasks.write",
+  },
   tasks: {
     read: "tasks.read",
     write: "tasks.write",
@@ -476,10 +480,6 @@ export const permissions = {
   teams: {
     manage: "teams.manage",
     read: "teams.read",
-  },
-  work_item: {
-    read: "tasks.read",
-    write: "tasks.write",
   },
 } as const;
 

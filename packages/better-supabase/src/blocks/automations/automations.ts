@@ -77,7 +77,10 @@ export interface Rule {
 /** `upsert`'s input: left-out keys keep their value on an existing rule. */
 export interface RuleInput {
   readonly id?: string;
-  /** The version the editor read; a newer stored one fails with `RULE_CONFLICT`. */
+  /**
+   * The version the editor read; a newer stored one fails with
+   * `AUTOMATION_CONFLICT`.
+   */
   readonly version?: number;
   /** Required for a new rule; it can't change later. */
   readonly subjectType?: string;
@@ -175,8 +178,8 @@ export interface Automations {
   move(id: string, rank: string): AsyncResult<Rule>;
   /**
    * Removes a rule with its history (needs `automations.manage`); `false` when
-   * there is none to remove. A default automation fails with `RULE_DEFAULT`;
-   * turn it off instead.
+   * there is none to remove. A default automation fails with
+   * `AUTOMATION_DEFAULT`; turn it off instead.
    */
   remove(id: string): AsyncResult<boolean>;
   /**

@@ -1,11 +1,13 @@
 import type { DefaultAutomation } from "../../core/automation.ts";
 import type { BlockSqlContext } from "../context.ts";
 
+import { entityType } from "../resolved-names.ts";
+
 /** The block whose records a shipped automation's actions create. */
 export interface AutomationTarget {
   readonly module: string;
-  /** The entity's default singular name, such as `work_item`. */
-  readonly singular: string;
+  /** The entity's key, such as `task`. */
+  readonly entity: string;
 }
 
 /**
@@ -22,7 +24,7 @@ export function shippedAutomation(
     return "";
   }
 
-  const targetType = ctx.of(target.module).naming.rename(target.singular);
+  const targetType = entityType(ctx.of(target.module).resolved, target.entity);
 
   return ctx.automation({
     ...spec,

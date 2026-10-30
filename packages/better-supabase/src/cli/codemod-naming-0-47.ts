@@ -1,0 +1,87 @@
+import type { Codemod, CodemodResult, ReviewHint } from "./codemod.ts";
+
+import {
+  ENTITY_RENAMES_CODEMOD,
+  HINT_RENAMES,
+  SUBJECT_TYPE_RENAMES,
+} from "../index.ts";
+import { withEntityKeysRenamed } from "./sql/config-entity-keys.ts";
+
+const escapeRegExp = (value: string): string =>
+  value.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * `ACTIVITY_FORBIDDEN` is the timeline's old code and the activities block's
+ * new one, so a literal of it is listed, not rewritten.
+ */
+const AMBIGUOUS_HINT = "ACTIVITY_FORBIDDEN";
+
+const HINT_STRINGS: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(HINT_RENAMES).filter(([old]) => old !== AMBIGUOUS_HINT),
+);
+
+const quoted = (values: Iterable<string>): RegExp =>
+  new RegExp(`["'\`](?:${[...values].map(escapeRegExp).join("|")})["'\`]`);
+
+const REVIEW_0_47: readonly ReviewHint[] = [
+  {
+    pattern: quoted([AMBIGUOUS_HINT]),
+    message:
+      "`ACTIVITY_FORBIDDEN` was the timeline's code and is now the activities block's: a timeline check matches `TIMELINE_ENTRY_FORBIDDEN`, an activities check `ACTIVITY_FORBIDDEN`",
+  },
+  {
+    pattern: quoted(Object.keys(SUBJECT_TYPE_RENAMES)),
+    message: `Subject types follow the entity's singular: ${Object.entries(
+      SUBJECT_TYPE_RENAMES,
+    )
+      .map(([old, next]) => `\`${old}\` is \`${next}\``)
+      .join(
+        ", ",
+      )}. Old types still resolve until 0.48; rename the ones that name a block's subject`,
+  },
+];
+
+const SQL_HINT = new RegExp(
+  `'(${Object.keys(HINT_STRINGS).map(escapeRegExp).join("|")})'`,
+  "g",
+);
+
+/**
+ * Renames the hint codes the app's own SQL matches (`hint =
+ * 'WORK_ITEM_LOCKED'`).
+ */
+function renameSqlHints(source: string): CodemodResult {
+  const text = source.replaceAll(
+    SQL_HINT,
+    (_match, hint: string) => `'${HINT_STRINGS[hint] ?? hint}'`,
+  );
+
+  const review = source
+    .split("\n")
+    .flatMap((line, index) =>
+      REVIEW_0_47.filter((hint) => hint.pattern.test(line)).map((hint) => ({
+        line: index + 1,
+        message: hint.message,
+      })),
+    );
+
+  return { text, review };
+}
+
+/**
+ * `codemod 0.47`: entity keys equal the entity's singular, and hint codes
+ * follow the entity's new name (ADR 0130).
+ */
+export const CODEMOD_0_47: Codemod = {
+  name: ENTITY_RENAMES_CODEMOD,
+  description:
+    "Renames the keys of blocks.<name>.entities to the entity's singular (work_item to task, engagement to activity, rule to automation, ...), renames hint codes after the entity's new name (WORK_ITEM_NOT_FOUND to TASK_NOT_FOUND, ENGAGEMENT_NOT_FOUND to ACTIVITY_NOT_FOUND, ...) in code and the app's SQL, renames workItemChecklistBinding to taskChecklistBinding, and lists ACTIVITY_FORBIDDEN and the renamed subject types for review",
+  subpathImports: {
+    "blocks/tasks": { workItemChecklistBinding: "taskChecklistBinding" },
+  },
+  strings: HINT_STRINGS,
+  configFile: (source) =>
+    withEntityKeysRenamed({ ok: true, text: source, review: [] }),
+  sqlFile: renameSqlHints,
+  review: REVIEW_0_47,
+};

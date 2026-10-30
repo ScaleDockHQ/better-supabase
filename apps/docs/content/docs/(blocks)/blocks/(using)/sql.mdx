@@ -1629,7 +1629,7 @@ own access check, for a record the caller may read: `record_summary`
 (`custom-fields`) when it returns values. Each read writes a `subject.accessed`
 entry under the `read` category ([Read logging](/docs/blocks/audit#read-logging)).
 A function that runs as plain SQL, such as `list_attachments` or
-`engagements_of`, doesn't log; call `reads.log` from the screen that shows it.
+`activities_of`, doesn't log; call `reads.log` from the screen that shows it.
 
 | Function                                                                        | What it does                                                                     |
 | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |

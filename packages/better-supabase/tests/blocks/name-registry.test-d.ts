@@ -18,7 +18,7 @@ describe("BlockNameRegistry", () => {
 
   it("lists a module's tables, functions and actions", () => {
     expectTypeOf<"items">().toExtend<TablesOf<"tasks">>();
-    expectTypeOf<"list_work_items">().toExtend<FunctionsOf<"tasks">>();
+    expectTypeOf<"list_tasks">().toExtend<FunctionsOf<"tasks">>();
     expectTypeOf<"read">().toExtend<ActionsOf<"tasks">>();
   });
 });
@@ -29,9 +29,9 @@ describe("BlocksConfig", () => {
       tasks: {
         tables: { items: "public.tasks" },
         columns: { items: { title: "name" } },
-        functions: { list_work_items: "list_tasks" },
+        functions: { list_tasks: "list_tasks" },
         permissions: { read: "tasks.read" },
-        hooks: { functions: { after_work_item_create: "app.on_task" } },
+        hooks: { functions: { after_task_create: "app.on_task" } },
       },
     } satisfies BlocksConfig;
 
@@ -57,8 +57,8 @@ describe("BlocksConfig", () => {
 
     const functions: BlocksConfig = {
       tasks: {
-        // @ts-expect-error: no function `list_tasks`
-        functions: { list_tasks: "x" },
+        // @ts-expect-error: no function `list_work_items`
+        functions: { list_work_items: "x" },
       },
     };
 

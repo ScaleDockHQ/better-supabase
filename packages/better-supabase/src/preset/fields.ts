@@ -283,8 +283,8 @@ export interface Preset extends PresetConventions {
   readonly blocks: readonly string[];
   /**
    * `blocks` entries the preset writes: a selected block's names and options
-   * (`tasks: { names: { work_item: "ticket" } }`), or another instance of a
-   * block (`maintenance: { block: "tasks" }`).
+   * (`tasks: { names: { task: "ticket" } }`), or another instance of a block
+   * (`maintenance: { block: "tasks" }`).
    */
   readonly instances?: Readonly<Record<string, PresetInstance>>;
 }

@@ -1,6 +1,6 @@
 -- better-supabase module: consents
 -- @bsb-block consents@1 managed
--- @bsb-hash sha256:75c19e33b706f8593aab259a04609fc8a03aa81de03583e06f8304f2862833d7
+-- @bsb-hash sha256:0b0c565c93c94f856242dd45a66a1b237f38d291b86b035d0b622a77e7f7e99e
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -359,7 +359,7 @@ begin
       when 'deal' then (select s."tenant_id"::text from "better_supabase"."deals" s where s."id" = (record_consent.subject_id)::uuid)
       when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = (record_consent.subject_id)::uuid)
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (record_consent.subject_id)::uuid)
-      when 'engagement' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (record_consent.subject_id)::uuid)
+      when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (record_consent.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (record_consent.subject_id)::uuid)
       when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (record_consent.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (record_consent.subject_id)::uuid)
@@ -380,7 +380,7 @@ begin
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (record_consent.subject_id)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (record_consent.subject_id)::uuid)
       when 'control' then (select s."tenant_id"::text from "better_supabase"."controls" s where s."id" = (record_consent.subject_id)::uuid)
-      when 'policy' then (select s."tenant_id"::text from "better_supabase"."policies" s where s."id" = (record_consent.subject_id)::uuid)
+      when 'compliance_policy' then (select s."tenant_id"::text from "better_supabase"."policies" s where s."id" = (record_consent.subject_id)::uuid)
       when 'qualification_type' then (select s."tenant_id"::text from "better_supabase"."qualification_types" s where s."id" = (record_consent.subject_id)::uuid)
       when 'risk' then (select s."tenant_id"::text from "better_supabase"."risks" s where s."id" = (record_consent.subject_id)::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (record_consent.subject_id)::uuid)
@@ -703,7 +703,7 @@ declare
       when 'deal' then (select s."tenant_id"::text from "better_supabase"."deals" s where s."id" = (consent_active.subject_id)::uuid)
       when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = (consent_active.subject_id)::uuid)
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (consent_active.subject_id)::uuid)
-      when 'engagement' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (consent_active.subject_id)::uuid)
+      when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (consent_active.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (consent_active.subject_id)::uuid)
       when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (consent_active.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (consent_active.subject_id)::uuid)
@@ -724,7 +724,7 @@ declare
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (consent_active.subject_id)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (consent_active.subject_id)::uuid)
       when 'control' then (select s."tenant_id"::text from "better_supabase"."controls" s where s."id" = (consent_active.subject_id)::uuid)
-      when 'policy' then (select s."tenant_id"::text from "better_supabase"."policies" s where s."id" = (consent_active.subject_id)::uuid)
+      when 'compliance_policy' then (select s."tenant_id"::text from "better_supabase"."policies" s where s."id" = (consent_active.subject_id)::uuid)
       when 'qualification_type' then (select s."tenant_id"::text from "better_supabase"."qualification_types" s where s."id" = (consent_active.subject_id)::uuid)
       when 'risk' then (select s."tenant_id"::text from "better_supabase"."risks" s where s."id" = (consent_active.subject_id)::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (consent_active.subject_id)::uuid)
@@ -796,7 +796,7 @@ declare
       when 'deal' then (select s."tenant_id"::text from "better_supabase"."deals" s where s."id" = (list_consents.subject_id)::uuid)
       when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = (list_consents.subject_id)::uuid)
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (list_consents.subject_id)::uuid)
-      when 'engagement' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (list_consents.subject_id)::uuid)
+      when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (list_consents.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (list_consents.subject_id)::uuid)
       when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (list_consents.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (list_consents.subject_id)::uuid)
@@ -817,7 +817,7 @@ declare
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (list_consents.subject_id)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (list_consents.subject_id)::uuid)
       when 'control' then (select s."tenant_id"::text from "better_supabase"."controls" s where s."id" = (list_consents.subject_id)::uuid)
-      when 'policy' then (select s."tenant_id"::text from "better_supabase"."policies" s where s."id" = (list_consents.subject_id)::uuid)
+      when 'compliance_policy' then (select s."tenant_id"::text from "better_supabase"."policies" s where s."id" = (list_consents.subject_id)::uuid)
       when 'qualification_type' then (select s."tenant_id"::text from "better_supabase"."qualification_types" s where s."id" = (list_consents.subject_id)::uuid)
       when 'risk' then (select s."tenant_id"::text from "better_supabase"."risks" s where s."id" = (list_consents.subject_id)::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (list_consents.subject_id)::uuid)

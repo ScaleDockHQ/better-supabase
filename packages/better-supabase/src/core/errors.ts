@@ -1,4 +1,5 @@
 import { DbException } from "./db-exception.ts";
+import { legacyHintOf } from "./hint-renames.ts";
 
 export { DbException };
 
@@ -88,6 +89,13 @@ interface DbErrorBase<K extends DbErrorKind> {
   readonly details?: string;
   /** Postgres `HINT`. `raised` errors use it as an app-level error code. */
   readonly hint?: string;
+  /**
+   * The code `hint` had before 0.47 (`WORK_ITEM_NOT_FOUND` for
+   * `TASK_NOT_FOUND`), for clients that still match the old code.
+   *
+   * @deprecated Match `hint`. Removed in 0.48.
+   */
+  readonly legacyHint?: string;
   /** App-cased table key the operation ran against. */
   readonly table?: string;
 }
@@ -383,8 +391,14 @@ function optional(raw: RawDbError): {
   code?: string;
   details?: string;
   hint?: string;
+  legacyHint?: string;
 } {
-  const out: { code?: string; details?: string; hint?: string } = {};
+  const out: {
+    code?: string;
+    details?: string;
+    hint?: string;
+    legacyHint?: string;
+  } = {};
 
   if (raw.code) {
     out.code = raw.code;
@@ -396,6 +410,12 @@ function optional(raw: RawDbError): {
 
   if (raw.hint) {
     out.hint = raw.hint;
+
+    const legacy = legacyHintOf(raw.hint);
+
+    if (legacy !== undefined) {
+      out.legacyHint = legacy;
+    }
   }
 
   return out;

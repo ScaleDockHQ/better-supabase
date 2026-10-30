@@ -177,21 +177,21 @@ export function noteRules(ctx: BlockSqlContext): NoteRules {
     const audience = on("audience")
       ? `
   if nullif(${attr(fn, "audience")}, '') is not null and not (${attr(fn, "audience")} = any (${textArray(AUDIENCES)})) then
-    ${fail("ENGAGEMENT_AUDIENCE_INVALID", `audience must be one of ${AUDIENCES.join(", ")}`, "22023")}
+    ${fail("ACTIVITY_AUDIENCE_INVALID", `audience must be one of ${AUDIENCES.join(", ")}`, "22023")}
   end if;`
       : "";
 
     const roles = on("restrictedRoles")
       ? `
   if ${fn}.attrs ? 'restrictedRoles' and jsonb_typeof(${fn}.attrs -> 'restrictedRoles') not in ('array', 'null') then
-    ${fail("ENGAGEMENT_AUDIENCE_INVALID", "restrictedRoles must be a list of record team roles", "22023")}
+    ${fail("ACTIVITY_AUDIENCE_INVALID", "restrictedRoles must be a list of record team roles", "22023")}
   end if;`
       : "";
 
     const category = on("category")
       ? `
   if nullif(${attr(fn, "category")}, '') is not null and not (${attr(fn, "category")} = any (${textArray(categories)})) then
-    ${fail("ENGAGEMENT_CATEGORY_INVALID", `category must be one of ${categories.join(", ")}`, "22023")}
+    ${fail("ACTIVITY_CATEGORY_INVALID", `category must be one of ${categories.join(", ")}`, "22023")}
   end if;`
       : "";
 
@@ -310,7 +310,7 @@ ${userGrant(`${fn("engagement_guest_readable")}(uuid)`)}`
 }
 
 /**
- * `amend_engagement` and `mark_engagement_error`, each when the table has its
+ * `amend_activity` and `mark_activity_error`, each when the table has its
  * columns.
  */
 export function notesSql(ctx: BlockSqlContext, parts: NotesSqlParts): string {
@@ -348,7 +348,7 @@ export function notesSql(ctx: BlockSqlContext, parts: NotesSqlParts): string {
 -- Adds an addendum to an engagement the caller can read: a new engagement of
 -- the same type, title, audience and records with body, pointing at it
 -- through amends_id. A locked note changes this way only.
-create or replace function ${fn("amend_engagement")}(engagement uuid, body text)
+create or replace function ${fn("amend_activity")}(engagement uuid, body text)
 returns jsonb
 language plpgsql
 security definer
@@ -357,20 +357,20 @@ as $$
 declare
   v_from ${t("engagements")};
   v_id uuid;
-  v_body text := nullif(trim(amend_engagement.body), '');
+  v_body text := nullif(trim(amend_activity.body), '');
   v_subjects jsonb;
   v_first jsonb;
 begin
   select * into v_from from ${t("engagements")} x
-  where x.${e("id")} = amend_engagement.engagement and (${SERVICE_CALLER} or ${readable("x")});
+  where x.${e("id")} = amend_activity.engagement and (${SERVICE_CALLER} or ${readable("x")});
   if v_from.${e("id")} is null then
-    ${fail("ENGAGEMENT_NOT_FOUND", "no such engagement you can read", "P0002")}
+    ${fail("ACTIVITY_NOT_FOUND", "no such engagement you can read", "P0002")}
   end if;
   if not (${SERVICE_CALLER} or ${ctx.scope.can(`v_from.${e("tenant")}`, write)}) then
-    ${fail("ENGAGEMENT_FORBIDDEN", "not allowed to amend engagements")}
+    ${fail("ACTIVITY_FORBIDDEN", "not allowed to amend engagements")}
   end if;
   if v_body is null then
-    ${fail("ENGAGEMENT_BODY_REQUIRED", "an addendum needs a body", "23502")}
+    ${fail("ACTIVITY_BODY_REQUIRED", "an addendum needs a body", "23502")}
   end if;
   insert into ${t("engagements")} (${copied.map(([column]) => e(column)).join(", ")})
   values (${copied.map(([, value]) => value).join(", ")})
@@ -384,7 +384,7 @@ begin
   return (select ${row("x")} from ${t("engagements")} x where x.${e("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("amend_engagement")}(uuid, text)`)}
+${userGrant(`${fn("amend_activity")}(uuid, text)`)}
 `
     : "";
 
@@ -404,38 +404,38 @@ ${userGrant(`${fn("amend_engagement")}(uuid, text)`)}
 -- Flags an engagement as entered in error with a reason. The row stays, so
 -- the record keeps what was written; the flag also locks it. The author, the
 -- owner and members with activities.manage may mark it.
-create or replace function ${fn("mark_engagement_error")}(engagement uuid, reason text)
+create or replace function ${fn("mark_activity_error")}(engagement uuid, reason text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := mark_engagement_error.engagement;
-  v_reason text := nullif(trim(mark_engagement_error.reason), '');
+  v_id uuid := mark_activity_error.engagement;
+  v_reason text := nullif(trim(mark_activity_error.reason), '');
   v_tenant ${ctx.idType};
   v_type text;
-  v_subjects jsonb := ${subjectsOf("mark_engagement_error.engagement")};
+  v_subjects jsonb := ${subjectsOf("mark_activity_error.engagement")};
   v_first jsonb := v_subjects -> 0;
 begin
   if v_reason is null then
-    ${fail("ENGAGEMENT_REASON_REQUIRED", "say why the engagement is in error", "23502")}
+    ${fail("ACTIVITY_REASON_REQUIRED", "say why the engagement is in error", "23502")}
   end if;
   if exists (select 1 from ${t("engagements")} x where x.${e("id")} = v_id and ${editable("x")} and x.${e("markedErrorAt")} is not null) then
-    ${fail("ENGAGEMENT_ALREADY_MARKED_ERROR", "the engagement is already marked in error", "55000")}
+    ${fail("ACTIVITY_ALREADY_MARKED_ERROR", "the engagement is already marked in error", "55000")}
   end if;
   update ${t("engagements")} x set
     ${sets().join(",\n    ")}
   where x.${e("id")} = v_id and ${editable("x")}
   returning x.${e("tenant")}, x.${e("type")}::text into v_tenant, v_type;
   if v_tenant is null then
-    ${fail("ENGAGEMENT_NOT_FOUND", "no such engagement you can edit", "P0002")}
+    ${fail("ACTIVITY_NOT_FOUND", "no such engagement you can edit", "P0002")}
   end if;
   ${record("engagement.error_marked", "v_id", "v_type", "v_tenant", "'reason', v_reason")}
   return (select ${row("x")} from ${t("engagements")} x where x.${e("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("mark_engagement_error")}(uuid, text)`)}
+${userGrant(`${fn("mark_activity_error")}(uuid, text)`)}
 `
     : "";
 
@@ -458,12 +458,12 @@ export function notesContract(
         ]
       : []),
     ...(rules.on("amends")
-      ? [{ name: "amend_engagement", args: ["uuid", "text"], returns: "jsonb" }]
+      ? [{ name: "amend_activity", args: ["uuid", "text"], returns: "jsonb" }]
       : []),
     ...(rules.on("markedErrorAt")
       ? [
           {
-            name: "mark_engagement_error",
+            name: "mark_activity_error",
             args: ["uuid", "text"],
             returns: "jsonb",
           },

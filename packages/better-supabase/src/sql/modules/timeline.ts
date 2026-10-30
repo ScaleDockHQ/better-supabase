@@ -14,10 +14,10 @@ import { activityReads } from "./timeline-reads.ts";
 
 const NAMES: BlockSqlNames = {
   entities: {
-    entry: {
+    timeline_entry: {
       table: "activity",
-      singular: "activity_entry",
-      plural: "activity_entries",
+      singular: "timeline_entry",
+      formerly: "activity_entry",
       primary: true,
     },
   },
@@ -161,7 +161,7 @@ declare
   inserted integer;
 begin
   if not (${SERVICE_CALLER}) then
-    ${fail("ACTIVITY_FORBIDDEN", "Only the service role records activity")}
+    ${fail("TIMELINE_ENTRY_FORBIDDEN", "Only the service role records activity")}
   end if;
   insert into ${activity} (${written.map((logical) => a(logical)).join(", ")})
   select ${selected}

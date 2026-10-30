@@ -85,7 +85,7 @@ describe("entity schemas", () => {
   });
 
   it("puts the schemas on the block's manifest", () => {
-    expect(tasksBlock.schemas["work_item"]?.change).toBe(workItemChangeSchema);
+    expect(tasksBlock.schemas["task"]?.change).toBe(workItemChangeSchema);
   });
 
   it("validates the collaboration blocks' inputs", async () => {
@@ -110,7 +110,7 @@ describe("entity schemas", () => {
     expect(event.issues?.map((issue) => issue.path)).toEqual([["status"]]);
     expect(commentsBlock.schemas).toEqual({});
     expect(Object.keys(attachmentsBlock.schemas)).toEqual(["attachment"]);
-    expect(Object.keys(activitiesBlock.schemas)).toEqual(["engagement"]);
+    expect(Object.keys(activitiesBlock.schemas)).toEqual(["activity"]);
     expect(Object.keys(calendarBlock.schemas)).toEqual(["calendar_event"]);
   });
 

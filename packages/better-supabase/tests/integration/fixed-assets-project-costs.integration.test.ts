@@ -247,7 +247,7 @@ describe.skipIf(!live)("fixed assets and project costing", () => {
         .create(tenant, { title: "Design", projectId: project.id })
         .orThrow();
 
-      const subject = { type: "work_item", id: item.id };
+      const subject = { type: "task", id: item.id };
 
       await time
         .log({
@@ -269,7 +269,7 @@ describe.skipIf(!live)("fixed assets and project costing", () => {
       await s.as(ada);
 
       expect(hint(await billing.projectCosts(project.id))).toBe(
-        "WORK_ITEM_PROJECT_NOT_FOUND",
+        "TASK_PROJECT_NOT_FOUND",
       );
 
       await s.as(owner);

@@ -438,7 +438,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:e76af79cf63ab3bad2ba7c58440a016bc55365c59e8fc77327bab3e9870b7d80
+-- @bsb-hash sha256:e311e8405f5f5751225769534c9df56da187490864eebb64be2a39b64cd55878
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -870,7 +870,7 @@ grant execute on function "better_supabase"."copy_comments"(uuid, text, text, te
 
 -- Turns a comment into a work item: the title (attrs.title, else the
 -- comment's first 120 characters), its body, and assignee when given; the
--- other attrs go to create_work_item. A comment links to one work item;
+-- other attrs go to create_task. A comment links to one work item;
 -- assigning it again returns that one's id.
 create or replace function "better_supabase"."assign_comment"(message uuid, assignee uuid default null, attrs jsonb default '{}')
 returns uuid
@@ -891,7 +891,7 @@ begin
   if found then
     return v_task;
   end if;
-  v_task := ("better_supabase"."create_work_item"(
+  v_task := ("better_supabase"."create_task"(
     v_msg."tenant_id",
     (coalesce(assign_comment.attrs, '{}') - 'title') || jsonb_build_object(
       'title', coalesce(nullif(trim(assign_comment.attrs ->> 'title'), ''), left(v_msg."body", 120)),

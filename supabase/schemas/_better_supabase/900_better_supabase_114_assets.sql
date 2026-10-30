@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:4db048ecaecdceb4eb855d4a5f8e712142a71916b0f88e5769bbd693d8ec0ca6
+-- @bsb-hash sha256:2d5d919aa35be2c7f5ef16c48cc334300165ea1931a59b06e6b541c4bc7ff8f5
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -943,7 +943,7 @@ begin
   case set_asset_link.target_type
   when 'booking_resource' then
     select y."tenant_id" into v_tenant from "better_supabase"."booking_resources" y where y."id" = set_asset_link.target_id;
-  when 'work_item' then
+  when 'task', 'work_item' then
     select y."tenant_id" into v_tenant from "better_supabase"."work_items" y where y."id" = set_asset_link.target_id;
   else
     raise exception 'target_type must be booking_resource or work_item' using errcode = '22023', hint = 'ASSETS_LINK_UNSUPPORTED';
@@ -962,7 +962,7 @@ begin
   if set_asset_link.target_type = 'booking_resource' then
     update "better_supabase"."booking_resources" y set asset_id = set_asset_link.asset_id where y."id" = set_asset_link.target_id;
   end if;
-  if set_asset_link.target_type = 'work_item' then
+  if set_asset_link.target_type in ('task', 'work_item') then
     update "better_supabase"."work_items" y set asset_id = set_asset_link.asset_id where y."id" = set_asset_link.target_id;
   end if;
   return jsonb_build_object('targetType', set_asset_link.target_type, 'targetId', set_asset_link.target_id, 'assetId', set_asset_link.asset_id);

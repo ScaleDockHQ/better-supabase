@@ -1079,7 +1079,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:4c708aea972ed04e51a3d2ce90e6b0c7955d527078aa693dec12ded79fdadd7b
+-- @bsb-hash sha256:2b7e2b966ef498e345b31adb2175437da9442ea5721137425945895ebc199bef
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2048,7 +2048,7 @@ begin
   ) order by x."expected_close_on", x."id"), '[]'::jsonb)
   from "better_supabase"."deals" x
   left join "better_supabase"."pipeline_stages" st on st."id" = x."stage_id"
-  left join lateral (select "better_supabase"."next_engagement"('deal', x."id"::text) as e) ne on true
+  left join lateral (select "better_supabase"."next_activity"('deal', x."id"::text) as e) ne on true
   where x."pipeline_id" = deal_health.pipeline and x."outcome" = 'open' and x."archived_at" is null);
 end;
 $$;

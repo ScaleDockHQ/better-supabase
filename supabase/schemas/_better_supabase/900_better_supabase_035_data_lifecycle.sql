@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:e07ee7f035fee77fee18018d28e604e47ac0c76083da021218ae7230113774f7
+-- @bsb-hash sha256:702c4858ae2580e9c57ca6d03a57602999d92aa86aea64357b0ec4e1173a4ef4
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1174,7 +1174,7 @@ begin
       v_name := 'better_supabase.posts';
       v_reveal := 'posts_reveal';
       v_reveal_schema := 'better_supabase';
-    when 'engagement' then
+    when 'activity' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
       from "better_supabase"."engagements" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'better_supabase.engagements';
@@ -1300,7 +1300,7 @@ begin
       v_name := 'better_supabase.controls';
       v_reveal := 'controls_reveal';
       v_reveal_schema := 'better_supabase';
-    when 'policy' then
+    when 'compliance_policy' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
       from "better_supabase"."policies" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'better_supabase.policies';

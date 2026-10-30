@@ -4,7 +4,7 @@ import type { ChecklistItem, Tasks } from "../../../src/blocks/tasks/index.ts";
 
 import {
   workItemChecklistOptimistic,
-  workItemChecklistBinding,
+  taskChecklistBinding,
   tasksBlock,
 } from "../../../src/blocks/tasks/index.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
@@ -18,14 +18,14 @@ const item = (id: string, rank: string, done = false): ChecklistItem => ({
   createdAt: Temporal.Instant.from("2026-10-22T08:00:00Z"),
 });
 
-describe("workItemChecklistBinding", () => {
+describe("taskChecklistBinding", () => {
   it("loads the work item's checklist and goes stale on its updates", async () => {
     const checklist = vi.fn((_id: string) => AsyncResult.ok([item("a", "a0")]));
 
     // SAFETY: the binding calls only `checklist`.
     const client = { checklist } as unknown as Tasks;
 
-    const loaded = await workItemChecklistBinding.load(
+    const loaded = await taskChecklistBinding.load(
       client,
       { type: "task", id: "w1" },
       undefined,
@@ -33,8 +33,8 @@ describe("workItemChecklistBinding", () => {
 
     expect(loaded.ok && loaded.data.map((row) => row.id)).toEqual(["a"]);
     expect(checklist).toHaveBeenCalledWith("w1");
-    expect(workItemChecklistBinding.events).toEqual(["work_item.updated"]);
-    expect(tasksBlock.record).toBe(workItemChecklistBinding);
+    expect(taskChecklistBinding.events).toEqual(["work_item.updated"]);
+    expect(tasksBlock.record).toBe(taskChecklistBinding);
   });
 
   it("applies a save in rank order and a remove", () => {

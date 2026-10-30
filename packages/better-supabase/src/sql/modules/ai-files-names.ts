@@ -64,7 +64,7 @@ export const SUGGESTIONS = {
 
 export const NAMES: BlockSqlNames = {
   entities: {
-    document: { table: "documents", singular: "ai_document", primary: true },
+    ai_document: { table: "documents", singular: "ai_document", primary: true },
   },
   options: [
     "bucket",

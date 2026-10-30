@@ -778,7 +778,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:d44372be7a34271c2d67cb972135a1a8f55b65829ca07c490af50ae7de732b53
+-- @bsb-hash sha256:785e499769dfa6a017be770fe0e9ccce1a61e9276e7f9ec59986da8b05987de4
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1562,7 +1562,7 @@ begin
       and (my_work.tenant is null or r."tenant_id" = my_work.tenant)
       and "better_supabase"."approval_eligible"(r."id")
     union all
-    select 'assigned'::text, 'work_item'::text, i."id"::text, i."id"::text, i."title"::text,
+    select 'assigned'::text, 'task'::text, i."id"::text, i."id"::text, i."title"::text,
       coalesce(i."due_at", a."created_at")
     from "better_supabase"."work_item_assignees" a
     join "better_supabase"."work_items" i on i."id" = a."work_item_id"
@@ -1574,7 +1574,7 @@ begin
     select 'sla'::text, k."subject_type"::text, k."subject_id"::text, k."id"::text, null::text,
       k."due_at"
     from "better_supabase"."sla_clocks" k
-    where k."subject_type" = 'work_item'
+    where k."subject_type" = 'task'
       and k."warned_at" is not null
       and k."met_at" is null
       and (my_work.tenant is null or k."tenant_id" = my_work.tenant)

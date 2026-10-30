@@ -174,7 +174,7 @@ select better_supabase.record_inbound(jsonb_build_object(
 ));
 
 -- Acme's work: two projects and eight items behind /work, numbered the way
--- create_work_item numbers them (TASK-<n> per organization). The items insert
+-- create_task numbers them (TASK-<n> per organization). The items insert
 -- runs without triggers, since the state machine would start every item in
 -- triage; the closed items set closed_at and close_reason here.
 insert into better_supabase.work_projects (id, tenant_id, key, name, owner_user_id, status, start_on, target_on) values

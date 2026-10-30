@@ -4,7 +4,7 @@ import type { TasksEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { tasksEvents } from "./events.ts";
 import { tasksSqlOptions } from "./options.ts";
-import { workItemChecklistBinding } from "./record-binding.ts";
+import { taskChecklistBinding } from "./record-binding.ts";
 import { workItemRecurrenceSink } from "./recurrence.ts";
 import {
   workItemChangeSchema,
@@ -20,7 +20,7 @@ export const tasksBlock: BlockOf<
   TasksEvents,
   Record<never, never>,
   "sink",
-  typeof workItemChecklistBinding
+  typeof taskChecklistBinding
 > = defineBlock({
   name: "tasks",
   sql: ["tasks"],
@@ -28,7 +28,7 @@ export const tasksBlock: BlockOf<
   events: tasksEvents,
   provides: { sink: (client) => workItemRecurrenceSink(client) },
   create: createTasks,
-  record: workItemChecklistBinding,
+  record: taskChecklistBinding,
   category: "work",
   recipes: ["work-item-board", "work-item-grid", "entity-form", "my-work"],
   actions: [
@@ -38,7 +38,7 @@ export const tasksBlock: BlockOf<
     },
   ],
   schemas: {
-    work_item: {
+    task: {
       input: workItemInputSchema,
       change: workItemChangeSchema,
       listFilter: workItemListFilterSchema,

@@ -137,7 +137,7 @@ export function incidentsFunctions(ctx: BlockSqlContext): string {
       .filter(({ column }) => has("postmortems", column))
       .map(
         ({ column, read }) =>
-          `${pm(column)} = case when save_postmortem.attrs ? '${column}' then save_postmortem.attrs ${read} '${column}' else x.${pm(column)} end`,
+          `${pm(column)} = case when save_incident_postmortem.attrs ? '${column}' then save_incident_postmortem.attrs ${read} '${column}' else x.${pm(column)} end`,
       ),
     ...(has("postmortems", "updatedAt") ? [`${pm("updatedAt")} = now()`] : []),
   ].join(",\n    ");
@@ -583,7 +583,7 @@ ${userGrant(`${fn("list_incidents")}(${idType}, text, text, uuid, timestamptz, i
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
 -- resolution and actionItems ([{ title, ownerId, done }]); a key left out
 -- keeps its value.
-create or replace function ${fn("save_postmortem")}(incident_id uuid, attrs jsonb)
+create or replace function ${fn("save_incident_postmortem")}(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -594,17 +594,17 @@ declare
   v_row ${incidents}%rowtype;
   v_post ${postmortems}%rowtype;
 begin
-  select * into v_row from ${incidents} x where x.${i("id")} = save_postmortem.incident_id;
+  select * into v_row from ${incidents} x where x.${i("id")} = save_incident_postmortem.incident_id;
   if not found then
     ${incidentNotFound}
   end if;
   if not ${allowed(`v_row.${i("tenant")}`, write)} then
     ${forbidden("not allowed to write postmortems")}
   end if;
-  if jsonb_typeof(save_postmortem.attrs) is distinct from 'object' then
+  if jsonb_typeof(save_incident_postmortem.attrs) is distinct from 'object' then
     ${invalid("attrs must be an object")}
   end if;
-  if save_postmortem.attrs ? 'actionItems' and jsonb_typeof(save_postmortem.attrs -> 'actionItems') is distinct from 'array' then
+  if save_incident_postmortem.attrs ? 'actionItems' and jsonb_typeof(save_incident_postmortem.attrs -> 'actionItems') is distinct from 'array' then
     ${invalid("actionItems must be an array")}
   end if;
   insert into ${postmortems} (${pm("tenant")}, ${pm("incident")}${insertCol("postmortems", "author")})
@@ -617,11 +617,11 @@ begin
   return ${postmortemJson("v_post")};
 end;
 $$;
-${userGrant(`${fn("save_postmortem")}(uuid, jsonb)`)}
+${userGrant(`${fn("save_incident_postmortem")}(uuid, jsonb)`)}
 
 -- Publishes a resolved incident's postmortem. A public incident's status page
 -- then shows its summary.
-create or replace function ${fn("publish_postmortem")}(incident_id uuid)
+create or replace function ${fn("publish_incident_postmortem")}(incident_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -631,7 +631,7 @@ declare
   v_row ${incidents}%rowtype;
   v_post ${postmortems}%rowtype;
 begin
-  select * into v_row from ${incidents} x where x.${i("id")} = publish_postmortem.incident_id;
+  select * into v_row from ${incidents} x where x.${i("id")} = publish_incident_postmortem.incident_id;
   if not found then
     ${incidentNotFound}
   end if;
@@ -645,7 +645,7 @@ begin
     where x.${pm("incident")} = v_row.${i("id")}
     returning * into v_post;
   if not found then
-    ${fail("POSTMORTEM_NOT_FOUND", "the incident has no postmortem", "P0002")}
+    ${fail("INCIDENT_POSTMORTEM_NOT_FOUND", "the incident has no postmortem", "P0002")}
   end if;
   ${incidentRecord(
     "postmortem.published",
@@ -655,6 +655,6 @@ begin
   return ${postmortemJson("v_post")};
 end;
 $$;
-${userGrant(`${fn("publish_postmortem")}(uuid)`)}
+${userGrant(`${fn("publish_incident_postmortem")}(uuid)`)}
 `;
 }

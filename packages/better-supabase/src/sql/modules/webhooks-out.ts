@@ -40,7 +40,7 @@ const EVENTS: BlockSqlEvents<WebhooksEvents> = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    endpoint: {
+    webhook_endpoint: {
       table: "endpoints",
       singular: "webhook_endpoint",
       primary: true,

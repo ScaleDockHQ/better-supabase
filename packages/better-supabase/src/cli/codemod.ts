@@ -31,6 +31,7 @@ import {
   rewrite015,
 } from "./codemod-data-contract.ts";
 import { CODEMOD_0_46 } from "./codemod-naming-0-46.ts";
+import { CODEMOD_0_47 } from "./codemod-naming-0-47.ts";
 import {
   convertDesignFile,
   DESIGN_FILE_NAME,
@@ -533,6 +534,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.32": CODEMOD_0_32,
   ...CODEMODS_0_37,
   "0.46": CODEMOD_0_46,
+  "0.47": CODEMOD_0_47,
 };
 
 const SUPABASE_IMPORT =

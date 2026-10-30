@@ -38,7 +38,7 @@ function runner(ctx: BlockSqlContext): string {
       ? ""
       : `
       if v_step ->> 'kind' = 'task' then
-        perform ${tasks.fn("create_work_item")}(v_member.${r("tenant")}, jsonb_build_object(
+        perform ${tasks.fn("create_task")}(v_member.${r("tenant")}, jsonb_build_object(
           'title', trim(v_step ->> 'title'),
           'body', v_step ->> 'body',
           'dueAt', case when v_step ? 'dueInMinutes' then now() + make_interval(mins => (v_step ->> 'dueInMinutes')::integer) end),

@@ -52,7 +52,11 @@ const RUNS = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    task: { table: "tasks", singular: "ai_scheduled_task", primary: true },
+    ai_scheduled_task: {
+      table: "tasks",
+      singular: "ai_scheduled_task",
+      primary: true,
+    },
   },
   options: ["queue", "staleAfter", "maxPrompt", "extraColumns"],
   tables: {

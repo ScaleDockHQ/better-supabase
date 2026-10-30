@@ -650,7 +650,7 @@ export function createCompliance<
     notifyOverdue: () => call("notify_overdue_evidence_tasks", {}, numberOf),
     savePolicy: (organizationId, input) =>
       call(
-        "save_policy",
+        "save_compliance_policy",
         {
           tenant: organizationId,
           key: input.key,
@@ -659,35 +659,42 @@ export function createCompliance<
           requires_acknowledgement: input.requiresAcknowledgement ?? true,
           policy_id: input.policyId ?? null,
         },
-        policy("save_policy"),
+        policy("save_compliance_policy"),
       ),
     publishPolicy: (policyId, content, label) =>
       call(
-        "publish_policy",
+        "publish_compliance_policy",
         { policy_id: policyId, content, label: label ?? null },
-        policy("publish_policy"),
+        policy("publish_compliance_policy"),
       ),
     archivePolicy: (policyId) =>
-      call("archive_policy", { policy_id: policyId }, policy("archive_policy")),
+      call(
+        "archive_compliance_policy",
+        { policy_id: policyId },
+        policy("archive_compliance_policy"),
+      ),
     acknowledgePolicy: (policyId) =>
       call(
-        "acknowledge_policy",
+        "acknowledge_compliance_policy",
         { policy_id: policyId },
-        policy("acknowledge_policy"),
+        policy("acknowledge_compliance_policy"),
       ),
     policies: (organizationId, list = {}) =>
       call(
-        "list_policies",
+        "list_compliance_policies",
         {
           tenant: organizationId,
           include_archived: list.includeArchived ?? false,
           pending_only: list.pendingOnly ?? false,
         },
-        many("list_policies", policyOf),
+        many("list_compliance_policies", policyOf),
       ),
     acknowledgements: (policyId) =>
-      call("policy_acknowledgements", { policy_id: policyId }, (value) =>
-        acknowledgementsOf(value, "policy_acknowledgements"),
+      call(
+        "compliance_policy_acknowledgements",
+        { policy_id: policyId },
+        (value) =>
+          acknowledgementsOf(value, "compliance_policy_acknowledgements"),
       ),
   };
 

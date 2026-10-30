@@ -124,7 +124,7 @@ describe("value maps", () => {
     expect(sql).toContain(`new."state" = 'done'`);
     expect(sql).not.toContain("in ('completed', 'canceled')");
     expect(sql).toContain(
-      `better_supabase.as_column_type((case coalesce(create_work_item.attrs ->> 'priority', '0') when '0' then 'none'`,
+      `better_supabase.as_column_type((case coalesce(create_task.attrs ->> 'priority', '0') when '0' then 'none'`,
     );
     expect(sql).toContain(
       `'state', (case (tree."state")::text when 'todo' then 'backlog'`,

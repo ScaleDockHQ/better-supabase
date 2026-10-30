@@ -40,11 +40,11 @@ export function workItemChecklistOptimistic(
 }
 
 /**
- * A work item's checklist, on the work item's own page: the subject is the work
- * item (`{ type: "work_item", id }`, or its renamed type). A checklist change
- * emits `work_item.updated`, which makes the binding stale.
+ * A task's checklist, on the task's own page: the subject is the task (`{ type:
+ * "task", id }`, or its renamed type). A checklist change emits
+ * `work_item.updated`, which makes the binding stale.
  */
-export const workItemChecklistBinding: RecordBinding<
+export const taskChecklistBinding: RecordBinding<
   Tasks,
   readonly ChecklistItem[],
   never,
@@ -55,3 +55,7 @@ export const workItemChecklistBinding: RecordBinding<
   events: ["work_item.updated"],
   optimistic: workItemChecklistOptimistic,
 });
+
+/** @deprecated Use `taskChecklistBinding`. */
+export const workItemChecklistBinding: typeof taskChecklistBinding =
+  taskChecklistBinding;

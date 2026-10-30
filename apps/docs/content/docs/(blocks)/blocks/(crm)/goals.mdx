@@ -65,11 +65,11 @@ const rows = useGoals({ limit: 50 });
 
 ## Errors
 
-| Hint               | Cause                                                         |
-| ------------------ | ------------------------------------------------------------- |
-| `TARGET_FORBIDDEN` | the caller lacks `goals.manage`                               |
-| `TARGET_INVALID`   | a target needs a name, a metric, a period and a positive goal |
-| `TARGET_NOT_FOUND` | no such target                                                |
+| Hint             | Cause                                                         |
+| ---------------- | ------------------------------------------------------------- |
+| `GOAL_FORBIDDEN` | the caller lacks `goals.manage`                               |
+| `GOAL_INVALID`   | a target needs a name, a metric, a period and a positive goal |
+| `GOAL_NOT_FOUND` | no such target                                                |
 
 ## Your own columns
 
