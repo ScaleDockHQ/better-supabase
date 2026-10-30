@@ -8,6 +8,7 @@ import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { asColumnType } from "../column-type.ts";
 import { customFieldValueCheck } from "../format-checks.ts";
+import { readIfAny } from "../read-if-any.ts";
 import { fail, lockTable, userGrant } from "../shared.ts";
 import {
   boundRowSubject,
@@ -490,8 +491,6 @@ export function keyedFields(
     options.readAccess === "record" &&
     recordSubjects.length === subjects.length;
 
-  const byRecord = recordSubjects.length > 0 || all;
-
   const canRead = ctx.installed("subjects")
     ? ` and coalesce(${ctx.of("subjects").fn("can_subject")}(read_field_values.subject_type, read_field_values.subject_id, 'read'), false)`
     : "";
@@ -580,16 +579,28 @@ ${userGrant(`${fn("set_field_value")}(${ctx.idType}, text, text, text, text, tex
 -- Every field of a subject as typed rows, in rank order (then by key).
 create or replace function ${fn("read_field_values")}(tenant ${ctx.idType}, subject_type text, subject_id text)
 returns jsonb
-language ${byRecord ? "plpgsql" : "sql"}
-stable
+language plpgsql
+${ctx.readVolatility()}
 security definer
 set search_path = ''
 as $$
-${byRecord ? "begin\n  return (\n" : ""}  select coalesce(jsonb_agg(${rowJson(ctx, "v", integerRank)} order by ${order}), '[]'::jsonb)
+declare
+  v_values jsonb;
+begin
+  select coalesce(jsonb_agg(${rowJson(ctx, "v", integerRank)} order by ${order}), '[]'::jsonb) into v_values
   from ${values} v
   where v.${c("tenant")} = read_field_values.tenant
     and ${subjectMatch(ctx, "v", "read_field_values.subject_type", "read_field_values.subject_id")}
-    and ${readable}${byRecord ? "\n  );\nend;" : ""}
+    and ${readable};${readIfAny(
+      ctx.read(
+        "read_field_values.subject_type",
+        "read_field_values.subject_id",
+        "read_field_values",
+      ),
+      "v_values",
+    )}
+  return v_values;
+end;
 $$;
 ${userGrant(`${fn("read_field_values")}(${ctx.idType}, text, text)`)}
 

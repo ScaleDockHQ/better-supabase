@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { guestOr } from "../guest-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import { readIfAny } from "../read-if-any.ts";
 import {
   addExtraColumns,
   extraFieldsJson,
@@ -596,12 +597,15 @@ ${userGrant(`${fn("delete_activity")}(uuid)`)}
 -- after the last row of the previous page.
 create or replace function ${fn("activities_of")}(subject_type text, subject_id text, types text[], before timestamptz, page_size integer)
 returns jsonb
-language sql
-stable
+language plpgsql
+${ctx.readVolatility()}
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb)
+declare
+  v_rows jsonb;
+begin
+  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb) into v_rows
   from (
     select ${row("x")} as value, coalesce(x.${e("doneAt")}, x.${e("dueAt")}, x.${e("createdAt")}) as at, x.${e("id")} as id
     from ${t("engagements")} x
@@ -611,7 +615,9 @@ as $$
       and (activities_of.before is null or coalesce(x.${e("doneAt")}, x.${e("dueAt")}, x.${e("createdAt")}) < activities_of.before)
     order by at desc, id desc
     limit ${pageSize("activities_of.page_size", 50, 200)}
-  ) p
+  ) p;${readIfAny(ctx.read("activities_of.subject_type", "activities_of.subject_id", "activities_of"), "v_rows")}
+  return v_rows;
+end;
 $$;
 ${userGrant(`${fn("activities_of")}(text, text, text[], timestamptz, integer)`)}
 

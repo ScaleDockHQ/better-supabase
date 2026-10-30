@@ -66,7 +66,9 @@ instant as well. [Record teams](/docs/blocks/sql#record-teams) covers the
 config, the roles and who may manage a team.
 
 `reads` reads and writes the read log of the types that set
-`subjects.<type>.auditReads`. The blocks' read functions log on their own;
+`subjects.<type>.auditReads`. The blocks' read functions log on their own, including the activity list,
+the attachment list and the custom field values of one record, and only when
+they return rows;
 `log(subject, { purpose })` logs a read from a screen that selects the row
 itself, and `list(subject, { since, limit })` returns who read it:
 

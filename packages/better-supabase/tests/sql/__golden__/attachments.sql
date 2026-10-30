@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@7 managed
--- @bsb-hash sha256:8696630025ba308baaa964fae9021c3aa8d6147f2ae3815351c66574f2a1f34d
+-- @bsb-hash sha256:3eece04d0206736094ce3e3312c7076998ef0f416a1923909eff56aa970b26de
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -470,19 +470,24 @@ $$;
 
 create or replace function "better_supabase"."list_attachments"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
+declare
+  v_files jsonb;
+begin
   with page as (
     select * from "better_supabase"."attachments" y
     where y."organization_id" is not distinct from list_attachments.tenant
       and (list_attachments.subject_type is null or y."subject_type" = list_attachments.subject_type)
       and (list_attachments.subject_id is null or y."subject_id" = list_attachments.subject_id)
   )
-  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) order by a."created_at", a."id"), '[]'::jsonb)
-  from page a
+  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) order by a."created_at", a."id"), '[]'::jsonb) into v_files
+  from page a;
+  return v_files;
+end;
 $$;
 
 create or replace function "better_supabase"."get_attachment"(id uuid)
@@ -830,7 +835,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@7 managed
--- @bsb-hash sha256:0ed592cf3299aa9a9f3f6a4c9f3cf825fb9f4e6b34afd0833805758179ce94a3
+-- @bsb-hash sha256:b03983fefb298a9d51eff1b9068ae70b07e6a50ed324fdc092cb22ea151bc03f
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1325,11 +1330,14 @@ grant execute on function "better_supabase"."attachment_authors"(uuid[]) to auth
 
 create or replace function "better_supabase"."list_attachments"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
+declare
+  v_files jsonb;
+begin
   with page as (
     select * from "better_supabase"."attachments" y
     where y."organization_id" is not distinct from list_attachments.tenant
@@ -1337,8 +1345,10 @@ as $$
       and (list_attachments.subject_id is null or y."subject_id" = list_attachments.subject_id)
   ),
   m as (select "better_supabase"."attachment_authors"(array(select p."id" from page p)) as authors)
-  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) || jsonb_build_object('author', m.authors -> a."id"::text) order by a."created_at", a."id"), '[]'::jsonb)
-  from page a, m
+  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) || jsonb_build_object('author', m.authors -> a."id"::text) order by a."created_at", a."id"), '[]'::jsonb) into v_files
+  from page a, m;
+  return v_files;
+end;
 $$;
 
 create or replace function "better_supabase"."get_attachment"(id uuid)
@@ -1702,7 +1712,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@7 managed
--- @bsb-hash sha256:759036ad5430cc32967e20112aba8e5984be6b035ec5213dc6eddc2a75e5728f
+-- @bsb-hash sha256:3009135af7f792760aa0e218c623e150c8c7b5d76b9a526f12988bec38d3c319
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2176,19 +2186,24 @@ $$;
 
 create or replace function "app_private"."list_attachments"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
+declare
+  v_files jsonb;
+begin
   with page as (
     select * from "app_private"."attachments" y
     where y."organization_id" is not distinct from list_attachments.tenant
       and (list_attachments.subject_type is null or y."subject_type" = list_attachments.subject_type)
       and (list_attachments.subject_id is null or y."subject_id" = list_attachments.subject_id)
   )
-  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) order by a."created_at", a."id"), '[]'::jsonb)
-  from page a
+  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) order by a."created_at", a."id"), '[]'::jsonb) into v_files
+  from page a;
+  return v_files;
+end;
 $$;
 
 create or replace function "app_private"."get_attachment"(id uuid)
@@ -2536,7 +2551,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@7 managed
--- @bsb-hash sha256:c6b2752d5e84d8fee34cc1afa8bf8f6fdbeecb450ca1794e54a9071798d4cf37
+-- @bsb-hash sha256:6563e268cce07f52c72f504fd8ad561fd7544f9a4ade301b16970be22ea99be6
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3005,19 +3020,24 @@ $$;
 
 create or replace function "better_supabase"."list_attachments"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
+declare
+  v_files jsonb;
+begin
   with page as (
     select * from "better_supabase"."attachments" y
     where y."organization_id" is not distinct from list_attachments.tenant
       and (list_attachments.subject_type is null or y."subject_type" = list_attachments.subject_type)
       and (list_attachments.subject_id is null or y."subject_id" = list_attachments.subject_id)
   )
-  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) order by a."created_at", a."id"), '[]'::jsonb)
-  from page a
+  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) order by a."created_at", a."id"), '[]'::jsonb) into v_files
+  from page a;
+  return v_files;
+end;
 $$;
 
 create or replace function "better_supabase"."get_attachment"(id uuid)
@@ -3497,7 +3517,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@7 managed
--- @bsb-hash sha256:0437751bc0638227d5ea1d9b6e5aa5a1e3d49ac4aedfed0be1b44bb4410a535a
+-- @bsb-hash sha256:049385f75302a9c76bb53a980f90f3bd0e16006589f808c47c2e82961899ad0a
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3927,19 +3947,24 @@ $$;
 
 create or replace function "better_supabase"."list_attachments"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
+declare
+  v_files jsonb;
+begin
   with page as (
     select * from "better_supabase"."attachments" y
     where y."organization_id" is not distinct from list_attachments.tenant
       and (list_attachments.subject_type is null or y."subject_type" = list_attachments.subject_type)
       and (list_attachments.subject_id is null or y."subject_id" = list_attachments.subject_id)
   )
-  select coalesce(jsonb_agg(jsonb_build_object('id', a."id", 'organization_id', a."organization_id", 'subject_type', a."subject_type", 'subject_id', a."subject_id", 'bucket', a."bucket", 'object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end), 'name', a."name", 'mime_type', a."mime_type", 'size', a."size", 'status', a."status", 'scan_detail', a."scan_detail", 'uploaded_by', a."uploaded_by", 'created_at', a."created_at", 'uploaded_at', a."uploaded_at", 'scanned_at', a."scanned_at", 'metadata', a."metadata", 'version', a."version", 'width', a."width", 'height', a."height", 'pages', a."pages") order by a."created_at", a."id"), '[]'::jsonb)
-  from page a
+  select coalesce(jsonb_agg(jsonb_build_object('id', a."id", 'organization_id', a."organization_id", 'subject_type', a."subject_type", 'subject_id', a."subject_id", 'bucket', a."bucket", 'object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end), 'name', a."name", 'mime_type', a."mime_type", 'size', a."size", 'status', a."status", 'scan_detail', a."scan_detail", 'uploaded_by', a."uploaded_by", 'created_at', a."created_at", 'uploaded_at', a."uploaded_at", 'scanned_at', a."scanned_at", 'metadata', a."metadata", 'version', a."version", 'width', a."width", 'height', a."height", 'pages', a."pages") order by a."created_at", a."id"), '[]'::jsonb) into v_files
+  from page a;
+  return v_files;
+end;
 $$;
 
 create or replace function "better_supabase"."get_attachment"(id uuid)
@@ -4285,7 +4310,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@7 managed
--- @bsb-hash sha256:4948fd3c680808c37c93680d350becd1715aa392e5d0ad7ea996e1acc13b2073
+-- @bsb-hash sha256:08574f317f3f86c0275d58eeb5f7d69aaadc3a34864338dd4a10cd0ff97b7182
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4754,19 +4779,24 @@ $$;
 
 create or replace function "better_supabase"."list_attachments"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
+declare
+  v_files jsonb;
+begin
   with page as (
     select * from "better_supabase"."attachments" y
     where y."org_id" is not distinct from list_attachments.tenant
       and (list_attachments.subject_type is null or y."subject_type" = list_attachments.subject_type)
       and (list_attachments.subject_id is null or y."subject_id" = list_attachments.subject_id)
   )
-  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) order by a."created_at", a."id"), '[]'::jsonb)
-  from page a
+  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) order by a."created_at", a."id"), '[]'::jsonb) into v_files
+  from page a;
+  return v_files;
+end;
 $$;
 
 create or replace function "better_supabase"."get_attachment"(id uuid)
