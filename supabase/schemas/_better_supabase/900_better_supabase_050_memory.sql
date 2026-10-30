@@ -1,6 +1,6 @@
 -- better-supabase module: memory
--- @bsb-block memory@3 managed
--- @bsb-hash sha256:5ae3479e5af4f5f4a98a3dfcee094aeb9a41671ebce2a1e35b2b0a21f8c05598
+-- @bsb-block memory@4 managed
+-- @bsb-hash sha256:4f328e0b5b37860299019b2ac1bcda42ab6b05349ec1c8646f2e55a8c7e5686b
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -96,7 +96,7 @@ create table if not exists "better_supabase"."memories" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   check (("kind" = 'core') = ("path" is not null)),
-  constraint memories_owner_check check (("scope" in ('organization', 'record')) = ("owner_id" is null)),
+  constraint memories_owner_check check ("scope" in ('organization', 'record') or "owner_id" is not null),
   constraint memories_subject_check check (("scope" = 'record') = ("subject_id" is not null) and ("subject_id" is null) = ("subject_type" is null))
 );
 create unique index if not exists memories_path_idx on "better_supabase"."memories" ("organization_id", "owner_id", "scope", "agent_id", "chat_id", "project_id", "subject_type", "subject_id", "path") nulls not distinct
@@ -120,7 +120,7 @@ grant all on "better_supabase"."memories" to service_role;
 drop policy if exists memories_read on "better_supabase"."memories";
 create policy memories_read on "better_supabase"."memories"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'record') and "organization_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "deleted_at" is null);
+  using (("owner_id" = (select auth.uid()) or ("owner_id" is null and "organization_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "deleted_at" is null);
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
@@ -160,6 +160,7 @@ declare
   v_project uuid;
   v_subject_type text;
   v_subject_id text;
+  v_private boolean;
   v_owner uuid;
   v_row "better_supabase"."memories"%rowtype;
   v_entries jsonb;
@@ -170,7 +171,8 @@ begin
   v_project := (memory_view.ns ->> 'project_id')::uuid;
   v_subject_type := nullif(memory_view.ns ->> 'subject_type', '');
   v_subject_id := nullif(memory_view.ns ->> 'subject_id', '');
-  v_owner := case when v_scope in ('organization', 'record') then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_view.ns ->> 'owner_id')::uuid else auth.uid() end;
+  v_private := coalesce((memory_view.ns ->> 'private')::boolean, false);
+  v_owner := case when v_scope in ('organization', 'record') and not v_private then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_view.ns ->> 'owner_id')::uuid else auth.uid() end;
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and (auth.uid() is null or not coalesce(better_supabase.can('tenant', memory_view.tenant, 'memory.read'), false)) then
     raise exception 'you may not use memory here' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
@@ -180,7 +182,7 @@ begin
     or (v_scope = 'project') <> (v_project is not null)
     or (v_scope = 'record') <> (v_subject_id is not null)
     or (v_subject_id is not null) <> (v_subject_type is not null)
-    or (v_scope not in ('organization', 'record') and v_owner is null) then
+    or (v_owner is null and (v_scope not in ('organization', 'record') or v_private)) then
     raise exception 'ns % is not a memory namespace', memory_view.ns using errcode = '22023', hint = 'MEMORY_NAMESPACE';
   end if;
   if memory_view.path is null or length(memory_view.path) > 500 or memory_view.path !~ '^/memories(/[A-Za-z0-9._ -]+)*$' or memory_view.path ~ '(^|/)[.]{1,2}(/|$)' then
@@ -219,6 +221,7 @@ declare
   v_project uuid;
   v_subject_type text;
   v_subject_id text;
+  v_private boolean;
   v_owner uuid;
   v_row "better_supabase"."memories"%rowtype;
 begin
@@ -231,7 +234,8 @@ begin
   v_project := (memory_create.ns ->> 'project_id')::uuid;
   v_subject_type := nullif(memory_create.ns ->> 'subject_type', '');
   v_subject_id := nullif(memory_create.ns ->> 'subject_id', '');
-  v_owner := case when v_scope in ('organization', 'record') then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_create.ns ->> 'owner_id')::uuid else auth.uid() end;
+  v_private := coalesce((memory_create.ns ->> 'private')::boolean, false);
+  v_owner := case when v_scope in ('organization', 'record') and not v_private then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_create.ns ->> 'owner_id')::uuid else auth.uid() end;
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and (auth.uid() is null or not coalesce(better_supabase.can('tenant', memory_create.tenant, 'memory.read'), false)) then
     raise exception 'you may not use memory here' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
@@ -241,10 +245,10 @@ begin
     or (v_scope = 'project') <> (v_project is not null)
     or (v_scope = 'record') <> (v_subject_id is not null)
     or (v_subject_id is not null) <> (v_subject_type is not null)
-    or (v_scope not in ('organization', 'record') and v_owner is null) then
+    or (v_owner is null and (v_scope not in ('organization', 'record') or v_private)) then
     raise exception 'ns % is not a memory namespace', memory_create.ns using errcode = '22023', hint = 'MEMORY_NAMESPACE';
   end if;
-  if v_scope in ('organization', 'record') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', memory_create.tenant, 'memory.manage'), false)) then
+  if v_owner is null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', memory_create.tenant, 'memory.manage'), false)) then
     raise exception 'only admins change organization and record memory' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
   if memory_create.path is null or length(memory_create.path) > 500 or memory_create.path !~ '^/memories(/[A-Za-z0-9._ -]+)*$' or memory_create.path ~ '(^|/)[.]{1,2}(/|$)' then
@@ -292,6 +296,7 @@ declare
   v_project uuid;
   v_subject_type text;
   v_subject_id text;
+  v_private boolean;
   v_owner uuid;
   v_row "better_supabase"."memories"%rowtype;
   v_matches integer;
@@ -305,7 +310,8 @@ begin
   v_project := (memory_str_replace.ns ->> 'project_id')::uuid;
   v_subject_type := nullif(memory_str_replace.ns ->> 'subject_type', '');
   v_subject_id := nullif(memory_str_replace.ns ->> 'subject_id', '');
-  v_owner := case when v_scope in ('organization', 'record') then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_str_replace.ns ->> 'owner_id')::uuid else auth.uid() end;
+  v_private := coalesce((memory_str_replace.ns ->> 'private')::boolean, false);
+  v_owner := case when v_scope in ('organization', 'record') and not v_private then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_str_replace.ns ->> 'owner_id')::uuid else auth.uid() end;
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and (auth.uid() is null or not coalesce(better_supabase.can('tenant', memory_str_replace.tenant, 'memory.read'), false)) then
     raise exception 'you may not use memory here' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
@@ -315,10 +321,10 @@ begin
     or (v_scope = 'project') <> (v_project is not null)
     or (v_scope = 'record') <> (v_subject_id is not null)
     or (v_subject_id is not null) <> (v_subject_type is not null)
-    or (v_scope not in ('organization', 'record') and v_owner is null) then
+    or (v_owner is null and (v_scope not in ('organization', 'record') or v_private)) then
     raise exception 'ns % is not a memory namespace', memory_str_replace.ns using errcode = '22023', hint = 'MEMORY_NAMESPACE';
   end if;
-  if v_scope in ('organization', 'record') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', memory_str_replace.tenant, 'memory.manage'), false)) then
+  if v_owner is null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', memory_str_replace.tenant, 'memory.manage'), false)) then
     raise exception 'only admins change organization and record memory' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
   if memory_str_replace.path is null or length(memory_str_replace.path) > 500 or memory_str_replace.path !~ '^/memories(/[A-Za-z0-9._ -]+)*$' or memory_str_replace.path ~ '(^|/)[.]{1,2}(/|$)' then
@@ -367,6 +373,7 @@ declare
   v_project uuid;
   v_subject_type text;
   v_subject_id text;
+  v_private boolean;
   v_owner uuid;
   v_row "better_supabase"."memories"%rowtype;
   v_lines text[];
@@ -381,7 +388,8 @@ begin
   v_project := (memory_insert.ns ->> 'project_id')::uuid;
   v_subject_type := nullif(memory_insert.ns ->> 'subject_type', '');
   v_subject_id := nullif(memory_insert.ns ->> 'subject_id', '');
-  v_owner := case when v_scope in ('organization', 'record') then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_insert.ns ->> 'owner_id')::uuid else auth.uid() end;
+  v_private := coalesce((memory_insert.ns ->> 'private')::boolean, false);
+  v_owner := case when v_scope in ('organization', 'record') and not v_private then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_insert.ns ->> 'owner_id')::uuid else auth.uid() end;
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and (auth.uid() is null or not coalesce(better_supabase.can('tenant', memory_insert.tenant, 'memory.read'), false)) then
     raise exception 'you may not use memory here' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
@@ -391,10 +399,10 @@ begin
     or (v_scope = 'project') <> (v_project is not null)
     or (v_scope = 'record') <> (v_subject_id is not null)
     or (v_subject_id is not null) <> (v_subject_type is not null)
-    or (v_scope not in ('organization', 'record') and v_owner is null) then
+    or (v_owner is null and (v_scope not in ('organization', 'record') or v_private)) then
     raise exception 'ns % is not a memory namespace', memory_insert.ns using errcode = '22023', hint = 'MEMORY_NAMESPACE';
   end if;
-  if v_scope in ('organization', 'record') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', memory_insert.tenant, 'memory.manage'), false)) then
+  if v_owner is null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', memory_insert.tenant, 'memory.manage'), false)) then
     raise exception 'only admins change organization and record memory' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
   if memory_insert.path is null or length(memory_insert.path) > 500 or memory_insert.path !~ '^/memories(/[A-Za-z0-9._ -]+)*$' or memory_insert.path ~ '(^|/)[.]{1,2}(/|$)' then
@@ -438,6 +446,7 @@ declare
   v_project uuid;
   v_subject_type text;
   v_subject_id text;
+  v_private boolean;
   v_owner uuid;
   v_count integer;
 begin
@@ -450,7 +459,8 @@ begin
   v_project := (memory_delete.ns ->> 'project_id')::uuid;
   v_subject_type := nullif(memory_delete.ns ->> 'subject_type', '');
   v_subject_id := nullif(memory_delete.ns ->> 'subject_id', '');
-  v_owner := case when v_scope in ('organization', 'record') then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_delete.ns ->> 'owner_id')::uuid else auth.uid() end;
+  v_private := coalesce((memory_delete.ns ->> 'private')::boolean, false);
+  v_owner := case when v_scope in ('organization', 'record') and not v_private then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_delete.ns ->> 'owner_id')::uuid else auth.uid() end;
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and (auth.uid() is null or not coalesce(better_supabase.can('tenant', memory_delete.tenant, 'memory.read'), false)) then
     raise exception 'you may not use memory here' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
@@ -460,10 +470,10 @@ begin
     or (v_scope = 'project') <> (v_project is not null)
     or (v_scope = 'record') <> (v_subject_id is not null)
     or (v_subject_id is not null) <> (v_subject_type is not null)
-    or (v_scope not in ('organization', 'record') and v_owner is null) then
+    or (v_owner is null and (v_scope not in ('organization', 'record') or v_private)) then
     raise exception 'ns % is not a memory namespace', memory_delete.ns using errcode = '22023', hint = 'MEMORY_NAMESPACE';
   end if;
-  if v_scope in ('organization', 'record') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', memory_delete.tenant, 'memory.manage'), false)) then
+  if v_owner is null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', memory_delete.tenant, 'memory.manage'), false)) then
     raise exception 'only admins change organization and record memory' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
   if memory_delete.path is null or length(memory_delete.path) > 500 or memory_delete.path !~ '^/memories(/[A-Za-z0-9._ -]+)*$' or memory_delete.path ~ '(^|/)[.]{1,2}(/|$)' then
@@ -493,6 +503,7 @@ declare
   v_project uuid;
   v_subject_type text;
   v_subject_id text;
+  v_private boolean;
   v_owner uuid;
   v_count integer;
   v_prefix text := replace(replace(memory_rename.old_path, '_', '\_'), '%', '\%') || '/%';
@@ -506,7 +517,8 @@ begin
   v_project := (memory_rename.ns ->> 'project_id')::uuid;
   v_subject_type := nullif(memory_rename.ns ->> 'subject_type', '');
   v_subject_id := nullif(memory_rename.ns ->> 'subject_id', '');
-  v_owner := case when v_scope in ('organization', 'record') then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_rename.ns ->> 'owner_id')::uuid else auth.uid() end;
+  v_private := coalesce((memory_rename.ns ->> 'private')::boolean, false);
+  v_owner := case when v_scope in ('organization', 'record') and not v_private then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_rename.ns ->> 'owner_id')::uuid else auth.uid() end;
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and (auth.uid() is null or not coalesce(better_supabase.can('tenant', memory_rename.tenant, 'memory.read'), false)) then
     raise exception 'you may not use memory here' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
@@ -516,10 +528,10 @@ begin
     or (v_scope = 'project') <> (v_project is not null)
     or (v_scope = 'record') <> (v_subject_id is not null)
     or (v_subject_id is not null) <> (v_subject_type is not null)
-    or (v_scope not in ('organization', 'record') and v_owner is null) then
+    or (v_owner is null and (v_scope not in ('organization', 'record') or v_private)) then
     raise exception 'ns % is not a memory namespace', memory_rename.ns using errcode = '22023', hint = 'MEMORY_NAMESPACE';
   end if;
-  if v_scope in ('organization', 'record') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', memory_rename.tenant, 'memory.manage'), false)) then
+  if v_owner is null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', memory_rename.tenant, 'memory.manage'), false)) then
     raise exception 'only admins change organization and record memory' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
   if memory_rename.old_path is null or length(memory_rename.old_path) > 500 or memory_rename.old_path !~ '^/memories(/[A-Za-z0-9._ -]+)*$' or memory_rename.old_path ~ '(^|/)[.]{1,2}(/|$)' then
@@ -568,6 +580,7 @@ declare
   v_project uuid;
   v_subject_type text;
   v_subject_id text;
+  v_private boolean;
   v_owner uuid;
   v_rows jsonb;
 begin
@@ -577,7 +590,8 @@ begin
   v_project := (memory_list.ns ->> 'project_id')::uuid;
   v_subject_type := nullif(memory_list.ns ->> 'subject_type', '');
   v_subject_id := nullif(memory_list.ns ->> 'subject_id', '');
-  v_owner := case when v_scope in ('organization', 'record') then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_list.ns ->> 'owner_id')::uuid else auth.uid() end;
+  v_private := coalesce((memory_list.ns ->> 'private')::boolean, false);
+  v_owner := case when v_scope in ('organization', 'record') and not v_private then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_list.ns ->> 'owner_id')::uuid else auth.uid() end;
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and (auth.uid() is null or not coalesce(better_supabase.can('tenant', memory_list.tenant, 'memory.read'), false)) then
     raise exception 'you may not use memory here' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
@@ -587,7 +601,7 @@ begin
     or (v_scope = 'project') <> (v_project is not null)
     or (v_scope = 'record') <> (v_subject_id is not null)
     or (v_subject_id is not null) <> (v_subject_type is not null)
-    or (v_scope not in ('organization', 'record') and v_owner is null) then
+    or (v_owner is null and (v_scope not in ('organization', 'record') or v_private)) then
     raise exception 'ns % is not a memory namespace', memory_list.ns using errcode = '22023', hint = 'MEMORY_NAMESPACE';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."path", x."created_at" desc), '[]') into v_rows
@@ -630,6 +644,7 @@ declare
   v_project uuid;
   v_subject_type text;
   v_subject_id text;
+  v_private boolean;
   v_owner uuid;
   v_row "better_supabase"."memories"%rowtype;
 begin
@@ -642,7 +657,8 @@ begin
   v_project := (memory_save.ns ->> 'project_id')::uuid;
   v_subject_type := nullif(memory_save.ns ->> 'subject_type', '');
   v_subject_id := nullif(memory_save.ns ->> 'subject_id', '');
-  v_owner := case when v_scope in ('organization', 'record') then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_save.ns ->> 'owner_id')::uuid else auth.uid() end;
+  v_private := coalesce((memory_save.ns ->> 'private')::boolean, false);
+  v_owner := case when v_scope in ('organization', 'record') and not v_private then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_save.ns ->> 'owner_id')::uuid else auth.uid() end;
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and (auth.uid() is null or not coalesce(better_supabase.can('tenant', memory_save.tenant, 'memory.read'), false)) then
     raise exception 'you may not use memory here' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
@@ -652,10 +668,10 @@ begin
     or (v_scope = 'project') <> (v_project is not null)
     or (v_scope = 'record') <> (v_subject_id is not null)
     or (v_subject_id is not null) <> (v_subject_type is not null)
-    or (v_scope not in ('organization', 'record') and v_owner is null) then
+    or (v_owner is null and (v_scope not in ('organization', 'record') or v_private)) then
     raise exception 'ns % is not a memory namespace', memory_save.ns using errcode = '22023', hint = 'MEMORY_NAMESPACE';
   end if;
-  if v_scope in ('organization', 'record') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', memory_save.tenant, 'memory.manage'), false)) then
+  if v_owner is null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', memory_save.tenant, 'memory.manage'), false)) then
     raise exception 'only admins change organization and record memory' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
   if coalesce(length(memory_save.content), 0) = 0 then
@@ -704,6 +720,7 @@ declare
   v_project uuid;
   v_subject_type text;
   v_subject_id text;
+  v_private boolean;
   v_owner uuid;
   v_rows jsonb;
   v_candidates integer := least(greatest(memory_search.k, 1) * 4, 400);
@@ -718,7 +735,8 @@ begin
   v_project := (memory_search.ns ->> 'project_id')::uuid;
   v_subject_type := nullif(memory_search.ns ->> 'subject_type', '');
   v_subject_id := nullif(memory_search.ns ->> 'subject_id', '');
-  v_owner := case when v_scope in ('organization', 'record') then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_search.ns ->> 'owner_id')::uuid else auth.uid() end;
+  v_private := coalesce((memory_search.ns ->> 'private')::boolean, false);
+  v_owner := case when v_scope in ('organization', 'record') and not v_private then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (memory_search.ns ->> 'owner_id')::uuid else auth.uid() end;
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and (auth.uid() is null or not coalesce(better_supabase.can('tenant', memory_search.tenant, 'memory.read'), false)) then
     raise exception 'you may not use memory here' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
   end if;
@@ -728,7 +746,7 @@ begin
     or (v_scope = 'project') <> (v_project is not null)
     or (v_scope = 'record') <> (v_subject_id is not null)
     or (v_subject_id is not null) <> (v_subject_type is not null)
-    or (v_scope not in ('organization', 'record') and v_owner is null) then
+    or (v_owner is null and (v_scope not in ('organization', 'record') or v_private)) then
     raise exception 'ns % is not a memory namespace', memory_search.ns using errcode = '22023', hint = 'MEMORY_NAMESPACE';
   end if;
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
@@ -793,7 +811,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."memories" x where x."id" = memory_forget.memory_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."scope" in ('organization', 'record') and coalesce(better_supabase.can('tenant', v_row."organization_id", 'memory.manage'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."owner_id" is null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'memory.manage'), false))) then
     return false;
   end if;
   if memory_forget.superseded_by is null then
@@ -822,7 +840,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."memories" x where x."id" = memory_restore.memory_id and x."deleted_at" is not null;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."scope" in ('organization', 'record') and coalesce(better_supabase.can('tenant', v_row."organization_id", 'memory.manage'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."owner_id" is null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'memory.manage'), false))) then
     return false;
   end if;
   update "better_supabase"."memories" x set "deleted_at" = null, "updated_at" = now() where x."id" = v_row."id";
@@ -834,9 +852,12 @@ $$;
 revoke execute on function "better_supabase"."memory_restore"(uuid) from public, anon;
 grant execute on function "better_supabase"."memory_restore"(uuid) to authenticated, service_role;
 
+
 -- Removes memories deleted more than retention_days ago and expired ones, up to
--- batch rows, and returns how many it removed.
-create or replace function "better_supabase"."purge_memories"(retention_days integer default 30, batch integer default 1000)
+-- batch rows, in every tenant or only in tenant, and returns how many it
+-- removed.
+drop function if exists "better_supabase"."purge_memories"(integer, integer);
+create or replace function "better_supabase"."purge_memories"(retention_days integer default 30, batch integer default 1000, tenant uuid default null)
 returns integer
 language plpgsql
 security definer
@@ -848,16 +869,16 @@ begin
   delete from "better_supabase"."memories" x
   where x."id" in (
     select y."id" from "better_supabase"."memories" y
-    where y."deleted_at" < now() - make_interval(days => greatest(purge_memories.retention_days, 0))
-      or y."expires_at" < now()
+    where (purge_memories.tenant is null or y."organization_id" = purge_memories.tenant)
+      and (y."deleted_at" < now() - make_interval(days => greatest(purge_memories.retention_days, 0)) or y."expires_at" < now())
     limit least(greatest(purge_memories.batch, 1), 10000)
   );
   get diagnostics v_count = row_count;
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."purge_memories"(integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."purge_memories"(integer, integer) to service_role;
+revoke execute on function "better_supabase"."purge_memories"(integer, integer, uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."purge_memories"(integer, integer, uuid) to service_role;
 
 -- content_hash is the md5 of the content that was embedded: a memory edited
 -- since then keeps waiting instead of taking a vector of its old text.
@@ -1107,7 +1128,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."memories" as restric
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'record') and "organization_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "deleted_at" is null)
+    or (("owner_id" = (select auth.uid()) or ("owner_id" is null and "organization_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "deleted_at" is null)
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memories";
 create policy bsb_tenant_scope_insert on "better_supabase"."memories" as restrictive
@@ -1149,6 +1170,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."memory_save"(uuid, text, jsonb, extensions.vector, text, text);
+drop function if exists "api"."purge_memories"(integer, integer);
 drop function if exists "api"."set_memory_embedding"(uuid, extensions.vector, text);
 
 create or replace function "api"."actor_may_write"()
@@ -1268,14 +1290,14 @@ as $$ select "better_supabase"."memory_restore"($1) $$;
 revoke execute on function "api"."memory_restore"(uuid) from public, anon;
 grant execute on function "api"."memory_restore"(uuid) to authenticated, service_role;
 
-create or replace function "api"."purge_memories"(retention_days integer default 30, batch integer default 1000)
+create or replace function "api"."purge_memories"(retention_days integer default 30, batch integer default 1000, tenant uuid default null)
 returns integer
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."purge_memories"($1, $2) $$;
-revoke execute on function "api"."purge_memories"(integer, integer) from public, anon, authenticated;
-grant execute on function "api"."purge_memories"(integer, integer) to service_role;
+as $$ select "better_supabase"."purge_memories"($1, $2, $3) $$;
+revoke execute on function "api"."purge_memories"(integer, integer, uuid) from public, anon, authenticated;
+grant execute on function "api"."purge_memories"(integer, integer, uuid) to service_role;
 
 create or replace function "api"."set_memory_embedding"(memory_id uuid, embedding extensions.vector, model text default null, content_hash text default null)
 returns boolean

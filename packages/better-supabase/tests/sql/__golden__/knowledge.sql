@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
--- @bsb-block knowledge@4 managed
--- @bsb-hash sha256:dcd9741282a419f8f6bd2f858082536846b1fd394d8ea383ec3b0aa109f3a900
+-- @bsb-block knowledge@5 managed
+-- @bsb-hash sha256:883878d93b9c2a57934bc517aa8e8a231a31e127b03efe5b1320a8476911a1b7
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -60,6 +60,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collections";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collection_grants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -87,13 +95,16 @@ grant all on "better_supabase"."knowledge_collections" to service_role;
 
 create table if not exists "better_supabase"."knowledge_collection_grants" (
   "collection_id" uuid not null references "better_supabase"."knowledge_collections" ("id") on delete cascade,
+  "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
   "team_id" text,
   "created_at" timestamptz not null default now(),
   check (("user_id" is null) <> ("team_id" is null))
 );
+alter table "better_supabase"."knowledge_collection_grants" add column if not exists "organization_id" uuid;
 create unique index if not exists knowledge_collection_grants_key on "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id") nulls not distinct;
 create index if not exists knowledge_collection_grants_user_idx on "better_supabase"."knowledge_collection_grants" ("user_id") where "user_id" is not null;
+create index if not exists knowledge_collection_grants_tenant_idx on "better_supabase"."knowledge_collection_grants" ("organization_id") where "organization_id" is not null;
 alter table "better_supabase"."knowledge_collection_grants" enable row level security;
 revoke all on "better_supabase"."knowledge_collection_grants" from public, anon, authenticated;
 grant all on "better_supabase"."knowledge_collection_grants" to service_role;
@@ -239,7 +250,7 @@ revoke execute on function "better_supabase"."list_knowledge_collections"(uuid) 
 grant execute on function "better_supabase"."list_knowledge_collections"(uuid) to authenticated, service_role;
 
 -- Grants a user or a team a restricted collection, or revokes it. Returns
--- whether anything changed.
+-- whether anything changed. The grant keeps the collection's tenant.
 create or replace function "better_supabase"."set_knowledge_collection_grant"(collection_id uuid, user_id uuid default null, team_id text default null, granted boolean default true)
 returns boolean
 language plpgsql
@@ -262,8 +273,8 @@ begin
     raise exception 'name a user or a team' using errcode = '22023', hint = 'KNOWLEDGE_GRANT';
   end if;
   if set_knowledge_collection_grant.granted then
-    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id")
-    values (v_row."id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
+    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "organization_id", "user_id", "team_id")
+    values (v_row."id", v_row."organization_id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
     on conflict do nothing;
   else
     delete from "better_supabase"."knowledge_collection_grants" x
@@ -850,21 +861,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block-data knowledge
--- @bsb-hash sha256:535874c27c055766fe06617afb5a2f85ccebe4e97cf387a62af5855691c08cbd
+-- @bsb-hash sha256:58dae03b410f817eaaaf517fe03bf25200266c96a4479809706fc0a07facf474
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('knowledge', 4, 'managed')
+values ('knowledge', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
--- @bsb-block knowledge@4 managed
--- @bsb-hash sha256:faaa4f0dd3e838fe161b9c6bfe695783433289676c58a51d91f94a4d738bdb5f
+-- @bsb-block knowledge@5 managed
+-- @bsb-hash sha256:448f51b141c0137413d40a7bae7a228dc52241bf13c3cdf1d7a301b1734b16a9
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -923,6 +934,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collections";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collection_grants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -950,13 +969,16 @@ grant all on "better_supabase"."knowledge_collections" to service_role;
 
 create table if not exists "better_supabase"."knowledge_collection_grants" (
   "collection_id" uuid not null references "better_supabase"."knowledge_collections" ("id") on delete cascade,
+  "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "team_id" text,
+  "team_id" uuid,
   "created_at" timestamptz not null default now(),
   check (("user_id" is null) <> ("team_id" is null))
 );
+alter table "better_supabase"."knowledge_collection_grants" add column if not exists "organization_id" uuid;
 create unique index if not exists knowledge_collection_grants_key on "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id") nulls not distinct;
 create index if not exists knowledge_collection_grants_user_idx on "better_supabase"."knowledge_collection_grants" ("user_id") where "user_id" is not null;
+create index if not exists knowledge_collection_grants_tenant_idx on "better_supabase"."knowledge_collection_grants" ("organization_id") where "organization_id" is not null;
 alter table "better_supabase"."knowledge_collection_grants" enable row level security;
 revoke all on "better_supabase"."knowledge_collection_grants" from public, anon, authenticated;
 grant all on "better_supabase"."knowledge_collection_grants" to service_role;
@@ -978,7 +1000,7 @@ as $$
         or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (c."organization_id" is not null and coalesce(better_supabase.can('tenant', c."organization_id", 'knowledge.manage'), false)))
         or exists (
           select 1 from "better_supabase"."knowledge_collection_grants" x
-          where x."collection_id" = c."id" and (x."user_id" = auth.uid() or (x."team_id" is not null and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = x."team_id" and tm."user_id" = auth.uid())))
+          where x."collection_id" = c."id" and (x."user_id" = auth.uid() or (x."team_id" is not null and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id" = x."team_id" and tm."user_id" = auth.uid())))
         ))
   )
 $$;
@@ -1102,8 +1124,9 @@ revoke execute on function "better_supabase"."list_knowledge_collections"(uuid) 
 grant execute on function "better_supabase"."list_knowledge_collections"(uuid) to authenticated, service_role;
 
 -- Grants a user or a team a restricted collection, or revokes it. Returns
--- whether anything changed.
-create or replace function "better_supabase"."set_knowledge_collection_grant"(collection_id uuid, user_id uuid default null, team_id text default null, granted boolean default true)
+-- whether anything changed. The grant keeps the collection's tenant.
+drop function if exists "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, text, boolean);
+create or replace function "better_supabase"."set_knowledge_collection_grant"(collection_id uuid, user_id uuid default null, team_id uuid default null, granted boolean default true)
 returns boolean
 language plpgsql
 security definer
@@ -1125,8 +1148,8 @@ begin
     raise exception 'name a user or a team' using errcode = '22023', hint = 'KNOWLEDGE_GRANT';
   end if;
   if set_knowledge_collection_grant.granted then
-    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id")
-    values (v_row."id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
+    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "organization_id", "user_id", "team_id")
+    values (v_row."id", v_row."organization_id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
     on conflict do nothing;
   else
     delete from "better_supabase"."knowledge_collection_grants" x
@@ -1138,8 +1161,8 @@ begin
   return v_count > 0;
 end;
 $$;
-revoke execute on function "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, text, boolean) from public, anon;
-grant execute on function "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, uuid, boolean) to authenticated, service_role;
 
 -- The grants of a collection, for its admins.
 create or replace function "better_supabase"."list_knowledge_collection_grants"(collection_id uuid)
@@ -1758,21 +1781,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block-data knowledge
--- @bsb-hash sha256:535874c27c055766fe06617afb5a2f85ccebe4e97cf387a62af5855691c08cbd
+-- @bsb-hash sha256:58dae03b410f817eaaaf517fe03bf25200266c96a4479809706fc0a07facf474
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('knowledge', 4, 'managed')
+values ('knowledge', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
--- @bsb-block knowledge@4 managed
--- @bsb-hash sha256:c23a931aeda933bf448c336eb6f2cb439aa366c4cd56ee7555e6bb16d4d394dc
+-- @bsb-block knowledge@5 managed
+-- @bsb-hash sha256:015c28d47533f6b2d051692c6943baedc5c9ad7ac6ba7c9936674a8da3562019
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1831,6 +1854,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "app_private"."knowledge_collections";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."knowledge_collection_grants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -1863,13 +1894,16 @@ grant all on "app_private"."knowledge_collections" to service_role;
 
 create table if not exists "app_private"."knowledge_collection_grants" (
   "collection_id" uuid not null references "app_private"."knowledge_collections" ("id") on delete cascade,
+  "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
   "team_id" text,
   "created_at" timestamptz not null default now(),
   check (("user_id" is null) <> ("team_id" is null))
 );
+alter table "app_private"."knowledge_collection_grants" add column if not exists "organization_id" uuid;
 create unique index if not exists knowledge_collection_grants_key on "app_private"."knowledge_collection_grants" ("collection_id", "user_id", "team_id") nulls not distinct;
 create index if not exists knowledge_collection_grants_user_idx on "app_private"."knowledge_collection_grants" ("user_id") where "user_id" is not null;
+create index if not exists knowledge_collection_grants_tenant_idx on "app_private"."knowledge_collection_grants" ("organization_id") where "organization_id" is not null;
 alter table "app_private"."knowledge_collection_grants" enable row level security;
 revoke all on "app_private"."knowledge_collection_grants" from public, anon, authenticated;
 grant all on "app_private"."knowledge_collection_grants" to service_role;
@@ -2015,7 +2049,7 @@ revoke execute on function "app_private"."list_knowledge_collections"(uuid) from
 grant execute on function "app_private"."list_knowledge_collections"(uuid) to authenticated, service_role;
 
 -- Grants a user or a team a restricted collection, or revokes it. Returns
--- whether anything changed.
+-- whether anything changed. The grant keeps the collection's tenant.
 create or replace function "app_private"."set_knowledge_collection_grant"(collection_id uuid, user_id uuid default null, team_id text default null, granted boolean default true)
 returns boolean
 language plpgsql
@@ -2038,8 +2072,8 @@ begin
     raise exception 'name a user or a team' using errcode = '22023', hint = 'KNOWLEDGE_GRANT';
   end if;
   if set_knowledge_collection_grant.granted then
-    insert into "app_private"."knowledge_collection_grants" ("collection_id", "user_id", "team_id")
-    values (v_row."id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
+    insert into "app_private"."knowledge_collection_grants" ("collection_id", "organization_id", "user_id", "team_id")
+    values (v_row."id", v_row."organization_id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
     on conflict do nothing;
   else
     delete from "app_private"."knowledge_collection_grants" x
@@ -2626,21 +2660,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block-data knowledge
--- @bsb-hash sha256:535874c27c055766fe06617afb5a2f85ccebe4e97cf387a62af5855691c08cbd
+-- @bsb-hash sha256:58dae03b410f817eaaaf517fe03bf25200266c96a4479809706fc0a07facf474
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('knowledge', 4, 'managed')
+values ('knowledge', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
--- @bsb-block knowledge@4 managed
--- @bsb-hash sha256:45f38336324bfe2945d2600ca6101d06d2bc995907485f4d0e73735b0472586b
+-- @bsb-block knowledge@5 managed
+-- @bsb-hash sha256:3f2f1e12293735f6ca158b6889d6d362c65006db2ad1d17a2b958d7c4b3a47eb
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2699,6 +2733,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collections";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collection_grants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -2726,13 +2768,16 @@ grant all on "better_supabase"."knowledge_collections" to service_role;
 
 create table if not exists "better_supabase"."knowledge_collection_grants" (
   "collection_id" uuid not null references "better_supabase"."knowledge_collections" ("id") on delete cascade,
+  "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
   "team_id" text,
   "created_at" timestamptz not null default now(),
   check (("user_id" is null) <> ("team_id" is null))
 );
+alter table "better_supabase"."knowledge_collection_grants" add column if not exists "organization_id" uuid;
 create unique index if not exists knowledge_collection_grants_key on "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id") nulls not distinct;
 create index if not exists knowledge_collection_grants_user_idx on "better_supabase"."knowledge_collection_grants" ("user_id") where "user_id" is not null;
+create index if not exists knowledge_collection_grants_tenant_idx on "better_supabase"."knowledge_collection_grants" ("organization_id") where "organization_id" is not null;
 alter table "better_supabase"."knowledge_collection_grants" enable row level security;
 revoke all on "better_supabase"."knowledge_collection_grants" from public, anon, authenticated;
 grant all on "better_supabase"."knowledge_collection_grants" to service_role;
@@ -2878,7 +2923,7 @@ revoke execute on function "better_supabase"."list_knowledge_collections"(uuid) 
 grant execute on function "better_supabase"."list_knowledge_collections"(uuid) to authenticated, service_role;
 
 -- Grants a user or a team a restricted collection, or revokes it. Returns
--- whether anything changed.
+-- whether anything changed. The grant keeps the collection's tenant.
 create or replace function "better_supabase"."set_knowledge_collection_grant"(collection_id uuid, user_id uuid default null, team_id text default null, granted boolean default true)
 returns boolean
 language plpgsql
@@ -2901,8 +2946,8 @@ begin
     raise exception 'name a user or a team' using errcode = '22023', hint = 'KNOWLEDGE_GRANT';
   end if;
   if set_knowledge_collection_grant.granted then
-    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id")
-    values (v_row."id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
+    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "organization_id", "user_id", "team_id")
+    values (v_row."id", v_row."organization_id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
     on conflict do nothing;
   else
     delete from "better_supabase"."knowledge_collection_grants" x
@@ -3679,21 +3724,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block-data knowledge
--- @bsb-hash sha256:535874c27c055766fe06617afb5a2f85ccebe4e97cf387a62af5855691c08cbd
+-- @bsb-hash sha256:58dae03b410f817eaaaf517fe03bf25200266c96a4479809706fc0a07facf474
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('knowledge', 4, 'managed')
+values ('knowledge', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
--- @bsb-block knowledge@4 managed
--- @bsb-hash sha256:12b9e05dce77c5d5c417713828a412d1db406ed6d597cc7fa4c1f43e2af8e0a1
+-- @bsb-block knowledge@5 managed
+-- @bsb-hash sha256:b3c69a0dd70ef0ab25e6e1627d0a7021fa0158f4743673bee50a4bebea28dba1
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3768,6 +3813,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collections";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collection_grants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -3793,11 +3846,13 @@ grant all on "better_supabase"."knowledge_collections" to service_role;
 
 -- better_supabase.knowledge_collection_grants is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."knowledge_collection_grants" add column if not exists "collection_id" uuid references "better_supabase"."knowledge_collections" ("id") on delete cascade;
+alter table "better_supabase"."knowledge_collection_grants" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."knowledge_collection_grants" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."knowledge_collection_grants" add column if not exists "team_id" text;
 alter table "better_supabase"."knowledge_collection_grants" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists knowledge_collection_grants_key on "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id") nulls not distinct;
 create index if not exists knowledge_collection_grants_user_idx on "better_supabase"."knowledge_collection_grants" ("user_id") where "user_id" is not null;
+create index if not exists knowledge_collection_grants_tenant_idx on "better_supabase"."knowledge_collection_grants" ("organization_id") where "organization_id" is not null;
 alter table "better_supabase"."knowledge_collection_grants" enable row level security;
 grant all on "better_supabase"."knowledge_collection_grants" to service_role;
 
@@ -3814,7 +3869,7 @@ as $$
     select 1 from "better_supabase"."knowledge_collections" c
     where c."id" = knowledge_collection_readable.collection_id
       and (c."organization_id" is null or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', c."organization_id", 'knowledge.read'), false))
-      and (c."visibility" = 'automatic'
+      and (c."visibility"::text = 'automatic'
         or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (c."organization_id" is not null and coalesce(better_supabase.can('tenant', c."organization_id", 'knowledge.manage'), false)))
         or exists (
           select 1 from "better_supabase"."knowledge_collection_grants" x
@@ -3856,9 +3911,9 @@ begin
     raise exception 'visibility % is not automatic, restricted or disabled', create_knowledge_collection.visibility using errcode = '22023', hint = 'KNOWLEDGE_VISIBILITY';
   end if;
   insert into "better_supabase"."knowledge_collections" ("organization_id", "name", "description", "visibility", "priority", "created_by")
-  values (create_knowledge_collection.tenant, create_knowledge_collection.name, create_knowledge_collection.description, create_knowledge_collection.visibility, coalesce(create_knowledge_collection.priority, 0), auth.uid())
+  values (create_knowledge_collection.tenant, create_knowledge_collection.name, create_knowledge_collection.description, better_supabase.as_column_type(create_knowledge_collection.visibility, (null::"better_supabase"."knowledge_collections")."visibility"), coalesce(create_knowledge_collection.priority, 0), auth.uid())
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'description', v_row."description", 'visibility', v_row."visibility", 'priority', v_row."priority", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'description', v_row."description", 'visibility', v_row."visibility"::text, 'priority', v_row."priority", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_knowledge_collection"(uuid, text, text, text, integer) from public, anon;
@@ -3890,12 +3945,12 @@ begin
   update "better_supabase"."knowledge_collections" x set
     "name" = coalesce(update_knowledge_collection.patch ->> 'name', x."name"),
     "description" = case when update_knowledge_collection.patch ? 'description' then update_knowledge_collection.patch ->> 'description' else x."description" end,
-    "visibility" = case when update_knowledge_collection.patch ? 'visibility' then v_visibility else x."visibility" end,
+    "visibility" = case when update_knowledge_collection.patch ? 'visibility' then better_supabase.as_column_type(v_visibility, (null::"better_supabase"."knowledge_collections")."visibility") else x."visibility" end,
     "priority" = coalesce((update_knowledge_collection.patch ->> 'priority')::integer, x."priority"),
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'description', v_row."description", 'visibility', v_row."visibility", 'priority', v_row."priority", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'description', v_row."description", 'visibility', v_row."visibility"::text, 'priority', v_row."priority", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."update_knowledge_collection"(uuid, jsonb) from public, anon;
@@ -3934,7 +3989,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'name', x."name", 'description', x."description", 'visibility', x."visibility", 'priority', x."priority", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."priority" desc, x."name"), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'name', x."name", 'description', x."description", 'visibility', x."visibility"::text, 'priority', x."priority", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."priority" desc, x."name"), '[]')
   from "better_supabase"."knowledge_collections" x
   where x."organization_id" = list_knowledge_collections.tenant or x."organization_id" is null
 $$;
@@ -3942,7 +3997,7 @@ revoke execute on function "better_supabase"."list_knowledge_collections"(uuid) 
 grant execute on function "better_supabase"."list_knowledge_collections"(uuid) to authenticated, service_role;
 
 -- Grants a user or a team a restricted collection, or revokes it. Returns
--- whether anything changed.
+-- whether anything changed. The grant keeps the collection's tenant.
 create or replace function "better_supabase"."set_knowledge_collection_grant"(collection_id uuid, user_id uuid default null, team_id text default null, granted boolean default true)
 returns boolean
 language plpgsql
@@ -3965,8 +4020,8 @@ begin
     raise exception 'name a user or a team' using errcode = '22023', hint = 'KNOWLEDGE_GRANT';
   end if;
   if set_knowledge_collection_grant.granted then
-    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id")
-    values (v_row."id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
+    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "organization_id", "user_id", "team_id")
+    values (v_row."id", v_row."organization_id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
     on conflict do nothing;
   else
     delete from "better_supabase"."knowledge_collection_grants" x
@@ -4297,7 +4352,7 @@ begin
   with docs as materialized (
     select x."id" as id, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
     where (x."organization_id" = knowledge_search.tenant or x."organization_id" is null)
-      and (x."collection_id" is null or exists (select 1 from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id" and kc."visibility" <> 'disabled'))
+      and (x."collection_id" is null or exists (select 1 from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id" and kc."visibility"::text <> 'disabled'))
       and (knowledge_search.collections is null or x."collection_id" = any(knowledge_search.collections))
       and (v_scopes is null or exists (
         select 1 from jsonb_array_elements(v_scopes) s
@@ -4537,21 +4592,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block-data knowledge
--- @bsb-hash sha256:535874c27c055766fe06617afb5a2f85ccebe4e97cf387a62af5855691c08cbd
+-- @bsb-hash sha256:58dae03b410f817eaaaf517fe03bf25200266c96a4479809706fc0a07facf474
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('knowledge', 4, 'managed')
+values ('knowledge', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
--- @bsb-block knowledge@4 managed
--- @bsb-hash sha256:ad582aa293a1281202c89b12fa74f6ecfcc711b132c79007bf8dff6b54379a8f
+-- @bsb-block knowledge@5 managed
+-- @bsb-hash sha256:3452f719f26d538aa766d32d9d11ae17c232c2b0a0354969d16f819402e21a78
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4610,6 +4665,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collections";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collection_grants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -4637,13 +4700,16 @@ grant all on "better_supabase"."knowledge_collections" to service_role;
 
 create table if not exists "better_supabase"."knowledge_collection_grants" (
   "collection_id" uuid not null references "better_supabase"."knowledge_collections" ("id") on delete cascade,
+  "org_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
   "team_id" text,
   "created_at" timestamptz not null default now(),
   check (("user_id" is null) <> ("team_id" is null))
 );
+alter table "better_supabase"."knowledge_collection_grants" add column if not exists "org_id" uuid;
 create unique index if not exists knowledge_collection_grants_key on "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id") nulls not distinct;
 create index if not exists knowledge_collection_grants_user_idx on "better_supabase"."knowledge_collection_grants" ("user_id") where "user_id" is not null;
+create index if not exists knowledge_collection_grants_tenant_idx on "better_supabase"."knowledge_collection_grants" ("org_id") where "org_id" is not null;
 alter table "better_supabase"."knowledge_collection_grants" enable row level security;
 revoke all on "better_supabase"."knowledge_collection_grants" from public, anon, authenticated;
 grant all on "better_supabase"."knowledge_collection_grants" to service_role;
@@ -4789,7 +4855,7 @@ revoke execute on function "better_supabase"."list_knowledge_collections"(uuid) 
 grant execute on function "better_supabase"."list_knowledge_collections"(uuid) to authenticated, service_role;
 
 -- Grants a user or a team a restricted collection, or revokes it. Returns
--- whether anything changed.
+-- whether anything changed. The grant keeps the collection's tenant.
 create or replace function "better_supabase"."set_knowledge_collection_grant"(collection_id uuid, user_id uuid default null, team_id text default null, granted boolean default true)
 returns boolean
 language plpgsql
@@ -4812,8 +4878,8 @@ begin
     raise exception 'name a user or a team' using errcode = '22023', hint = 'KNOWLEDGE_GRANT';
   end if;
   if set_knowledge_collection_grant.granted then
-    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id")
-    values (v_row."id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
+    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "org_id", "user_id", "team_id")
+    values (v_row."id", v_row."org_id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
     on conflict do nothing;
   else
     delete from "better_supabase"."knowledge_collection_grants" x
@@ -5400,13 +5466,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block-data knowledge
--- @bsb-hash sha256:535874c27c055766fe06617afb5a2f85ccebe4e97cf387a62af5855691c08cbd
+-- @bsb-hash sha256:58dae03b410f817eaaaf517fe03bf25200266c96a4479809706fc0a07facf474
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('knowledge', 4, 'managed')
+values ('knowledge', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
