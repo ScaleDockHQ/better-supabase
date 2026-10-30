@@ -554,6 +554,16 @@ export const customersByStatusArgs: z.ZodMiniType<{ p_limit?: number; p_status: 
   p_status: z.string(),
 }).check(z.meta({ title: "customers_by_status arguments" }));
 
+export const importCustomerArgs: z.ZodMiniType<{ item: Json; run: string; subject_id: string }> = z.object({
+  item: z.json(),
+  run: z.guid(),
+  subject_id: z.string(),
+}).check(z.meta({ title: "import_customer arguments" }));
+
+export const importCustomerUpdatedAtArgs: z.ZodMiniType<{ subject_id: string }> = z.object({
+  subject_id: z.string(),
+}).check(z.meta({ title: "import_customer_updated_at arguments" }));
+
 export const islandCountsArgs: z.ZodMiniType<{ args: Json }> = z.object({
   args: z.json(),
 }).check(z.meta({ title: "island_counts arguments" }));
@@ -587,6 +597,10 @@ export const setMyAvatarPathArgs: z.ZodMiniType<{ avatar_path: string }> = z.obj
 export const updateMyProfileArgs: z.ZodMiniType<{ full_name: string }> = z.object({
   full_name: z.string(),
 }).check(z.meta({ title: "update_my_profile arguments" }));
+
+export const importCustomerResult: z.ZodMiniType<Json> = z.json();
+
+export const importCustomerUpdatedAtResult: z.ZodMiniType<string | null> = z.nullable(z.iso.datetime({ offset: true }));
 
 export const islandCountsResult: z.ZodMiniType<Json> = z.json();
 

@@ -2486,6 +2486,39 @@
       ],
       "additionalProperties": false
     },
+    "importCustomerArgs": {
+      "title": "import_customer arguments",
+      "type": "object",
+      "properties": {
+        "item": {},
+        "run": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "subject_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "item",
+        "run",
+        "subject_id"
+      ],
+      "additionalProperties": false
+    },
+    "importCustomerUpdatedAtArgs": {
+      "title": "import_customer_updated_at arguments",
+      "type": "object",
+      "properties": {
+        "subject_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject_id"
+      ],
+      "additionalProperties": false
+    },
     "islandCountsArgs": {
       "title": "island_counts arguments",
       "type": "object",
@@ -2593,6 +2626,17 @@
         "full_name"
       ],
       "additionalProperties": false
+    },
+    "importCustomerResult": {
+      "title": "import_customer result"
+    },
+    "importCustomerUpdatedAtResult": {
+      "title": "import_customer_updated_at result",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
     },
     "islandCountsResult": {
       "title": "island_counts result"

@@ -61,7 +61,7 @@ function customerImport(
   createMany: (rows: readonly NewCustomer[]) => PromiseLike<Result<unknown>>,
 ) {
   return defineImport<CustomerRow>({
-    kind: "customers",
+    source: "customers",
     columns: CustomerRow,
     key: (row) => row.name.toLowerCase(),
     insert: async (batch, { organizationId }) => {

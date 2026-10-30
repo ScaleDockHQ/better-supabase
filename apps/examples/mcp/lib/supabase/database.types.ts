@@ -841,6 +841,14 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      import_customer: {
+        Args: { item: Json; run: string; subject_id: string }
+        Returns: Json
+      }
+      import_customer_updated_at: {
+        Args: { subject_id: string }
+        Returns: string
+      }
       island_counts: { Args: { args: Json }; Returns: Json }
       my_organizations: {
         Args: Record<PropertyKey, never>

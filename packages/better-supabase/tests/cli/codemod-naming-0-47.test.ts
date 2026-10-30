@@ -181,4 +181,17 @@ select * from better_supabase.tasks;
       { line: 2, message: expect.stringContaining("`rules` is `automations`") },
     ]);
   });
+
+  it("lists the import code whose run column is now source", () => {
+    const source = `const people = defineImport({ kind: "people", columns, key, insert });
+select kind from better_supabase.import_runs;
+const total = 1;
+`;
+
+    const result = applyCodemod(v047, source, "src/imports.ts");
+
+    expect(result.text).toBe(source);
+    expect(result.review.map((entry) => entry.line)).toEqual([1, 2]);
+    expect(result.review[0]?.message).toContain("`source`");
+  });
 });

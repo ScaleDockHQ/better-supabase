@@ -78,6 +78,12 @@ const REVIEW_0_47: readonly ReviewHint[] = [
       "Inbox contacts are people of the contacts block: a conversation's `contact_id` is a person id, `contact_identities` is `person_identities` (`address` instead of `external_id`), and `person_inbox_contacts` is gone. Use `contacts.findByIdentity`, `addIdentity` and `savePerson` instead of `personForInboxContact`, `linkInboxContact` and the deprecated `inbox.contacts.upsert`, and read `people` instead of the inbox `contacts` table",
   },
   {
+    pattern:
+      /\bimport_runs\b|\bstart_import\s*\(|\bdefineImport\b|\bappTableImport\b|\bimports\.start\(/,
+    message:
+      "Import runs name their `source` instead of their `kind`: rename `kind` in `defineImport`, `appTableImport` and queries on `import_runs`, and read `counts` per entity (`{ inserted, updated, unchanged, conflicted, missing }`) and `errors` as `{ entity, key, code, message }`. New code starts runs with `imports.runs.start` and writes through `imports.upsertBatch`",
+  },
+  {
     pattern: new RegExp(
       `\\bbetter_supabase"?\\."?(?:${OLD_TABLES.map(escapeRegExp).join("|")})\\b`,
     ),

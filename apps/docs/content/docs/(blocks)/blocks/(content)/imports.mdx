@@ -1,9 +1,9 @@
 ---
 title: Imports
-description: CSV imports with a suggested mapping, a dry run, and `runImport`, which writes the rows in batches and marks the import failed when a batch throws.
+description: Import runs with an external record map. A rerun inserts new keys, skips unchanged ones, updates changed ones and leaves user edits alone, and CSV files get a suggested mapping and a dry run.
 ---
 
-`imports` is the counterpart of the data-lifecycle exporter. `parseCsv` reads RFC 4180 CSV (`SPEC_PINS.rfc4180`). `defineImport` names the kind, a Standard Schema for one row, a row key and an `insert` function. `suggestMapping` pairs headers to fields. `dryRun` validates every row and returns errors without writing. `runImport` records the run, skips keys that already imported, inserts the rest in batches of 100 and finishes with `import.completed` or `import.failed`.
+`imports` is the counterpart of the data-lifecycle exporter. `parseCsv` reads RFC 4180 CSV (`SPEC_PINS.rfc4180`). `defineImport` names the source, a Standard Schema for one row, a row key and an `insert` function. `suggestMapping` pairs headers to fields. `dryRun` validates every row and returns errors without writing. `runImport` records the run, skips keys that already imported, inserts the rest in batches of 100 and finishes with `import.completed` or `import.failed`.
 
 ```bash
 better-supabase add imports
@@ -14,6 +14,90 @@ import { defineImport, runImport } from "better-supabase/blocks/imports";
 ```
 
 The row key makes a rerun skip a row that already imported.
+
+## Runs and the record map
+
+A run reads one source system for one tenant. `imports.runs.start` creates it
+as `pending`, and only one run per tenant and source is `pending` or `running`
+at a time: a second start fails with `IMPORT_RUN_ACTIVE`. `runs.get`,
+`runs.list` and `runs.cancel` read and end runs. A run has these options:
+
+| Option          | Meaning                                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------- |
+| `dryRun`        | Runs every write, rolls it back and reports only the counts.                              |
+| `full`          | The run sends the whole source, so `finish` marks the records it did not send as missing. |
+| `inputChecksum` | Identifies the input, so a caller can tell a repeated file.                               |
+| `correlationId` | Links the run to the caller's own job.                                                    |
+| `scopeAliases`  | `[{ scope, of, entities }]`: a scope reuses the records another scope imported.           |
+
+Every key a run writes is kept in `import_records`, unique per tenant,
+source, scope, entity, external key and role. The server calls
+`imports.upsertBatch(run, entity, items)` with items of `{ key, scope, data,
+refs }`, and each item ends in exactly one outcome:
+
+- `inserted`: the key is new, so the target writes a row.
+- `unchanged`: the hash of `data` matches the last import, so nothing is
+  written and no audit row exists.
+- `updated`: the hash differs and nobody changed the row since the import.
+- `conflicted`: the hash differs, but a user changed the row after the import.
+  The row stays as the user has it.
+- An item that fails (`IMPORT_ITEM_INVALID`, or the target's own hint) is
+  listed in the run's `errors` and the batch goes on.
+
+`imports.finish(run)` ends a running run. On a `full` run it sets
+`missing_since` on records the run did not send and counts them as `missing`.
+It never deletes a target row. It emits `import.entity_completed` for each
+entity and then `import.completed`, or `import.failed` when the run has
+errors. A dry run emits nothing. `imports.resolve(run, entity, keys)` maps
+keys to the subjects they imported, and `imports.markRunning(run)` moves a
+pending run on before its first batch.
+
+`counts` is `{ <entity>: { inserted, updated, unchanged, conflicted, missing } }`
+and `errors` is `[{ entity, key, code, message }]`.
+
+### Import targets
+
+An entity is written by a target: `{ subjectType, write, updatedAt? }`. A
+block contributes one with the `imports` contribution kind, and an app lists
+its own under `blocks.imports.options.targets`:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    imports: {
+      options: {
+        targets: {
+          customer: {
+            subjectType: "customer",
+            write: "public.import_customer",
+            updatedAt: "public.import_customer_updated_at",
+          },
+        },
+      },
+    },
+  },
+});
+```
+
+`write` is `(run uuid, item jsonb, subject_id text) returns jsonb`. It
+receives the item with its `tenant`, and `subject_id` is `null` for an
+insert. It returns `{ subjectId, role?, subjectType?, updatedAt? }`, or an
+array of them when one record writes several subjects (the first `primary`
+role is the one `resolve` returns). `updatedAt` is
+`(subject_id text) returns timestamptz`; without it a changed hash always
+overwrites. An entity without a target fails the batch with
+`IMPORT_TARGET_UNKNOWN`.
+
+Pass `target: { entity, item }` to `defineImport` and `hooks.upsertBatch` to
+`runImport` to write a file through the record map instead of `insert`.
+`appTableImport` keeps its repository `insert` for now.
+
+| Hint code                | When                                                            |
+| ------------------------ | --------------------------------------------------------------- |
+| `IMPORT_RUN_ACTIVE`      | A run of the same tenant and source is `pending` or `running`.  |
+| `IMPORT_RUN_NOT_RUNNING` | A batch or `finish` targets a run that is not `running`.        |
+| `IMPORT_TARGET_UNKNOWN`  | No target is registered for the entity.                         |
+| `IMPORT_ITEM_INVALID`    | An item has no key or no data object, or the target rejects it. |
 
 ## Upsert into an app table
 

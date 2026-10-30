@@ -769,6 +769,22 @@ export const customersByStatusArgs: TableSchema<{ p_limit?: number; p_status: st
   },
 });
 
+export const importCustomerArgs: TableSchema<{ item: Json; run: string; subject_id: string }> = tableSchema({
+  title: "import_customer arguments",
+  fields: {
+    item: {"kind":"json"},
+    run: {"kind":"uuid"},
+    subject_id: {"kind":"string"},
+  },
+});
+
+export const importCustomerUpdatedAtArgs: TableSchema<{ subject_id: string }> = tableSchema({
+  title: "import_customer_updated_at arguments",
+  fields: {
+    subject_id: {"kind":"string"},
+  },
+});
+
 export const islandCountsArgs: TableSchema<{ args: Json }> = tableSchema({
   title: "island_counts arguments",
   fields: {

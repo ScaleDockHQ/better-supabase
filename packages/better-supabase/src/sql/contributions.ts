@@ -12,6 +12,7 @@ export interface BlockContributions {
   readonly acknowledgements: AcknowledgementContribution;
   readonly approvals: ApprovalContribution;
   readonly bulk: BulkActionContribution;
+  readonly imports: ImportTargetContribution;
   readonly numbering: NumberingContribution;
   readonly pipelines: PipelineContribution;
   readonly relations: RelationContribution;
@@ -118,6 +119,34 @@ export interface ApprovalContribution {
   readonly reject?: (request: ApprovalRequestSql) => string;
   /** A boolean expression: whether the request can still be decided. */
   readonly approvable?: (request: ApprovalRequestSql) => string;
+}
+
+/**
+ * A kind of record the contributing block takes in imports (ADR 0141).
+ * \`import_upsert_batch\` calls \`write\` for each item of \`entity\` whose
+ * content is new or changed, and maps the key to the subjects it returns.
+ */
+export interface ImportTargetContribution {
+  /** The entity name callers pass to \`import_upsert_batch\`, such as \`party\`. */
+  readonly entity: string;
+  /** The subject type of the primary row the write creates. */
+  readonly subjectType: string;
+  /**
+   * The qualified function \`(run uuid, item jsonb, subject_id text) returns
+   * jsonb\`. \`item\` is \`{ key, scope, data, refs, tenant }\`; \`subject_id\`
+   * is the primary subject of an earlier import, or \`null\` for an insert. It
+   * writes one row (or several) and returns \`{ subjectId, role?, subjectType?,
+   * updatedAt? }\` for each subject it touched, as an array or a single object;
+   * \`role\` defaults to \`primary\`. It raises with a hint to report the item
+   * as an error and leave the run going.
+   */
+  readonly write: string;
+  /**
+   * The qualified function \`(subject_id text) returns timestamptz\` that reads
+   * the row's last change. Without it a changed hash always overwrites. With
+   * it, a row changed after the last import is \`conflicted\` and left alone.
+   */
+  readonly updatedAt?: string;
 }
 
 /** A bulk action the contributing block runs on one row. */

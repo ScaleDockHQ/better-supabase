@@ -36,7 +36,7 @@ export interface AppTableImportOptions<
   T extends object,
   K extends Extract<keyof T, string>,
 > {
-  /** The app table's name, the import's `kind`. */
+  /** The app table's name, the import's `source`. */
   readonly table: string;
   readonly columns: StandardSchemaV1<unknown, T>;
   readonly repository: AppTableImportRepository<NoInfer<T>, NoInfer<K>>;
@@ -112,7 +112,7 @@ export function appTableImport<
         };
 
   return {
-    kind: options.table,
+    source: options.table,
     columns: options.columns,
     key: keyOf,
     insert: async (batch) => {

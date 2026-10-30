@@ -339,7 +339,8 @@ may be your own enum or domain.
   - `better_supabase.support_sessions`: `id`, `admin_id`, `target_user_id`, `reason`, `started_at`, `expires_at`, `ended_at`
   - `better_supabase.support_requests`: `id`, `admin_id`, `target_user_id`, `reason`, `organization_id`, `read_only`, `metadata`, `requested_at`, `expires_at`, `approved_by`, `approved_at`, `session_id`
 - `imports`
-  - `better_supabase.import_runs`: `id`, `tenant_id`, `kind`, `status`, `mapping`, `counts`, `errors`, `created_by`, `created_at`; typed: `status`
+  - `better_supabase.import_runs`: `id`, `tenant_id`, `source`, `status`, `mapping`, `counts`, `errors`, `dry_run`, `full`, `input_checksum`, `correlation_id`, `scope_aliases`, `created_by`, `created_at`, `started_at`, `finished_at`; typed: `status`
+  - `better_supabase.import_records`: `id`, `tenant_id`, `source`, `scope`, `entity`, `external_key`, `role`, `subject_type`, `subject_id`, `content_hash`, `first_run_id`, `last_run_id`, `subject_updated_at_at_import`, `missing_since`
 - `inbox`
   - `better_supabase.inboxes`: `id`, `tenant_id`, `name`, `channel`, `bot_mode`, `updated_at`; typed: `channel`, `bot_mode`
   - `better_supabase.inbox_members`: `inbox_id`, `user_id`, `role`; typed: `role`

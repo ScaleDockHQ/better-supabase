@@ -32,7 +32,7 @@ describe("runImport", () => {
 
     const result = await runImport(
       {
-        kind: "people",
+        source: "people",
         columns,
         key: (row) => row.email,
         insert: async (batch) => {
@@ -65,7 +65,7 @@ describe("runImport", () => {
 
     const result = await runImport(
       {
-        kind: "people",
+        source: "people",
         columns,
         key: (row) => row.email,
         insert: async (batch) => {
@@ -96,7 +96,7 @@ describe("runImport", () => {
 
     const result = await runImport(
       {
-        kind: "people",
+        source: "people",
         columns,
         key: (row) => row.email,
         insert: async () => {

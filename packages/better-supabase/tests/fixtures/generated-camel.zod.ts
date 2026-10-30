@@ -554,6 +554,16 @@ export const customersByStatusArgs: z.ZodType<{ p_limit?: number; p_status: stri
   p_status: z.string(),
 }).meta({ title: "customers_by_status arguments" });
 
+export const importCustomerArgs: z.ZodType<{ item: Json; run: string; subject_id: string }> = z.object({
+  item: z.json(),
+  run: z.guid(),
+  subject_id: z.string(),
+}).meta({ title: "import_customer arguments" });
+
+export const importCustomerUpdatedAtArgs: z.ZodType<{ subject_id: string }> = z.object({
+  subject_id: z.string(),
+}).meta({ title: "import_customer_updated_at arguments" });
+
 export const islandCountsArgs: z.ZodType<{ args: Json }> = z.object({
   args: z.json(),
 }).meta({ title: "island_counts arguments" });
@@ -587,6 +597,10 @@ export const setMyAvatarPathArgs: z.ZodType<{ avatar_path: string }> = z.object(
 export const updateMyProfileArgs: z.ZodType<{ full_name: string }> = z.object({
   full_name: z.string(),
 }).meta({ title: "update_my_profile arguments" });
+
+export const importCustomerResult: z.ZodType<Json> = z.json();
+
+export const importCustomerUpdatedAtResult: z.ZodType<string | null> = z.iso.datetime({ offset: true }).nullable();
 
 export const islandCountsResult: z.ZodType<Json> = z.json();
 

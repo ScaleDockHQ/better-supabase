@@ -21184,7 +21184,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "type": "ImportsEvents",
         "types": [
           "import.completed",
-          "import.failed"
+          "import.failed",
+          "import.entity_completed"
         ]
       }
     },

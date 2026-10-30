@@ -531,7 +531,7 @@ create table centrakit.reminder_deliveries (
 create table centrakit.import_runs (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null,
-  kind text not null,
+  source text not null,
   status text not null default 'pending',
   mapping jsonb not null default '{}'::jsonb,
   counts jsonb not null default '{}'::jsonb,
