@@ -964,6 +964,7 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then (coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false))
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.manage'), false)
+          when 'comment' then coalesce("better_supabase"."drive_can_comment"(s."id"), false)
           when 'fields' then coalesce("better_supabase"."drive_node_writable"(s."id"), false)
           else true
         end)
@@ -1397,6 +1398,7 @@ begin
           and case can_subject_for.action
           when 'read' then false
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'drive.manage'), false)
+          when 'comment' then false
           when 'fields' then false
           else false
         end
@@ -2734,7 +2736,7 @@ begin
     when 'ai-chat' then array['view']::text[]
     when 'calendar' then array['view']::text[]
     when 'booking_service' then array['view']::text[]
-    when 'drive_node' then array['view']::text[]
+    when 'drive_node' then array['view', 'download', 'upload']::text[]
     when 'form' then array['respond']::text[]
     else array[coalesce(create_share_link.role, 'view')]
   end) then
@@ -2745,7 +2747,7 @@ begin
     when 'ai-chat' then exists (select 1 from "better_supabase".ai_chats s where s.id::text = create_share_link.subject_id and s.organization_id::text = create_share_link.tenant::text and s.owner_id = auth.uid())
     when 'calendar' then exists (select 1 from "better_supabase"."calendars" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
     when 'booking_service' then exists (select 1 from "better_supabase"."booking_services" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
-    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
+    when 'drive_node' then "better_supabase"."drive_share_link_allowed"(create_share_link.subject_id::text, create_share_link.tenant::text, coalesce(create_share_link.role, 'view'))
     when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
     else case create_share_link.subject_type
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'messages.read'), false)
@@ -7118,14 +7120,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false) or v_guest) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false) or v_guest or (open_conversation.kind = 'subject' and ((open_conversation.attrs ->> 'subjectType') in ('drive_node') and coalesce("better_supabase"."can_subject"((open_conversation.attrs ->> 'subjectType'), (open_conversation.attrs ->> 'subjectId'), 'comment'), false)))) then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   v_users := array(
     select distinct x from unnest(coalesce(open_conversation.members, '{}') || case when auth.uid() is null then '{}'::uuid[] else array[auth.uid()] end) x
     where x is not null order by 1
   );
-  if not v_guest and exists (
+  if not v_guest and not (open_conversation.kind = 'subject' and (open_conversation.attrs ->> 'subjectType') in ('drive_node')) and exists (
     select 1 from unnest(v_users) x
     where not coalesce(better_supabase.can_user(x, 'tenant', open_conversation.tenant, 'messages.read'), false)
   ) then
