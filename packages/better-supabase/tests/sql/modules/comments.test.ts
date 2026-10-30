@@ -129,7 +129,7 @@ describe("comments module", () => {
     expect(sql).toContain(
       `create or replace function "better_supabase"."assign_comment"(message uuid, assignee uuid default null, attrs jsonb default '{}')`,
     );
-    expect(sql).toContain(`v_task := ("better_supabase"."create_work_item"(`);
+    expect(sql).toContain(`v_task := ("better_supabase"."create_task"(`);
     expect(sql).toContain(
       `case when assign_comment.assignee is null then '{}'::uuid[] else array[assign_comment.assignee] end`,
     );

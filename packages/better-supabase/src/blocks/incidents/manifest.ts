@@ -26,7 +26,7 @@ export const incidentsBlock: BlockOf<
   schemas: {
     incident: { input: incidentInputSchema, change: incidentChangesSchema },
     status_component: { input: statusComponentInputSchema },
-    postmortem: { input: postmortemInputSchema },
+    incident_postmortem: { input: postmortemInputSchema },
     status_page: { input: statusPageInputSchema },
   },
   create: createIncidents,

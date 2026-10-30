@@ -4,7 +4,7 @@ import * as v from "valibot";
 
 import type { Search } from "@/i18n/navigation";
 
-export const WORK_ITEM_SUBJECT = "work_item";
+export const WORK_ITEM_SUBJECT = "task";
 
 /** The list key the grid's saved views are stored under. */
 export const WORK_ITEM_LIST = "work_items";

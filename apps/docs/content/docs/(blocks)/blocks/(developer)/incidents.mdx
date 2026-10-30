@@ -172,15 +172,15 @@ incident never shows on the page.
 
 ## Errors
 
-| Hint                         | Cause                                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------------------------ |
-| `INCIDENTS_FORBIDDEN`        | the caller lacks `incidents.read`, `.write` or `.manage`                                   |
-| `INCIDENTS_INVALID`          | a field is invalid, such as a slug that isn't 2 to 63 lowercase letters, digits and dashes |
-| `INCIDENT_NOT_FOUND`         | no incident with this id in an organization the caller reads                               |
-| `STATUS_COMPONENT_NOT_FOUND` | no component with this id                                                                  |
-| `POSTMORTEM_NOT_FOUND`       | the incident has no postmortem                                                             |
-| `INCIDENT_NOT_RESOLVED`      | the postmortem of an unresolved incident can't be published                                |
-| `STATUS_PAGE_SLUG_TAKEN`     | another organization uses this slug                                                        |
+| Hint                            | Cause                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------ |
+| `INCIDENTS_FORBIDDEN`           | the caller lacks `incidents.read`, `.write` or `.manage`                                   |
+| `INCIDENTS_INVALID`             | a field is invalid, such as a slug that isn't 2 to 63 lowercase letters, digits and dashes |
+| `INCIDENT_NOT_FOUND`            | no incident with this id in an organization the caller reads                               |
+| `STATUS_COMPONENT_NOT_FOUND`    | no component with this id                                                                  |
+| `INCIDENT_POSTMORTEM_NOT_FOUND` | the incident has no postmortem                                                             |
+| `INCIDENT_NOT_RESOLVED`         | the postmortem of an unresolved incident can't be published                                |
+| `STATUS_PAGE_SLUG_TAKEN`        | another organization uses this slug                                                        |
 
 ## Events
 

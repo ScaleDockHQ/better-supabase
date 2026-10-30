@@ -46,11 +46,13 @@ export interface WorkItemNames {
    * `work_item` to `task`, `projectId` to `initiativeId`.
    */
   readonly e: (name: string) => string;
+  /** The subject type of a task (`task`, or its renamed singular). */
+  readonly type: string;
 }
 
 /**
- * The fields `update_work_items` writes, by camelCase name, with the logical
- * column each one writes.
+ * The fields `update_tasks` writes, by camelCase name, with the logical column
+ * each one writes.
  */
 function fields(
   ctx: BlockSqlContext,
@@ -120,7 +122,7 @@ export function workItemFunctions(
   const { fn, t, c, e } = n;
   const w = (column: string): string => c("items", column);
   const a = (column: string): string => c("assignees", column);
-  const item = sqlString(e("work_item"));
+  const item = sqlString(n.type);
   const itemId = sqlString(e("workItemId"));
   const has = (logical: string): boolean => ctx.has("items", logical);
 
@@ -167,7 +169,7 @@ export function workItemFunctions(
       .map(
         ([key, logical]) => `
   if ${attrs} ->> ${sqlString(key)} is not null then
-    ${fail("WORK_ITEM_FIELD_UNSUPPORTED", `this ${ctx.tableName(table).name} table has no ${logical} column`, "22023")}
+    ${fail("TASK_FIELD_UNSUPPORTED", `this ${ctx.tableName(table).name} table has no ${logical} column`, "22023")}
   end if;`,
       )
       .join("");
@@ -175,7 +177,7 @@ export function workItemFunctions(
   const extrasInsert = insertExtraColumns(
     t("items"),
     n.extras,
-    "(create_work_item.attrs -> 'fields')",
+    "(create_task.attrs -> 'fields')",
   );
 
   const editable = (alias: string): string =>
@@ -199,19 +201,19 @@ export function workItemFunctions(
         ? `      when ${sqlString(field.field)} then
         update ${t("items")} x set ${field.set("v_change -> 'value'")} where x.${w("id")} = v_item;`
         : `      when ${sqlString(field.field)} then
-        ${fail("WORK_ITEM_FIELD_UNSUPPORTED", `this ${ctx.tableName("items").name} table has no ${field.column} column`, "22023")}`,
+        ${fail("TASK_FIELD_UNSUPPORTED", `this ${ctx.tableName("items").name} table has no ${field.column} column`, "22023")}`,
     ),
     has("startAt") && has("endAt")
       ? `      when 'window' then
         if jsonb_typeof(v_change -> 'value') <> 'object' then
-          ${fail("WORK_ITEM_ATTRS_INVALID", "window must be an object of startAt and endAt", "22023")}
+          ${fail("TASK_ATTRS_INVALID", "window must be an object of startAt and endAt", "22023")}
         end if;
         update ${t("items")} x set
           ${w("startAt")} = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x.${w("startAt")} end,
           ${w("endAt")} = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x.${w("endAt")} end
         where x.${w("id")} = v_item;`
       : `      when 'window' then
-        ${fail("WORK_ITEM_FIELD_UNSUPPORTED", `this ${ctx.tableName("items").name} table has no startAt and endAt columns`, "22023")}`,
+        ${fail("TASK_FIELD_UNSUPPORTED", `this ${ctx.tableName("items").name} table has no startAt and endAt columns`, "22023")}`,
     `      when 'attachments' then
         select * into v_row from ${t("items")} x where x.${w("id")} = v_item;
         ${linkAttachmentsSql(ctx, n, "v_row", "(v_change -> 'value')")}`,
@@ -262,7 +264,7 @@ export function workItemFunctions(
       ? ""
       : `
   if cardinality(v_users) > ${String(n.maxAssignees)} then
-    ${fail("WORK_ITEM_ASSIGNEES_LIMIT", `an item takes at most ${String(n.maxAssignees)} assignees`, "22023")}
+    ${fail("TASK_ASSIGNEES_LIMIT", `an item takes at most ${String(n.maxAssignees)} assignees`, "22023")}
   end if;`;
 
   const p = (column: string): string => c("projects", column);
@@ -271,7 +273,7 @@ export function workItemFunctions(
   const manageGuard = (
     tenant: string,
   ): string => `if not (${n.service} or ${ctx.scope.can(tenant, n.manage)}) then
-    ${fail("WORK_ITEM_FORBIDDEN", "not allowed to manage projects and iterations")}
+    ${fail("TASK_FORBIDDEN", "not allowed to manage projects and iterations")}
   end if;`;
 
   const budgetSets = (
@@ -302,7 +304,7 @@ export function workItemFunctions(
       select 1 from ${t("projects")} x
       where x.${p("id")} = v_id and x.${p("budgetAmount")} is not null and x.${p("budgetCurrency")} is null
     ) then
-      ${fail("WORK_ITEM_PROJECT_INVALID", "a budget amount needs a currency", "22023")}
+      ${fail("TASK_PROJECT_INVALID", "a budget amount needs a currency", "22023")}
     end if;`
     : "";
 
@@ -403,13 +405,13 @@ ${(["startOn", "targetOn"] as const).flatMap((key) => (ctx.has("projects", key) 
         ${p("updatedAt")} = now()
       where x.${p("id")} = v_id and x.${p("tenant")} = save_project.tenant;
       if not found then
-        ${fail("WORK_ITEM_PROJECT_NOT_FOUND", "project not found", "P0002")}
+        ${fail("TASK_PROJECT_NOT_FOUND", "project not found", "P0002")}
       end if;
     end if;${budgetCheck}
   exception when unique_violation then
-    ${fail("WORK_ITEM_PROJECT_KEY_TAKEN", "another project has this key", "23505")}
+    ${fail("TASK_PROJECT_KEY_TAKEN", "another project has this key", "23505")}
   when check_violation or not_null_violation then
-    ${fail("WORK_ITEM_PROJECT_INVALID", "a project needs a key of capitals and a name, and ends after it starts", "22023")}
+    ${fail("TASK_PROJECT_INVALID", "a project needs a key of capitals and a name, and ends after it starts", "22023")}
   end;
 ${dimensionSync}
   return (select ${ctx.rowJson("projects", "x")}${budgetText} || jsonb_build_object('progress', ${
@@ -453,11 +455,11 @@ begin
         ${i("endsOn")} = coalesce((save_iteration.attrs ->> 'endsOn')::date, x.${i("endsOn")})
       where x.${i("id")} = v_id and x.${i("tenant")} = save_iteration.tenant;
       if not found then
-        ${fail("WORK_ITEM_ITERATION_NOT_FOUND", "iteration not found", "P0002")}
+        ${fail("TASK_ITERATION_NOT_FOUND", "iteration not found", "P0002")}
       end if;
     end if;
   exception when check_violation or not_null_violation then
-    ${fail("WORK_ITEM_ITERATION_INVALID", "an iteration needs a name and ends on or after it starts", "22023")}
+    ${fail("TASK_ITERATION_INVALID", "an iteration needs a name and ends on or after it starts", "22023")}
   end;
   return (select ${ctx.rowJson("iterations", "x")} from ${t("iterations")} x where x.${i("id")} = v_id);
 end;
@@ -471,7 +473,7 @@ ${userGrant(`${fn("save_iteration")}(${ctx.idType}, uuid, jsonb)`)}
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
 -- progress, startAt, endAt, dueAt, pipelineId, stageId, and fields (the
 -- extra columns, by name). assignees: user ids.
-create or replace function ${fn("create_work_item")}(tenant ${ctx.idType}, attrs jsonb, assignees uuid[])
+create or replace function ${fn("create_task")}(tenant ${ctx.idType}, attrs jsonb, assignees uuid[])
 returns jsonb
 language plpgsql
 security definer
@@ -484,12 +486,12 @@ declare
   v_row ${t("items")};
   v_linked integer;
 begin
-  if not (${n.service} or ${ctx.scope.can("create_work_item.tenant", n.create)}) then
-    ${fail("WORK_ITEM_FORBIDDEN", "not allowed to change work items")}
+  if not (${n.service} or ${ctx.scope.can("create_task.tenant", n.create)}) then
+    ${fail("TASK_FORBIDDEN", "not allowed to change work items")}
   end if;
-  if nullif(trim(create_work_item.attrs ->> 'title'), '') is null then
-    ${fail("WORK_ITEM_TITLE_REQUIRED", "a title is required", "23502")}
-  end if;${unsupported("items", "create_work_item.attrs", [
+  if nullif(trim(create_task.attrs ->> 'title'), '') is null then
+    ${fail("TASK_TITLE_REQUIRED", "a title is required", "23502")}
+  end if;${unsupported("items", "create_task.attrs", [
     ["body", "body"],
     [e("projectId"), "project"],
     [e("iterationId"), "iteration"],
@@ -498,14 +500,14 @@ begin
     ["startAt", "startAt"],
     ["endAt", "endAt"],
   ])}
-  ${ctx.hook("before_work_item_create", [
-    [ctx.idType, "create_work_item.tenant"],
-    ["jsonb", "create_work_item.attrs"],
+  ${ctx.hook("before_task_create", [
+    [ctx.idType, "create_task.tenant"],
+    ["jsonb", "create_task.attrs"],
   ])}
   ${assignNumberSql(
     ctx,
     e("work_item"),
-    "create_work_item.tenant",
+    "create_task.tenant",
     { seq: "v_seq", identifier: "v_identifier" },
     {
       table: t("items"),
@@ -543,89 +545,89 @@ begin
     values (${lines(
       "      ",
       [
-        "create_work_item.tenant",
+        "create_task.tenant",
         "v_seq",
         "v_identifier",
-        "trim(create_work_item.attrs ->> 'title')",
-        present("items", "body", "create_work_item.attrs ->> 'body'"),
+        "trim(create_task.attrs ->> 'title')",
+        present("items", "body", "create_task.attrs ->> 'body'"),
       ],
       [
-        "(create_work_item.attrs ->> 'parentId')::uuid",
-        "(create_work_item.attrs ->> 'teamId')::uuid",
+        "(create_task.attrs ->> 'parentId')::uuid",
+        "(create_task.attrs ->> 'teamId')::uuid",
         present(
           "items",
           "project",
-          `(create_work_item.attrs ->> ${sqlString(e("projectId"))})::uuid`,
+          `(create_task.attrs ->> ${sqlString(e("projectId"))})::uuid`,
         ),
       ],
       [
         present(
           "items",
           "iteration",
-          `(create_work_item.attrs ->> ${sqlString(e("iterationId"))})::uuid`,
+          `(create_task.attrs ->> ${sqlString(e("iterationId"))})::uuid`,
         ),
         ctx.mapsValues("items", "priority")
           ? ctx.cast(
               "items",
               "priority",
-              "coalesce(create_work_item.attrs ->> 'priority', '0')",
+              "coalesce(create_task.attrs ->> 'priority', '0')",
             )
-          : "coalesce((create_work_item.attrs ->> 'priority')::smallint, 0)",
+          : "coalesce((create_task.attrs ->> 'priority')::smallint, 0)",
       ],
       [
         present(
           "items",
           "estimate",
-          "(create_work_item.attrs ->> 'estimate')::numeric",
+          "(create_task.attrs ->> 'estimate')::numeric",
         ),
         present(
           "items",
           "progress",
-          "(create_work_item.attrs ->> 'progress')::smallint",
+          "(create_task.attrs ->> 'progress')::smallint",
         ),
       ],
       [
         present(
           "items",
           "startAt",
-          "(create_work_item.attrs ->> 'startAt')::timestamptz",
+          "(create_task.attrs ->> 'startAt')::timestamptz",
         ),
         present(
           "items",
           "endAt",
-          "(create_work_item.attrs ->> 'endAt')::timestamptz",
+          "(create_task.attrs ->> 'endAt')::timestamptz",
         ),
-        "(create_work_item.attrs ->> 'dueAt')::timestamptz",
+        "(create_task.attrs ->> 'dueAt')::timestamptz",
       ],
       [
-        "(create_work_item.attrs ->> 'pipelineId')::uuid",
-        "(create_work_item.attrs ->> 'stageId')::uuid",
+        "(create_task.attrs ->> 'pipelineId')::uuid",
+        "(create_task.attrs ->> 'stageId')::uuid",
         present("items", "createdBy", "auth.uid()"),
       ],
     )}${extrasInsert.values})
     returning ${w("id")} into v_id;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range or foreign_key_violation then
-    ${fail("WORK_ITEM_ATTRS_INVALID", "a work item field has an invalid value", "22023")}
-  end;${writeExtraColumns(t("items"), n.extras, "(create_work_item.attrs -> 'fields')", `x.${w("id")} = v_id`)}
-  if cardinality(coalesce(create_work_item.assignees, '{}')) > 0 then
-    perform ${fn("set_work_item_assignees")}(v_id, create_work_item.assignees);
+    ${fail("TASK_ATTRS_INVALID", "a work item field has an invalid value", "22023")}
+  end;${writeExtraColumns(t("items"), n.extras, "(create_task.attrs -> 'fields')", `x.${w("id")} = v_id`)}
+  if cardinality(coalesce(create_task.assignees, '{}')) > 0 then
+    perform ${fn("set_task_assignees")}(v_id, create_task.assignees);
   end if;
   select * into v_row from ${t("items")} x where x.${w("id")} = v_id;
-  ${linkAttachmentsSql(ctx, n, "v_row", "(create_work_item.attrs -> 'attachments')")}
+  ${linkAttachmentsSql(ctx, n, "v_row", "(create_task.attrs -> 'attachments')")}
   ${record("work_item.created", "v_row")}
-  ${ctx.hook("after_work_item_create", [["uuid", "v_id"]])}
+  ${ctx.hook("after_task_create", [["uuid", "v_id"]])}
   return (select ${row("x")} from ${t("items")} x where x.${w("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("create_work_item")}(${ctx.idType}, jsonb, uuid[])`)}
+${userGrant(`${fn("create_task")}(${ctx.idType}, jsonb, uuid[])`)}
 
 -- Applies a batch of { workItemId, field, value } changes, each on its
 -- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
 -- field, hint, reason }] }. With atomic, the first change that fails raises
 -- its error and no change is kept. The window field ({ startAt, endAt })
 -- writes both ends in one update, so the end-after-start check sees both.
-drop function if exists ${fn("update_work_items")}(jsonb);
-create or replace function ${fn("update_work_items")}(changes jsonb, atomic boolean default false)
+drop function if exists ${fn("update_tasks")}(jsonb);
+create or replace function ${fn("update_tasks")}(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -643,17 +645,17 @@ declare
   v_touched uuid[] := '{}';
   v_linked integer;
 begin
-  if jsonb_typeof(coalesce(update_work_items.changes, '[]')) <> 'array' then
-    ${fail("WORK_ITEM_CHANGES_INVALID", `changes must be a list of { ${e("workItemId")}, field, value }`, "22023")}
+  if jsonb_typeof(coalesce(update_tasks.changes, '[]')) <> 'array' then
+    ${fail("TASK_CHANGES_INVALID", `changes must be a list of { ${e("workItemId")}, field, value }`, "22023")}
   end if;
-  for v_change in select value from jsonb_array_elements(update_work_items.changes) loop
+  for v_change in select value from jsonb_array_elements(update_tasks.changes) loop
     v_field := v_change ->> 'field';
     begin
       v_item := (v_change ->> ${itemId})::uuid;
       if not exists (select 1 from ${t("items")} x where x.${w("id")} = v_item and ${editable("x")} and x.${w("archivedAt")} is null) then
-        ${fail("WORK_ITEM_NOT_FOUND", "no such work item you can edit", "P0002")}
+        ${fail("TASK_NOT_FOUND", "no such work item you can edit", "P0002")}
       end if;
-      ${ctx.hook("before_work_item_update", [
+      ${ctx.hook("before_task_update", [
         ["uuid", "v_item"],
         ["text", "v_field"],
         ["jsonb", "v_change -> 'value'"],
@@ -661,16 +663,16 @@ begin
       case v_field
 ${writes}
       else
-        ${fail("WORK_ITEM_FIELD_UNKNOWN", "that field can't be written", "22023")}
+        ${fail("TASK_FIELD_UNKNOWN", "that field can't be written", "22023")}
       end case;
       v_accepted := v_accepted || jsonb_build_array(jsonb_build_object(${itemId}, v_item, 'field', v_field));
       v_touched := array_append(v_touched, v_item);
-      ${ctx.hook("after_work_item_update", [
+      ${ctx.hook("after_task_update", [
         ["uuid", "v_item"],
         ["text", "v_field"],
       ])}
     exception when others then
-      if update_work_items.atomic then
+      if update_tasks.atomic then
         raise;
       end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
@@ -683,12 +685,12 @@ ${writes}
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-${userGrant(`${fn("update_work_items")}(jsonb, boolean)`)}
+${userGrant(`${fn("update_tasks")}(jsonb, boolean)`)}
 
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. work_item.assigned is recorded only
 -- when the call adds someone, with addedIds.
-create or replace function ${fn("set_work_item_assignees")}(work_item uuid, users uuid[])
+create or replace function ${fn("set_task_assignees")}(work_item uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -696,12 +698,12 @@ set search_path = ''
 as $$
 declare
   v_row ${t("items")};
-  v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);
+  v_users uuid[] := array(select distinct x from unnest(coalesce(set_task_assignees.users, '{}')) x where x is not null);
   v_added uuid[];${notify === "" ? "" : "\n  v_new uuid[];\n  v_claims text;"}${watch === "" ? "" : "\n  v_user uuid;"}
 begin
-  select * into v_row from ${t("items")} x where x.${w("id")} = set_work_item_assignees.work_item and ${editable("x")};
+  select * into v_row from ${t("items")} x where x.${w("id")} = set_task_assignees.work_item and ${editable("x")};
   if v_row.${w("id")} is null then
-    ${fail("WORK_ITEM_NOT_FOUND", "no such work item you can edit", "P0002")}
+    ${fail("TASK_NOT_FOUND", "no such work item you can edit", "P0002")}
   end if;${limit}${
     notify === ""
       ? ""
@@ -728,9 +730,9 @@ begin
   return cardinality(v_users);
 end;
 $$;
-${userGrant(`${fn("set_work_item_assignees")}(uuid, uuid[])`)}
+${userGrant(`${fn("set_task_assignees")}(uuid, uuid[])`)}
 
-create or replace function ${fn("archive_work_item")}(work_item uuid, archived boolean)
+create or replace function ${fn("archive_task")}(work_item uuid, archived boolean)
 returns boolean
 language plpgsql
 security definer
@@ -739,22 +741,22 @@ as $$
 declare
   v_row ${t("items")};
 begin
-  update ${t("items")} x set ${w("archivedAt")} = case when archive_work_item.archived then coalesce(x.${w("archivedAt")}, now()) end
-  where x.${w("id")} = archive_work_item.work_item and ${editable("x")}
+  update ${t("items")} x set ${w("archivedAt")} = case when archive_task.archived then coalesce(x.${w("archivedAt")}, now()) end
+  where x.${w("id")} = archive_task.work_item and ${editable("x")}
   returning * into v_row;
   if v_row.${w("id")} is null then
     return false;
   end if;
-  if archive_work_item.archived then
+  if archive_task.archived then
     ${record("work_item.archived", "v_row")}
   end if;
   return true;
 end;
 $$;
-${userGrant(`${fn("archive_work_item")}(uuid, boolean)`)}
+${userGrant(`${fn("archive_task")}(uuid, boolean)`)}
 
 -- Deletes an item and its children. Needs work_items.manage, or its author.
-create or replace function ${fn("delete_work_item")}(work_item uuid)
+create or replace function ${fn("delete_task")}(work_item uuid)
 returns boolean
 language plpgsql
 security definer
@@ -764,7 +766,7 @@ declare
   v_row ${t("items")};
 begin
   delete from ${t("items")} x
-  where x.${w("id")} = delete_work_item.work_item
+  where x.${w("id")} = delete_task.work_item
     and (${n.service} or ${has("createdBy") && n.authorCanDelete ? `x.${w("createdBy")} = auth.uid() or` : ""} ${ctx.scope.can(`x.${w("tenant")}`, n.remove)})
   returning * into v_row;
   if v_row.${w("id")} is null then
@@ -774,12 +776,12 @@ begin
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_work_item")}(uuid)`)}
+${userGrant(`${fn("delete_task")}(uuid)`)}
 
 -- An item and everything under it with its depth. An item without its own
 -- progress takes the share of its open and completed children that are
 -- completed, so a Gantt group shows a rollup.
-create or replace function ${fn("work_item_tree")}(root uuid)
+create or replace function ${fn("task_tree")}(root uuid)
 returns jsonb
 language sql
 stable
@@ -787,7 +789,7 @@ security invoker
 set search_path = ''
 as $$
   with recursive tree as (
-    select x.*, 0 as depth from ${t("items")} x where x.${w("id")} = work_item_tree.root
+    select x.*, 0 as depth from ${t("items")} x where x.${w("id")} = task_tree.root
     union all
     select y.*, tree.depth + 1 from ${t("items")} y join tree on y.${w("parent")} = tree.${w("id")}
     where tree.depth < 100 and y.${w("archivedAt")} is null
@@ -804,13 +806,13 @@ as $$
   ) order by tree.depth, tree.${w("rank")} collate "C", tree.${w("id")}), '[]'::jsonb)
   from tree
 $$;
-${userGrant(`${fn("work_item_tree")}(uuid)`)}
+${userGrant(`${fn("task_tree")}(uuid)`)}
 
 -- A page of a tenant's active items, newest first. filter keys: teamId,
 -- projectId, iterationId, parentId, assigneeId, states (a list), open
 -- (only unclosed). search matches the title and identifier. after continues
 -- after that item.
-create or replace function ${fn("list_work_items")}(tenant ${ctx.idType}, filter jsonb, search text, after uuid, page_size integer)
+create or replace function ${fn("list_tasks")}(tenant ${ctx.idType}, filter jsonb, search text, after uuid, page_size integer)
 returns jsonb
 language sql
 stable
@@ -821,20 +823,20 @@ as $$
   from (
     select ${row("x")} as value, x.${w("number")} as number
     from ${t("items")} x
-    where x.${w("tenant")} = list_work_items.tenant and x.${w("archivedAt")} is null
-      and (list_work_items.filter ->> 'teamId' is null or x.${w("team")} = (list_work_items.filter ->> 'teamId')::uuid)
-      and (list_work_items.filter ->> ${sqlString(e("projectId"))} is null or ${has("project") ? `x.${w("project")} = (list_work_items.filter ->> ${sqlString(e("projectId"))})::uuid` : "false"})
-      and (list_work_items.filter ->> ${sqlString(e("iterationId"))} is null or ${has("iteration") ? `x.${w("iteration")} = (list_work_items.filter ->> ${sqlString(e("iterationId"))})::uuid` : "false"})
-      and (list_work_items.filter ->> 'parentId' is null or x.${w("parent")} = (list_work_items.filter ->> 'parentId')::uuid)
-      and (list_work_items.filter ->> 'assigneeId' is null or exists (select 1 from ${t("assignees")} y where y.${a("item")} = x.${w("id")} and y.${a("user")} = (list_work_items.filter ->> 'assigneeId')::uuid))
-      and (list_work_items.filter -> 'states' is null or ${ctx.mapsValues("items", "state") ? ctx.label("items", "state", `x.${w("state")}`) : asText(ctx, "items", `x.${w("state")}`)} = any (array(select jsonb_array_elements_text(list_work_items.filter -> 'states'))))
-      and (coalesce((list_work_items.filter ->> 'open')::boolean, false) = false or x.${w("closedAt")} is null)
-      and (list_work_items.search is null or x.${w("title")} ilike '%' || list_work_items.search || '%' or x.${w("identifier")} ilike list_work_items.search || '%')
-      and (list_work_items.after is null or x.${w("number")} < (select z.${w("number")} from ${t("items")} z where z.${w("id")} = list_work_items.after))
+    where x.${w("tenant")} = list_tasks.tenant and x.${w("archivedAt")} is null
+      and (list_tasks.filter ->> 'teamId' is null or x.${w("team")} = (list_tasks.filter ->> 'teamId')::uuid)
+      and (list_tasks.filter ->> ${sqlString(e("projectId"))} is null or ${has("project") ? `x.${w("project")} = (list_tasks.filter ->> ${sqlString(e("projectId"))})::uuid` : "false"})
+      and (list_tasks.filter ->> ${sqlString(e("iterationId"))} is null or ${has("iteration") ? `x.${w("iteration")} = (list_tasks.filter ->> ${sqlString(e("iterationId"))})::uuid` : "false"})
+      and (list_tasks.filter ->> 'parentId' is null or x.${w("parent")} = (list_tasks.filter ->> 'parentId')::uuid)
+      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from ${t("assignees")} y where y.${a("item")} = x.${w("id")} and y.${a("user")} = (list_tasks.filter ->> 'assigneeId')::uuid))
+      and (list_tasks.filter -> 'states' is null or ${ctx.mapsValues("items", "state") ? ctx.label("items", "state", `x.${w("state")}`) : asText(ctx, "items", `x.${w("state")}`)} = any (array(select jsonb_array_elements_text(list_tasks.filter -> 'states'))))
+      and (coalesce((list_tasks.filter ->> 'open')::boolean, false) = false or x.${w("closedAt")} is null)
+      and (list_tasks.search is null or x.${w("title")} ilike '%' || list_tasks.search || '%' or x.${w("identifier")} ilike list_tasks.search || '%')
+      and (list_tasks.after is null or x.${w("number")} < (select z.${w("number")} from ${t("items")} z where z.${w("id")} = list_tasks.after))
     order by x.${w("number")} desc
-    limit ${pageSize("list_work_items.page_size", 50, 200)}
+    limit ${pageSize("list_tasks.page_size", 50, 200)}
   ) p
 $$;
-${userGrant(`${fn("list_work_items")}(${ctx.idType}, jsonb, text, uuid, integer)`)}
+${userGrant(`${fn("list_tasks")}(${ctx.idType}, jsonb, text, uuid, integer)`)}
 ${workItemExtraFunctions(ctx, n, row, record)}${projects}${iterations}`;
 }

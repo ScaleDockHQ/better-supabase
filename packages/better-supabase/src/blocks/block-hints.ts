@@ -12,8 +12,8 @@ export type BlockHint<B extends keyof BlockHints = keyof BlockHints> =
 
 /**
  * Whether `error` carries one of `hints`, narrowing its `hint` to them:
- * `isBlockHint(result.error, "WORK_ITEM_LOCKED")`. A hint no block raises is a
- * type error.
+ * `isBlockHint(result.error, "TASK_LOCKED")`. A hint no block raises is a type
+ * error.
  */
 export function isBlockHint<const H extends BlockHint>(
   error: DbError | undefined,

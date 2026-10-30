@@ -583,6 +583,6 @@ export const QUOTES: BlockSqlDefinition = {
   data: (ctx) =>
     shippedAutomation(ctx, QUOTE_TO_ORDER, {
       module: "orders",
-      singular: "order",
+      entity: "order",
     }),
 };

@@ -38,7 +38,7 @@ insert into ids values ('a11', (better_supabase.save_control(
 insert into ids values ('review', (better_supabase.save_evidence_task(
   (select id from ids where name = 'cc72'), 'Review alerts', 30, current_date - 1,
   '00000000-0000-4000-8000-0000000000a2') ->> 'id')::uuid);
-insert into ids values ('aup', (better_supabase.save_policy(
+insert into ids values ('aup', (better_supabase.save_compliance_policy(
   '00000000-0000-4000-8000-000000000001', 'acceptable-use', 'Acceptable use') ->> 'id')::uuid);
 
 select is(
@@ -53,7 +53,7 @@ select throws_ok(
   'the owner cannot add a framework to an organization they only belong to as a member'
 );
 select is(
-  (better_supabase.publish_policy((select id from ids where name = 'aup'), '{"body":"Be kind"}'::jsonb, 'v1') ->> 'versionId') is not null,
+  (better_supabase.publish_compliance_policy((select id from ids where name = 'aup'), '{"body":"Be kind"}'::jsonb, 'v1') ->> 'versionId') is not null,
   true,
   'publishing a policy stores a version'
 );
@@ -99,16 +99,16 @@ select is(
   'the posture rolls up passing, failing and not applicable controls'
 );
 select is(
-  jsonb_array_length(better_supabase.list_policies('00000000-0000-4000-8000-000000000001', pending_only => true)),
+  jsonb_array_length(better_supabase.list_compliance_policies('00000000-0000-4000-8000-000000000001', pending_only => true)),
   1,
   'the published policy waits for the member to acknowledge it'
 );
 select lives_ok(
-  $$select better_supabase.acknowledge_policy((select id from ids where name = 'aup'))$$,
+  $$select better_supabase.acknowledge_compliance_policy((select id from ids where name = 'aup'))$$,
   'a member acknowledges the policy'
 );
 select is(
-  jsonb_array_length(better_supabase.list_policies('00000000-0000-4000-8000-000000000001', pending_only => true)),
+  jsonb_array_length(better_supabase.list_compliance_policies('00000000-0000-4000-8000-000000000001', pending_only => true)),
   0,
   'an acknowledged policy is no longer pending'
 );

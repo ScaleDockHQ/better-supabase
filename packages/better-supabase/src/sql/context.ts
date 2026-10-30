@@ -154,6 +154,11 @@ export interface BlockSqlEntitySpec {
   readonly singular: string;
   /** Defaults to the English plural of `singular`. */
   readonly plural?: string;
+  /**
+   * The singular before 0.47 (`work_item` for `task`); tables and events keep
+   * it.
+   */
+  readonly formerly?: string;
   /** The entity `entities: "<noun>"` renames. */
   readonly primary?: boolean;
   /** Renamed in every module, not only this one (the tenant). */
@@ -844,8 +849,11 @@ export function createModuleContext(
 
   // A name the instance's entity renames leave unchanged would clash with
   // the module's other instances, so it takes the instance's prefix.
+  const legacy = (name: string): string => resolved.functionNouns.rename(name);
+
   const scoped = (written: string, original: string): string =>
-    prefix === undefined || entityNaming.rename(original) !== original
+    prefix === undefined ||
+    entityNaming.rename(legacy(original)) !== legacy(original)
       ? written
       : `${prefix}_${written}`;
 
@@ -869,10 +877,14 @@ export function createModuleContext(
   const applied = new Map<string, string>();
 
   const fnName = (name: string): string => {
-    const renamed = naming.rename(name);
-    requested.add(name);
-    requested.add(renamed);
-    const written = renames[name] ?? renames[renamed] ?? scoped(renamed, name);
+    const renamed = naming.rename(legacy(name));
+    requested.add(name).add(renamed).add(resolved.formerName(name));
+
+    const written =
+      renames[name] ??
+      renames[resolved.formerName(name)] ??
+      renames[renamed] ??
+      scoped(renamed, name);
 
     if (written !== name) {
       applied.set(name, written);
@@ -978,13 +990,19 @@ export function createModuleContext(
 
   const schema = sqlIdent(config.schema);
 
-  const hookTarget = (name: string): string => {
-    if (!names.hooks?.includes(name)) {
-      throw new TypeError(`Module "${module}" declares no hook "${name}"`);
+  const hookTarget = (written: string): string => {
+    const name = names.hooks?.find(
+      (hook) => hook === written || resolved.formerName(hook) === written,
+    );
+
+    if (name === undefined) {
+      throw new TypeError(`Module "${module}" declares no hook "${written}"`);
     }
 
     const parts = splitTable(
-      config.hooks.functions[name] ?? scoped(entityNaming.rename(name), name),
+      config.hooks.functions[name] ??
+        config.hooks.functions[resolved.formerName(name)] ??
+        scoped(entityNaming.rename(legacy(name)), name),
       config.hooks.schema,
     );
 
@@ -1307,7 +1325,8 @@ export function createModuleContext(
       config.permissions[action] ?? ownKey(fallback),
     permission: (action, fallback) =>
       sqlString(config.permissions[action] ?? ownKey(fallback)),
-    trigger: (name) => sqlIdent(`bsb_${scoped(naming.rename(name), name)}`),
+    trigger: (name) =>
+      sqlIdent(`bsb_${scoped(naming.rename(legacy(name)), name)}`),
     installed(name) {
       declares(name);
 

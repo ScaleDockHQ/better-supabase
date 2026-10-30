@@ -47,7 +47,9 @@ export {
 export { tasksBlock } from "./manifest.ts";
 
 export {
+  taskChecklistBinding,
   workItemChecklistOptimistic,
+  // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias itself (1 finding)
   workItemChecklistBinding,
 } from "./record-binding.ts";
 

@@ -225,12 +225,12 @@ function assignSql(ctx: BlockSqlContext): string {
   const ms = (column: string): string => m.col("messages", column);
   const k = (column: string): string => ctx.col("tasks", column);
   const fn = (name: string): string => ctx.fn(name);
-  const create = ctx.of("tasks").fn("create_work_item");
+  const create = ctx.of("tasks").fn("create_task");
 
   return `
 -- Turns a comment into a work item: the title (attrs.title, else the
 -- comment's first 120 characters), its body, and assignee when given; the
--- other attrs go to create_work_item. A comment links to one work item;
+-- other attrs go to create_task. A comment links to one work item;
 -- assigning it again returns that one's id.
 create or replace function ${fn("assign_comment")}(message uuid, assignee uuid default null, attrs jsonb default '{}')
 returns uuid

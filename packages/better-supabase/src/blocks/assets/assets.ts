@@ -275,7 +275,8 @@ export interface AssetsNear {
 
 /** A record that can name an asset. */
 export interface AssetLinkTarget {
-  readonly type: "booking_resource" | "work_item";
+  /** `work_item` is the type a task had before 0.46; it still links a task. */
+  readonly type: "booking_resource" | "task" | "work_item";
   readonly id: string;
 }
 

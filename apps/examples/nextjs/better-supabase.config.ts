@@ -363,7 +363,7 @@ export default defineConfig({
         machines: {
           // Any state may follow any other, as the board allows; the machine
           // adds the history and the status.changed events.
-          work_item: {
+          task: {
             column: "state",
             initial: "backlog",
             transitions: Object.fromEntries(
@@ -384,12 +384,12 @@ export default defineConfig({
     // The app already has `projects` and `saved_views` tables (appTables).
     tasks: {
       tables: { projects: "work_projects" },
-      names: { work_item: { url: "/work" } },
+      names: { task: { url: "/work" } },
     },
     // A second tasks instance: maintenance requests on leased units.
     maintenance: {
       block: "tasks",
-      names: { work_item: "maintenance_request" },
+      names: { task: "maintenance_request" },
       tables: { projects: null, iterations: null },
       options: {
         prefix: "MR",

@@ -250,7 +250,7 @@ export function assetsFunctions(ctx: BlockSqlContext): string {
     select y.${bookings.col("resources", "tenant")} into v_tenant from ${bookings.table("resources")} y where y.${bookings.col("resources", "id")} = set_asset_link.target_id;`
       : "",
     workItems
-      ? `when 'work_item' then
+      ? `when 'task', 'work_item' then
     select y.${workItems.col("items", "tenant")} into v_tenant from ${workItems.table("items")} y where y.${workItems.col("items", "id")} = set_asset_link.target_id;`
       : "",
   ].filter((part) => part !== "");
@@ -262,7 +262,7 @@ export function assetsFunctions(ctx: BlockSqlContext): string {
   end if;`
       : "",
     workItems
-      ? `if set_asset_link.target_type = 'work_item' then
+      ? `if set_asset_link.target_type in ('task', 'work_item') then
     update ${workItems.table("items")} y set asset_id = set_asset_link.asset_id where y.${workItems.col("items", "id")} = set_asset_link.target_id;
   end if;`
       : "",

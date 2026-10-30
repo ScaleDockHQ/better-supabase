@@ -127,7 +127,7 @@ describe.skipIf(!live)("work items", () => {
         "stageId",
       ]);
       expect(result.rejected.map((item) => item.hint)).toEqual([
-        "WORK_ITEM_PARENT_CYCLE",
+        "TASK_PARENT_CYCLE",
         undefined,
       ]);
 
@@ -293,11 +293,11 @@ describe.skipIf(!live)("work items", () => {
             endsOn: Temporal.PlainDate.from("2026-10-01"),
           }),
         ),
-      ).toBe("WORK_ITEM_ITERATION_INVALID");
+      ).toBe("TASK_ITERATION_INVALID");
 
       await s.as(dev);
       expect(hint(await items.saveProject(org, { key: "X", name: "X" }))).toBe(
-        "WORK_ITEM_FORBIDDEN",
+        "TASK_FORBIDDEN",
       );
 
       const item = await items
@@ -314,7 +314,7 @@ describe.skipIf(!live)("work items", () => {
         .orThrow();
 
       expect(hint(await items.assign(item.id, [dev.id, other.id]))).toBe(
-        "WORK_ITEM_ASSIGNEES_LIMIT",
+        "TASK_ASSIGNEES_LIMIT",
       );
       await items
         .update([
@@ -348,10 +348,10 @@ describe.skipIf(!live)("work items", () => {
         .orThrow();
 
       expect(locked.rejected.map((change) => change.hint)).toEqual([
-        "WORK_ITEM_LOCKED",
+        "TASK_LOCKED",
       ]);
       expect(hint(await items.create(org, { title: "" }))).toBe(
-        "WORK_ITEM_TITLE_REQUIRED",
+        "TASK_TITLE_REQUIRED",
       );
       await s.as(other);
       expect(await items.remove(item.id).orThrow()).toBe(false);
@@ -458,7 +458,7 @@ describe.skipIf(!live)("work items", () => {
         hint(
           await items.create(org, { title: "Report", attachmentIds: [theirs] }),
         ),
-      ).toBe("WORK_ITEM_ATTACHMENTS_INVALID");
+      ).toBe("TASK_ATTACHMENTS_INVALID");
 
       const item = await items
         .create(
@@ -492,7 +492,7 @@ describe.skipIf(!live)("work items", () => {
 
       expect(linked.accepted).toHaveLength(1);
       expect(linked.rejected.map((change) => change.hint)).toEqual([
-        "WORK_ITEM_ATTACHMENTS_INVALID",
+        "TASK_ATTACHMENTS_INVALID",
       ]);
       expect(await subjectOf(later)).toBe(`work_item:${item.id}`);
 
@@ -513,7 +513,7 @@ describe.skipIf(!live)("work items", () => {
         .saveChecklistItem(item.id, { done: false }, send.id)
         .orThrow();
       expect(hint(await items.saveChecklistItem(item.id, { title: "" }))).toBe(
-        "WORK_ITEM_CHECKLIST_ITEM_INVALID",
+        "TASK_CHECKLIST_ITEM_INVALID",
       );
 
       await s.asRole(dev);
@@ -532,7 +532,7 @@ describe.skipIf(!live)("work items", () => {
       await s.as(dev);
       expect(
         hint(await items.setRecurrence(item.id, { rrule: "every monday" })),
-      ).toBe("WORK_ITEM_RECURRENCE_INVALID");
+      ).toBe("TASK_RECURRENCE_INVALID");
 
       const rule = await items
         .setRecurrence(item.id, {

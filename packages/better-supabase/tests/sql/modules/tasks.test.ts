@@ -16,7 +16,7 @@ describe("tasks module", () => {
   it("binds work items to pipelines per team with Linear's categories", () => {
     const pipelines = body("pipelines", {}, ["tasks"]);
     expect(pipelines).toContain(
-      'create trigger bsb_pipeline_work_item before insert or update of "stage_id", "pipeline_id" on "better_supabase"."work_items"',
+      'create trigger bsb_pipeline_task before insert or update of "stage_id", "pipeline_id" on "better_supabase"."work_items"',
     );
     expect(pipelines).toContain('new."team_id"::text');
     expect(pipelines).toContain("('in_review', 'In review', 'started', 'open'");
@@ -58,7 +58,7 @@ describe("tasks module", () => {
     expect(
       body("tasks", { modules: { tasks: { options: { maxAssignees: 1 } } } }),
     ).toContain("cardinality(v_users) > 1");
-    expect(body("tasks")).not.toContain("WORK_ITEM_ASSIGNEES_LIMIT");
+    expect(body("tasks")).not.toContain("TASK_ASSIGNEES_LIMIT");
     expect(body("tasks", {}, ["notifications"])).toContain(
       "'type', 'work_item.assigned'",
     );
@@ -103,8 +103,8 @@ describe("tasks module", () => {
   it("declares the assignee variables only for the notification and watch it renders", () => {
     const assignees = (sql: string): string =>
       sql.slice(
-        sql.indexOf('function "better_supabase"."set_work_item_assignees"'),
-        sql.indexOf('function "better_supabase"."archive_work_item"'),
+        sql.indexOf('function "better_supabase"."set_task_assignees"'),
+        sql.indexOf('function "better_supabase"."archive_task"'),
       );
 
     const quiet = assignees(
@@ -128,7 +128,7 @@ describe("tasks module", () => {
     ).toThrow(/maxAssignees/);
     expect(
       body("tasks", { modules: { tasks: { mode: "custom" } } }),
-    ).not.toContain("create_work_item");
+    ).not.toContain("create_task");
   });
 
   it("links files, repeats with extra columns and watches without a tenant column", () => {
@@ -144,7 +144,7 @@ describe("tasks module", () => {
         },
         ["attachments"],
       ),
-    ).toContain("WORK_ITEM_ATTACHMENTS_PATH");
+    ).toContain("TASK_ATTACHMENTS_PATH");
     expect(
       body(
         "tasks",
@@ -167,7 +167,7 @@ describe("tasks module", () => {
       ["notifications"],
     );
 
-    expect(watch).toContain("watch_work_item");
+    expect(watch).toContain("watch_task");
     expect(watch).not.toContain('and s."organization_id" = x.');
   });
 });

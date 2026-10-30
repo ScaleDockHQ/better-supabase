@@ -118,7 +118,7 @@ await db.compliance
   .orThrow();
 ```
 
-A kind outside the list fails with `CONTROLS_INVALID`.
+A kind outside the list fails with `CONTROL_INVALID`.
 
 ## Evidence and tasks
 
@@ -208,18 +208,18 @@ be published or acknowledged.
 
 ## Errors
 
-| Hint                          | Cause                                                                       |
-| ----------------------------- | --------------------------------------------------------------------------- |
-| `CONTROLS_FORBIDDEN`          | the caller lacks `compliance.read`, `.manage`, `.collect` or `.acknowledge` |
-| `CONTROLS_INVALID`            | a field is invalid, or the attachment or a member isn't in the organization |
-| `CONTROL_FRAMEWORK_NOT_FOUND` | no framework with this id                                                   |
-| `CONTROL_NOT_FOUND`           | no control with this id                                                     |
-| `CONTROL_EVIDENCE_NOT_FOUND`  | no evidence with this id                                                    |
-| `EVIDENCE_TASK_NOT_FOUND`     | the evidence task isn't a task of this control                              |
-| `POLICY_NOT_FOUND`            | no policy with this id                                                      |
-| `POLICY_INVALID`              | the content isn't an object, or the owner isn't a member                    |
-| `POLICY_ARCHIVED`             | the policy is archived and can't be published                               |
-| `POLICY_NOT_PUBLISHED`        | the policy has no current version to acknowledge, or it is archived         |
+| Hint                              | Cause                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------- |
+| `CONTROL_FORBIDDEN`               | the caller lacks `compliance.read`, `.manage`, `.collect` or `.acknowledge` |
+| `CONTROL_INVALID`                 | a field is invalid, or the attachment or a member isn't in the organization |
+| `CONTROL_FRAMEWORK_NOT_FOUND`     | no framework with this id                                                   |
+| `CONTROL_NOT_FOUND`               | no control with this id                                                     |
+| `CONTROL_EVIDENCE_NOT_FOUND`      | no evidence with this id                                                    |
+| `EVIDENCE_TASK_NOT_FOUND`         | the evidence task isn't a task of this control                              |
+| `COMPLIANCE_POLICY_NOT_FOUND`     | no policy with this id                                                      |
+| `COMPLIANCE_POLICY_INVALID`       | the content isn't an object, or the owner isn't a member                    |
+| `COMPLIANCE_POLICY_ARCHIVED`      | the policy is archived and can't be published                               |
+| `COMPLIANCE_POLICY_NOT_PUBLISHED` | the policy has no current version to acknowledge, or it is archived         |
 
 ## Events
 

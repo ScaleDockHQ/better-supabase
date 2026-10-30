@@ -4,6 +4,7 @@ import type { AnyBlocksConfig } from "./blocks.ts";
 import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
 import { PRESET_CATALOG } from "../preset/catalog.generated.ts";
+import { clientFunctions } from "../sql/client-functions.ts";
 import { resolveNames } from "../sql/resolved-names.ts";
 import { blockColumnName } from "../sql/tenant-column.ts";
 import { resolveBlock } from "./blocks.ts";
@@ -69,6 +70,37 @@ export function blockEntityRenames(
           entity.to.plural !== entity.from.plural),
     )
     .map((entity) => ({ from: entity.from, to: entity.to }));
+}
+
+/**
+ * The SQL name of each client function of `module` that the entity renames
+ * write under the noun it had before 0.46: with `tasks: { names: { task:
+ * "ticket" } }`, `create_task` is still `create_ticket`, as it was from
+ * `create_work_item`. Empty when no renamed entity changed its singular.
+ */
+export function blockFormerFunctions(
+  module: string,
+  blocks: AnyBlocksConfig,
+): Readonly<Record<string, string>> {
+  const names = catalogNames(module);
+
+  if (names === undefined) {
+    return {};
+  }
+
+  const resolved = resolveNames(module, names, blocks);
+
+  if (!resolved.functionNouns.renamed) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    clientFunctions(module).flatMap((name) => {
+      const former = resolved.functionNouns.rename(name);
+
+      return former === name ? [] : [[name, resolved.naming.rename(former)]];
+    }),
+  );
 }
 
 /** One installed block's entity under the name the config gives it. */

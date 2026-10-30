@@ -106,7 +106,7 @@ describe.skipIf(!live)("engagements", () => {
         hint(
           await engagements.log(org, { type: "fax", title: "x" }, [company]),
         ),
-      ).toBe("ENGAGEMENT_TYPE_INVALID");
+      ).toBe("ACTIVITY_TYPE_INVALID");
       const foreign = await s.value<string>("(select gen_random_uuid()::text)");
       expect(
         hint(
@@ -114,7 +114,7 @@ describe.skipIf(!live)("engagements", () => {
             { type: "company", id: foreign },
           ]),
         ),
-      ).toBe("ENGAGEMENT_SUBJECT_FORBIDDEN");
+      ).toBe("ACTIVITY_SUBJECT_FORBIDDEN");
 
       await s.as(owner);
 
@@ -141,7 +141,7 @@ describe.skipIf(!live)("engagements", () => {
         hint(
           await engagements.log(other, { type: "note", title: "x" }, [company]),
         ),
-      ).toBe("ENGAGEMENT_SUBJECT_FORBIDDEN");
+      ).toBe("ACTIVITY_SUBJECT_FORBIDDEN");
       await s.asRole(stranger);
       expect(
         await s.rows(
@@ -151,7 +151,7 @@ describe.skipIf(!live)("engagements", () => {
       ).toHaveLength(0);
       await s.as(stranger);
       expect(hint(await engagements.update(call.id, { title: "mine" }))).toBe(
-        "ENGAGEMENT_NOT_FOUND",
+        "ACTIVITY_NOT_FOUND",
       );
     } finally {
       await s.close();

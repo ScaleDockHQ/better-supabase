@@ -86,8 +86,8 @@ describe("progress notes, rendered", () => {
     expect(sql).toContain(
       `create index if not exists engagements_amends_idx on "better_supabase"."engagements" ("amends_id")`,
     );
-    expect(sql).toContain('function "better_supabase"."amend_engagement"');
-    expect(sql).toContain('function "better_supabase"."mark_engagement_error"');
+    expect(sql).toContain('function "better_supabase"."amend_activity"');
+    expect(sql).toContain('function "better_supabase"."mark_activity_error"');
     expect(sql).toContain("interval '24 hours'");
     expect(sql).toContain("'{note,report}'::text[]");
     expect(sql).toContain("activities.read_restricted");
@@ -135,7 +135,7 @@ describe("progress notes, rendered", () => {
       ?.functions.map((fn) => fn.name);
 
     expect(names).toEqual(
-      expect.arrayContaining(["amend_engagement", "mark_engagement_error"]),
+      expect.arrayContaining(["amend_activity", "mark_activity_error"]),
     );
   });
 
@@ -192,33 +192,33 @@ declare
   v_hint text;
 begin
   ${SERVICE}
-  v_note := better_supabase.log_engagement('${TENANT}', '{"type": "note", "title": "Shift", "body": "Calm", "category": "care", "audience": "subject"}'::jsonb, '[]'::jsonb);
+  v_note := better_supabase.log_activity('${TENANT}', '{"type": "note", "title": "Shift", "body": "Calm", "category": "care", "audience": "subject"}'::jsonb, '[]'::jsonb);
   if v_note ->> 'locked_at' is null or v_note ->> 'audience' <> 'subject' or v_note ->> 'category' <> 'care' then
     raise exception 'logged %', v_note;
   end if;
-  ${fails(`perform better_supabase.update_engagement((v_note ->> 'id')::uuid, '{"body": "Changed"}'::jsonb, null)`, "ENGAGEMENT_LOCKED")}
-  ${fails(`perform better_supabase.delete_engagement((v_note ->> 'id')::uuid)`, "ENGAGEMENT_LOCKED")}
-  ${fails(`perform better_supabase.log_engagement('${TENANT}', '{"type": "note", "title": "Bad", "category": "gossip"}'::jsonb, '[]'::jsonb)`, "ENGAGEMENT_CATEGORY_INVALID")}
-  ${fails(`perform better_supabase.log_engagement('${TENANT}', '{"type": "note", "title": "Bad", "audience": "everyone"}'::jsonb, '[]'::jsonb)`, "ENGAGEMENT_AUDIENCE_INVALID")}
-  ${fails(`perform better_supabase.amend_engagement((v_note ->> 'id')::uuid, ' ')`, "ENGAGEMENT_BODY_REQUIRED")}
+  ${fails(`perform better_supabase.update_activity((v_note ->> 'id')::uuid, '{"body": "Changed"}'::jsonb, null)`, "ACTIVITY_LOCKED")}
+  ${fails(`perform better_supabase.delete_activity((v_note ->> 'id')::uuid)`, "ACTIVITY_LOCKED")}
+  ${fails(`perform better_supabase.log_activity('${TENANT}', '{"type": "note", "title": "Bad", "category": "gossip"}'::jsonb, '[]'::jsonb)`, "ACTIVITY_CATEGORY_INVALID")}
+  ${fails(`perform better_supabase.log_activity('${TENANT}', '{"type": "note", "title": "Bad", "audience": "everyone"}'::jsonb, '[]'::jsonb)`, "ACTIVITY_AUDIENCE_INVALID")}
+  ${fails(`perform better_supabase.amend_activity((v_note ->> 'id')::uuid, ' ')`, "ACTIVITY_BODY_REQUIRED")}
 
-  v_addendum := better_supabase.amend_engagement((v_note ->> 'id')::uuid, 'Also ate well');
+  v_addendum := better_supabase.amend_activity((v_note ->> 'id')::uuid, 'Also ate well');
   if v_addendum ->> 'amends_id' <> v_note ->> 'id' or v_addendum ->> 'body' <> 'Also ate well'
     or v_addendum ->> 'audience' <> 'subject' or v_addendum ->> 'category' <> 'care' then
     raise exception 'amended %', v_addendum;
   end if;
 
-  v_task := better_supabase.log_engagement('${TENANT}', '{"type": "task", "title": "Call back"}'::jsonb, '[]'::jsonb);
+  v_task := better_supabase.log_activity('${TENANT}', '{"type": "task", "title": "Call back"}'::jsonb, '[]'::jsonb);
   if v_task ->> 'locked_at' is not null then
     raise exception 'locked a task %', v_task;
   end if;
-  ${fails(`perform better_supabase.mark_engagement_error((v_task ->> 'id')::uuid, '')`, "ENGAGEMENT_REASON_REQUIRED")}
-  v_flagged := better_supabase.mark_engagement_error((v_task ->> 'id')::uuid, 'Wrong client');
+  ${fails(`perform better_supabase.mark_activity_error((v_task ->> 'id')::uuid, '')`, "ACTIVITY_REASON_REQUIRED")}
+  v_flagged := better_supabase.mark_activity_error((v_task ->> 'id')::uuid, 'Wrong client');
   if v_flagged ->> 'marked_error_at' is null or v_flagged ->> 'marked_error_reason' <> 'Wrong client' or v_flagged ->> 'locked_at' is null then
     raise exception 'flagged %', v_flagged;
   end if;
-  ${fails(`perform better_supabase.mark_engagement_error((v_task ->> 'id')::uuid, 'Again')`, "ENGAGEMENT_ALREADY_MARKED_ERROR")}
-  ${fails(`perform better_supabase.complete_engagement((v_task ->> 'id')::uuid, true, null)`, "ENGAGEMENT_LOCKED")}
+  ${fails(`perform better_supabase.mark_activity_error((v_task ->> 'id')::uuid, 'Again')`, "ACTIVITY_ALREADY_MARKED_ERROR")}
+  ${fails(`perform better_supabase.complete_activity((v_task ->> 'id')::uuid, true, null)`, "ACTIVITY_LOCKED")}
   if not exists (select 1 from better_supabase.engagements where id = (v_task ->> 'id')::uuid) then
     raise exception 'the flagged row is gone';
   end if;

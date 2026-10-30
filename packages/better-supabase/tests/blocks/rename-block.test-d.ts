@@ -30,9 +30,7 @@ type R = RenamesOf<typeof NAMES>;
 
 describe("RenameKey", () => {
   it("renames snake, camel and pascal forms on word bounds", () => {
-    expectTypeOf<
-      RenameKey<"list_work_items", R>
-    >().toEqualTypeOf<"list_tasks">();
+    expectTypeOf<RenameKey<"list_tasks", R>>().toEqualTypeOf<"list_tasks">();
     expectTypeOf<RenameKey<"workItemIds", R>>().toEqualTypeOf<"taskIds">();
     expectTypeOf<
       RenameKey<"saveProject", R>

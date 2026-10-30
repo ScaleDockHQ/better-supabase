@@ -92,10 +92,10 @@ export function complianceFunctions(ctx: BlockSqlContext): string {
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
 
   const forbidden = (message: string): string =>
-    fail("CONTROLS_FORBIDDEN", message);
+    fail("CONTROL_FORBIDDEN", message);
 
   const invalid = (message: string): string =>
-    fail("CONTROLS_INVALID", message, "22023");
+    fail("CONTROL_INVALID", message, "22023");
 
   const controlNotFound = fail(
     "CONTROL_NOT_FOUND",

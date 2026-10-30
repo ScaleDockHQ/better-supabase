@@ -65,7 +65,7 @@ export function taskFromConversationAction(
   >({
     kind: "tasks.from_conversation",
     title: "Create a task from the conversation",
-    targetType: "work_item",
+    targetType: "task",
     clients: options.clients,
     load: async ({ clients, source }) => {
       const found = await clients.inbox.conversations.get(source.id);

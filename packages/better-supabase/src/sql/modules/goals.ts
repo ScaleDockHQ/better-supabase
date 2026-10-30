@@ -21,7 +21,14 @@ import { invoiceLedger } from "./invoices-ledger.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
-  entities: { target: { table: "targets", singular: "target", primary: true } },
+  entities: {
+    goal: {
+      table: "targets",
+      singular: "goal",
+      formerly: "target",
+      primary: true,
+    },
+  },
   options: ["extraColumns"],
   tables: {
     targets: {
@@ -49,7 +56,7 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-/** The metrics `target_progress` computes, by the module that owns the data. */
+/** The metrics `goal_progress` computes, by the module that owns the data. */
 function metrics(
   ctx: BlockSqlContext,
   c: (column: string) => string,
@@ -169,52 +176,52 @@ ${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("targets_read"), c
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
 -- block computes), archived.
-create or replace function ${fn("save_target")}(tenant ${ctx.idType}, target uuid, attrs jsonb)
+create or replace function ${fn("save_goal")}(tenant ${ctx.idType}, target uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_target.target;
+  v_id uuid := save_goal.target;
 begin
-  if not (auth.role() = 'service_role' or ${ctx.scope.can("save_target.tenant", manage)}) then
-    ${fail("TARGET_FORBIDDEN", "not allowed to manage targets")}
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("save_goal.tenant", manage)}) then
+    ${fail("GOAL_FORBIDDEN", "not allowed to manage targets")}
   end if;
   begin
     if v_id is null then
       insert into ${t} (${c("tenant")}, ${c("name")}, ${c("metric")}, ${c("owner")}, ${has("team") ? `${c("team")}, ` : ""}${c("periodStart")}, ${c("periodEnd")}, ${c("currency")}, ${c("goal")}, ${c("actual")})
-      values (save_target.tenant, save_target.attrs ->> 'name', save_target.attrs ->> 'metric', (save_target.attrs ->> 'ownerId')::uuid,
-        ${has("team") ? "(save_target.attrs ->> 'teamId')::uuid, " : ""}(save_target.attrs ->> 'periodStart')::date, (save_target.attrs ->> 'periodEnd')::date,
-        upper(save_target.attrs ->> 'currency'), (save_target.attrs ->> 'goal')::bigint, coalesce((save_target.attrs ->> 'actual')::bigint, 0))
+      values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
+        ${has("team") ? "(save_goal.attrs ->> 'teamId')::uuid, " : ""}(save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
+        upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
       returning ${c("id")} into v_id;
     else
       update ${t} x set
-        ${c("name")} = coalesce(save_target.attrs ->> 'name', x.${c("name")}),
-        ${c("goal")} = coalesce((save_target.attrs ->> 'goal')::bigint, x.${c("goal")}),
-        ${c("actual")} = coalesce((save_target.attrs ->> 'actual')::bigint, x.${c("actual")}),
-        ${c("periodStart")} = coalesce((save_target.attrs ->> 'periodStart')::date, x.${c("periodStart")}),
-        ${c("periodEnd")} = coalesce((save_target.attrs ->> 'periodEnd')::date, x.${c("periodEnd")})${
+        ${c("name")} = coalesce(save_goal.attrs ->> 'name', x.${c("name")}),
+        ${c("goal")} = coalesce((save_goal.attrs ->> 'goal')::bigint, x.${c("goal")}),
+        ${c("actual")} = coalesce((save_goal.attrs ->> 'actual')::bigint, x.${c("actual")}),
+        ${c("periodStart")} = coalesce((save_goal.attrs ->> 'periodStart')::date, x.${c("periodStart")}),
+        ${c("periodEnd")} = coalesce((save_goal.attrs ->> 'periodEnd')::date, x.${c("periodEnd")})${
           has("archivedAt")
-            ? `,\n        ${c("archivedAt")} = case when coalesce((save_target.attrs ->> 'archived')::boolean, false) then coalesce(x.${c("archivedAt")}, now()) else x.${c("archivedAt")} end`
+            ? `,\n        ${c("archivedAt")} = case when coalesce((save_goal.attrs ->> 'archived')::boolean, false) then coalesce(x.${c("archivedAt")}, now()) else x.${c("archivedAt")} end`
             : ""
         }${has("updatedAt") ? `,\n        ${c("updatedAt")} = now()` : ""}
-      where x.${c("id")} = v_id and x.${c("tenant")} = save_target.tenant;
+      where x.${c("id")} = v_id and x.${c("tenant")} = save_goal.tenant;
       if not found then
-        ${fail("TARGET_NOT_FOUND", "target not found", "P0002")}
+        ${fail("GOAL_NOT_FOUND", "target not found", "P0002")}
       end if;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation or datetime_field_overflow then
-    ${fail("TARGET_INVALID", "a target needs a name, a metric, a period and a positive goal", "22023")}
-  end;${writeExtraColumns(t, extras, "(save_target.attrs -> 'fields')", `x.${c("id")} = v_id`)}
+    ${fail("GOAL_INVALID", "a target needs a name, a metric, a period and a positive goal", "22023")}
+  end;${writeExtraColumns(t, extras, "(save_goal.attrs -> 'fields')", `x.${c("id")} = v_id`)}
   return (select ${withExtraFields(`(to_jsonb(x) || ${int8Text("x", int8)})`, "x", extras)} from ${t} x where x.${c("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("save_target")}(${ctx.idType}, uuid, jsonb)`)}
+${userGrant(`${fn("save_goal")}(${ctx.idType}, uuid, jsonb)`)}
 
 -- The targets whose period contains on, with their actual value and
 -- attainment. Built-in metrics: ${Object.keys(known).join(", ") || "none installed"}. Others read actual.
-create or replace function ${fn("target_progress")}(tenant ${ctx.idType}, on_date date, owner uuid)
+create or replace function ${fn("goal_progress")}(tenant ${ctx.idType}, on_date date, owner uuid)
 returns jsonb
 language sql
 stable
@@ -226,23 +233,19 @@ as $$
     select x.*, v.value::text as progress, round(v.value::numeric / x.${c("goal")}, 4) as attainment, x.${c("periodStart")} as period_start_order, x.${c("name")} as name_order
     from ${t} x
     cross join lateral (select ${actual} as value) v
-    where x.${c("tenant")} = target_progress.tenant${active}
-      and coalesce(target_progress.on_date, current_date) between x.${c("periodStart")} and x.${c("periodEnd")}
-      and (target_progress.owner is null or x.${c("owner")} = target_progress.owner)
+    where x.${c("tenant")} = goal_progress.tenant${active}
+      and coalesce(goal_progress.on_date, current_date) between x.${c("periodStart")} and x.${c("periodEnd")}
+      and (goal_progress.owner is null or x.${c("owner")} = goal_progress.owner)
   ) p
 $$;
-${userGrant(`${fn("target_progress")}(${ctx.idType}, date, uuid)`)}
+${userGrant(`${fn("goal_progress")}(${ctx.idType}, date, uuid)`)}
 `;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
   return [
-    { name: "save_target", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
-    {
-      name: "target_progress",
-      args: ["{id}", "date", "uuid"],
-      returns: "jsonb",
-    },
+    { name: "save_goal", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
+    { name: "goal_progress", args: ["{id}", "date", "uuid"], returns: "jsonb" },
   ];
 }
 

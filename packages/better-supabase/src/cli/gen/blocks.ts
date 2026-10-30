@@ -8,6 +8,7 @@ import type {
 } from "../../config/index.ts";
 
 import { entityNames } from "../../blocks/index.ts";
+import { blockFormerFunctions } from "../../config/block-subjects.ts";
 import {
   blockEntities,
   blockEntityRenames,
@@ -134,6 +135,9 @@ function namingOf(
   instanceFunctionNames: Readonly<Record<string, string>> = {},
 ): BlockNaming | undefined {
   const functions = Object.fromEntries([
+    ...modules.flatMap((module) =>
+      Object.entries(blockFormerFunctions(module, config.blocks)),
+    ),
     ...modules.flatMap((module) =>
       module === "permissions"
         ? []

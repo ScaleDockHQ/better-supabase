@@ -66,10 +66,10 @@ const NAMES: BlockSqlNames = {
     },
     control_framework: { table: "frameworks", singular: "control_framework" },
     evidence_task: { table: "tasks", singular: "evidence_task" },
-    policy: {
+    compliance_policy: {
       table: "policies",
-      singular: "policy",
-      plural: "policies",
+      singular: "compliance_policy",
+      formerly: "policy",
       subject: {
         title: "title",
         permissions: { read: "read", write: "manage" },
@@ -440,23 +440,27 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "control_posture", args: ["{id}", "uuid"], returns: "jsonb" },
     { name: "notify_overdue_evidence_tasks", args: [], returns: "integer" },
     {
-      name: "save_policy",
+      name: "save_compliance_policy",
       args: ["{id}", "text", "text", "uuid", "boolean", "uuid"],
       returns: "jsonb",
     },
     {
-      name: "publish_policy",
+      name: "publish_compliance_policy",
       args: ["uuid", "jsonb", "text"],
       returns: "jsonb",
     },
-    { name: "archive_policy", args: ["uuid"], returns: "jsonb" },
-    { name: "acknowledge_policy", args: ["uuid"], returns: "jsonb" },
+    { name: "archive_compliance_policy", args: ["uuid"], returns: "jsonb" },
+    { name: "acknowledge_compliance_policy", args: ["uuid"], returns: "jsonb" },
     {
-      name: "list_policies",
+      name: "list_compliance_policies",
       args: ["{id}", "boolean", "boolean"],
       returns: "jsonb",
     },
-    { name: "policy_acknowledgements", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "compliance_policy_acknowledgements",
+      args: ["uuid"],
+      returns: "jsonb",
+    },
   ];
 }
 

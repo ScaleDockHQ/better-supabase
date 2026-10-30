@@ -269,7 +269,7 @@ describe.skipIf(!live)("fixed assets and project costing", () => {
       await s.as(ada);
 
       expect(hint(await billing.projectCosts(project.id))).toBe(
-        "WORK_ITEM_PROJECT_NOT_FOUND",
+        "TASK_PROJECT_NOT_FOUND",
       );
 
       await s.as(owner);

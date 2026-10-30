@@ -117,12 +117,12 @@ describe.skipIf(!live)("compliance", () => {
         await controls
           .saveControl({ frameworkId: soc2.id, code: "X", title: "Sneaky" })
           .then(hint),
-      ).toBe("CONTROLS_FORBIDDEN");
+      ).toBe("CONTROL_FORBIDDEN");
       expect(
         await controls
           .addEvidence(access.id, { attachmentId: crypto.randomUUID() })
           .then(hint),
-      ).toBe("CONTROLS_INVALID");
+      ).toBe("CONTROL_INVALID");
 
       const evidence = await controls
         .addEvidence(access.id, {
@@ -160,7 +160,7 @@ describe.skipIf(!live)("compliance", () => {
 
       await s.as(analyst);
       expect(await controls.acknowledgePolicy(policy.id).then(hint)).toBe(
-        "POLICY_NOT_PUBLISHED",
+        "COMPLIANCE_POLICY_NOT_PUBLISHED",
       );
 
       await s.as(owner);
@@ -205,10 +205,10 @@ describe.skipIf(!live)("compliance", () => {
       expect(archived.archivedAt).toBeDefined();
       expect(
         await controls.publishPolicy(policy.id, { body: "Again" }).then(hint),
-      ).toBe("POLICY_ARCHIVED");
+      ).toBe("COMPLIANCE_POLICY_ARCHIVED");
       await s.as(analyst);
       expect(await controls.acknowledgePolicy(policy.id).then(hint)).toBe(
-        "POLICY_NOT_PUBLISHED",
+        "COMPLIANCE_POLICY_NOT_PUBLISHED",
       );
 
       await s.asRole(outsider);

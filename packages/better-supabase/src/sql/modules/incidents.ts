@@ -72,7 +72,11 @@ const NAMES: BlockSqlNames = {
       },
     },
     status_component: { table: "components", singular: "status_component" },
-    postmortem: { table: "postmortems", singular: "postmortem" },
+    incident_postmortem: {
+      table: "postmortems",
+      singular: "incident_postmortem",
+      formerly: "postmortem",
+    },
     status_page: { table: "pages", singular: "status_page" },
   },
   events: EVENTS,
@@ -443,8 +447,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text", "text", "uuid", "timestamptz", "integer"],
       returns: "jsonb",
     },
-    { name: "save_postmortem", args: ["uuid", "jsonb"], returns: "jsonb" },
-    { name: "publish_postmortem", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "save_incident_postmortem",
+      args: ["uuid", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "publish_incident_postmortem", args: ["uuid"], returns: "jsonb" },
     {
       name: "save_status_page",
       args: ["{id}", "text", "text", "text", "boolean"],

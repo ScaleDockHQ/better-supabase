@@ -59,7 +59,7 @@ const CHUNKS = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    document: {
+    knowledge_document: {
       table: "documents",
       singular: "knowledge_document",
       primary: true,

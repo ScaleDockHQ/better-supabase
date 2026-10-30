@@ -89,7 +89,7 @@ const JOB_ATTRS: readonly (readonly [string, string, string])[] = [
 
 const NAMES: BlockSqlNames = {
   entities: {
-    job: { table: "jobs", singular: "job_opening", primary: true },
+    job_opening: { table: "jobs", singular: "job_opening", primary: true },
     application: { table: "applications", singular: "application" },
     interview: { table: "interviews", singular: "interview" },
   },
@@ -586,7 +586,7 @@ begin
   if save_job.job is not null then
     select * into v_job from ${t("jobs")} x where x.${j("id")} = save_job.job and x.${j("tenant")} = save_job.tenant;
     if v_job.${j("id")} is null then
-      ${fail("HIRING_JOB_NOT_FOUND", "job not found", "P0002")}
+      ${fail("JOB_OPENING_NOT_FOUND", "job not found", "P0002")}
     end if;
     v_was := v_job.${j("status")};
   end if;${managerCheck(ctx, managerEmployee)}${JOB_ATTRS.map(([logical, key, thing]) => refuse("jobs", logical, `save_job.attrs ->> '${key}'`, `HIRING_JOB_${thing.toUpperCase().replaceAll(" ", "_")}_UNSUPPORTED`, `this jobs table has no ${thing} column`)).join("")}
@@ -632,7 +632,7 @@ begin
       returning * into v_job;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
-    ${fail("HIRING_JOB_INVALID", "a job needs a title and a status of draft, open or closed", "22023")}
+    ${fail("JOB_OPENING_INVALID", "a job needs a title and a status of draft, open or closed", "22023")}
   end;${writeExtraColumns(t("jobs"), extras, "save_job.attrs -> 'fields'", `x.${j("id")} = v_job.${j("id")}`, "v_job")}
   if ${asText(ctx, "jobs", `v_job.${j("status")}`)} is distinct from v_was then
     if ${ctx.is("jobs", "status", `v_job.${j("status")}`, ["open"])} then${stamp(
@@ -671,10 +671,10 @@ declare
 begin
   select * into v_job from ${t("jobs")} x where x.${j("id")} = apply_to_job.job;
   if v_job.${j("id")} is null or not (${service} or ${ctx.scope.can(`v_job.${j("tenant")}`, createKey)}) then
-    ${fail("HIRING_JOB_NOT_FOUND", "no such job you can add applications to", "P0002")}
+    ${fail("JOB_OPENING_NOT_FOUND", "no such job you can add applications to", "P0002")}
   end if;
   if ${ctx.is("jobs", "status", `v_job.${j("status")}`, ["open"], true)} then
-    ${fail("HIRING_JOB_NOT_OPEN", "the job isn't open", "55000")}
+    ${fail("JOB_OPENING_NOT_OPEN", "the job isn't open", "55000")}
   end if;${
     fixedCandidate
       ? `
@@ -1010,6 +1010,6 @@ export const HIRING: BlockSqlDefinition = {
   data: (ctx) =>
     shippedAutomation(ctx, APPLICATION_TO_EMPLOYEE, {
       module: "employees",
-      singular: "employee",
+      entity: "employee",
     }),
 };

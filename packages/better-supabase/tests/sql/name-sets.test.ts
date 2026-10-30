@@ -44,7 +44,7 @@ describe("the block names registry", () => {
       "projects",
       "iterations",
     ]);
-    expect(names.functions).toContain("list_work_items");
+    expect(names.functions).toContain("list_tasks");
     expect(names.actions).toEqual([
       "read",
       "write",

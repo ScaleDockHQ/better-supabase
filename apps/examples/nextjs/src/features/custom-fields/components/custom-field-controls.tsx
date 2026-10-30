@@ -67,7 +67,7 @@ function useEntityLabel(): (entity: FieldEntity) => string {
         return t("Customers");
       }
 
-      case "work_item": {
+      case "task": {
         return t("Work items");
       }
 

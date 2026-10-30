@@ -36,7 +36,7 @@ const ROW = {
 
 describe("targets block", () => {
   it("saves goals as text and dates as ISO", async () => {
-    const t = transport({ save_target: () => ROW });
+    const t = transport({ save_goal: () => ROW });
 
     const target = await createGoals({ transport: t })
       .upsert("o", {
@@ -70,8 +70,8 @@ describe("targets block", () => {
 
   it("reads progress with attainment", async () => {
     const t = transport({
-      target_progress: () => [{ ...ROW, progress: "600", attainment: 0.6 }],
-      save_target: () => ROW,
+      goal_progress: () => [{ ...ROW, progress: "600", attainment: 0.6 }],
+      save_goal: () => ROW,
     });
 
     const targets = createGoals({ transport: t });

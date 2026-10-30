@@ -70,13 +70,13 @@ select is(
   'the owner activates a contract signed elsewhere'
 );
 select is(
-  (better_supabase.save_obligation((select id from ids), 'Quarterly report', current_date - 1,
+  (better_supabase.save_contract_obligation((select id from ids), 'Quarterly report', current_date - 1,
     '00000000-0000-4000-8000-0000000000a2') ->> 'status'),
   'open',
   'the owner adds an obligation for a member'
 );
 select is(
-  (select better_supabase.list_obligations('00000000-0000-4000-8000-000000000001', open_only => true) -> 0 ->> 'overdue'),
+  (select better_supabase.list_contract_obligations('00000000-0000-4000-8000-000000000001', open_only => true) -> 0 ->> 'overdue'),
   'true',
   'an open obligation past its due date is overdue'
 );

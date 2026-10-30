@@ -64,9 +64,9 @@ const rows = useActivities({ limit: 50 });
 
 ## Log and change
 
-`log(organizationId, input, subjects)` needs a `type` and a `title`. The first record in `subjects` is the engagement's main record, which its events carry. Every record must exist in the organization and be readable by the caller (`ENGAGEMENT_SUBJECT_FORBIDDEN`). The owner defaults to the caller, and assigning it to someone else notifies them when the [notifications](/docs/blocks/notifications) module is installed.
+`log(organizationId, input, subjects)` needs a `type` and a `title`. The first record in `subjects` is the engagement's main record, which its events carry. Every record must exist in the organization and be readable by the caller (`ACTIVITY_SUBJECT_FORBIDDEN`). The owner defaults to the caller, and assigning it to someone else notifies them when the [notifications](/docs/blocks/notifications) module is installed.
 
-`options.types` lists the types (default `call`, `email`, `meeting`, `note`, `task`; `ENGAGEMENT_TYPE_INVALID` for another). An `externalRef`, such as a message id from a mail provider or an event id from a calendar, is unique per organization: logging it again updates the engagement, so a sync can replay.
+`options.types` lists the types (default `call`, `email`, `meeting`, `note`, `task`; `ACTIVITY_TYPE_INVALID` for another). An `externalRef`, such as a message id from a mail provider or an event id from a calendar, is unique per organization: logging it again updates the engagement, so a sync can replay.
 
 `update(id, input, subjects?)` changes the keys you pass (`null` clears one) and replaces the records when you pass `subjects`. `complete(id, { outcome })` marks it done now, and `{ done: false }` opens it again. `remove(id)` deletes it.
 
@@ -163,7 +163,7 @@ await db.activities
 
 `restrictedRoles` lists record team roles, such as `["psychologist"]`. The check uses `has_subject_role`, so team membership counts only for the roles you name. `category` is one of `options.noteCategories` (default `general`, `care`, `medical`, `behavior`, `family`, `incident`). `goalId` names a care plan goal the note reports on; it is a plain id, with no foreign key.
 
-Engagements of a `options.lockTypes` type (default `note` and `report`) get `lockedAt` when they are logged: `options.lockAfterHours` later, 24 by default, and `0` locks them at once. After that, `update`, `complete` and `remove` fail with `ENGAGEMENT_LOCKED`, and so does logging the same `externalRef` again. Changing an engagement's type to a locked type sets `lockedAt` from when it was created. Set `lockTypes: []` to lock nothing. Other types, such as tasks and calls, never lock.
+Engagements of a `options.lockTypes` type (default `note` and `report`) get `lockedAt` when they are logged: `options.lockAfterHours` later, 24 by default, and `0` locks them at once. After that, `update`, `complete` and `remove` fail with `ACTIVITY_LOCKED`, and so does logging the same `externalRef` again. Changing an engagement's type to a locked type sets `lockedAt` from when it was created. Set `lockTypes: []` to lock nothing. Other types, such as tasks and calls, never lock.
 
 `amend(id, body)` adds an addendum: a new engagement with your `body`, on the same records, with the original's type, title, audience, roles, category and goal, and `amendsId` pointing at the original. Whoever can read the original and holds `activities.write` may add one, also once it is locked. The addendum locks on the same schedule.
 
@@ -251,7 +251,7 @@ Recordings, transcripts and notes are readable by whoever can read the engagemen
 
 ## Hooks
 
-The module calls `before_engagement_log(tenant, attrs jsonb, subjects jsonb)` and `after_engagement_log(engagement uuid)`. A `before_` hook raises to refuse the log. The TypeScript client takes `hooks` for its methods (see [extending blocks](/docs/extending/blocks)).
+The module calls `before_activity_log(tenant, attrs jsonb, subjects jsonb)` and `after_activity_log(engagement uuid)`. A `before_` hook raises to refuse the log. The TypeScript client takes `hooks` for its methods (see [extending blocks](/docs/extending/blocks)).
 
 ## Wire it to ReUI
 
@@ -261,23 +261,23 @@ The ReUI CRM Activity Timeline reads `of(subject)` and groups the rows into day 
 
 | Hint                                                                           | Cause                                                      |
 | ------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| `ENGAGEMENT_FORBIDDEN`                                                         | the caller lacks `activities.write`                        |
-| `ENGAGEMENT_TYPE_INVALID`                                                      | not a configured type                                      |
-| `ENGAGEMENT_TITLE_REQUIRED`                                                    | the title is empty                                         |
-| `ENGAGEMENT_SUBJECTS_INVALID`                                                  | `subjects` isn't a list of `{ type, id }`                  |
-| `ENGAGEMENT_SUBJECT_FORBIDDEN`                                                 | a record is unknown, in another organization or unreadable |
-| `ENGAGEMENT_NOT_FOUND`                                                         | no engagement the caller can edit, or read for `amend`     |
-| `ENGAGEMENT_LOCKED`                                                            | the engagement is locked or flagged in error               |
-| `ENGAGEMENT_AUDIENCE_INVALID`                                                  | not `team`, `subject` or `restricted`, or bad roles        |
-| `ENGAGEMENT_CATEGORY_INVALID`                                                  | not one of `options.noteCategories`                        |
-| `ENGAGEMENT_BODY_REQUIRED`                                                     | an addendum without a body                                 |
-| `ENGAGEMENT_REASON_REQUIRED`                                                   | `markError` without a reason                               |
-| `ENGAGEMENT_ALREADY_MARKED_ERROR`                                              | the engagement is already flagged in error                 |
+| `ACTIVITY_FORBIDDEN`                                                         | the caller lacks `activities.write`                        |
+| `ACTIVITY_TYPE_INVALID`                                                      | not a configured type                                      |
+| `ACTIVITY_TITLE_REQUIRED`                                                    | the title is empty                                         |
+| `ACTIVITY_SUBJECTS_INVALID`                                                  | `subjects` isn't a list of `{ type, id }`                  |
+| `ACTIVITY_SUBJECT_FORBIDDEN`                                                 | a record is unknown, in another organization or unreadable |
+| `ACTIVITY_NOT_FOUND`                                                         | no engagement the caller can edit, or read for `amend`     |
+| `ACTIVITY_LOCKED`                                                            | the engagement is locked or flagged in error               |
+| `ACTIVITY_AUDIENCE_INVALID`                                                  | not `team`, `subject` or `restricted`, or bad roles        |
+| `ACTIVITY_CATEGORY_INVALID`                                                  | not one of `options.noteCategories`                        |
+| `ACTIVITY_BODY_REQUIRED`                                                     | an addendum without a body                                 |
+| `ACTIVITY_REASON_REQUIRED`                                                   | `markError` without a reason                               |
+| `ACTIVITY_ALREADY_MARKED_ERROR`                                              | the engagement is already flagged in error                 |
 | `AI_FILE_NOT_FOUND`                                                            | no ready file of the organization the caller may attach    |
-| `ENGAGEMENT_RECORDING_EXISTS`                                                  | the file is already a recording of the engagement          |
-| `ENGAGEMENT_RECORDING_NOT_FOUND`                                               | no such recording                                          |
-| `ENGAGEMENT_TRANSCRIPT_INVALID`                                                | a segment lacks its text or ends before it starts          |
-| `ENGAGEMENT_NOTES_INVALID`                                                     | an empty summary or an action item without text            |
+| `ACTIVITY_RECORDING_EXISTS`                                                    | the file is already a recording of the engagement          |
+| `ACTIVITY_RECORDING_NOT_FOUND`                                                 | no such recording                                          |
+| `ACTIVITY_TRANSCRIPT_INVALID`                                                  | a segment lacks its text or ends before it starts          |
+| `ACTIVITY_NOTES_INVALID`                                                       | an empty summary or an action item without text            |
 | `ENGAGEMENT_NO_TRANSCRIBER`, `ENGAGEMENT_NO_FILES`, `ENGAGEMENT_NO_NOTE_TAKER` | `createActivities` lacks the option the method needs       |
 | `ENGAGEMENT_TRANSCRIBE_FAILED`, `ENGAGEMENT_SUMMARIZE_FAILED`                  | the transcriber or note taker threw                        |
 

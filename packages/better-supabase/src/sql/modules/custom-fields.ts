@@ -71,7 +71,12 @@ const EVENTS: BlockSqlEvents<CustomFieldsEvents> = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    field: { table: "definitions", singular: "field", primary: true },
+    field_definition: {
+      table: "definitions",
+      singular: "field_definition",
+      formerly: "field",
+      primary: true,
+    },
   },
   events: EVENTS,
   options: ["layout", "auditReads", "rankType", "readAccess"],

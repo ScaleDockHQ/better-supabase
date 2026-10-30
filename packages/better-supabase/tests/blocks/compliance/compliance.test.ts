@@ -559,11 +559,11 @@ describe("createCompliance", () => {
 
   it("saves, publishes, archives and acknowledges policies", async () => {
     const t = fieldsTransport({
-      save_policy: () => POLICY,
-      publish_policy: () => POLICY,
-      archive_policy: () => BARE_POLICY,
-      acknowledge_policy: () => POLICY,
-      list_policies: () => [POLICY, BARE_POLICY],
+      save_compliance_policy: () => POLICY,
+      publish_compliance_policy: () => POLICY,
+      archive_compliance_policy: () => BARE_POLICY,
+      acknowledge_compliance_policy: () => POLICY,
+      list_compliance_policies: () => [POLICY, BARE_POLICY],
     });
 
     const controls = createCompliance({ transport: t });
@@ -613,7 +613,7 @@ describe("createCompliance", () => {
     ]);
     expect(t.calls).toEqual([
       [
-        "save_policy",
+        "save_compliance_policy",
         {
           tenant: "org-1",
           key: "security",
@@ -624,7 +624,7 @@ describe("createCompliance", () => {
         },
       ],
       [
-        "save_policy",
+        "save_compliance_policy",
         {
           tenant: "org-1",
           key: "travel",
@@ -635,21 +635,21 @@ describe("createCompliance", () => {
         },
       ],
       [
-        "publish_policy",
+        "publish_compliance_policy",
         { policy_id: "p1", content: { body: "Text" }, label: null },
       ],
       [
-        "publish_policy",
+        "publish_compliance_policy",
         { policy_id: "p1", content: { body: "Text" }, label: "2026" },
       ],
-      ["archive_policy", { policy_id: "p2" }],
-      ["acknowledge_policy", { policy_id: "p1" }],
+      ["archive_compliance_policy", { policy_id: "p2" }],
+      ["acknowledge_compliance_policy", { policy_id: "p1" }],
       [
-        "list_policies",
+        "list_compliance_policies",
         { tenant: "org-1", include_archived: false, pending_only: false },
       ],
       [
-        "list_policies",
+        "list_compliance_policies",
         { tenant: "org-1", include_archived: true, pending_only: true },
       ],
     ]);
@@ -657,7 +657,7 @@ describe("createCompliance", () => {
 
   it("reads who acknowledged a policy", async () => {
     const t = fieldsTransport({
-      policy_acknowledgements: (args) =>
+      compliance_policy_acknowledgements: (args) =>
         args["policy_id"] === "p1"
           ? {
               id: "p1",

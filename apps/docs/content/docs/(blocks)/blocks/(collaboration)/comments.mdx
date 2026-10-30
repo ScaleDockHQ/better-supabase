@@ -307,7 +307,7 @@ await comments.create(project, {
 With the [tasks](/docs/blocks/tasks) block, `assign` turns a comment
 into a work item through `assign_comment(message, assignee, attrs)`. The
 title defaults to the comment's first 120 characters and the body to the
-comment's body; `attrs` passes other `create_work_item` attributes, such as
+comment's body; `attrs` passes other `create_task` attributes, such as
 `projectId` or `priority`. The link lives in `comment_tasks`, so assigning the
 same comment again returns the same work item, and the comment carries its id
 as `taskId`. Creating the work item needs `tasks.write`.

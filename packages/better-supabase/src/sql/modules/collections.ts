@@ -72,7 +72,7 @@ const EVENTS: BlockSqlEvents<CollectionsEvents> = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    collection: {
+    subject_collection: {
       table: "collections",
       singular: "subject_collection",
       primary: true,

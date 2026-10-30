@@ -141,14 +141,14 @@ is kept ([ADR 0072](https://github.com/ScaleDockHQ/better-supabase/blob/main/doc
 
 ## Errors
 
-| Hint                          | Cause                                                                                       |
-| ----------------------------- | ------------------------------------------------------------------------------------------- |
-| `CONTRACT_FORBIDDEN`          | the caller lacks `contracts.read`, `.write` or `.manage`                                    |
-| `CONTRACT_INVALID`            | a field is invalid, or the counterparty or owner isn't in the organization                  |
-| `CONTRACT_NOT_FOUND`          | no contract with this id in an organization the caller reads                                |
-| `CONTRACT_LOCKED`             | the contract is past review and the change isn't to its description, owner or renewal terms |
-| `CONTRACT_TRANSITION_INVALID` | the action doesn't apply to the contract's status                                           |
-| `OBLIGATION_NOT_FOUND`        | no obligation with this id                                                                  |
+| Hint                            | Cause                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------- |
+| `CONTRACT_FORBIDDEN`            | the caller lacks `contracts.read`, `.write` or `.manage`                                    |
+| `CONTRACT_INVALID`              | a field is invalid, or the counterparty or owner isn't in the organization                  |
+| `CONTRACT_NOT_FOUND`            | no contract with this id in an organization the caller reads                                |
+| `CONTRACT_LOCKED`               | the contract is past review and the change isn't to its description, owner or renewal terms |
+| `CONTRACT_TRANSITION_INVALID`   | the action doesn't apply to the contract's status                                           |
+| `CONTRACT_OBLIGATION_NOT_FOUND` | no obligation with this id                                                                  |
 
 ## Events
 

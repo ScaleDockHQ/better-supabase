@@ -38,7 +38,7 @@ export interface NamedPreset {
 
 /** Tasks named for support work: tickets grouped under issues. */
 const TICKETS: NonNullable<Preset["instances"]> = {
-  tasks: { names: { work_item: "ticket", project: "issue" } },
+  tasks: { names: { task: "ticket", project: "issue" } },
 };
 
 /** Attachments served by public URL, for media such as images on a site. */
@@ -409,7 +409,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     instances: {
       maintenance: {
         block: "tasks",
-        names: { work_item: "maintenance_request" },
+        names: { task: "maintenance_request" },
         tables: { projects: null, iterations: null },
         options: { prefix: "MR-" },
       },

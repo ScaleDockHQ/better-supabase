@@ -9,9 +9,9 @@ declare const error: DbError | undefined;
 
 describe("block hint types", () => {
   it("narrows the hint to the codes it checked", () => {
-    if (isBlockHint(error, "WORK_ITEM_LOCKED", "WORK_ITEM_FORBIDDEN")) {
+    if (isBlockHint(error, "TASK_LOCKED", "TASK_FORBIDDEN")) {
       expectTypeOf(error.hint).toEqualTypeOf<
-        "WORK_ITEM_LOCKED" | "WORK_ITEM_FORBIDDEN"
+        "TASK_LOCKED" | "TASK_FORBIDDEN"
       >();
     }
   });
@@ -22,7 +22,7 @@ describe("block hint types", () => {
   });
 
   it("types one block's hints", () => {
-    expectTypeOf<"WORK_ITEM_LOCKED">().toExtend<BlockHint<"tasks">>();
+    expectTypeOf<"TASK_LOCKED">().toExtend<BlockHint<"tasks">>();
     expectTypeOf<"INVITATION_INVALID">().not.toExtend<BlockHint<"tasks">>();
     expectTypeOf(blockHint<"tasks">).returns.toEqualTypeOf<
       BlockHint<"tasks"> | undefined

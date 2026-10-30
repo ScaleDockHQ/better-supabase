@@ -400,7 +400,7 @@ export function dealFunctions(ctx: BlockSqlContext, n: DealNames): string {
   });
 
   const next = ctx.installed("activities")
-    ? ctx.of("activities").fn("next_engagement")
+    ? ctx.of("activities").fn("next_activity")
     : undefined;
 
   const nextJoin =

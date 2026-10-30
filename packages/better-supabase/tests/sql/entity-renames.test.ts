@@ -10,9 +10,7 @@ import { SQL_MODULES } from "../../src/sql/registry.ts";
 const BLOCKS = ["memberships", "permissions", "outbox", "tasks"];
 
 const TASKS: BlockSqlLayout = {
-  modules: {
-    tasks: { entities: { work_item: "task", project: "initiative" } },
-  },
+  modules: { tasks: { entities: { task: "ticket", project: "initiative" } } },
 };
 
 const body = (module: string, layout: BlockSqlLayout): string =>
@@ -26,17 +24,17 @@ describe("blocks.<name>.entities in the SQL", () => {
     const sql = body("tasks", TASKS);
 
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."tasks"',
+      'create table if not exists "better_supabase"."tickets"',
     );
     expect(sql).toContain('"better_supabase"."initiatives"');
-    expect(sql).toContain('"better_supabase"."create_task"(');
-    expect(sql).toContain("'task.created'");
-    expect(sql).toContain("'tasks/'");
-    expect(sql).toContain("'taskId'");
+    expect(sql).toContain('"better_supabase"."create_ticket"(');
+    expect(sql).toContain("'ticket.created'");
+    expect(sql).toContain("'tickets/'");
+    expect(sql).toContain("'ticketId'");
     expect(sql).toContain("'tasks.read'");
-    expect(sql).toContain('"public"."before_task_create"(');
+    expect(sql).toContain('"public"."before_ticket_create"(');
     expect(sql).toContain(
-      "-- @bsb-names tasks work_item=task/tasks project=initiative/initiatives",
+      "-- @bsb-names tasks task=ticket/tickets project=initiative/initiatives",
     );
   });
 
@@ -44,6 +42,7 @@ describe("blocks.<name>.entities in the SQL", () => {
     const sql = body("tasks", {});
 
     expect(sql).toContain('"better_supabase"."work_items"');
+    expect(sql).toContain('"better_supabase"."create_task"(');
     expect(sql).toContain("'work_item.created'");
     expect(sql).not.toContain("@bsb-names");
   });
@@ -66,11 +65,7 @@ describe("blocks.<name>.entities in the SQL", () => {
   it("leaves the default nouns only in parameter names, hints and prose", () => {
     const modules = {
       tasks: {
-        entities: {
-          work_item: "task",
-          project: "initiative",
-          iteration: "cycle",
-        },
+        entities: { task: "ticket", project: "initiative", iteration: "cycle" },
       },
     } as const;
 
@@ -91,7 +86,7 @@ describe("blocks.<name>.entities in the SQL", () => {
         line.replaceAll(/'[^']*\s[^']*'/g, "").replaceAll(parameter, ""),
       )
       .filter((line) =>
-        /work_?items?|workItem|projects?(?:_id|Id)|iterations?(?:_id|Id)/.test(
+        /work_?items?|workItem|\btasks?_|projects?(?:_id|Id)|iterations?(?:_id|Id)/.test(
           line,
         ),
       );
@@ -147,10 +142,15 @@ describe("blocks.<name>.entities in the SQL", () => {
           letter.toUpperCase(),
         );
 
-      const nouns = entities.map(([, entity]) => ({
-        singular: entity.singular,
-        plural: entity.plural ?? pluralOf(entity.singular),
-      }));
+      const nouns = entities.flatMap(([, entity]) => [
+        {
+          singular: entity.singular,
+          plural: entity.plural ?? pluralOf(entity.singular),
+        },
+        ...(entity.formerly === undefined
+          ? []
+          : [{ singular: entity.formerly, plural: pluralOf(entity.formerly) }]),
+      ]);
 
       // Parameter names keep the default nouns (`document`, `document_id`).
       const parameter = new RegExp(
@@ -227,7 +227,7 @@ describe("blocks.<name>.entities in the SQL", () => {
   it("refuses a rename onto another block's table", () => {
     expect(() =>
       renderBlocks([...BLOCKS, "deals"], {
-        modules: { tasks: { entities: { work_item: "deal" } } },
+        modules: { tasks: { entities: { task: "deal" } } },
       }),
     ).toThrow(
       "blocks.tasks.names: the tasks block's items table would be named deals, which the deals block already uses",
@@ -256,12 +256,12 @@ describe("entityRenamePlan", () => {
     expect(sql(TASKS)).toEqual(
       expect.arrayContaining([
         expect.stringContaining(
-          'alter table "better_supabase"."work_items" rename to "tasks"',
+          'alter table "better_supabase"."work_items" rename to "tickets"',
         ),
         expect.stringContaining(
           'alter table "better_supabase"."projects" rename to "initiatives"',
         ),
-        expect.stringContaining("'create_task')"),
+        expect.stringContaining("'create_ticket')"),
       ]),
     );
   });
@@ -289,7 +289,7 @@ describe("entityRenamePlan", () => {
     ).steps.map((step) => step.sql);
 
     expect(steps).toContain(
-      `update "better_supabase"."conversations" set "subject_type" = 'task' where "subject_type" = 'work_item';`,
+      `update "better_supabase"."conversations" set "subject_type" = 'ticket' where "subject_type" = 'task';`,
     );
   });
 
@@ -310,7 +310,7 @@ describe("entityRenamePlan", () => {
     ).toEqual(
       expect.arrayContaining([
         expect.stringContaining(
-          'alter table "better_supabase"."tasks" rename to "work_items"',
+          'alter table "better_supabase"."tickets" rename to "work_items"',
         ),
       ]),
     );

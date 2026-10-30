@@ -490,7 +490,7 @@ export const INBOX: BlockSqlDefinition = {
   data: (ctx) =>
     shippedAutomation(ctx, CONVERSATION_TO_TASK, {
       module: "tasks",
-      singular: "work_item",
+      entity: "task",
     }),
   topics: (ctx) => {
     const { topic } = inboxSql(ctx);

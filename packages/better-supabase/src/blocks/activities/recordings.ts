@@ -216,7 +216,7 @@ export function notesOf(value: unknown): EngagementNotes {
   });
 }
 
-/** The jsonb `save_engagement_notes` takes. */
+/** The jsonb `save_activity_notes` takes. */
 export function notesArg(
   input: EngagementNotesInput,
   source: "ai" | "member",
@@ -236,7 +236,7 @@ export function notesArg(
   };
 }
 
-/** The segments `save_engagement_transcript` takes. */
+/** The segments `save_activity_transcript` takes. */
 export function segmentsArg(
   segments: readonly TranscriptSegmentInput[],
 ): Record<string, unknown>[] {
@@ -252,7 +252,7 @@ export function segmentsArg(
   );
 }
 
-/** The transcript rows of `engagement_with_transcripts`, with their recording. */
+/** The transcript rows of `activity_with_transcripts`, with their recording. */
 export function transcriptOf(
   value: unknown,
 ): NoteTakerInput<unknown>["transcript"] {

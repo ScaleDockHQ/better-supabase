@@ -150,12 +150,12 @@ declare
   v_project jsonb;
 begin
   ${SERVICE}
-  v_item := better_supabase.create_work_item('${TENANT}', '{"title": "Ship it", "dueAt": "2099-01-01T10:00:00Z"}'::jsonb, null);
+  v_item := better_supabase.create_task('${TENANT}', '{"title": "Ship it", "dueAt": "2099-01-01T10:00:00Z"}'::jsonb, null);
   v_id := (v_item ->> 'id')::uuid;
   if (select seq from public.tickets where id = v_id) is null or (select code from public.tickets where id = v_id) is null then
     raise exception 'numbering %', v_item;
   end if;
-  v_result := better_supabase.update_work_items(jsonb_build_array(
+  v_result := better_supabase.update_tasks(jsonb_build_array(
     jsonb_build_object('workItemId', v_id, 'field', 'title', 'value', 'Ship it now'),
     jsonb_build_object('workItemId', v_id, 'field', 'priority', 'value', 2)));
   if jsonb_array_length(v_result -> 'rejected') <> 0 then
@@ -163,7 +163,7 @@ begin
   end if;
   select s.id into v_done from better_supabase.pipeline_stages s
   where s.pipeline_id = (select pipeline_id from public.tickets where id = v_id) and s.key = 'done';
-  v_result := better_supabase.update_work_items(jsonb_build_array(
+  v_result := better_supabase.update_tasks(jsonb_build_array(
     jsonb_build_object('workItemId', v_id, 'field', 'stageId', 'value', v_done)));
   if jsonb_array_length(v_result -> 'rejected') <> 0 then
     raise exception 'close %', v_result;
@@ -172,8 +172,8 @@ begin
     or (select close_reason from public.tickets where id = v_id) <> 'completed' then
     raise exception 'closed as % %', (select state from public.tickets where id = v_id), (select close_reason from public.tickets where id = v_id);
   end if;
-  if jsonb_array_length(better_supabase.list_work_items('${TENANT}', '{"states": ["completed"]}'::jsonb, null, null, 50)) <> 1 then
-    raise exception 'list_work_items missed the item';
+  if jsonb_array_length(better_supabase.list_tasks('${TENANT}', '{"states": ["completed"]}'::jsonb, null, null, 50)) <> 1 then
+    raise exception 'list_tasks missed the item';
   end if;
   v_project := better_supabase.save_project('${TENANT}', null, '{"key": "OPS", "name": "Ops"}'::jsonb);
   v_project := better_supabase.save_project('${TENANT}', (v_project ->> 'id')::uuid, '{"status": "active"}'::jsonb);
@@ -190,7 +190,7 @@ $$;`),
       run(`do $$
 begin
   ${SERVICE}
-  perform better_supabase.create_work_item('${TENANT}', '{"title": "Ship it", "estimate": 3}'::jsonb, null);
+  perform better_supabase.create_task('${TENANT}', '{"title": "Ship it", "estimate": 3}'::jsonb, null);
 end;
 $$;`),
     ).rejects.toThrow(/has no estimate column/);
@@ -239,7 +239,7 @@ declare
   v_item jsonb;
 begin
   ${AS_USER}
-  v_item := better_supabase.create_work_item('${TENANT}', '{"title": "Ship it"}'::jsonb, null);
+  v_item := better_supabase.create_task('${TENANT}', '{"title": "Ship it"}'::jsonb, null);
   if v_item ->> 'identifier' <> 'T-1' or v_item ->> 'number' <> '1' then
     raise exception 'numbered %', v_item;
   end if;

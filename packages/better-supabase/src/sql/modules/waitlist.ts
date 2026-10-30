@@ -82,7 +82,7 @@ const CODE_COLUMNS = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    entry: {
+    waitlist_entry: {
       table: "entries",
       singular: "waitlist_entry",
       plural: "waitlist_entries",

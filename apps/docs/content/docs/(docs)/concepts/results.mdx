@@ -68,7 +68,7 @@ mapping in the server adapters.
 
 ## Block hint codes
 
-A block's errors carry a code in `hint`, such as `WORK_ITEM_LOCKED`.
+A block's errors carry a code in `hint`, such as `TASK_LOCKED`.
 `better-supabase/blocks` types them: `BlockHint<"tasks">` is the union of one
 block's codes, and `BlockHint` the codes of every block. `isBlockHint`
 checks an error against some codes and narrows `hint` to them; a code no
@@ -81,7 +81,7 @@ import { blockHint, isBlockHint } from "better-supabase/blocks";
 
 const archived = await blocks.tasks.archive(taskId);
 
-if (!archived.ok && isBlockHint(archived.error, "WORK_ITEM_LOCKED")) {
+if (!archived.ok && isBlockHint(archived.error, "TASK_LOCKED")) {
   toast.error("This task is locked.");
 }
 ```

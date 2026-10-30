@@ -97,7 +97,11 @@ const EVENTS: BlockSqlEvents<ConnectorsEvents> = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    server: { table: "servers", singular: "connector_server", primary: true },
+    connector_server: {
+      table: "servers",
+      singular: "connector_server",
+      primary: true,
+    },
   },
   events: EVENTS,
   options: ["allowHttp", "trustFirstUse", "sessionTtl", "extraColumns"],

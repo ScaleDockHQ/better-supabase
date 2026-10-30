@@ -318,7 +318,7 @@ describe.skipIf(!live)("rules module", () => {
             actions: [{ kind: "Not A Kind" }],
           })
         ).error?.hint,
-      ).toBe("RULE_ACTIONS_INVALID");
+      ).toBe("AUTOMATION_ACTIONS_INVALID");
 
       const large = await rules
         .upsert(tenant, {
@@ -370,7 +370,7 @@ describe.skipIf(!live)("rules module", () => {
             name: "Stale",
           })
         ).error?.hint,
-      ).toBe("RULE_CONFLICT");
+      ).toBe("AUTOMATION_CONFLICT");
       expect(
         (await rules.versions(large.id).orThrow()).map(
           (entry) => entry.version,
@@ -394,14 +394,16 @@ describe.skipIf(!live)("rules module", () => {
       expect(
         (await rules.upsert(tenant, { id: large.id, name: "Mine" })).error
           ?.hint,
-      ).toBe("RULE_FORBIDDEN");
+      ).toBe("AUTOMATION_FORBIDDEN");
       expect((await rules.setEnabled(large.id, true)).error?.hint).toBe(
-        "RULE_FORBIDDEN",
+        "AUTOMATION_FORBIDDEN",
       );
 
       await s.as(rival);
       expect(await rules.get(large.id).orThrow()).toBeUndefined();
-      expect((await rules.list(tenant)).error?.hint).toBe("RULE_FORBIDDEN");
+      expect((await rules.list(tenant)).error?.hint).toBe(
+        "AUTOMATION_FORBIDDEN",
+      );
       expect(
         (await rules.list(other).orThrow()).filter(
           (r) => r.defaultKey === undefined,
@@ -418,13 +420,15 @@ describe.skipIf(!live)("rules module", () => {
         throw new Error("The inbox default automation wasn't installed");
       }
 
-      expect((await rules.remove(shipped.id)).error?.hint).toBe("RULE_DEFAULT");
+      expect((await rules.remove(shipped.id)).error?.hint).toBe(
+        "AUTOMATION_DEFAULT",
+      );
       await rules.upsert(tenant, { id: shipped.id, name: "Renamed" }).orThrow();
       expect((await rules.resetDefault(shipped.id).orThrow()).name).toBe(
         shipped.name,
       );
       expect((await rules.resetDefault(large.id)).error?.hint).toBe(
-        "RULE_NOT_DEFAULT",
+        "AUTOMATION_NOT_DEFAULT",
       );
 
       await rules.setEnabled(large.id, true).orThrow();

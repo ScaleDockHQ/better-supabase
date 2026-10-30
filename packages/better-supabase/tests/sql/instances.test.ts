@@ -142,7 +142,7 @@ describe("block instances", () => {
           ),
         ),
       ),
-    ).toThrow('this instance renames "work_item"');
+    ).toThrow('this instance renames "task"');
   });
 });
 

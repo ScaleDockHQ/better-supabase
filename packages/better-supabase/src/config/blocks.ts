@@ -71,8 +71,8 @@ export interface EntityConfig<Columns extends string = string> {
 }
 
 /**
- * `blocks.<name>.names`: entity to its new name, e.g. `{ work_item: "task" }`,
- * or the new name of the block's primary entity alone (`"task"`). The module's
+ * `blocks.<name>.names`: entity to its new name, e.g. `{ task: "ticket" }`, or
+ * the new name of the block's primary entity alone (`"task"`). The module's
  * tables, columns, functions, events, permission keys, hooks and TypeScript
  * names follow.
  */
@@ -84,6 +84,9 @@ export type EntitiesConfig<Names extends BlockSqlNameSet = AnyModuleNames> =
           readonly [E in keyof Names["entities"]]?:
             | string
             | EntityConfig<Names["entities"][E]>;
+        } & {
+          /** @deprecated Use the entity's new key. Removed in 0.48. */
+          readonly [E in Names["formerKeys"]]?: string | EntityConfig;
         });
 
 /**

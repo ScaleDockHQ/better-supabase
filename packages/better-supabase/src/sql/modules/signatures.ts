@@ -52,7 +52,7 @@ const EVENTS: BlockSqlEvents<SignaturesEvents> = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    request: {
+    signature_request: {
       table: "requests",
       singular: "signature_request",
       primary: true,

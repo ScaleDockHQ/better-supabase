@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import { entityType } from "../resolved-names.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { riskAssessFunctions } from "./risks-assess.ts";
 import { riskFunctions } from "./risks-functions.ts";
@@ -375,7 +376,7 @@ const typeOf = (
   module: string,
   entity: string,
 ): string =>
-  own.installed(module) ? own.of(module).naming.rename(entity) : entity;
+  own.installed(module) ? entityType(own.of(module).resolved, entity) : entity;
 
 const CONTRIBUTES: BlockContributes = {
   numbering: (own) => [
@@ -393,7 +394,7 @@ const CONTRIBUTES: BlockContributes = {
         // Controls, work items and drive files are a risk's barriers.
         target: [
           typeOf(own, "compliance", "control"),
-          "work_item",
+          typeOf(own, "tasks", "task"),
           "drive_node",
         ],
       },

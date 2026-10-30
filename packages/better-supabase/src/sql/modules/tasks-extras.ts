@@ -112,7 +112,7 @@ export function itemExtrasJson(
   const recurrence =
     rules === undefined
       ? ""
-      : `, 'recurrence', (select jsonb_build_object('rrule', rr.${rules.col("rrule")}, 'tzid', rr.${rules.col("tzid")}, 'dtstart', rr.${rules.col("dtstart")}) from ${rules.table} rr where rr.${rules.col("tenant")} = ${alias}.${w("tenant")} and rr.${rules.col("subjectType")} = ${sqlString(n.e("work_item"))} and rr.${rules.col("subjectId")} = ${alias}.${w("id")}::text)`;
+      : `, 'recurrence', (select jsonb_build_object('rrule', rr.${rules.col("rrule")}, 'tzid', rr.${rules.col("tzid")}, 'dtstart', rr.${rules.col("dtstart")}) from ${rules.table} rr where rr.${rules.col("tenant")} = ${alias}.${w("tenant")} and rr.${rules.col("subjectType")} = ${sqlString(n.type)} and rr.${rules.col("subjectId")} = ${alias}.${w("id")}::text)`;
 
   const checklist = ctx.hasTable("checklist")
     ? `(select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk.${k("done")})) from ${n.t("checklist")} rk where rk.${k("item")} = ${alias}.${w("id")})`
@@ -133,7 +133,7 @@ export function linkAttachmentsSql(
 ): string {
   if (!attachable(ctx)) {
     return `if jsonb_array_length(coalesce(${ids}, '[]'::jsonb)) > 0 then
-      ${fail("WORK_ITEM_ATTACHMENTS_UNAVAILABLE", "install the attachments block to attach files", "0A000")}
+      ${fail("TASK_ATTACHMENTS_UNAVAILABLE", "install the attachments block to attach files", "0A000")}
     end if;`;
   }
 
@@ -144,22 +144,22 @@ export function linkAttachmentsSql(
 
   if (path.includes("{subject_")) {
     return `if jsonb_array_length(coalesce(${ids}, '[]'::jsonb)) > 0 then
-      ${fail("WORK_ITEM_ATTACHMENTS_PATH", "the attachments path names the subject, so a file can't move onto an item", "0A000")}
+      ${fail("TASK_ATTACHMENTS_PATH", "the attachments path names the subject, so a file can't move onto an item", "0A000")}
     end if;`;
   }
 
   return `if jsonb_typeof(coalesce(${ids}, '[]'::jsonb)) <> 'array' then
-      ${fail("WORK_ITEM_ATTACHMENTS_INVALID", "attachments must be a list of attachment ids", "22023")}
+      ${fail("TASK_ATTACHMENTS_INVALID", "attachments must be a list of attachment ids", "22023")}
     end if;
     if jsonb_array_length(coalesce(${ids}, '[]'::jsonb)) > 0 then
-      update ${at.table("attachments")} f set ${f("subjectType")} = ${sqlString(n.e("work_item"))}, ${f("subjectId")} = ${alias}.${w("id")}::text
+      update ${at.table("attachments")} f set ${f("subjectType")} = ${sqlString(n.type)}, ${f("subjectId")} = ${alias}.${w("id")}::text
       where f.${f("id")} = any (array(select jsonb_array_elements_text(${ids})::uuid))
         and f.${f("tenant")} = ${alias}.${w("tenant")}
-        and (f.${f("subjectType")} is null or (f.${f("subjectType")} = ${sqlString(n.e("work_item"))} and f.${f("subjectId")} = ${alias}.${w("id")}::text))
+        and (f.${f("subjectType")} is null or (f.${f("subjectType")} = ${sqlString(n.type)} and f.${f("subjectId")} = ${alias}.${w("id")}::text))
         and (${n.service} or f.${f("uploadedBy")} = auth.uid());
       get diagnostics v_linked = row_count;
       if v_linked <> (select count(distinct x) from jsonb_array_elements_text(${ids}) x) then
-        ${fail("WORK_ITEM_ATTACHMENTS_INVALID", "attach only your own files in this organization that aren't on another subject", "22023")}
+        ${fail("TASK_ATTACHMENTS_INVALID", "attach only your own files in this organization that aren't on another subject", "22023")}
       end if;
     end if;`;
 }
@@ -182,7 +182,7 @@ export function workItemExtraFunctions(
     `(${n.service} or ${ctx.scope.can(`${alias}.${w("tenant")}`, n.read)})`;
 
   const notFound = fail(
-    "WORK_ITEM_NOT_FOUND",
+    "TASK_NOT_FOUND",
     "no such work item you can edit",
     "P0002",
   );
@@ -229,7 +229,7 @@ export function workItemExtraFunctions(
   const checklist = `
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
-create or replace function ${fn("save_work_item_checklist_item")}(work_item uuid, checklist_item uuid, attrs jsonb)
+create or replace function ${fn("save_task_checklist_item")}(work_item uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -237,11 +237,11 @@ set search_path = ''
 as $$
 declare
   v_row ${t("items")};
-  v_id uuid := save_work_item_checklist_item.checklist_item;
+  v_id uuid := save_task_checklist_item.checklist_item;
   v_last text;
-  v_done boolean := (save_work_item_checklist_item.attrs ->> 'done')::boolean;
+  v_done boolean := (save_task_checklist_item.attrs ->> 'done')::boolean;
 begin
-  select * into v_row from ${t("items")} x where x.${w("id")} = save_work_item_checklist_item.work_item and ${editable("x")} and x.${w("archivedAt")} is null;
+  select * into v_row from ${t("items")} x where x.${w("id")} = save_task_checklist_item.work_item and ${editable("x")} and x.${w("archivedAt")} is null;
   if v_row.${w("id")} is null then
     ${notFound}
   end if;
@@ -254,7 +254,7 @@ begin
         [
           `v_row.${w("tenant")}`,
           `v_row.${w("id")}`,
-          "trim(save_work_item_checklist_item.attrs ->> 'title')",
+          "trim(save_task_checklist_item.attrs ->> 'title')",
           "coalesce(v_done, false)",
         ],
         [
@@ -266,31 +266,31 @@ begin
           ),
         ],
         [
-          `coalesce(save_work_item_checklist_item.attrs ->> 'rank', ${rankAfter("v_last")})`,
+          `coalesce(save_task_checklist_item.attrs ->> 'rank', ${rankAfter("v_last")})`,
           present("checklist", "createdBy", "auth.uid()"),
         ],
       )})
       returning ${k("id")} into v_id;
     else
       update ${t("checklist")} y set
-        ${k("title")} = coalesce(trim(save_work_item_checklist_item.attrs ->> 'title'), y.${k("title")}),
-        ${k("rank")} = coalesce(save_work_item_checklist_item.attrs ->> 'rank', y.${k("rank")}),
+        ${k("title")} = coalesce(trim(save_task_checklist_item.attrs ->> 'title'), y.${k("title")}),
+        ${k("rank")} = coalesce(save_task_checklist_item.attrs ->> 'rank', y.${k("rank")}),
         ${k("done")} = coalesce(v_done, y.${k("done")})${ctx.has("checklist", "doneAt") ? set("checklist", "doneAt", `case when v_done is null then y.${k("doneAt")} when v_done then coalesce(y.${k("doneAt")}, now()) end`) : ""}${ctx.has("checklist", "doneBy") ? set("checklist", "doneBy", `case when v_done is null then y.${k("doneBy")} when v_done then coalesce(y.${k("doneBy")}, auth.uid()) end`) : ""}
       where y.${k("id")} = v_id and y.${k("item")} = v_row.${w("id")};
       if not found then
-        ${fail("WORK_ITEM_CHECKLIST_ITEM_NOT_FOUND", "no such checklist item on this work item", "P0002")}
+        ${fail("TASK_CHECKLIST_ITEM_NOT_FOUND", "no such checklist item on this work item", "P0002")}
       end if;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
-    ${fail("WORK_ITEM_CHECKLIST_ITEM_INVALID", "a checklist item needs a title of 1 to 500 characters and a valid rank", "22023")}
+    ${fail("TASK_CHECKLIST_ITEM_INVALID", "a checklist item needs a title of 1 to 500 characters and a valid rank", "22023")}
   end;
   ${touched("checklist")}
   return (select ${checklistRow("y")} from ${t("checklist")} y where y.${k("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("save_work_item_checklist_item")}(uuid, uuid, jsonb)`)}
+${userGrant(`${fn("save_task_checklist_item")}(uuid, uuid, jsonb)`)}
 
-create or replace function ${fn("delete_work_item_checklist_item")}(checklist_item uuid)
+create or replace function ${fn("delete_task_checklist_item")}(checklist_item uuid)
 returns boolean
 language plpgsql
 security definer
@@ -300,19 +300,19 @@ declare
   v_row ${t("items")};
 begin
   select x.* into v_row from ${t("items")} x join ${t("checklist")} y on y.${k("item")} = x.${w("id")}
-  where y.${k("id")} = delete_work_item_checklist_item.checklist_item and ${editable("x")} and x.${w("archivedAt")} is null;
+  where y.${k("id")} = delete_task_checklist_item.checklist_item and ${editable("x")} and x.${w("archivedAt")} is null;
   if v_row.${w("id")} is null then
     return false;
   end if;
-  delete from ${t("checklist")} y where y.${k("id")} = delete_work_item_checklist_item.checklist_item;
+  delete from ${t("checklist")} y where y.${k("id")} = delete_task_checklist_item.checklist_item;
   ${touched("checklist")}
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_work_item_checklist_item")}(uuid)`)}
+${userGrant(`${fn("delete_task_checklist_item")}(uuid)`)}
 
 -- An item's checklist, in rank order.
-create or replace function ${fn("list_work_item_checklist")}(work_item uuid)
+create or replace function ${fn("list_task_checklist")}(work_item uuid)
 returns jsonb
 language sql
 stable
@@ -320,23 +320,23 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(${checklistRow("y")} order by y.${k("rank")} collate "C", y.${k("id")}), '[]'::jsonb)
-  from ${t("checklist")} y where y.${k("item")} = list_work_item_checklist.work_item
+  from ${t("checklist")} y where y.${k("item")} = list_task_checklist.work_item
 $$;
-${userGrant(`${fn("list_work_item_checklist")}(uuid)`)}
+${userGrant(`${fn("list_task_checklist")}(uuid)`)}
 `;
 
   const getWorkItem = `
 -- One item the caller can read, or null.
-create or replace function ${fn("get_work_item")}(work_item uuid)
+create or replace function ${fn("get_task")}(work_item uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select ${row("x")} from ${t("items")} x where x.${w("id")} = get_work_item.work_item
+  select ${row("x")} from ${t("items")} x where x.${w("id")} = get_task.work_item
 $$;
-${userGrant(`${fn("get_work_item")}(uuid)`)}
+${userGrant(`${fn("get_task")}(uuid)`)}
 `;
 
   return `${ctx.hasTable("checklist") ? checklist : ""}${getWorkItem}${recurrence(ctx, n, { row, record, editable, notFound, touched })}${watchers(ctx, n, readable)}`;
@@ -363,7 +363,7 @@ function recurrence(
   const w = (column: string): string => c("items", column);
   const k = (column: string): string => c("checklist", column);
   const r = rules.col;
-  const item = sqlString(e("work_item"));
+  const item = sqlString(n.type);
 
   // A column of v_src, or null when the app maps it to null.
   const src = (logical: string): string =>
@@ -385,8 +385,8 @@ function recurrence(
   return `
 -- Makes an item repeat: rrule is an RFC 5545 RRULE starting at the item's
 -- due date (now without one) in tzid. A null rrule stops it. Completing the
--- item then creates the next one through repeat_work_item.
-create or replace function ${fn("set_work_item_recurrence")}(work_item uuid, rrule text, tzid text default 'UTC')
+-- item then creates the next one through repeat_task.
+create or replace function ${fn("set_task_recurrence")}(work_item uuid, rrule text, tzid text default 'UTC')
 returns jsonb
 language plpgsql
 security definer
@@ -395,21 +395,21 @@ as $$
 declare
   v_row ${t("items")};
 begin
-  select * into v_row from ${t("items")} x where x.${w("id")} = set_work_item_recurrence.work_item and ${helpers.editable("x")} and x.${w("archivedAt")} is null;
+  select * into v_row from ${t("items")} x where x.${w("id")} = set_task_recurrence.work_item and ${helpers.editable("x")} and x.${w("archivedAt")} is null;
   if v_row.${w("id")} is null then
     ${helpers.notFound}
   end if;
-  if set_work_item_recurrence.rrule is null then
+  if set_task_recurrence.rrule is null then
     delete from ${rules.table} rr where rr.${r("tenant")} = v_row.${w("tenant")} and rr.${r("subjectType")} = ${item} and rr.${r("subjectId")} = v_row.${w("id")}::text;
   else
-    if set_work_item_recurrence.rrule !~ '^(RRULE:)?FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;[A-Z]+=[-+,0-9A-Z]+)*$' then
-      ${fail("WORK_ITEM_RECURRENCE_INVALID", "rrule must be an RRULE such as FREQ=WEEKLY;BYDAY=MO", "22023")}
+    if set_task_recurrence.rrule !~ '^(RRULE:)?FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;[A-Z]+=[-+,0-9A-Z]+)*$' then
+      ${fail("TASK_RECURRENCE_INVALID", "rrule must be an RRULE such as FREQ=WEEKLY;BYDAY=MO", "22023")}
     end if;
-    if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = coalesce(set_work_item_recurrence.tzid, 'UTC')) then
-      ${fail("WORK_ITEM_RECURRENCE_INVALID", "tzid must be an IANA time zone", "22023")}
+    if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = coalesce(set_task_recurrence.tzid, 'UTC')) then
+      ${fail("TASK_RECURRENCE_INVALID", "tzid must be an IANA time zone", "22023")}
     end if;
     insert into ${rules.table} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("dtstart")}, ${r("tzid")}, ${r("rrule")})
-    values (v_row.${w("tenant")}, ${item}, v_row.${w("id")}::text, coalesce(v_row.${w("dueAt")}, now()), coalesce(set_work_item_recurrence.tzid, 'UTC'), regexp_replace(set_work_item_recurrence.rrule, '^RRULE:', ''))
+    values (v_row.${w("tenant")}, ${item}, v_row.${w("id")}::text, coalesce(v_row.${w("dueAt")}, now()), coalesce(set_task_recurrence.tzid, 'UTC'), regexp_replace(set_task_recurrence.rrule, '^RRULE:', ''))
     on conflict (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")})
     do update set ${r("dtstart")} = excluded.${r("dtstart")}, ${r("tzid")} = excluded.${r("tzid")}, ${r("rrule")} = excluded.${r("rrule")};
   end if;
@@ -417,12 +417,12 @@ begin
   return (select ${helpers.row("x")} -> 'recurrence' from ${t("items")} x where x.${w("id")} = v_row.${w("id")});
 end;
 $$;
-${userGrant(`${fn("set_work_item_recurrence")}(uuid, text, text)`)}
+${userGrant(`${fn("set_task_recurrence")}(uuid, text, text)`)}
 
 -- Creates the next item of a repeating item, due at due_at: a copy with its
 -- dates shifted, its assignees and an unchecked checklist. The rule moves to
 -- the copy. Runs once per item; a second call returns the same copy.
-create or replace function ${fn("repeat_work_item")}(work_item uuid, due_at timestamptz)
+create or replace function ${fn("repeat_task")}(work_item uuid, due_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -434,19 +434,19 @@ declare
   v_id uuid;
   v_shift interval;
 begin
-  select * into v_src from ${t("items")} x where x.${w("id")} = repeat_work_item.work_item for update;
+  select * into v_src from ${t("items")} x where x.${w("id")} = repeat_task.work_item for update;
   if v_src.${w("id")} is null then
-    ${fail("WORK_ITEM_NOT_FOUND", "work item not found", "P0002")}
+    ${fail("TASK_NOT_FOUND", "work item not found", "P0002")}
   end if;
   select x.${w("id")} into v_id from ${t("items")} x where x.${w("recursFrom")} = v_src.${w("id")};
   if v_id is not null then
     return (select ${helpers.row("x")} from ${t("items")} x where x.${w("id")} = v_id);
   end if;
-  v_shift := coalesce(repeat_work_item.due_at - coalesce(${anchor}), interval '0');
-  v_next := ${n.fn("create_work_item")}(v_src.${w("tenant")}, jsonb_strip_nulls(jsonb_build_object(
+  v_shift := coalesce(repeat_task.due_at - coalesce(${anchor}), interval '0');
+  v_next := ${n.fn("create_task")}(v_src.${w("tenant")}, jsonb_strip_nulls(jsonb_build_object(
     'title', v_src.${w("title")}, 'body', ${src("body")}, 'parentId', v_src.${w("parent")}, 'teamId', v_src.${w("team")},
     ${sqlString(e("projectId"))}, ${src("project")}, 'priority', v_src.${w("priority")}, 'estimate', ${src("estimate")},
-    'startAt', ${src("startAt")} + v_shift, 'endAt', ${src("endAt")} + v_shift, 'dueAt', repeat_work_item.due_at,
+    'startAt', ${src("startAt")} + v_shift, 'endAt', ${src("endAt")} + v_shift, 'dueAt', repeat_task.due_at,
     'pipelineId', v_src.${w("pipeline")}))${fields},
     array(select y.${c("assignees", "user")} from ${t("assignees")} y where y.${c("assignees", "item")} = v_src.${w("id")}));
   v_id := (v_next ->> 'id')::uuid;
@@ -462,7 +462,7 @@ ${
   return (select ${helpers.row("x")} from ${t("items")} x where x.${w("id")} = v_id);
 end;
 $$;
-${serviceGrant(`${fn("repeat_work_item")}(uuid, timestamptz)`)}
+${serviceGrant(`${fn("repeat_task")}(uuid, timestamptz)`)}
 `;
 }
 
@@ -475,14 +475,14 @@ function watchers(
     return "";
   }
 
-  const { fn, t, c, e } = n;
+  const { fn, t, c } = n;
   const w = (column: string): string => c("items", column);
   const notifications = ctx.of("notifications");
 
   const s = (column: string): string =>
     notifications.col("subscriptions", column);
 
-  const item = sqlString(e("work_item"));
+  const item = sqlString(n.type);
 
   const tenanted = notifications.has("subscriptions", "tenant")
     ? `\n    and s.${s("tenant")} = x.${w("tenant")}`
@@ -491,7 +491,7 @@ function watchers(
   return `
 -- Watches (all), follows (participating) or ignores an item the caller can
 -- read; a null level removes the choice.
-create or replace function ${fn("watch_work_item")}(work_item uuid, level text)
+create or replace function ${fn("watch_task")}(work_item uuid, level text)
 returns boolean
 language plpgsql
 security definer
@@ -500,18 +500,18 @@ as $$
 declare
   v_row ${t("items")};
 begin
-  select * into v_row from ${t("items")} x where x.${w("id")} = watch_work_item.work_item and ${readable("x")};
+  select * into v_row from ${t("items")} x where x.${w("id")} = watch_task.work_item and ${readable("x")};
   if v_row.${w("id")} is null then
-    ${fail("WORK_ITEM_NOT_FOUND", "no such work item you can read", "P0002")}
+    ${fail("TASK_NOT_FOUND", "no such work item you can read", "P0002")}
   end if;
-  perform ${notifications.fn("set_notification_subscription")}(${item}, v_row.${w("id")}::text, watch_work_item.level, v_row.${w("tenant")});
-  return watch_work_item.level is not null;
+  perform ${notifications.fn("set_notification_subscription")}(${item}, v_row.${w("id")}::text, watch_task.level, v_row.${w("tenant")});
+  return watch_task.level is not null;
 end;
 $$;
-${userGrant(`${fn("watch_work_item")}(uuid, text)`)}
+${userGrant(`${fn("watch_task")}(uuid, text)`)}
 
 -- Who watches (all) or follows (participating) an item: [{ userId, level }].
-create or replace function ${fn("list_work_item_watchers")}(work_item uuid)
+create or replace function ${fn("list_task_watchers")}(work_item uuid)
 returns jsonb
 language sql
 stable
@@ -521,9 +521,9 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object('userId', s.${s("user")}, 'level', s.${s("level")}) order by s.${s("level")}, s.${s("user")}), '[]'::jsonb)
   from ${t("items")} x
   join ${notifications.table("subscriptions")} s on s.${s("subjectType")} = ${item} and s.${s("subjectId")} = x.${w("id")}::text${tenanted}
-  where x.${w("id")} = list_work_item_watchers.work_item and ${readable("x")} and s.${s("level")} in ('all', 'participating')
+  where x.${w("id")} = list_task_watchers.work_item and ${readable("x")} and s.${s("level")} in ('all', 'participating')
 $$;
-${userGrant(`${fn("list_work_item_watchers")}(uuid)`)}
+${userGrant(`${fn("list_task_watchers")}(uuid)`)}
 `;
 }
 
@@ -535,45 +535,37 @@ export function workItemExtrasContract(
     ...(ctx.hasTable("checklist")
       ? [
           {
-            name: "save_work_item_checklist_item",
+            name: "save_task_checklist_item",
             args: ["uuid", "uuid", "jsonb"],
             returns: "jsonb",
           },
           {
-            name: "delete_work_item_checklist_item",
+            name: "delete_task_checklist_item",
             args: ["uuid"],
             returns: "boolean",
           },
-          {
-            name: "list_work_item_checklist",
-            args: ["uuid"],
-            returns: "jsonb",
-          },
+          { name: "list_task_checklist", args: ["uuid"], returns: "jsonb" },
         ]
       : []),
-    { name: "get_work_item", args: ["uuid"], returns: "jsonb" },
+    { name: "get_task", args: ["uuid"], returns: "jsonb" },
     ...(recurrenceRules(ctx) === undefined
       ? []
       : [
           {
-            name: "set_work_item_recurrence",
+            name: "set_task_recurrence",
             args: ["uuid", "text", "text"],
             returns: "jsonb",
           },
           {
-            name: "repeat_work_item",
+            name: "repeat_task",
             args: ["uuid", "timestamptz"],
             returns: "jsonb",
           },
         ]),
     ...(watchable(ctx)
       ? [
-          {
-            name: "watch_work_item",
-            args: ["uuid", "text"],
-            returns: "boolean",
-          },
-          { name: "list_work_item_watchers", args: ["uuid"], returns: "jsonb" },
+          { name: "watch_task", args: ["uuid", "text"], returns: "boolean" },
+          { name: "list_task_watchers", args: ["uuid"], returns: "jsonb" },
         ]
       : []),
   ];

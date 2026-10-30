@@ -114,7 +114,7 @@ export interface CommentAssignment {
   readonly title?: string;
   /** Default the comment's body. */
   readonly body?: string;
-  /** Other `create_work_item` attributes, such as `projectId` or `priority`. */
+  /** Other `create_task` attributes, such as `projectId` or `priority`. */
   readonly attrs?: Readonly<Record<string, unknown>>;
 }
 

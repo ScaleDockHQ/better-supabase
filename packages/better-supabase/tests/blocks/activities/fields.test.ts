@@ -22,9 +22,9 @@ const Fields = v.object({
 describe("engagements fields", () => {
   it("sends the extra fields under fields and parses every read", async () => {
     const t = fieldsTransport({
-      log_engagement: () => ROW,
-      engagements_of: () => [ROW, ROW],
-      next_engagement: () => null,
+      log_activity: () => ROW,
+      activities_of: () => [ROW, ROW],
+      next_activity: () => null,
     });
 
     const engagements = createActivities({ transport: t, fields: Fields });
@@ -54,7 +54,7 @@ describe("engagements fields", () => {
   });
 
   it("refuses a bad field before the call", async () => {
-    const t = fieldsTransport({ update_engagement: () => ROW });
+    const t = fieldsTransport({ update_activity: () => ROW });
 
     const updated = await createActivities({
       transport: t,

@@ -26,7 +26,7 @@ export const complianceBlock: BlockOf<
     control_framework: { input: controlFrameworkInputSchema },
     control: { input: controlInputSchema },
     evidence_task: { input: evidenceTaskInputSchema },
-    policy: { input: policyInputSchema },
+    compliance_policy: { input: policyInputSchema },
   },
   create: createCompliance,
   recipes: ["control-posture"],

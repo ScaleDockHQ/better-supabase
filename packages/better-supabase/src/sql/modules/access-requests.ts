@@ -79,7 +79,11 @@ const EVENTS: BlockSqlEvents<AccessRequestsEvents> = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    request: { table: "requests", singular: "access_request", primary: true },
+    access_request: {
+      table: "requests",
+      singular: "access_request",
+      primary: true,
+    },
   },
   events: EVENTS,
   hooks: [

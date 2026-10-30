@@ -51,7 +51,7 @@ describe("engagements module, layouts", () => {
         .filter((file) => file.module === "activities")
         .map((file) => file.contents)
         .join(""),
-    ).not.toContain("log_engagement");
+    ).not.toContain("log_activity");
 
     const sql = renderBlocks(["activities"], {})
       .filter((file) => file.module === "activities")
@@ -66,7 +66,7 @@ describe("engagements module, recordings", () => {
   it("adds nothing by default", () => {
     const sql = sqlOf();
     expect(sql).not.toContain("engagement_recordings");
-    expect(sql).not.toContain("save_engagement_notes");
+    expect(sql).not.toContain("save_activity_notes");
   });
 
   it("stores recordings on ai-files with transcripts and notes", () => {
@@ -82,7 +82,7 @@ describe("engagements module, recordings", () => {
       'create table if not exists "better_supabase"."engagement_notes"',
     );
     expect(sql).toContain(
-      'function "better_supabase"."attach_engagement_recording"',
+      'function "better_supabase"."attach_activity_recording"',
     );
     expect(sql).not.toContain("engagements.transcribe:");
   });
@@ -119,12 +119,12 @@ describe("engagements module, recordings", () => {
         .find((contract) => contract.module === "activities")
         ?.functions.map((fn) => fn.name);
 
-    expect(names({})).not.toContain("save_engagement_notes");
+    expect(names({})).not.toContain("save_activity_notes");
     expect(names({ recordings: true })).toEqual(
       expect.arrayContaining([
-        "attach_engagement_recording",
-        "save_engagement_transcript",
-        "save_engagement_notes",
+        "attach_activity_recording",
+        "save_activity_transcript",
+        "save_activity_notes",
       ]),
     );
   });

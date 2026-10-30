@@ -21,7 +21,7 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('test.recording', better_supabase.attach_engagement_recording(
+select set_config('test.recording', better_supabase.attach_activity_recording(
   '00000000-0000-4000-8000-00000000d001', '00000000-0000-4000-8000-00000000d101', 'en'
 )::text, true);
 
@@ -36,19 +36,19 @@ select is(
   'a recording takes the file''s name'
 );
 select throws_ok(
-  $$select better_supabase.attach_engagement_recording('00000000-0000-4000-8000-00000000d001', '00000000-0000-4000-8000-00000000d101', null)$$,
+  $$select better_supabase.attach_activity_recording('00000000-0000-4000-8000-00000000d001', '00000000-0000-4000-8000-00000000d101', null)$$,
   '23505',
   null,
   'a file is attached once'
 );
 select throws_ok(
-  $$select better_supabase.attach_engagement_recording('00000000-0000-4000-8000-00000000d001', '00000000-0000-4000-8000-00000000d102', null)$$,
+  $$select better_supabase.attach_activity_recording('00000000-0000-4000-8000-00000000d001', '00000000-0000-4000-8000-00000000d102', null)$$,
   'P0002',
   null,
   'a file still uploading is not a recording'
 );
 select throws_ok(
-  $$select better_supabase.save_engagement_transcript(
+  $$select better_supabase.save_activity_transcript(
     (current_setting('test.recording')::jsonb ->> 'id')::uuid,
     '[{"startMs": 500, "endMs": 100, "text": "Backwards"}]', '{}')$$,
   '22023',
@@ -56,7 +56,7 @@ select throws_ok(
   'a segment that ends before it starts is refused'
 );
 select is(
-  (better_supabase.save_engagement_transcript(
+  (better_supabase.save_activity_transcript(
     (current_setting('test.recording')::jsonb ->> 'id')::uuid,
     '[{"speaker": "Rep", "startMs": 0, "endMs": 3000, "text": "Thanks for joining."},
       {"speaker": "Buyer", "startMs": 3000, "endMs": 8000, "text": "Send the proposal.", "confidence": 0.8}]',
@@ -66,12 +66,12 @@ select is(
   'a saved transcript has a segment per turn'
 );
 select is(
-  better_supabase.engagement_transcript((current_setting('test.recording')::jsonb ->> 'id')::uuid, 1, null) -> 0 ->> 'speaker',
+  better_supabase.activity_transcript((current_setting('test.recording')::jsonb ->> 'id')::uuid, 1, null) -> 0 ->> 'speaker',
   'Buyer',
   'the transcript pages by position'
 );
 select is(
-  better_supabase.save_engagement_notes(
+  better_supabase.save_activity_notes(
     '00000000-0000-4000-8000-00000000d001',
     '{"summary": "They want a proposal.", "actionItems": [{"text": "Send the proposal"}], "model": "notes-test"}'
   ) ->> 'source',
@@ -79,7 +79,7 @@ select is(
   'notes default to an AI source'
 );
 select throws_ok(
-  $$select better_supabase.fail_engagement_recording((current_setting('test.recording')::jsonb ->> 'id')::uuid, 'boom')$$,
+  $$select better_supabase.fail_activity_recording((current_setting('test.recording')::jsonb ->> 'id')::uuid, 'boom')$$,
   '42501',
   null,
   'only the service role marks a recording failed'
@@ -98,12 +98,12 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000
 set local role authenticated;
 
 select is(
-  better_supabase.engagement_recordings('00000000-0000-4000-8000-00000000d001'),
+  better_supabase.activity_recordings('00000000-0000-4000-8000-00000000d001'),
   '[]'::jsonb,
   'an outsider sees no recordings'
 );
 select is(
-  better_supabase.engagement_notes('00000000-0000-4000-8000-00000000d001'),
+  better_supabase.activity_notes('00000000-0000-4000-8000-00000000d001'),
   null,
   'an outsider reads no notes'
 );

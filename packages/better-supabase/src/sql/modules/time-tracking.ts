@@ -92,7 +92,7 @@ const EVENTS: BlockSqlEvents<TimeTrackingEvents> = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    entry: {
+    time_entry: {
       table: "entries",
       singular: "time_entry",
       plural: "time_entries",
