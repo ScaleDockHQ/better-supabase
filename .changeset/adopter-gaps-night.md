@@ -12,6 +12,8 @@ Fixes from an app built on better-supabase: quote lines with checks across colum
 - Line items: `setLines` and the quote restore on acceptance also work when the app's line table keeps `position` as `numeric`.
 - Invoices: `fromQuote` deducts a deposit on the final invoice's tax basis when the two differ in `pricesIncludeTax`, and leaves out deposits that credit notes fully credited.
 - Invoices: `fromQuote` makes a new final invoice when the previous one was fully credited or archived. The opt-in `columns.invoices.archivedAt` names the app's archive column; archived deposits are not deducted either.
+- Server: `bootstrap()` in a support session ("view as user") runs the bootstrap wrapper as the target and reports the session active, keyed on the support session; an ended support session no longer evicts the target's sessions.
+- Tasks: `assign` records `work_item.assigned` only when the call adds someone, with the new `addedIds` next to `assigneeIds`, so a call with the same assignees no longer runs the assignment automations again.
 - Approvals: `permissions.platform` is the platform key for reading and editing platform policies; an organization's managers and platform staff without it are refused.
 
 SQL signature: `invoice_from_quote(uuid, integer, bigint)` becomes `invoice_from_quote(uuid, integer, bigint, text default null)`; the old overload is dropped. Callers with the old arguments are unaffected.

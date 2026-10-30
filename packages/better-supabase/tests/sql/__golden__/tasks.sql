@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:de1df244d470cf3dad5fbf0e66698bb41ae0922e045fe0cf13a7b2fe7c421e0e
+-- @bsb-hash sha256:d2671bce824964ae9082e12796d8ee82fd06e84c55f6641d1a02ddce2df462d1
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -455,7 +455,8 @@ revoke execute on function "better_supabase"."update_work_items"(jsonb) from pub
 grant execute on function "better_supabase"."update_work_items"(jsonb) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
--- weren't assigned before are notified.
+-- weren't assigned before are notified. work_item.assigned is recorded only
+-- when the call adds someone, with addedIds.
 create or replace function "better_supabase"."set_work_item_assignees"(work_item uuid, users uuid[])
 returns integer
 language plpgsql
@@ -465,6 +466,7 @@ as $$
 declare
   v_row "better_supabase"."work_items";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);
+  v_added uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -473,11 +475,15 @@ begin
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
+  v_added := array(select x from unnest(v_users) x where not exists (
+    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
   delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
   insert into "better_supabase"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
   select v_row."tenant_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
-  null;
+  if cardinality(v_added) > 0 then
+    null;
+  end if;
   return cardinality(v_users);
 end;
 $$;
@@ -953,7 +959,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:ccb1e9838d6907e984a84889fe719c6204240c9ff1ea88c00377aec192abaad0
+-- @bsb-hash sha256:7772a3ea9787f7915c1d4c2cb66694dfb77aba63321d76434d9357249c1d99da
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1429,7 +1435,8 @@ revoke execute on function "better_supabase"."update_work_items"(jsonb) from pub
 grant execute on function "better_supabase"."update_work_items"(jsonb) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
--- weren't assigned before are notified.
+-- weren't assigned before are notified. work_item.assigned is recorded only
+-- when the call adds someone, with addedIds.
 create or replace function "better_supabase"."set_work_item_assignees"(work_item uuid, users uuid[])
 returns integer
 language plpgsql
@@ -1439,6 +1446,7 @@ as $$
 declare
   v_row "better_supabase"."work_items";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);
+  v_added uuid[];
   v_new uuid[];
   v_claims text;
   v_user uuid;
@@ -1451,6 +1459,8 @@ begin
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
   v_new := array(select x from unnest(v_users) x where x is distinct from auth.uid() and not exists (
+    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
+  v_added := array(select x from unnest(v_users) x where not exists (
     select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
   delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
   insert into "better_supabase"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
@@ -1480,7 +1490,9 @@ begin
     ));
     perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   end if;
-  perform "better_supabase".emit_event('work_item.assigned', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'assigneeIds', to_jsonb(v_users)), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  if cardinality(v_added) > 0 then
+    perform "better_supabase".emit_event('work_item.assigned', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'assigneeIds', to_jsonb(v_users), 'addedIds', to_jsonb(v_added)), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  end if;
   return cardinality(v_users);
 end;
 $$;
@@ -2077,7 +2089,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:6fdd70ddb779ec24632c924014881cff51caef678b5d31b05918603ef3aba6a6
+-- @bsb-hash sha256:fa5f5875210861ee24e9bcba9ad43f724c93316b57af29958716acdf46a2e5e7
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2536,7 +2548,8 @@ revoke execute on function "app_private"."update_work_items"(jsonb) from public,
 grant execute on function "app_private"."update_work_items"(jsonb) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
--- weren't assigned before are notified.
+-- weren't assigned before are notified. work_item.assigned is recorded only
+-- when the call adds someone, with addedIds.
 create or replace function "app_private"."set_work_item_assignees"(work_item uuid, users uuid[])
 returns integer
 language plpgsql
@@ -2546,6 +2559,7 @@ as $$
 declare
   v_row "app_private"."work_items";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);
+  v_added uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2554,11 +2568,15 @@ begin
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
+  v_added := array(select x from unnest(v_users) x where not exists (
+    select 1 from "app_private"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
   delete from "app_private"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
   insert into "app_private"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
   select v_row."tenant_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
-  null;
+  if cardinality(v_added) > 0 then
+    null;
+  end if;
   return cardinality(v_users);
 end;
 $$;
@@ -3034,7 +3052,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:05ee9cc2a334fccc22714af33ee3cfb84f1225bae4abc82a008731a622177ce9
+-- @bsb-hash sha256:577c60b579d3a735e443bba150a326bdb1ad3a5a7cae473bf8ccd6848cc50be2
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3488,7 +3506,8 @@ revoke execute on function "better_supabase"."update_work_items"(jsonb) from pub
 grant execute on function "better_supabase"."update_work_items"(jsonb) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
--- weren't assigned before are notified.
+-- weren't assigned before are notified. work_item.assigned is recorded only
+-- when the call adds someone, with addedIds.
 create or replace function "better_supabase"."set_work_item_assignees"(work_item uuid, users uuid[])
 returns integer
 language plpgsql
@@ -3498,6 +3517,7 @@ as $$
 declare
   v_row "better_supabase"."work_items";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);
+  v_added uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3506,11 +3526,15 @@ begin
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
+  v_added := array(select x from unnest(v_users) x where not exists (
+    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
   delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
   insert into "better_supabase"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
   select v_row."tenant_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
-  null;
+  if cardinality(v_added) > 0 then
+    null;
+  end if;
   return cardinality(v_users);
 end;
 $$;
@@ -4125,7 +4149,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:c575a45883013b4f8d5ea9509467792b53600f475d54f16c8219c4294a306507
+-- @bsb-hash sha256:b4ea376f531bc4ff821d63df404b36a720b0f1a200cc57c837036708d1978bd8
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4582,7 +4606,8 @@ revoke execute on function "better_supabase"."update_work_items"(jsonb) from pub
 grant execute on function "better_supabase"."update_work_items"(jsonb) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
--- weren't assigned before are notified.
+-- weren't assigned before are notified. work_item.assigned is recorded only
+-- when the call adds someone, with addedIds.
 create or replace function "better_supabase"."set_work_item_assignees"(work_item uuid, users uuid[])
 returns integer
 language plpgsql
@@ -4592,6 +4617,7 @@ as $$
 declare
   v_row "better_supabase"."work_items";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);
+  v_added uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4600,11 +4626,15 @@ begin
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
+  v_added := array(select x from unnest(v_users) x where not exists (
+    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
   delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
   insert into "better_supabase"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
   select v_row."tenant_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
-  null;
+  if cardinality(v_added) > 0 then
+    null;
+  end if;
   return cardinality(v_users);
 end;
 $$;
@@ -5080,7 +5110,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:d470233c297612ed29a458cb3410b7f537934a85d9fbe975f4da55b01514e973
+-- @bsb-hash sha256:e70a37e53bd56e48a4a4b380bbc90b45db7075d8e2ce828996cdf3b6253f7b05
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5534,7 +5564,8 @@ revoke execute on function "better_supabase"."update_work_items"(jsonb) from pub
 grant execute on function "better_supabase"."update_work_items"(jsonb) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
--- weren't assigned before are notified.
+-- weren't assigned before are notified. work_item.assigned is recorded only
+-- when the call adds someone, with addedIds.
 create or replace function "better_supabase"."set_work_item_assignees"(work_item uuid, users uuid[])
 returns integer
 language plpgsql
@@ -5544,6 +5575,7 @@ as $$
 declare
   v_row "better_supabase"."work_items";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);
+  v_added uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5552,11 +5584,15 @@ begin
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
+  v_added := array(select x from unnest(v_users) x where not exists (
+    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
   delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
   insert into "better_supabase"."work_item_assignees" ("org_id", "work_item_id", "user_id")
   select v_row."org_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
-  null;
+  if cardinality(v_added) > 0 then
+    null;
+  end if;
   return cardinality(v_users);
 end;
 $$;

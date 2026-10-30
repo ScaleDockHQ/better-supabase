@@ -86,7 +86,7 @@ const rows = useTasks({ limit: 50 });
 
 `update(changes)` applies grid edits and Gantt drags one by one and returns the refused ones with their hint. The table refuses a parent that would put an item under itself (`WORK_ITEM_PARENT_CYCLE`) and date changes on a locked item (`WORK_ITEM_LOCKED`). Moving to a completed or canceled stage stamps `closedAt` and a close reason (`completed`, or `not_planned` for canceled; pass `closeReason: "duplicate"` with the move to mark a duplicate) and records `work_item.closed`. Moving back to an open stage clears both and records `work_item.reopened`.
 
-`assign(id, userIds)` replaces the assignees. Each one watches the item, and the people newly assigned get a `work_item.assigned` notification. `options.maxAssignees` caps the list (`WORK_ITEM_ASSIGNEES_LIMIT`), and `1` gives the single-assignee shape of Linear and Jira.
+`assign(id, userIds)` replaces the assignees. Each one watches the item, and the people newly assigned get a `work_item.assigned` notification. The `work_item.assigned` event is recorded only when the call adds someone: `assigneeIds` holds everyone assigned now and `addedIds` the people the call added. `options.maxAssignees` caps the list (`WORK_ITEM_ASSIGNEES_LIMIT`), and `1` gives the single-assignee shape of Linear and Jira.
 
 The notification carries the item's title as its subject label, and `options.actionPath` sets its action path from a template with `{id}` and `{identifier}`, such as `"/tasks/{id}"`. Set `options.notify: false` when the app sends its own assignment notifications; the assignees still watch the item.
 
@@ -137,10 +137,10 @@ With the [notifications](/docs/blocks/notifications) block installed, `watch(id,
 
 ## Events
 
-| Event                                                                                                                           | Data                                                                                         |
-| ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `work_item.created`, `work_item.updated`, `work_item.assigned`, `work_item.reopened`, `work_item.archived`, `work_item.deleted` | `organizationId`, `workItemId`, `subjectType`, `subjectId`, `title`, `fields`, `assigneeIds` |
-| `work_item.closed`                                                                                                              | the same, with `state` and `closeReason`                                                     |
+| Event                                                                                                                           | Data                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `work_item.created`, `work_item.updated`, `work_item.assigned`, `work_item.reopened`, `work_item.archived`, `work_item.deleted` | `organizationId`, `workItemId`, `subjectType`, `subjectId`, `title`, `fields`, `assigneeIds`, `addedIds` |
+| `work_item.closed`                                                                                                              | the same, with `state` and `closeReason`                                                                 |
 
 ## Hooks
 
