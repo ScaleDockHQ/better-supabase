@@ -7006,7 +7006,14 @@
       "AccessRequestsEvents",
       "AccessRequestsOptions",
       "AccessRequestStatus",
-      "BlockTransport"
+      "BlockTransport",
+      "EmergencyAccessInput",
+      "EmergencyListOptions",
+      "EmergencyReview",
+      "EmergencyReviewInput",
+      "RecordAccessInput",
+      "RecordAccessRequest",
+      "RoleAccessRequest"
     ]
   },
   "./blocks/accounting": {

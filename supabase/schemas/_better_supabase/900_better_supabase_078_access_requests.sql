@@ -1,6 +1,6 @@
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:9cb8fcd6e2f2f04041b7d6d8889bb37ffbc27564ffcec8e62d29a3f3d0d0d323
+-- @bsb-hash sha256:92327923ecf45a7438f5d53607d029879ef60653fb45a2ca33d02b11784edf09
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -472,9 +472,9 @@ begin
   if v_me is null then
     raise exception 'sign in to request access' using errcode = '42501', hint = 'ACCESS_SIGN_IN';
   end if;
-  if not (request_record_access.subject_type = any (array['customer']::text[])) or case request_record_access.subject_type
+  if not (request_record_access.subject_type = any (array['customer']::text[])) or (case request_record_access.subject_type
       when 'customer' then not (request_record_access.action = any (array['read', 'write']::text[]))
-      else true end then
+      else true end) then
     raise exception 'this record or action can''t be requested' using errcode = '22023', hint = 'ACCESS_REQUEST_RECORD_INVALID';
   end if;
   v_tenant := "better_supabase"."record_team_tenant"(request_record_access.subject_type, request_record_access.subject_id);
@@ -553,9 +553,9 @@ begin
   if length(btrim(coalesce(open_emergency_access.reason, ''))) < 10 then
     raise exception 'say why you need emergency access, in at least 10 characters' using errcode = '22023', hint = 'ACCESS_REQUEST_REASON_REQUIRED';
   end if;
-  if not (open_emergency_access.subject_type = any (array['customer']::text[])) or case open_emergency_access.subject_type
+  if not (open_emergency_access.subject_type = any (array['customer']::text[])) or (case open_emergency_access.subject_type
       when 'customer' then not ('read' = any (array['read', 'write']::text[]))
-      else true end then
+      else true end) then
     raise exception 'this record or action can''t be requested' using errcode = '22023', hint = 'ACCESS_REQUEST_RECORD_INVALID';
   end if;
   v_tenant := "better_supabase"."record_team_tenant"(open_emergency_access.subject_type, open_emergency_access.subject_id);

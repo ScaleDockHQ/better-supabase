@@ -7620,6 +7620,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "AccessRequestStatus"
+        },
+        {
+          "name": "RecordAccessRequest"
+        },
+        {
+          "name": "RoleAccessRequest"
         }
       ],
       "events": {
