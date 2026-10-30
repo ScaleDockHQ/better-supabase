@@ -1,6 +1,6 @@
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:973fc3f7ad4cdacea90efb4d72e2fdafb2c522d62164005a917446e8d4518a76
+-- @bsb-hash sha256:67c3420c9dda177394cca1cd2a5af2c941fcaf60db5b019e8fbb54de9e275263
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
