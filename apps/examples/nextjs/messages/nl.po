@@ -92,6 +92,16 @@ msgctxt "care-plans.rTFlYI"
 msgid "A client's problems, goals and actions in the active plan, and what each goal evaluation found."
 msgstr "De problemen, doelen en acties van een cliënt in het actieve plan, en wat elke doelevaluatie vond."
 
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.TTLDST"
+msgid "Cases"
+msgstr "Cases"
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.0jbldy"
+msgid "Nonconformities, complaints, incidents and the other cases of the organization, from report to a verified close."
+msgstr "Afwijkingen, klachten, incidenten en de andere cases van de organisatie, van melding tot een geverifieerde afsluiting."
+
 #: src/app/[locale]/(app)/chat/page.tsx
 msgctxt "chat.WTrOy3"
 msgid "Chat"
@@ -3070,6 +3080,221 @@ msgstr "Evalueer een doel van het actieve plan om vast te leggen wat het bereikt
 msgctxt "care-plans.2ncFXE"
 msgid "Read about evaluations"
 msgstr "Lees over evaluaties"
+
+#: src/features/cases/components/case-board.tsx
+msgctxt "cases.Z3SH1K"
+msgid "{kind}, due {date}"
+msgstr "{kind}, uiterlijk {date}"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.1_3-n8"
+msgid "Closed {number}"
+msgstr "{number} afgesloten"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.qXe_G4"
+msgid "{number}: {title}"
+msgstr "{number}: {title}"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.0cEOii"
+msgid "{kind} in {stage}"
+msgstr "{kind} in {stage}"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.34dTMy"
+msgid "Effectiveness check due {date}"
+msgstr "Effectiviteitscontrole uiterlijk {date}"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.Vg91Zy"
+msgid "No root cause recorded yet."
+msgstr "Nog geen hoofdoorzaak vastgelegd."
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.Edwn1c"
+msgid "Before this case can close"
+msgstr "Voordat deze case kan sluiten"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.rRlsS8"
+msgid "Nothing blocks closing this case"
+msgstr "Niets houdt het sluiten van deze case tegen"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.keM5cz"
+msgid "No actions yet"
+msgstr "Nog geen acties"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.ukJ9mi"
+msgid "Containment and corrective actions are tasks; add them from the case's work items."
+msgstr "Beheersmaatregelen en corrigerende acties zijn taken; voeg ze toe vanuit de werkitems van de case."
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.JXdbo8"
+msgid "Done"
+msgstr "Klaar"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.9Ym3ZK"
+msgid "Open, required"
+msgstr "Open, verplicht"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.nDeMD5"
+msgid "Close case"
+msgstr "Case sluiten"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.477I0g"
+msgid "Low"
+msgstr "Laag"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.ovJ26C"
+msgid "Medium"
+msgstr "Gemiddeld"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.AxMhQr"
+msgid "High"
+msgstr "Hoog"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.2pzTGC"
+msgid "Critical"
+msgstr "Kritiek"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.FRXOmD"
+msgid "Reported"
+msgstr "Gemeld"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases._GKH_w"
+msgid "Investigating"
+msgstr "In onderzoek"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.U5sYRe"
+msgid "Acting"
+msgstr "In actie"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.LPxYNw"
+msgid "Verifying"
+msgstr "Verificatie"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.izMqt-"
+msgid "Record the root cause."
+msgstr "Leg de hoofdoorzaak vast."
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.x_bR95"
+msgid "Add at least one required action."
+msgstr "Voeg minstens één verplichte actie toe."
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.s272mU"
+msgid "Finish the open required actions."
+msgstr "Rond de open verplichte acties af."
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.q7kUzR"
+msgid "Record whether the actions worked."
+msgstr "Leg vast of de acties hebben gewerkt."
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.3ehcCP"
+msgid "Publish a new version of the affected documents."
+msgstr "Publiceer een nieuwe versie van de betrokken documenten."
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.yC3EIo"
+msgid "Containment"
+msgstr "Beheersing"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.ddW5zC"
+msgid "Correction"
+msgstr "Correctie"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.Qx_tIx"
+msgid "Corrective"
+msgstr "Corrigerend"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.VO7L8y"
+msgid "Preventive"
+msgstr "Preventief"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.cpI605"
+msgid "Improvement"
+msgstr "Verbetering"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.K0dxA6"
+msgid "Open cases"
+msgstr "Open cases"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.4NNkXw"
+msgid "Each open case in its stage. Drag a card to move it; closing happens on the case once nothing blocks it."
+msgstr "Elke open case in zijn fase. Sleep een kaart om hem te verplaatsen; sluiten gebeurt op de case zodra niets het tegenhoudt."
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.741_Ec"
+msgid "The cases didn't load"
+msgstr "De cases zijn niet geladen"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.I-RtUF"
+msgid "No open cases"
+msgstr "Geen open cases"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.Wf5S1U"
+msgid "Nonconformities, complaints and incidents land here when someone reports one, through the API or a public form."
+msgstr "Afwijkingen, klachten en incidenten komen hier terecht zodra iemand er een meldt, via de API of een openbaar formulier."
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.2Enwrz"
+msgid "Read the cases guide"
+msgstr "Lees de handleiding over cases"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.G-MTSE"
+msgid "Pick a case"
+msgstr "Kies een case"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.8JpBR1"
+msgid "Open a case on the board to see what still stops it from closing."
+msgstr "Open een case op het bord om te zien wat het sluiten nog tegenhoudt."
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases._gd0g1"
+msgid "The case didn't load"
+msgstr "De case is niet geladen"
 
 #: src/features/chat/components/channel-sidebar.tsx
 msgctxt "chat.LUrJwE"
@@ -8815,6 +9040,11 @@ msgstr "Kwalificaties"
 msgctxt "navigation._s79W_"
 msgid "Risks"
 msgstr "Risico's"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.TTLDST"
+msgid "Cases"
+msgstr "Cases"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.poLbhw"

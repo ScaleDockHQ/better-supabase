@@ -27239,3 +27239,268 @@ export async function ObservationChart() {
   );
 }
 ```
+
+## Case board
+
+The open cases in stage columns, reported to verifying; dragging a card moves the case to that stage of its kind's pipeline. It loads its data on the server through the block's client; the [cases block](https://bettersupabase.com/blocks/cases) must be installed (`npx better-supabase add cases`). Page: https://bettersupabase.com/recipes/case-board.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge card @reui/kanban
+```
+
+```tsx title="apps/examples/nextjs/src/features/cases/components/case-board.tsx"
+/**
+ * The organization's open cases in a column for their stage. Dragging a card to
+ * another column moves the case there; a failed move puts it back. The parent
+ * keys it by the cards' stages, so a refresh starts it from the saved board.
+ */
+export function CaseBoard({
+  data,
+  canMove,
+}: {
+  data: CaseBoardData;
+  canMove: boolean;
+}) {
+  const errorMessage = useErrorMessage();
+  const label = useStageLabel();
+  const [columns, setColumns] = useState(() => columnsOf(data.cards));
+  const move = useAction(moveCase);
+  const byId = new Map(data.cards.map((card) => [card.id, card]));
+
+  return (
+    <div data-recipe="case-board">
+      <Kanban
+        value={columns}
+        onValueChange={setColumns}
+        getItemValue={(card) => card.id}
+        onValueCommit={(_value, meta) => {
+          if (meta.kind !== "item") {
+            return;
+          }
+
+          const from = v.parse(StageSchema, meta.activeContainer);
+          const to = v.parse(StageSchema, meta.overContainer);
+          const card = byId.get(String(meta.event.active.id));
+
+          const stageId =
+            card === undefined ? undefined : data.stages[card.pipelineId]?.[to];
+
+          if (from === to || card === undefined || stageId === undefined) {
+            setColumns(meta.previousValue);
+
+            return;
+          }
+
+          void move.run({ caseId: card.id, stageId }).then((result) => {
+            if (!result.ok) {
+              setColumns(meta.previousValue);
+              toast.error(errorMessage(result.error));
+            }
+
+            return result;
+          });
+        }}
+      >
+        <KanbanBoard className="flex overflow-x-auto">
+          {OPEN_STAGES.map((stage) => {
+            const column = columns[stage] ?? [];
+
+            return (
+              <KanbanColumn
+                key={stage}
+                value={stage}
+                className="w-72 shrink-0 gap-3 rounded-lg bg-muted/50 p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium">{label(stage)}</span>
+                  <Badge variant="outline">{column.length}</Badge>
+                </div>
+                <KanbanColumnContent value={stage} className="min-h-16">
+                  {column.map((card) => (
+                    <KanbanItem
+                      key={card.id}
+                      value={card.id}
+                      disabled={!canMove || move.pending}
+                    >
+                      <KanbanItemHandle cursor={canMove}>
+                        <CaseItem card={card} />
+                      </KanbanItemHandle>
+                    </KanbanItem>
+                  ))}
+                </KanbanColumnContent>
+              </KanbanColumn>
+            );
+          })}
+        </KanbanBoard>
+        <KanbanOverlay>
+          {({ value, variant }) => {
+            const card =
+              variant === "item" ? byId.get(String(value)) : undefined;
+
+            return card ? <CaseItem card={card} /> : null;
+          }}
+        </KanbanOverlay>
+      </Kanban>
+    </div>
+  );
+}
+```
+
+## Case detail
+
+One case with its severity, root cause, what still blocks closing it and its actions, and a Close button once nothing blocks it. It loads its data on the server through the block's client; the [cases block](https://bettersupabase.com/blocks/cases) must be installed (`npx better-supabase add cases`). Page: https://bettersupabase.com/recipes/case-detail.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button empty @reui/frame
+```
+
+```tsx title="apps/examples/nextjs/src/features/cases/components/case-detail.tsx"
+/**
+ * One case with what still stops it from closing and its actions. Close is
+ * enabled once nothing blocks it; the database checks again when it runs.
+ */
+export function CaseDetail({
+  detail,
+  canClose,
+}: {
+  detail: CaseDetailView;
+  canClose: boolean;
+}) {
+  const t = useExtracted("cases");
+  const format = useFormatter();
+  const errorMessage = useErrorMessage();
+  const blocker = useBlockerLabel();
+  const actionType = useActionTypeLabel();
+  const severity = useSeverityLabel();
+
+  const close = useAction(closeCase, {
+    onSuccess: ({ number }) => {
+      toast.success(t("Closed {number}", { number }));
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const open = detail.status === "open";
+
+  return (
+    <Frame spacing="sm" data-recipe="case-detail">
+      <FrameHeader className="gap-0.5">
+        <FrameTitle>
+          {t("{number}: {title}", {
+            number: detail.number,
+            title: detail.title,
+          })}
+        </FrameTitle>
+        <FrameDescription>
+          {detail.stage === null
+            ? detail.kind
+            : t("{kind} in {stage}", {
+                kind: detail.kind,
+                stage: detail.stage,
+              })}
+        </FrameDescription>
+      </FrameHeader>
+      <FramePanel className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-2">
+          {detail.severity === null ? null : (
+            <Badge variant={severityVariant(detail.severity)}>
+              {severity(detail.severity)}
+            </Badge>
+          )}
+          {detail.effectivenessDueOn === null ? null : (
+            <Badge variant="info-light">
+              {t("Effectiveness check due {date}", {
+                date: format.dateTime(new Date(detail.effectivenessDueOn), {
+                  dateStyle: "medium",
+                  timeZone: "UTC",
+                }),
+              })}
+            </Badge>
+          )}
+        </div>
+        <p className="text-sm">
+          {detail.rootCause ?? (
+            <span className="text-muted-foreground">
+              {t("No root cause recorded yet.")}
+            </span>
+          )}
+        </p>
+        {open && detail.blockers.length > 0 ? (
+          <Alert variant="warning">
+            <CircleDotIcon />
+            <AlertTitle>{t("Before this case can close")}</AlertTitle>
+            <AlertDescription>
+              <ul className="flex list-disc flex-col gap-1 pl-4">
+                {detail.blockers.map((code) => (
+                  <li key={code}>{blocker(code)}</li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        ) : open ? (
+          <Alert variant="success">
+            <CircleCheckIcon />
+            <AlertTitle>{t("Nothing blocks closing this case")}</AlertTitle>
+          </Alert>
+        ) : null}
+        {detail.actions.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <ListChecksIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("No actions yet")}</EmptyTitle>
+              <EmptyDescription>
+                {t(
+                  "Containment and corrective actions are tasks; add them from the case's work items.",
+                )}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {detail.actions.map((action) => (
+              <li
+                key={action.id}
+                className="flex items-center justify-between gap-2 text-sm"
+              >
+                <span className="flex items-center gap-2">
+                  <Badge variant="outline">{actionType(action.type)}</Badge>
+                  {action.title}
+                </span>
+                {action.done ? (
+                  <Badge variant="success-light">{t("Done")}</Badge>
+                ) : (
+                  <Badge variant="secondary">
+                    {action.required ? t("Open, required") : t("Open")}
+                  </Badge>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </FramePanel>
+      {open && canClose ? (
+        <FrameFooter>
+          <Button
+            type="button"
+            size="sm"
+            disabled={detail.blockers.length > 0 || close.pending}
+            onClick={() => {
+              void close.run({ caseId: detail.id });
+            }}
+          >
+            {t("Close case")}
+          </Button>
+        </FrameFooter>
+      ) : null}
+    </Frame>
+  );
+}
+```
