@@ -3498,6 +3498,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "numbering",
         "attachments",
         "reminders",
+        "accounting",
         "pipelines",
         "subjects"
       ],
@@ -3594,6 +3595,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "status": "status",
               "startOn": "start_on",
               "targetOn": "target_on",
+              "budgetAmount": "budget_amount",
+              "budgetCurrency": "budget_currency",
+              "budgetHours": "budget_hours",
               "archivedAt": "archived_at",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -4605,6 +4609,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "permissions"
       ],
       "integrates": [
+        "accounting",
         "bookings",
         "tasks",
         "outbox",
@@ -4660,7 +4665,16 @@ export const PRESET_CATALOG: PresetCatalog = {
               "retiredAt": "retired_at",
               "createdBy": "created_by",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "acquisitionCost": "acquisition_cost",
+              "currency": "currency",
+              "acquiredOn": "acquired_on",
+              "usefulLifeMonths": "useful_life_months",
+              "residualValue": "residual_value",
+              "depreciationMethod": "depreciation_method",
+              "depreciationRateBps": "depreciation_rate_bps",
+              "disposedOn": "disposed_on",
+              "disposalAmount": "disposal_amount"
             }
           },
           "locations": {
@@ -4989,7 +5003,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "audit"
+        "audit",
+        "tasks",
+        "accounting"
       ],
       "manifest": "billable-time",
       "scopes": [
@@ -5016,6 +5032,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "rate": "rate",
               "currency": "currency",
               "effectiveFrom": "effective_from",
+              "cost": "cost_amount",
               "createdBy": "created_by",
               "createdAt": "created_at"
             }
@@ -11676,7 +11693,19 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "AssetAssignment"
         },
         {
+          "name": "AssetDepreciatedEventData"
+        },
+        {
+          "name": "AssetDepreciation"
+        },
+        {
+          "name": "AssetDepreciationRun"
+        },
+        {
           "name": "AssetDetail"
+        },
+        {
+          "name": "AssetDisposedEventData"
         },
         {
           "name": "AssetEventData"
@@ -11746,7 +11775,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "asset.created",
           "asset.updated",
           "asset.assigned",
-          "asset.released"
+          "asset.released",
+          "asset.depreciated",
+          "asset.disposed"
         ]
       }
     },
@@ -12353,6 +12384,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "rate": {
                 "kind": "custom"
               },
+              "cost": {
+                "kind": "custom",
+                "optional": true
+              },
               "userId": {
                 "kind": "uuid",
                 "optional": true
@@ -12373,6 +12408,27 @@ export const PRESET_CATALOG: PresetCatalog = {
               "type": "object",
               "properties": {
                 "rate": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "cost": {
                   "title": "Money",
                   "type": "object",
                   "properties": {

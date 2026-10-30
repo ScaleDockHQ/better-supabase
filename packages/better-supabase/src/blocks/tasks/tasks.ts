@@ -1,3 +1,4 @@
+import type { Money } from "../../commerce/money.ts";
 import type {
   BlockFields,
   ExtraFields,
@@ -14,6 +15,7 @@ import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { amountText, optionalMoneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
   blockCall,
@@ -248,6 +250,9 @@ export interface Project {
   readonly targetOn?: Temporal.PlainDate;
   /** The share of its items that are completed, canceled ones left out. */
   readonly progress?: number;
+  /** What the project may cost; `billableTime.projectCosts` compares it. */
+  readonly budget?: Money;
+  readonly budgetHours?: number;
 }
 
 export interface Iteration {
@@ -307,11 +312,16 @@ export interface Tasks<F extends object = Record<never, never>> {
   saveProject(
     organizationId: string,
     project: Partial<
-      Omit<Project, "id" | "progress" | "startOn" | "targetOn">
+      Omit<
+        Project,
+        "id" | "progress" | "startOn" | "targetOn" | "budget" | "budgetHours"
+      >
     > & {
       readonly id?: string;
       readonly startOn?: Temporal.PlainDate | null;
       readonly targetOn?: Temporal.PlainDate | null;
+      readonly budget?: Money | null;
+      readonly budgetHours?: number | null;
       readonly archived?: boolean;
     },
   ): AsyncResult<Project>;
@@ -548,6 +558,11 @@ function projectOf(value: unknown): Project {
     startOn: date(row["start_on"]),
     targetOn: date(row["target_on"]),
     progress: num(row["progress"]),
+    budget:
+      row["budget_currency"] === null || row["budget_currency"] === undefined
+        ? undefined
+        : optionalMoneyOf(row["budget_amount"], row["budget_currency"]),
+    budgetHours: num(row["budget_hours"]),
   });
 }
 
@@ -760,11 +775,23 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       ).andThen(fields.rows);
     },
     saveProject: (organizationId, project) => {
-      const { id, ...attrs } = project;
+      const { id, budget, ...attrs } = project;
+
+      const amounts =
+        budget === undefined
+          ? {}
+          : {
+              budgetAmount: budget === null ? null : amountText(budget),
+              budgetCurrency: budget?.currency ?? null,
+            };
 
       return call(
         "save_project",
-        { tenant: organizationId, project: id ?? null, attrs: args(attrs) },
+        {
+          tenant: organizationId,
+          project: id ?? null,
+          attrs: { ...args(attrs), ...amounts },
+        },
         projectOf,
       );
     },

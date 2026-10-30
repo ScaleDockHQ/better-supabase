@@ -1,6 +1,6 @@
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:c8963dabe1864e2b0992860909bbca42bf87afa52f4e84701da6466f75690217
+-- @bsb-hash sha256:10255fece29a48aa80df4385eac0d0fa15bfb9381e34c6d20647637e3df5bbc7
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -204,7 +204,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -552,13 +552,15 @@ begin
       (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false),
       (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false),
       (setup_accounting.tenant, '4900', 'Exchange gains', 'income', 'other_income', false),
+      (setup_accounting.tenant, '4910', 'Gains on asset disposals', 'income', 'other_income', false),
       (setup_accounting.tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false),
       (setup_accounting.tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false),
       (setup_accounting.tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false),
-      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false);
+      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false),
+      (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false);
     insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("tenant_id", "role") do nothing;
   end if;
@@ -750,7 +752,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -1628,13 +1630,15 @@ declare
   v_descriptions text[] := '{}';
 begin
   if accounting_post_source.source_type is null or accounting_post_source.source_id is null
-    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift') then
+    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift') then
     raise exception 'no installed block books this source type' using errcode = '22023', hint = 'ACCOUNTING_SOURCE_INVALID';
   end if;
   v_doc := case accounting_post_source.source_type
     when 'stock_movement' then "better_supabase"."accounting_stock_movement_lines"(accounting_post_source.source_id)
     when 'invoice' then "better_supabase"."accounting_invoice_lines"(accounting_post_source.source_id)
     when 'invoice_payment' then "better_supabase"."accounting_invoice_payment_lines"(accounting_post_source.source_id)
+    when 'asset_depreciation' then "better_supabase"."accounting_asset_depreciation_lines"(accounting_post_source.source_id)
+    when 'asset_disposal' then "better_supabase"."accounting_asset_disposal_lines"(accounting_post_source.source_id)
     when 'lease_rent' then "better_supabase"."accounting_lease_rent_lines"(accounting_post_source.source_id)
     when 'lease_payment' then "better_supabase"."accounting_lease_payment_lines"(accounting_post_source.source_id)
     when 'expense_report' then "better_supabase"."accounting_expense_report_lines"(accounting_post_source.source_id)
@@ -1645,6 +1649,8 @@ begin
     when 'stock_movement' then 'general'
     when 'invoice' then 'sales'
     when 'invoice_payment' then 'bank'
+    when 'asset_depreciation' then 'general'
+    when 'asset_disposal' then 'general'
     when 'lease_rent' then 'sales'
     when 'lease_payment' then 'bank'
     when 'expense_report' then 'purchase'
@@ -1813,6 +1819,34 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_reverse_source"(uuid, text, text, date) from public, anon, authenticated;
+
+-- Keeps a dimension value in step with another block's record, such as a
+-- project, so its documents can carry it: creates the dimension when it is
+-- missing, and sets the value's name and whether it is archived.
+create or replace function "better_supabase"."accounting_sync_dimension_value"(tenant uuid, dimension_key text, dimension_name text, code text, value_name text, archived boolean default false)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_dimension uuid;
+begin
+  insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
+  values (accounting_sync_dimension_value.tenant, accounting_sync_dimension_value.dimension_key, accounting_sync_dimension_value.dimension_name)
+  on conflict ("tenant_id", "key") do nothing;
+  select y."id" into v_dimension from "better_supabase"."accounting_dimensions" y
+  where y."tenant_id" = accounting_sync_dimension_value.tenant and y."key" = accounting_sync_dimension_value.dimension_key;
+  insert into "better_supabase"."accounting_dimension_values" as y ("tenant_id", "dimension_id", "code", "name", "archived_at")
+  values (accounting_sync_dimension_value.tenant, v_dimension, accounting_sync_dimension_value.code, left(accounting_sync_dimension_value.value_name, 200),
+    case when accounting_sync_dimension_value.archived then now() end)
+  on conflict ("dimension_id", "code") do update
+    set "name" = excluded."name",
+      "archived_at" = case when accounting_sync_dimension_value.archived then coalesce(y."archived_at", now()) end;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_sync_dimension_value"(uuid, text, text, text, text, boolean) from public, anon, authenticated;
 
 -- What keeps a period from closing: draft entries dated in it.
 create or replace function "better_supabase"."accounting_period_close_blockers"(period_id uuid)

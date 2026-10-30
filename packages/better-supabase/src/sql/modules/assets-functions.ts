@@ -1,6 +1,11 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
+import {
+  bookValueJson,
+  depreciationJson,
+  depreciationPatch,
+} from "./assets-depreciation.ts";
 import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -170,7 +175,7 @@ export function assetsFunctions(ctx: BlockSqlContext): string {
     `jsonb_build_object('id', ${row}.${l("id")}, 'organizationId', ${row}.${l("tenant")}, 'parentId', ${row}.${l("parent")}, 'kind', ${row}.${l("kind")}, 'name', ${row}.${l("name")}, 'code', ${or("locations", row, "code")}, 'address', ${or("locations", row, "address")}, 'latitude', ${or("locations", row, "latitude")}, 'longitude', ${or("locations", row, "longitude")}, 'area', ${postgis ? `extensions.st_asgeojson(${row}.area::extensions.geometry)::jsonb` : "null::jsonb"}, 'metadata', ${or("locations", row, "metadata")}, 'archivedAt', ${row}.${l("archivedAt")}, 'createdAt', ${row}.${l("createdAt")}, 'updatedAt', ${row}.${l("updatedAt")})`;
 
   const assetJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'locationId', ${row}.${s("location")}, 'kind', ${row}.${s("kind")}, 'name', ${row}.${s("name")}, 'tag', ${or("assets", row, "tag")}, 'serialNumber', ${or("assets", row, "serial")}, 'status', ${row}.${s("status")}, 'assigneeType', ${row}.${s("assigneeType")}, 'assigneeId', ${row}.${s("assigneeId")}, 'latitude', ${or("assets", row, "latitude")}, 'longitude', ${or("assets", row, "longitude")}, 'metadata', ${or("assets", row, "metadata")}, 'retiredAt', ${or("assets", row, "retiredAt")}, 'createdBy', ${or("assets", row, "createdBy")}, 'createdAt', ${row}.${s("createdAt")}, 'updatedAt', ${row}.${s("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'locationId', ${row}.${s("location")}, 'kind', ${row}.${s("kind")}, 'name', ${row}.${s("name")}, 'tag', ${or("assets", row, "tag")}, 'serialNumber', ${or("assets", row, "serial")}, 'status', ${row}.${s("status")}, 'assigneeType', ${row}.${s("assigneeType")}, 'assigneeId', ${row}.${s("assigneeId")}, 'latitude', ${or("assets", row, "latitude")}, 'longitude', ${or("assets", row, "longitude")}, 'metadata', ${or("assets", row, "metadata")}, 'retiredAt', ${or("assets", row, "retiredAt")}, 'createdBy', ${or("assets", row, "createdBy")}, 'createdAt', ${row}.${s("createdAt")}, 'updatedAt', ${row}.${s("updatedAt")})${depreciationJson(ctx, row)}`;
 
   const assignmentJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${g("id")}, 'assetId', ${row}.${g("asset")}, 'assigneeType', ${row}.${g("assigneeType")}, 'assigneeId', ${row}.${g("assigneeId")}, 'note', ${or("assignments", row, "note")}, 'assignedBy', ${or("assignments", row, "assignedBy")}, 'assignedAt', ${row}.${g("assignedAt")}, 'releasedAt', ${row}.${g("releasedAt")})`;
@@ -288,6 +293,7 @@ export function assetsFunctions(ctx: BlockSqlContext): string {
 
   const locationArgs = `${idType}, text, text, uuid, text, jsonb, double precision, double precision, jsonb, jsonb`;
   const assetArgs = `${idType}, text, text, uuid, text, text, double precision, double precision, jsonb`;
+  const bookValue = depreciationPatch(ctx, "update_asset.patch");
   const listArgs = `${idType}, uuid, boolean, text, text, text, text, text, timestamptz, integer`;
 
   return `-- Adds a location (a site, building, floor, unit or room) under parent_id,
@@ -529,7 +535,9 @@ $$;
 ${userGrant(`${fn("create_asset")}(${assetArgs})`)}
 
 -- Changes the keys patch names: kind, name, locationId, tag, serialNumber,
--- status, latitude, longitude and metadata. Retiring an asset releases it.
+-- status, latitude, longitude and metadata, and the book value keys
+-- acquisitionCost, currency, acquiredOn, usefulLifeMonths, residualValue,
+-- depreciationMethod and depreciationRateBps. Retiring an asset releases it.
 create or replace function ${fn("update_asset")}(asset_id uuid, patch jsonb)
 returns jsonb
 language plpgsql
@@ -568,17 +576,17 @@ begin
   }
   if v_status = 'retired' and v_row.${s("status")} <> 'retired' then
     ${releaseOpen(`v_row.${s("id")}`)}
-  end if;
+  end if;${bookValue.before}
   update ${assets} x set
     ${s("kind")} = case when update_asset.patch ? 'kind' then update_asset.patch ->> 'kind' else x.${s("kind")} end,
     ${s("name")} = case when update_asset.patch ? 'name' then trim(update_asset.patch ->> 'name') else x.${s("name")} end,
     ${s("location")} = v_location,${patchSet("assets", "tag", "update_asset.patch", "tag", "update_asset.patch ->> 'tag'")}${patchSet("assets", "serial", "update_asset.patch", "serialNumber", "update_asset.patch ->> 'serialNumber'")}
-    ${s("status")} = ${ctx.cast("assets", "status", "v_status")},${patchSet("assets", "latitude", "update_asset.patch", "latitude", "(update_asset.patch ->> 'latitude')::double precision")}${patchSet("assets", "longitude", "update_asset.patch", "longitude", "(update_asset.patch ->> 'longitude')::double precision")}${patchSet("assets", "metadata", "update_asset.patch", "metadata", "coalesce(nullif(update_asset.patch -> 'metadata', 'null'::jsonb), '{}'::jsonb)")}
+    ${s("status")} = ${ctx.cast("assets", "status", "v_status")},${patchSet("assets", "latitude", "update_asset.patch", "latitude", "(update_asset.patch ->> 'latitude')::double precision")}${patchSet("assets", "longitude", "update_asset.patch", "longitude", "(update_asset.patch ->> 'longitude')::double precision")}${patchSet("assets", "metadata", "update_asset.patch", "metadata", "coalesce(nullif(update_asset.patch -> 'metadata', 'null'::jsonb), '{}'::jsonb)")}${bookValue.set}
     ${s("assigneeType")} = case when v_status = 'retired' then null else x.${s("assigneeType")} end,
     ${s("assigneeId")} = case when v_status = 'retired' then null else x.${s("assigneeId")} end,${ctx.has("assets", "retiredAt") ? `\n    ${s("retiredAt")} = case when v_status = 'retired' then coalesce(x.${s("retiredAt")}, now()) else null end,` : ""}
     ${s("updatedAt")} = now()
   where x.${s("id")} = v_row.${s("id")}
-  returning * into v_row;
+  returning * into v_row;${bookValue.after}
   ${assetRecord("asset.updated", "v_row", "updated asset")}
   return ${assetJson("v_row")};
 end;
@@ -690,7 +698,7 @@ begin
   if not found or not ${readsAsset("v_row")} then
     ${assetMissing}
   end if;
-  return ${assetJson("v_row")} || jsonb_build_object(
+  return ${assetJson("v_row")}${bookValueJson(ctx, "v_row")} || jsonb_build_object(
     'locationPath', case when v_row.${s("location")} is null then '[]'::jsonb else ${pathOf(`v_row.${s("location")}`)} end,
     'links', ${links(`v_row.${s("id")}`)});
 end;

@@ -31,7 +31,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   approvals:
     "approval_requirement cancel_approval consume_approval decide_approval delegate_approval get_approval is_approved list_approval_policies list_approvals remove_approval_policy request_approval save_approval_policy",
   assets:
-    "archive_asset_location asset_assignment_history asset_locations_at assets_near assign_asset create_asset create_asset_location get_asset get_asset_location list_asset_locations list_assets release_asset set_asset_link update_asset update_asset_location",
+    "archive_asset_location asset_assignment_history asset_locations_at assets_near assign_asset create_asset create_asset_location dispose_asset get_asset get_asset_location list_asset_depreciations list_asset_locations list_assets release_asset run_asset_depreciation set_asset_link update_asset update_asset_location",
   assignment:
     "assign_subject assignment_history list_assignment_queues remove_assignment_queue save_assignment_queue set_assignment_members",
   attachments:
@@ -41,7 +41,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   automations:
     "matching_rules rank_rule record_rule_evaluation remove_rule reset_default_rule rule_evaluations_list rule_fields_list rule_get rule_versions_list rules_list run_rules save_rule set_rule_enabled sync_rule_fields",
   "billable-time":
-    "delete_time_rate invoice_from_time list_invoiced_time list_time_rates set_time_rate time_rate unbilled_time",
+    "delete_time_rate invoice_from_time list_invoiced_time list_time_rates project_costs set_time_rate time_rate unbilled_time",
   billing:
     "billing_account billing_all_customers billing_all_invoices billing_all_subscriptions billing_customer billing_customer_details billing_customer_tenant billing_invoices billing_payment_methods billing_plan_price billing_seat_count billing_status billing_subscription billing_subscription_item billing_tax_ids link_billing_account link_billing_customer",
   bookings:

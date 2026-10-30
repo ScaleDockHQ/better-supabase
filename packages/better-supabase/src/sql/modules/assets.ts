@@ -8,8 +8,19 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import {
+  accountingContributions,
+  accountingSourcesSql,
+} from "../accounting-sources-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, triggerGrant, schemaPreamble } from "../shared.ts";
+import {
+  assetAccountingSources,
+  DEPRECIATION_COLUMNS,
+  depreciates,
+  depreciationFunctions,
+  depreciationTables,
+} from "./assets-depreciation.ts";
 import {
   assetsFunctions,
   assetsPostgis,
@@ -56,6 +67,29 @@ const EVENTS: BlockSqlEvents<AssetsEvents> = {
   "asset.updated": { subject: "assets", payload: ASSET_PAYLOAD },
   "asset.assigned": { subject: "assets", payload: ASSET_PAYLOAD },
   "asset.released": { subject: "assets", payload: ASSET_PAYLOAD },
+  "asset.depreciated": {
+    subject: "assets",
+    payload: [
+      "organizationId",
+      "id",
+      "assetId",
+      "periodStart",
+      "amount",
+      "currency",
+      "entryId",
+    ],
+  },
+  "asset.disposed": {
+    subject: "assets",
+    payload: [
+      "organizationId",
+      "id",
+      "disposedOn",
+      "amount",
+      "currency",
+      "entryId",
+    ],
+  },
 };
 
 const NAMES: BlockSqlNames = {
@@ -125,6 +159,7 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        ...DEPRECIATION_COLUMNS,
       },
       optional: [
         "tag",
@@ -134,6 +169,7 @@ const NAMES: BlockSqlNames = {
         "metadata",
         "retiredAt",
         "createdBy",
+        ...Object.keys(DEPRECIATION_COLUMNS),
       ],
       typed: ["status"],
     },
@@ -153,6 +189,20 @@ const NAMES: BlockSqlNames = {
         releasedAt: "released_at",
       },
       optional: ["note", "assignedBy"],
+    },
+    depreciations: {
+      name: "asset_depreciations",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        asset: "asset_id",
+        periodStart: "period_start",
+        amount: "amount",
+        entry: "entry_id",
+        createdAt: "created_at",
+      },
     },
   },
 };
@@ -338,16 +388,19 @@ ${triggerGrant(`${fn("asset_location_check_parent")}()`)}
 drop trigger if exists ${ctx.trigger("asset_locations_parent")} on ${locations};
 create trigger ${ctx.trigger("asset_locations_parent")} before insert or update of ${l("parent")} on ${locations}
   for each row execute function ${fn("asset_location_check_parent")}();
+${depreciationTables(ctx)}
 ${links}
 `
     : "";
 
   return `${schemaPreamble(ctx)}
 ${tables}
-${assetsFunctions(ctx)}`;
+${assetsFunctions(ctx)}
+${depreciationFunctions(ctx)}
+${accountingSourcesSql(ctx, assetAccountingSources(ctx))}`;
 }
 
-function contract(): readonly BlockSqlContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const id = "{id}";
 
   return [
@@ -373,6 +426,20 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["uuid", "text", "text", "text"],
       returns: "jsonb",
     },
+    ...(depreciates(ctx)
+      ? [
+          {
+            name: "dispose_asset",
+            args: ["uuid", "date", "bigint", "text"],
+            returns: "jsonb",
+          },
+          {
+            name: "list_asset_depreciations",
+            args: ["uuid", "integer"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
   ];
 }
 
@@ -384,10 +451,14 @@ export const ASSETS: BlockSqlDefinition = {
   description:
     "A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.",
   requires: ["memberships", "permissions"],
-  integrates: ["bookings", "tasks", "outbox", "audit"],
+  integrates: ["accounting", "bookings", "tasks", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,
   contract,
   build,
+  contributes: {
+    accounting: (own) =>
+      accountingContributions(own, assetAccountingSources(own)),
+  },
 };

@@ -60,6 +60,8 @@ const ACCOUNT_ROLES: readonly AccountRole[] = [
   "fixed_asset",
   "accumulated_depreciation",
   "depreciation_expense",
+  "disposal_gain",
+  "disposal_loss",
   "expense",
   "suspense",
 ];

@@ -4,14 +4,21 @@ import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type { ProjectCosts } from "./project-costs.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { amountText, moneyOf } from "../money-codec.ts";
+import {
+  amountText,
+  currencyMismatch,
+  moneyOf,
+  optionalAmountText,
+  optionalMoneyOf,
+} from "../money-codec.ts";
 import {
   applyTemporal,
   blockCall,
@@ -22,6 +29,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { projectCostsOf } from "./project-costs.ts";
 
 /** How `unbilled` and `invoice` turn entries into lines. */
 export type BillableTimeGrouping = "subject" | "member" | "entry";
@@ -52,6 +60,8 @@ export interface TimeRate {
   readonly subject?: RecordRef;
   /** Per hour. */
   readonly rate: Money;
+  /** What the hour costs the organization, for project costing. */
+  readonly cost?: Money;
   readonly effectiveFrom: Temporal.PlainDate;
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
@@ -60,6 +70,8 @@ export interface TimeRate {
 export interface TimeRateInput {
   /** Per hour, in minor units. */
   readonly rate: Money;
+  /** What the hour costs the organization, in the rate's currency. */
+  readonly cost?: Money;
   /** The member the rate is for. */
   readonly userId?: string;
   /** The record the rate is for, such as a project. */
@@ -180,6 +192,12 @@ export interface BillableTime {
     invoiceId: string,
     options?: { readonly pageSize?: number },
   ): AsyncResult<readonly InvoicedTimeEntry[]>;
+  /**
+   * A tasks project's time at cost, billed time, accounting lines on its
+   * `project` dimension, margin and budget use. Needs `billable_time.read`, and
+   * the tasks block with projects.
+   */
+  projectCosts(projectId: string): AsyncResult<ProjectCosts>;
 }
 
 function optional<K extends string, V>(
@@ -219,6 +237,7 @@ function rateOf(value: unknown, fn: string): TimeRate {
     ...optional("userId", optionalText(row["userId"])),
     ...optional("subject", subjectOf(row)),
     ...optional("createdBy", optionalText(row["createdBy"])),
+    ...optional("cost", optionalMoneyOf(row["cost"], row["currency"], "cost")),
   };
 }
 
@@ -267,6 +286,13 @@ function scopeArg(scope: BillableTimeScope): Record<string, unknown> {
   };
 }
 
+/** A cost in another currency than the rate, as a failed result. */
+function rateError(input: TimeRateInput): AsyncResult<never> | undefined {
+  const error = currencyMismatch(input.rate.currency, [input.cost]);
+
+  return error === undefined ? undefined : AsyncResult.err(error);
+}
+
 /** The `billable-time` SQL module as typed calls. */
 export function createBillableTime(options: BillableTimeOptions): BillableTime {
   applyTemporal(options);
@@ -275,6 +301,7 @@ export function createBillableTime(options: BillableTimeOptions): BillableTime {
 
   const client: BillableTime = {
     setRate: (input) =>
+      rateError(input) ??
       tenant().andThen((organizationId) =>
         call(
           "set_time_rate",
@@ -286,6 +313,7 @@ export function createBillableTime(options: BillableTimeOptions): BillableTime {
             subject_type: input.subject?.type ?? null,
             subject_id: input.subject?.id ?? null,
             effective_from: input.effectiveFrom?.toString() ?? null,
+            cost_amount: optionalAmountText(input.cost),
           },
           (value) => rateOf(value, "set_time_rate"),
         ),
@@ -381,6 +409,8 @@ export function createBillableTime(options: BillableTimeOptions): BillableTime {
         { invoice: invoiceId, page_size: list.pageSize ?? null },
         (value) => recordsOf(value, "list_invoiced_time").map(invoicedOf),
       ),
+    projectCosts: (projectId) =>
+      call("project_costs", { project_id: projectId }, projectCostsOf),
   };
 
   return withBlockHooks(client, options.hooks, {

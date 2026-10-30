@@ -1,6 +1,7 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { booksAccounting } from "../accounting-sources-sql.ts";
 import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import {
@@ -273,10 +274,54 @@ export function workItemFunctions(
     ${fail("WORK_ITEM_FORBIDDEN", "not allowed to manage projects and iterations")}
   end if;`;
 
+  const budgetSets = (
+    [
+      ["budgetAmount", "bigint"],
+      ["budgetCurrency", "upper"],
+      ["budgetHours", "numeric"],
+    ] as const
+  )
+    .filter(([key]) => ctx.has("projects", key))
+    .map(([key, type]) => {
+      const value =
+        type === "upper"
+          ? `upper(save_project.attrs ->> '${key}')`
+          : `(save_project.attrs ->> '${key}')::${type}`;
+
+      return `        ${p(key)} = case when save_project.attrs ? '${key}' then ${value} else x.${p(key)} end,\n`;
+    })
+    .join("");
+
+  const budgeted =
+    ctx.has("projects", "budgetAmount") &&
+    ctx.has("projects", "budgetCurrency");
+
+  const budgetCheck = budgeted
+    ? `
+    if exists (
+      select 1 from ${t("projects")} x
+      where x.${p("id")} = v_id and x.${p("budgetAmount")} is not null and x.${p("budgetCurrency")} is null
+    ) then
+      ${fail("WORK_ITEM_PROJECT_INVALID", "a budget amount needs a currency", "22023")}
+    end if;`
+    : "";
+
+  const budgetText = ctx.has("projects", "budgetAmount")
+    ? ` || jsonb_build_object(${sqlString(ctx.colName("projects", "budgetAmount"))}, x.${p("budgetAmount")}::text)`
+    : "";
+
+  const dimensionSync = booksAccounting(ctx)
+    ? `
+  perform ${ctx.of("accounting").fn("accounting_sync_dimension_value")}(x.${p("tenant")}, 'project', 'Project', x.${p("id")}::text, x.${p("key")} || ' ' || x.${p("name")}, x.${p("archivedAt")} is not null)
+  from ${t("projects")} x where x.${p("id")} = v_id;`
+    : "";
+
   const projects = ctx.hasTable("projects")
     ? `
 -- Creates a project (project null) or changes the keys attrs names: key,
--- name, ownerId, status, startOn, targetOn, archived.
+-- name, ownerId, status, startOn, targetOn, archived, and the budget:
+-- budgetAmount (minor units as text) with budgetCurrency, and budgetHours.
+-- With accounting, the project is a value of the project dimension.
 create or replace function ${fn("save_project")}(tenant ${ctx.idType}, project uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -293,11 +338,14 @@ begin
       ["ownerId", "owner"],
       ["startOn", "startOn"],
       ["targetOn", "targetOn"],
+      ["budgetAmount", "budgetAmount"],
+      ["budgetCurrency", "budgetCurrency"],
+      ["budgetHours", "budgetHours"],
     ],
   )}
   begin
     if v_id is null then
-      insert into ${t("projects")} (${p("tenant")}, ${p("key")}, ${p("name")}${also("projects", "owner")}, ${p("status")}${also("projects", "startOn")}${also("projects", "targetOn")})
+      insert into ${t("projects")} (${p("tenant")}, ${p("key")}, ${p("name")}${also("projects", "owner")}, ${p("status")}${also("projects", "startOn")}${also("projects", "targetOn")}${also("projects", "budgetAmount")}${also("projects", "budgetCurrency")}${also("projects", "budgetHours")})
       values (${lines(
         "        ",
         [
@@ -327,6 +375,23 @@ begin
             "(save_project.attrs ->> 'targetOn')::date",
           ),
         ],
+        [
+          present(
+            "projects",
+            "budgetAmount",
+            "(save_project.attrs ->> 'budgetAmount')::bigint",
+          ),
+          present(
+            "projects",
+            "budgetCurrency",
+            "upper(save_project.attrs ->> 'budgetCurrency')",
+          ),
+          present(
+            "projects",
+            "budgetHours",
+            "(save_project.attrs ->> 'budgetHours')::numeric",
+          ),
+        ],
       )})
       returning ${p("id")} into v_id;
     else
@@ -334,19 +399,20 @@ begin
         ${p("key")} = coalesce(upper(save_project.attrs ->> 'key'), x.${p("key")}),
         ${p("name")} = coalesce(save_project.attrs ->> 'name', x.${p("name")}),
 ${ctx.has("projects", "owner") ? `        ${p("owner")} = case when save_project.attrs ? 'ownerId' then (save_project.attrs ->> 'ownerId')::uuid else x.${p("owner")} end,\n` : ""}        ${p("status")} = coalesce(${ctx.cast("projects", "status", "save_project.attrs ->> 'status'")}, x.${p("status")}),
-${(["startOn", "targetOn"] as const).flatMap((key) => (ctx.has("projects", key) ? [`        ${p(key)} = case when save_project.attrs ? '${key}' then (save_project.attrs ->> '${key}')::date else x.${p(key)} end,\n`] : [])).join("")}        ${p("archivedAt")} = case when save_project.attrs ? 'archived' then (case when (save_project.attrs ->> 'archived')::boolean then coalesce(x.${p("archivedAt")}, now()) end) else x.${p("archivedAt")} end,
+${(["startOn", "targetOn"] as const).flatMap((key) => (ctx.has("projects", key) ? [`        ${p(key)} = case when save_project.attrs ? '${key}' then (save_project.attrs ->> '${key}')::date else x.${p(key)} end,\n`] : [])).join("")}${budgetSets}        ${p("archivedAt")} = case when save_project.attrs ? 'archived' then (case when (save_project.attrs ->> 'archived')::boolean then coalesce(x.${p("archivedAt")}, now()) end) else x.${p("archivedAt")} end,
         ${p("updatedAt")} = now()
       where x.${p("id")} = v_id and x.${p("tenant")} = save_project.tenant;
       if not found then
         ${fail("WORK_ITEM_PROJECT_NOT_FOUND", "project not found", "P0002")}
       end if;
-    end if;
+    end if;${budgetCheck}
   exception when unique_violation then
     ${fail("WORK_ITEM_PROJECT_KEY_TAKEN", "another project has this key", "23505")}
   when check_violation or not_null_violation then
     ${fail("WORK_ITEM_PROJECT_INVALID", "a project needs a key of capitals and a name, and ends after it starts", "22023")}
   end;
-  return (select ${ctx.rowJson("projects", "x")} || jsonb_build_object('progress', ${
+${dimensionSync}
+  return (select ${ctx.rowJson("projects", "x")}${budgetText} || jsonb_build_object('progress', ${
     has("project")
       ? `(
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where ${state(`y.${w("state")}`, ["completed"])}) / count(*) filter (where ${state(`y.${w("state")}`, ["canceled"], true)})) end

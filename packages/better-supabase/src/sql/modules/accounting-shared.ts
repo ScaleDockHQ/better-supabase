@@ -29,6 +29,8 @@ export const ACCOUNT_ROLES = [
   "fixed_asset",
   "accumulated_depreciation",
   "depreciation_expense",
+  "disposal_gain",
+  "disposal_loss",
   "expense",
   "suspense",
 ] as const;
@@ -162,6 +164,13 @@ export const GENERIC_CHART: readonly ChartAccount[] = [
     role: "fx_gain",
   },
   {
+    code: "4910",
+    name: "Gains on asset disposals",
+    type: "income",
+    subtype: "other_income",
+    role: "disposal_gain",
+  },
+  {
     code: "5000",
     name: "Cost of goods sold",
     type: "expense",
@@ -188,6 +197,13 @@ export const GENERIC_CHART: readonly ChartAccount[] = [
     type: "expense",
     subtype: "other_expense",
     role: "fx_loss",
+  },
+  {
+    code: "6910",
+    name: "Losses on asset disposals",
+    type: "expense",
+    subtype: "other_expense",
+    role: "disposal_loss",
   },
 ];
 

@@ -1,14 +1,17 @@
+import type { Money } from "../../commerce/money.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { AsyncResult } from "../../core/result.ts";
+import { temporal } from "../../core/temporal-required.ts";
+import { amountsError, amountText, optionalMoneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
   blockCall,
@@ -108,6 +111,12 @@ export interface AssetLocationPatch {
 
 export type AssetStatus = "active" | "maintenance" | "retired";
 
+/**
+ * `straight_line` spreads the cost less the residual value over the useful
+ * life; `declining_balance` takes a yearly rate of the book value.
+ */
+export type DepreciationMethod = "none" | "straight_line" | "declining_balance";
+
 /** Who or what holds an asset: `member` (a user id) or a record. */
 export interface AssetAssignee {
   readonly type: string;
@@ -132,6 +141,19 @@ export interface Asset {
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /** What the asset cost; with `currency` the amounts below share it. */
+  readonly acquisitionCost?: Money;
+  readonly acquiredOn?: Temporal.PlainDate;
+  readonly usefulLifeMonths?: number;
+  /** What the asset is worth at the end of its useful life. */
+  readonly residualValue?: Money;
+  /** Absent when the assets table has no depreciation columns. */
+  readonly depreciationMethod?: DepreciationMethod;
+  /** Declining balance: the yearly rate in basis points (2000 is 20%). */
+  readonly depreciationRateBps?: number;
+  readonly disposedOn?: Temporal.PlainDate;
+  /** What the disposal brought in. */
+  readonly disposalAmount?: Money;
 }
 
 /** The records that name an asset, when their blocks are installed. */
@@ -150,6 +172,32 @@ export interface AssetLinks {
 export interface AssetDetail extends Asset {
   readonly locationPath: readonly AssetLocationStep[];
   readonly links: AssetLinks;
+  /** The depreciation booked so far, with an acquisition cost. */
+  readonly accumulatedDepreciation?: Money;
+  /** The acquisition cost less the depreciation booked. */
+  readonly bookValue?: Money;
+}
+
+/** One month of an asset's depreciation. */
+export interface AssetDepreciation {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly assetId: string;
+  /** The first day of the month. */
+  readonly periodStart: Temporal.PlainDate;
+  readonly amount: Money;
+  /** The accounting entry, when accounting books it. */
+  readonly entryId?: string;
+  readonly createdAt: Temporal.Instant;
+}
+
+/** What a depreciation run booked. */
+export interface AssetDepreciationRun {
+  readonly until: Temporal.PlainDate;
+  /** The assets that booked at least one month. */
+  readonly assets: number;
+  /** The months booked. */
+  readonly months: number;
 }
 
 export interface AssetInput {
@@ -172,6 +220,18 @@ export interface AssetPatch {
   readonly status?: AssetStatus;
   readonly point?: GeoPoint | null;
   readonly metadata?: Readonly<Record<string, unknown>> | null;
+  /**
+   * The book value fields. The cost, its currency and the acquisition date are
+   * fixed once a month has depreciated, and none of them change after a
+   * disposal.
+   */
+  readonly acquisitionCost?: Money | null;
+  readonly acquiredOn?: Temporal.PlainDate | null;
+  readonly usefulLifeMonths?: number | null;
+  /** In the cost's currency. */
+  readonly residualValue?: Money | null;
+  readonly depreciationMethod?: DepreciationMethod;
+  readonly depreciationRateBps?: number | null;
 }
 
 export interface AssetListOptions {
@@ -266,9 +326,47 @@ export interface Assets {
     target: AssetLinkTarget,
     assetId: string | null,
   ): AsyncResult<AssetLinkTarget & { readonly assetId: string | null }>;
+  /** The months an asset has depreciated, oldest first. */
+  depreciations(
+    assetId: string,
+    options?: { readonly pageSize?: number },
+  ): AsyncResult<readonly AssetDepreciation[]>;
+  /**
+   * Needs `assets.manage`. Books depreciation through the month before `on`,
+   * retires the asset and books the disposal; the proceeds less the book value
+   * are a gain or a loss.
+   */
+  dispose(
+    assetId: string,
+    disposal: { readonly on: Temporal.PlainDate; readonly proceeds?: Money },
+  ): AsyncResult<AssetDetail>;
+  /**
+   * Service role only. Books every month that ended on or before `until`
+   * (default today) for the assets in service, in one organization or in all of
+   * them. Each month books once, so run it from a monthly job.
+   */
+  runDepreciation(options?: {
+    readonly organizationId?: string;
+    readonly until?: Temporal.PlainDate;
+  }): AsyncResult<AssetDepreciationRun>;
 }
 
 const STATUSES: readonly AssetStatus[] = ["active", "maintenance", "retired"];
+
+const METHODS: readonly DepreciationMethod[] = [
+  "none",
+  "straight_line",
+  "declining_balance",
+];
+
+const dateOf = (value: unknown): Temporal.PlainDate =>
+  temporal().PlainDate.from(textOf(value));
+
+function optionalDateOf(value: unknown): Temporal.PlainDate | undefined {
+  const text = optionalText(value);
+
+  return text === undefined ? undefined : temporal().PlainDate.from(text);
+}
 
 function optional<K extends string, V>(
   key: K,
@@ -349,7 +447,62 @@ function assetOf(value: unknown, fn: string): Asset {
     ...optional("point", pointOf(row)),
     ...optional("retiredAt", optionalInstant(row["retiredAt"])),
     ...optional("createdBy", optionalText(row["createdBy"])),
+    ...bookOf(row),
   };
+}
+
+/** An asset row's book value fields, when the table has them. */
+function bookOf(row: Readonly<Record<string, unknown>>): Partial<Asset> {
+  if (row["depreciationMethod"] === undefined) {
+    return {};
+  }
+
+  const currency = optionalText(row["currency"]);
+
+  const amount = (key: string): Money | undefined =>
+    currency === undefined
+      ? undefined
+      : optionalMoneyOf(row[key], currency, key);
+
+  return {
+    depreciationMethod: enumOrThrow(
+      row["depreciationMethod"],
+      METHODS,
+      "depreciation method",
+    ),
+    ...optional("acquisitionCost", amount("acquisitionCost")),
+    ...optional("acquiredOn", optionalDateOf(row["acquiredOn"])),
+    ...optional("usefulLifeMonths", numberOf(row["usefulLifeMonths"])),
+    ...optional("residualValue", amount("residualValue")),
+    ...optional("depreciationRateBps", numberOf(row["depreciationRateBps"])),
+    ...optional("disposedOn", optionalDateOf(row["disposedOn"])),
+    ...optional("disposalAmount", amount("disposalAmount")),
+  };
+}
+
+function depreciationOf(value: unknown, fn: string): AssetDepreciation {
+  const row = recordOf(value, fn);
+  const currency = textOf(row["currency"]);
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    assetId: textOf(row["assetId"]),
+    periodStart: dateOf(row["periodStart"]),
+    amount: moneyOrThrow(row["amount"], currency),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    ...optional("entryId", optionalText(row["entryId"])),
+  };
+}
+
+function moneyOrThrow(amount: unknown, currency: string): Money {
+  const found = optionalMoneyOf(amount, currency);
+
+  if (found === undefined) {
+    throw new TypeError("a depreciation has no amount");
+  }
+
+  return found;
 }
 
 function assignmentOf(value: unknown, fn: string): AssetAssignment {
@@ -367,6 +520,44 @@ function assignmentOf(value: unknown, fn: string): AssetAssignment {
     ...optional("assignedBy", optionalText(row["assignedBy"])),
     ...optional("releasedAt", optionalInstant(row["releasedAt"])),
   };
+}
+
+function assetDetailOf(value: unknown, fn: string): AssetDetail {
+  const row = recordOf(value, fn);
+  const links = objectOf(row["links"]);
+  const currency = optionalText(row["currency"]);
+
+  const amount = (key: string): Money | undefined =>
+    currency === undefined
+      ? undefined
+      : optionalMoneyOf(row[key], currency, key);
+
+  return {
+    ...assetOf(row, fn),
+    locationPath: stepsOf(row["locationPath"], fn),
+    links: {
+      bookingResources: recordsOf(links["bookingResources"] ?? [], fn).map(
+        (link) => ({ id: textOf(link["id"]), name: textOf(link["name"]) }),
+      ),
+      workItems: recordsOf(links["workItems"] ?? [], fn).map((link) => ({
+        id: textOf(link["id"]),
+        title: textOf(link["title"]),
+      })),
+    },
+    ...optional("accumulatedDepreciation", amount("accumulatedDepreciation")),
+    ...optional("bookValue", amount("bookValue")),
+  };
+}
+
+/** Why a patch's amounts can't be written, as a failed result. */
+function bookError(patch: AssetPatch): AsyncResult<never> | undefined {
+  const amounts = [patch.acquisitionCost, patch.residualValue].map(
+    (item) => item ?? undefined,
+  );
+
+  const error = amountsError(amounts.find(Boolean)?.currency, amounts);
+
+  return error === undefined ? undefined : AsyncResult.err(error);
 }
 
 const distanceOf = (row: Readonly<Record<string, unknown>>): number =>
@@ -389,6 +580,23 @@ function patchArg(
       const point = isRecord(value) ? value : {};
       out["latitude"] = point["latitude"] ?? null;
       out["longitude"] = point["longitude"] ?? null;
+      continue;
+    }
+
+    if (key === "acquisitionCost" || key === "residualValue") {
+      // SAFETY: AssetPatch types these keys as Money or null.
+      const amount = value as Money | null;
+      out[key] = amount === null ? null : amountText(amount);
+
+      if (amount !== null) {
+        out["currency"] = amount.currency;
+      }
+
+      continue;
+    }
+
+    if (key === "acquiredOn") {
+      out[key] = value === null ? null : String(value);
       continue;
     }
 
@@ -504,36 +712,16 @@ export function createAssets(options: AssetsOptions): Assets {
         ),
       ),
     updateAsset: (assetId, patch) =>
+      bookError(patch) ??
       call(
         "update_asset",
         { asset_id: assetId, patch: patchArg(patch) },
         (value) => assetOf(value, "update_asset"),
       ),
     asset: (assetId) =>
-      call("get_asset", { asset_id: assetId }, (value) => {
-        const row = recordOf(value, "get_asset");
-        const links = objectOf(row["links"]);
-
-        return {
-          ...assetOf(row, "get_asset"),
-          locationPath: stepsOf(row["locationPath"], "get_asset"),
-          links: {
-            bookingResources: recordsOf(
-              links["bookingResources"] ?? [],
-              "get_asset",
-            ).map((link) => ({
-              id: textOf(link["id"]),
-              name: textOf(link["name"]),
-            })),
-            workItems: recordsOf(links["workItems"] ?? [], "get_asset").map(
-              (link) => ({
-                id: textOf(link["id"]),
-                title: textOf(link["title"]),
-              }),
-            ),
-          },
-        };
-      }),
+      call("get_asset", { asset_id: assetId }, (value) =>
+        assetDetailOf(value, "get_asset"),
+      ),
     assets: (filter = {}) =>
       tenant().andThen((organizationId) => list(organizationId, filter)),
     assignedTo: (assignee, filter = {}) =>
@@ -609,6 +797,43 @@ export function createAssets(options: AssetsOptions): Assets {
               locationOf(row, "asset_locations_at"),
             ),
         ),
+      ),
+    depreciations: (assetId, filter = {}) =>
+      call(
+        "list_asset_depreciations",
+        { asset_id: assetId, page_size: filter.pageSize ?? null },
+        (value) =>
+          recordsOf(value, "list_asset_depreciations").map((row) =>
+            depreciationOf(row, "list_asset_depreciations"),
+          ),
+      ),
+    dispose: (assetId, disposal) =>
+      call(
+        "dispose_asset",
+        {
+          asset_id: assetId,
+          disposed_on: disposal.on.toString(),
+          amount: disposal.proceeds ? amountText(disposal.proceeds) : "0",
+          currency: disposal.proceeds?.currency ?? null,
+        },
+        (value) => assetDetailOf(value, "dispose_asset"),
+      ),
+    runDepreciation: (run = {}) =>
+      call(
+        "run_asset_depreciation",
+        {
+          tenant: run.organizationId ?? null,
+          until: run.until?.toString() ?? null,
+        },
+        (value) => {
+          const row = recordOf(value, "run_asset_depreciation");
+
+          return {
+            until: dateOf(row["until"]),
+            assets: Number(row["assets"] ?? 0),
+            months: Number(row["months"] ?? 0),
+          };
+        },
       ),
     link: (target, assetId) =>
       call(

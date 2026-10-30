@@ -2,6 +2,8 @@ export {
   type Asset,
   type AssetAssignee,
   type AssetAssignment,
+  type AssetDepreciation,
+  type AssetDepreciationRun,
   type AssetDetail,
   type AssetInput,
   type AssetLinks,
@@ -19,6 +21,7 @@ export {
   type AssetsOptions,
   type AssetStatus,
   createAssets,
+  type DepreciationMethod,
   type GeoArea,
   type GeoPoint,
 } from "./assets.ts";
@@ -49,6 +52,8 @@ export { assetsBinding } from "./record-binding.ts";
 export { assetsEvents } from "./events.ts";
 
 export type {
+  AssetDepreciatedEventData,
+  AssetDisposedEventData,
   AssetEventData,
   AssetLocationEventData,
   AssetsEvents,

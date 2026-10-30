@@ -23,6 +23,31 @@ import { myWorkTenant } from "./subjects.ts";
 import { checklistTable, workItemExtrasContract } from "./tasks-extras.ts";
 import { workItemFunctions } from "./tasks-functions.ts";
 
+/** The subject type of a project, after `blocks.tasks.names`. */
+export function projectType(tasks: BlockSqlContext): string {
+  return tasks.resolved.entities["project"]?.to.singular ?? "project";
+}
+
+/** A project's budget columns, added to the app's table too. */
+function budgetColumns(ctx: BlockSqlContext): string {
+  const p = (column: string): string => ctx.col("projects", column);
+
+  const add = (
+    logical: string,
+    definition: (column: string) => string,
+  ): string =>
+    ctx.has("projects", logical)
+      ? `
+alter table ${ctx.table("projects")} add column if not exists ${p(logical)} ${definition(p(logical))};`
+      : "";
+
+  return [
+    add("budgetAmount", (column) => `bigint check (${column} >= 0)`),
+    add("budgetCurrency", (column) => `text check (${column} ~ '^[A-Z]{3}$')`),
+    add("budgetHours", (column) => `numeric(12, 2) check (${column} >= 0)`),
+  ].join("");
+}
+
 /** The subject type of a work item, after `blocks.tasks.names`. */
 export function workItemType(tasks: BlockSqlContext): string {
   return tasks.resolved.entities["work_item"]?.to.singular ?? "work_item";
@@ -180,11 +205,21 @@ const NAMES: BlockSqlNames = {
         status: "status",
         startOn: "start_on",
         targetOn: "target_on",
+        budgetAmount: "budget_amount",
+        budgetCurrency: "budget_currency",
+        budgetHours: "budget_hours",
         archivedAt: "archived_at",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["owner", "startOn", "targetOn"],
+      optional: [
+        "owner",
+        "startOn",
+        "targetOn",
+        "budgetAmount",
+        "budgetCurrency",
+        "budgetHours",
+      ],
       typed: ["status"],
     },
     iterations: {
@@ -253,7 +288,7 @@ create table if not exists ${t("projects")} (
   ${p("createdAt")} timestamptz not null default now(),
   ${p("updatedAt")} timestamptz not null default now(),
   unique (${p("tenant")}, ${p("key")})${both("projects", "startOn", "targetOn") ? `,\n  check (${p("targetOn")} is null or ${p("startOn")} is null or ${p("targetOn")} >= ${p("startOn")})` : ""}
-);${appUniqueIndex(ctx, "projects", ["tenant", "key"])}
+);${appUniqueIndex(ctx, "projects", ["tenant", "key"])}${budgetColumns(ctx)}
 ${lockModuleTable(ctx, "projects", { read: true })}
 ${read("projects")}
 `
@@ -601,6 +636,7 @@ export const WORK_ITEMS: BlockSqlDefinition = {
     "numbering",
     "attachments",
     "reminders",
+    "accounting",
   ],
   target: "schema",
   modes: ["managed", "custom"],

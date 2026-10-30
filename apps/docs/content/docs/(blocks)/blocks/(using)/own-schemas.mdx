@@ -128,6 +128,7 @@ may be your own enum or domain.
   - `better_supabase.asset_locations`: `id`, `tenant_id`, `parent_id`, `kind`, `name`, `archived_at`, `created_at`, `updated_at`
   - `better_supabase.assets`: `id`, `tenant_id`, `location_id`, `kind`, `name`, `status`, `assignee_type`, `assignee_id`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.asset_assignments`: `id`, `tenant_id`, `asset_id`, `assignee_type`, `assignee_id`, `assigned_at`, `released_at`
+  - `better_supabase.asset_depreciations`: `id`, `tenant_id`, `asset_id`, `period_start`, `amount`, `entry_id`, `created_at`
 - `assignment`
   - `better_supabase.assignment_queues`: `id`, `tenant_id`, `name`, `subject_type`, `strategy`, `enabled`, `created_at`, `updated_at`; typed: `strategy`
   - `better_supabase.assignment_queue_members`: `queue_id`, `tenant_id`, `user_id`, `weight`, `active`, `credit`, `last_assigned_at`

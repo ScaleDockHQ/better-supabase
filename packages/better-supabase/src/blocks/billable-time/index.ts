@@ -16,6 +16,8 @@ export {
   type UnbilledTime,
 } from "./billable-time.ts";
 
+export type { ProjectCosts, ProjectCostTotals } from "./project-costs.ts";
+
 export {
   extendBlock,
   withBlockHooks,
