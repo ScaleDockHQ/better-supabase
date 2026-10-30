@@ -5122,7 +5122,11 @@
                 "type": "boolean",
                 "default": false
               },
-              "policy": {}
+              "policy": {},
+              "approver": {
+                "type": "string",
+                "default": "permission"
+              }
             }
           }
         }
@@ -5666,6 +5670,10 @@
               "approvalOwner": {
                 "type": "string",
                 "default": "filer"
+              },
+              "approver": {
+                "type": "string",
+                "default": "permission"
               }
             }
           }

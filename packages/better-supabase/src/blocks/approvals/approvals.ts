@@ -96,8 +96,9 @@ export interface ApprovalStep {
   /** Approvals the step needs; `0` with `all` until the request is filed. */
   readonly required: number;
   /**
-   * Every holder of `approvers.permission` decides, resolved to `users` when
-   * the request is filed.
+   * Each approver in `users` decides, or a delegate acting for them. A step
+   * over `approvers.permission` resolves its holders to `users` when the
+   * request is filed.
    */
   readonly all?: boolean;
   /** A Postgres interval after which `escalateTo` may decide the step too. */
@@ -472,12 +473,13 @@ function approversOf(value: unknown): ApprovalApprovers {
 }
 
 function stepOf(step: Readonly<Record<string, unknown>>): ApprovalStep {
-  const all = step["required"] === "all";
+  const pending = step["required"] === "all";
+  const all = pending || step["all"] === true;
   const escalateAfter = optionalText(step["escalateAfter"]);
 
   return {
     approvers: approversOf(step["approvers"]),
-    required: all ? 0 : Number(step["required"] ?? 1),
+    required: pending ? 0 : Number(step["required"] ?? 1),
     ...(all ? { all } : {}),
     ...(escalateAfter === undefined
       ? {}
@@ -562,14 +564,6 @@ function conditionsOf(value: unknown): FilterQuery {
 
   return value;
 }
-
-/** `required: "all"` over named users is their count, as the SQL expects. */
-const stepInput = (step: ApprovalStepInput): ApprovalStepInput =>
-  step.required === "all" &&
-  step.approvers.users !== undefined &&
-  Object.keys(step.approvers).length === 1
-    ? { ...step, required: step.approvers.users.length }
-    : step;
 
 function tenantPolicyOf(value: unknown, fn: string): ApprovalTenantPolicy {
   const row = recordOf(value, fn);
@@ -755,9 +749,7 @@ export function createApprovals<
             payload: payload ?? {},
             ...more,
             ...(fingerprint === undefined ? {} : { fingerprint }),
-            ...(policy === undefined
-              ? {}
-              : { policy: { ...policy, steps: policy.steps.map(stepInput) } }),
+            ...(policy === undefined ? {} : { policy }),
             ...(requestedBy === undefined ? {} : { requested_by: requestedBy }),
           }),
         ),

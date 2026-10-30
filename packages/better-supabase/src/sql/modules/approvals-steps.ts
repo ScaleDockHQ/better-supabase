@@ -41,7 +41,7 @@ export function allHoldersSql(
       : `
     v_policy := jsonb_set(v_policy, '{steps}', (
       select jsonb_agg(case when e.value -> 'required' = '"all"'::jsonb
-        then e.value || jsonb_build_object('approvers', jsonb_build_object('users', h.users), 'required', jsonb_array_length(h.users), 'permission', e.value -> 'approvers' ->> 'permission')
+        then e.value || jsonb_build_object('approvers', jsonb_build_object('users', h.users), 'required', jsonb_array_length(h.users), 'all', true, 'permission', e.value -> 'approvers' ->> 'permission')
         else e.value end order by e.ordinality)
       from jsonb_array_elements(v_policy -> 'steps') with ordinality e
       left join lateral (
@@ -80,8 +80,12 @@ export function decideSql(ctx: BlockSqlContext, k: ApprovalSqlKit): string {
     commentRefusal,
   } = k;
 
+  const delegation = ctx.has("decisions", "delegateTo");
+
   return `-- Approves or rejects the current step. Enough approvals move the request
--- to the next step, and the last step runs the policy's action. The service
+-- to the next step, and the last step runs the policy's action. A step marked
+-- all needs an approval from each named approver or their delegate until it
+-- escalates. The service
 -- role decides for the user in decided_by, who is recorded as the approver;
 -- it skips the approver check, never the requester's.
 drop function if exists ${fn("decide_approval")}(uuid, text, text);
@@ -150,7 +154,26 @@ begin
       update ${requests} r set ${c("status")} = 'approved'${decided}
         where r.${c("id")} = v_req.${c("id")} returning * into v_req;
       perform ${fn("approval_finalize")}(v_req.${c("id")});
-    elsif v_count >= coalesce((${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} ->> 'required')::integer, 1) then
+    elsif (case when coalesce((${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} ->> 'all')::boolean, false)
+        and not coalesce((${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} ->> 'escalated')::boolean, false)
+      then jsonb_array_length(coalesce(${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} -> 'approvers' -> 'users', '[]'::jsonb)) > 0
+        and not exists (
+          select 1 from jsonb_array_elements_text(${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} -> 'approvers' -> 'users') u(id)
+          where not exists (
+            select 1 from ${decisions} x
+            where x.${d("request")} = v_req.${c("id")} and x.${d("step")} = ${stepOf("v_req")} and x.${d("decision")} = 'approved'
+              and (x.${d("approver")} = u.id::uuid${
+                delegation
+                  ? ` or exists (
+                select 1 from ${decisions} y
+                where y.${d("request")} = x.${d("request")} and y.${d("step")} = x.${d("step")} and y.${d("decision")} = 'delegated'
+                  and y.${d("approver")} = u.id::uuid and y.${d("delegateTo")} = x.${d("approver")}
+              )`
+                  : ""
+              })
+          )
+        )
+      else v_count >= coalesce((${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} ->> 'required')::integer, 1) end) then
       if ${stepOf("v_req")} + 1 >= jsonb_array_length(${policyOf("v_req")} -> 'steps') then
         update ${requests} r set ${c("status")} = 'approved'${decided}
           where r.${c("id")} = v_req.${c("id")} returning * into v_req;
