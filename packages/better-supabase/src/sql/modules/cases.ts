@@ -15,12 +15,8 @@ import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { caseCloseFunctions } from "./cases-close.ts";
 import { caseFunctions } from "./cases-functions.ts";
 import { caseReadFunctions } from "./cases-read.ts";
-import {
-  CASE_ACTION_TYPES,
-  CASE_STAGES,
-  CASE_STATUSES,
-  casesSql,
-} from "./cases-sql.ts";
+import { CASE_STAGES, casesSql } from "./cases-sql.ts";
+import { CASE_ACTION_TYPES, CASE_STATUSES } from "./cases-values.ts";
 import { myWorkTenant } from "./subjects.ts";
 
 const CASE = [

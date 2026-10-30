@@ -7,7 +7,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { CASE_STATS_GROUPS } from "../../sql/modules/cases-sql.ts";
+import type { CASE_STATS_GROUPS } from "../../sql/modules/cases-values.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
@@ -18,7 +18,7 @@ import {
   CASE_ACTION_TYPES,
   CASE_BLOCKERS,
   CASE_STATUSES,
-} from "../../sql/modules/cases-sql.ts";
+} from "../../sql/modules/cases-values.ts";
 import {
   applyTemporal,
   blockCall,

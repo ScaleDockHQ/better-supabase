@@ -5,7 +5,8 @@ import { sqlString } from "../../core/template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { fail, serviceGrant, userGrant, writeExtraColumns } from "../shared.ts";
-import { CASE_ACTION_TYPES, casesSql } from "./cases-sql.ts";
+import { casesSql } from "./cases-sql.ts";
+import { CASE_ACTION_TYPES } from "./cases-values.ts";
 import { createdFromLink } from "./quotes-functions.ts";
 
 const UPDATE_KEYS = [

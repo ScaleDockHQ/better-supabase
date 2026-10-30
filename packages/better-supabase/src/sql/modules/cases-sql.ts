@@ -2,41 +2,11 @@ import type { BlockSqlContext, ExtraColumn } from "../context.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
+import { entityType } from "../resolved-names.ts";
 import { extraFieldsJson, fail, SERVICE_CALLER } from "../shared.ts";
 import { OPERATIONS } from "./permissions-model.ts";
-import { taskType } from "./tasks.ts";
 
 const WHERE = "blocks.cases.options";
-
-/** Where a case stands; the stage's outcome sets it. */
-export const CASE_STATUSES = ["open", "closed", "canceled"] as const;
-
-/** What a case action does. */
-export const CASE_ACTION_TYPES = [
-  "containment",
-  "correction",
-  "corrective",
-  "preventive",
-  "improvement",
-] as const;
-
-/** What `case_stats` groups by. */
-export const CASE_STATS_GROUPS = [
-  "severity",
-  "source",
-  "stage",
-  "kind",
-  "root_cause",
-] as const;
-
-/** The hint codes `case_close_blockers` returns, in the order it checks them. */
-export const CASE_BLOCKERS = [
-  "CASE_ROOT_CAUSE_REQUIRED",
-  "CASE_ACTIONS_REQUIRED",
-  "CASE_ACTIONS_OPEN",
-  "CASE_EFFECTIVENESS_REQUIRED",
-  "CASE_DOCUMENTS_NOT_REVISED",
-] as const;
 
 const DEFAULT_SEVERITIES: readonly string[] = [
   "low",
@@ -376,7 +346,7 @@ export function casesSql(ctx: BlockSqlContext): CasesSql {
     sources: textArray(valuesOf(ctx, "sources", DEFAULT_SOURCES)),
     pipelines,
     tasks,
-    taskType: tasks === undefined ? "task" : taskType(tasks),
+    taskType: tasks === undefined ? "task" : entityType(tasks.resolved, "task"),
     relations,
     read,
     create: ctx.permission("create", OPERATIONS["cases.create"]),

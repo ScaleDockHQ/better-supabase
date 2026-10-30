@@ -2,7 +2,8 @@ import type { BlockSqlContext } from "../context.ts";
 import type { CasesSql } from "./cases-sql.ts";
 
 import { pageSize, userGrant } from "../shared.ts";
-import { CASE_STATS_GROUPS, casesSql } from "./cases-sql.ts";
+import { casesSql } from "./cases-sql.ts";
+import { CASE_STATS_GROUPS } from "./cases-values.ts";
 
 function actionsJson(q: CasesSql, row: string): string {
   const { a, c, actions } = q;
