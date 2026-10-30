@@ -854,6 +854,7 @@ const FLAT = {
       output: v.optional(v.string()),
       sources: v.optional(strings),
       policyHelperLimit: v.optional(v.number()),
+      sealTriggers: v.optional(strings),
       claimsLimit: v.optional(v.number()),
       migrationSafety: v.optional(
         v.strictObject({ since: v.optional(v.string()) }),

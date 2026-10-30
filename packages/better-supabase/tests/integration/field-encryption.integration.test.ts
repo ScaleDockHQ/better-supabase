@@ -191,6 +191,35 @@ describe.skipIf(!live)("field encryption", () => {
     ).toBe(before);
   });
 
+  it("seals an upsert's values once and hashes its lookup again", async () => {
+    const [id] = await charts();
+
+    const upsert = `insert into public.it_charts (id, organization_id, title, diagnosis, bsn)
+      values ($1, $2, 'A', $3, $4)
+      on conflict (id) do update set diagnosis = excluded.diagnosis, bsn = excluded.bsn`;
+
+    await s.client.query(upsert, [id, annOrg, "migraine", "111222333"]);
+    await s.client.query(upsert, [id, annOrg, "sinusitis", "123456782"]);
+    await s.asRole(ann);
+
+    expect(
+      await s.rows<{ diagnosis: string; bsn: string }>(
+        "select diagnosis, bsn from public.it_charts_reveal(array[$1]::uuid[])",
+        [id],
+      ),
+    ).toEqual([{ diagnosis: "sinusitis", bsn: "123456782" }]);
+    expect(
+      await s.rows<{ id: string }>(
+        "select id::text from public.it_charts_find('bsn', '123456782')",
+      ),
+    ).toEqual([{ id }]);
+    expect(
+      await s.value<number>(
+        "(select count(*)::int from public.it_charts_find('bsn', '111222333'))",
+      ),
+    ).toBe(0);
+  });
+
   it("finds rows by an encrypted value's lookup, only in the caller's tenants", async () => {
     await s.asRole(ann);
     await s.client.query(

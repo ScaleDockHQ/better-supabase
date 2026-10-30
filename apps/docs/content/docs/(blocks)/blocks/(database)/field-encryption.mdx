@@ -32,6 +32,12 @@ The data key is a Vault secret named `bs:field-key:<owner>`, where the owner
 is `tenant:<id>`, `user:<id>` or `app`. A key is created on the first write
 of its owner and is never rotated in place.
 
+The seal trigger never seals a value that already starts with `bsf1:`. An
+upsert's `excluded` row was sealed by its insert attempt, so its values are
+stored once, not wrapped twice. The one exception is a row that moves to
+another owner with the value unchanged: the trigger opens it with the old
+owner's key and seals it with the new one.
+
 | Function                                | Who                    | What it does                                            |
 | --------------------------------------- | ---------------------- | ------------------------------------------------------- |
 | `field_encrypt(owner, value)`           | service role           | Encrypts a value with the owner's key, creating the key |
@@ -53,8 +59,8 @@ an index on it. The seal trigger fills it with an HMAC-SHA256 of the value,
 lowercased and without whitespace, under a second key of the owner:
 `bs:field-lookup-key:<owner>` in Vault, next to the data key. The hash is
 written before the value is sealed, again with the new owner's key when a row
-moves, and from the stored value when the hash is missing or was written by
-hand.
+moves, and from the stored value when the hash is missing, was written by
+hand or no longer matches a changed ciphertext.
 
 ```ts title="better-supabase.config.ts"
 tables: {
