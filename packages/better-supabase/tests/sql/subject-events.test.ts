@@ -193,6 +193,8 @@ const SUBJECT_EVENTS = [
   "consent.refused",
   "consent.withdrawn",
   "consent.expired",
+  "access_request.emergency_opened",
+  "access_request.emergency_reviewed",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**
@@ -225,6 +227,9 @@ const OPTIONAL_SUBJECT = new Set([
   "data_export.requested",
   "data_export.completed",
   "data_export.failed",
+  "access.requested",
+  "access.request_approved",
+  "access.ended",
 ]);
 
 interface CatalogEntry {

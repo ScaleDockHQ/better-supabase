@@ -29,10 +29,18 @@ export interface SubjectMember {
   readonly startsOn?: Temporal.PlainDate;
   /** The last day the membership counts; open-ended without it. */
   readonly endsOn?: Temporal.PlainDate;
+  /**
+   * When access from a request or an emergency stops, to the second; the
+   * membership counts only before it.
+   */
+  readonly endsAt?: Temporal.Instant;
   /** An emergency (break-the-glass) entry, with its `reason`. */
   readonly emergency: boolean;
   readonly reason?: string;
-  /** Whether the dates include today, so the membership grants access. */
+  /**
+   * Whether the dates include today and `endsAt` hasn't passed, so the
+   * membership grants access.
+   */
   readonly active: boolean;
   readonly createdBy?: string;
   readonly createdAt?: Temporal.Instant;
@@ -120,6 +128,7 @@ function memberOf(value: unknown): SubjectMember {
   const teamId = optionalText(row["teamId"]);
   const startsOn = dateOf(row["startsOn"]);
   const endsOn = dateOf(row["endsOn"]);
+  const endsAt = optionalInstant(row["endsAt"]);
   const reason = optionalText(row["reason"]);
   const createdBy = optionalText(row["createdBy"]);
   const createdAt = optionalInstant(row["createdAt"]);
@@ -136,6 +145,7 @@ function memberOf(value: unknown): SubjectMember {
     role: optionalText(row["role"]) ?? "",
     ...(startsOn === undefined ? {} : { startsOn }),
     ...(endsOn === undefined ? {} : { endsOn }),
+    ...(endsAt === undefined ? {} : { endsAt }),
     emergency: row["emergency"] === true,
     ...(reason === undefined ? {} : { reason }),
     active: row["active"] === true,

@@ -7,6 +7,7 @@ import type { BlockSqlContext } from "./context.ts";
  * installed instance whose `uses` names it, so it never names its consumers.
  */
 export interface BlockContributions {
+  readonly "access-requests": AccessGrantContribution;
   readonly acknowledgements: AcknowledgementContribution;
   readonly approvals: ApprovalContribution;
   readonly bulk: BulkActionContribution;
@@ -35,6 +36,21 @@ export interface AcknowledgementContribution {
   readonly subject: string;
   /** The column that holds the current version's id (a `versions` row). */
   readonly versionColumn: string;
+}
+
+/**
+ * The `accessGrant` contribution: how a record access request on `subject`
+ * grants access, instead of a `subject_members` row. `grant` is the qualified
+ * name of a function `(subject_id text, user_id uuid, action text, ends_at
+ * timestamptz)`, such as `drive_grant_access`. Access requests call it when a
+ * request is approved or an emergency opens, and again with `ends_at = now()`
+ * when the access ends early; it grants until `ends_at` and replaces the grant
+ * it made before for the same user.
+ */
+export interface AccessGrantContribution {
+  /** The subject type, which also declares `subjects.<type>.team`. */
+  readonly subject: string;
+  readonly grant: string;
 }
 
 /** SQL expressions for the approval request being decided. */

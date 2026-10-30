@@ -5,13 +5,13 @@
 export interface BlockNameRegistry {
   readonly "access-requests": {
     readonly tables: {
-      readonly "requests": "id" | "tenant" | "user" | "role" | "previousRole" | "reason" | "duration" | "approval" | "grantedAt" | "expiresAt" | "endedAt" | "createdAt";
+      readonly "requests": "id" | "tenant" | "user" | "role" | "target" | "subjectType" | "subjectId" | "action" | "emergency" | "member" | "reviewVerdict" | "reviewNote" | "reviewedBy" | "reviewedAt" | "previousRole" | "reason" | "duration" | "approval" | "grantedAt" | "expiresAt" | "endedAt" | "createdAt";
     };
     readonly functions: "end_access" | "expire_access_grants" | "get_access_request" | "grant_access_request" | "list_access_requests" | "request_access";
-    readonly actions: "read" | "create" | "manage";
+    readonly actions: "read" | "create" | "manage" | "emergency" | "review";
     readonly hooks: "before_access_request" | "after_access_request" | "before_access_grant" | "after_access_grant";
     readonly entities: {
-      readonly "request": "id" | "tenant_id" | "user_id" | "role" | "previous_role" | "reason" | "duration" | "approval_id" | "granted_at" | "expires_at" | "ended_at" | "created_at";
+      readonly "request": "id" | "tenant_id" | "user_id" | "role" | "target" | "subject_type" | "subject_id" | "action" | "emergency" | "member_id" | "review_verdict" | "review_note" | "reviewed_by" | "reviewed_at" | "previous_role" | "reason" | "duration" | "approval_id" | "granted_at" | "expires_at" | "ended_at" | "created_at";
     };
     readonly primary: "request";
   };
@@ -1778,9 +1778,9 @@ export interface BlockNameRegistry {
   };
   readonly "subjects": {
     readonly tables: {
-      readonly "members": "id" | "tenant" | "subjectType" | "subjectId" | "user" | "team" | "role" | "startsOn" | "endsOn" | "emergency" | "reason" | "createdBy" | "createdAt";
+      readonly "members": "id" | "tenant" | "subjectType" | "subjectId" | "user" | "team" | "role" | "startsOn" | "endsOn" | "endsAt" | "emergency" | "reason" | "createdBy" | "createdAt";
     };
-    readonly functions: "add_subject_member" | "can_subject" | "can_subject_for" | "end_subject_member" | "is_subject_member" | "list_subject_members" | "my_subjects" | "my_work" | "record_summary" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
+    readonly functions: "add_subject_member" | "can_subject" | "can_subject_for" | "close_subject_member" | "end_subject_member" | "grant_subject_member" | "is_subject_member" | "list_subject_members" | "my_subjects" | "my_work" | "record_summary" | "record_team_leads" | "record_team_tenant" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
     readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};

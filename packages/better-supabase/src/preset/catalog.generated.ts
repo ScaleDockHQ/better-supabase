@@ -2251,6 +2251,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "audit",
+        "subjects",
+        "notifications",
         "approvals"
       ],
       "manifest": "access-requests",
@@ -2274,6 +2276,16 @@ export const PRESET_CATALOG: PresetCatalog = {
               "tenant": "tenant_id",
               "user": "user_id",
               "role": "role",
+              "target": "target",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "action": "action",
+              "emergency": "emergency",
+              "member": "member_id",
+              "reviewVerdict": "review_verdict",
+              "reviewNote": "review_note",
+              "reviewedBy": "reviewed_by",
+              "reviewedAt": "reviewed_at",
               "previousRole": "previous_role",
               "reason": "reason",
               "duration": "duration",
@@ -2288,7 +2300,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "keys": {
           "read": "access_requests.read",
           "create": "access_requests.create",
-          "manage": "access_requests.manage"
+          "manage": "access_requests.manage",
+          "emergency": "access_requests.emergency",
+          "review": "access_requests.review"
         }
       }
     },
@@ -7613,7 +7627,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "access.requested",
           "access.request_approved",
-          "access.ended"
+          "access.ended",
+          "access_request.emergency_opened",
+          "access_request.emergency_reviewed"
         ]
       }
     },

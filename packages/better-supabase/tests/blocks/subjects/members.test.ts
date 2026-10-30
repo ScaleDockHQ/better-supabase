@@ -71,13 +71,19 @@ describe("subjects members", () => {
     expect(member.subject).toEqual({ type: "patient", id: "p1" });
     expect(member.startsOn?.toString()).toBe("2026-10-01");
     expect(member.endsOn).toBeUndefined();
+    expect(member.endsAt).toBeUndefined();
     expect(member.teamId).toBeUndefined();
     expect(member.active).toBe(true);
   });
 
   it("ends a membership on a given day, or today without one", async () => {
     const fake = fakeTransport({
-      end_subject_member: { ...MEMBER, endsOn: "2026-10-28", active: false },
+      end_subject_member: {
+        ...MEMBER,
+        endsOn: "2026-10-28",
+        endsAt: "2026-10-28T09:30:00Z",
+        active: false,
+      },
     });
 
     const { members } = createSubjects({ transport: fake.transport });
@@ -89,6 +95,7 @@ describe("subjects members", () => {
     await members.end("m1").orThrow();
 
     expect(ended.endsOn?.toString()).toBe("2026-10-28");
+    expect(ended.endsAt?.toString()).toBe("2026-10-28T09:30:00Z");
     expect(fake.calls.map((call) => call.args)).toEqual([
       { member_id: "m1", ends_on: "2026-10-28" },
       { member_id: "m1" },

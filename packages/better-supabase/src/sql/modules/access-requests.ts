@@ -23,6 +23,13 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import {
+  endRecordSql,
+  grantRecordSql,
+  RECORD_COLUMNS,
+  recordAccessSql,
+  recordsEnabled,
+} from "./access-requests-records.ts";
 import { DURATION, policyOf, policySnapshot } from "./approvals-policies.ts";
 import { roleNameOf } from "./memberships.ts";
 import { roleValue } from "./organizations-roles.ts";
@@ -42,12 +49,31 @@ const PAYLOAD = [
   "expiresAt",
 ] as const;
 
+const RECORD_PAYLOAD = [
+  ...PAYLOAD,
+  "target",
+  "subjectType",
+  "subjectId",
+  "action",
+] as const;
+
 const EVENTS: BlockSqlEvents<AccessRequestsEvents> = {
-  "access.requested": { subject: "access-requests", payload: PAYLOAD },
-  "access.request_approved": { subject: "access-requests", payload: PAYLOAD },
+  "access.requested": { subject: "access-requests", payload: RECORD_PAYLOAD },
+  "access.request_approved": {
+    subject: "access-requests",
+    payload: RECORD_PAYLOAD,
+  },
   "access.ended": {
     subject: "access-requests",
-    payload: [...PAYLOAD, "reason"],
+    payload: [...RECORD_PAYLOAD, "reason"],
+  },
+  "access_request.emergency_opened": {
+    subject: "access-requests",
+    payload: [...RECORD_PAYLOAD, "reason"],
+  },
+  "access_request.emergency_reviewed": {
+    subject: "access-requests",
+    payload: [...RECORD_PAYLOAD, "verdict"],
   },
 };
 
@@ -62,7 +88,14 @@ const NAMES: BlockSqlNames = {
     "before_access_grant",
     "after_access_grant",
   ],
-  options: ["roles", "policy", "maxDuration", "join", "extraColumns"],
+  options: [
+    "roles",
+    "policy",
+    "maxDuration",
+    "join",
+    "emergency",
+    "extraColumns",
+  ],
   tables: {
     requests: {
       name: "access_requests",
@@ -72,6 +105,16 @@ const NAMES: BlockSqlNames = {
         tenant: "tenant_id",
         user: "user_id",
         role: "role",
+        target: "target",
+        subjectType: "subject_type",
+        subjectId: "subject_id",
+        action: "action",
+        emergency: "emergency",
+        member: "member_id",
+        reviewVerdict: "review_verdict",
+        reviewNote: "review_note",
+        reviewedBy: "reviewed_by",
+        reviewedAt: "reviewed_at",
         previousRole: "previous_role",
         reason: "reason",
         duration: "duration",
@@ -82,7 +125,7 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
       },
       app: {},
-      optional: ["reason"],
+      optional: ["reason", ...RECORD_COLUMNS],
     },
   },
 };
@@ -90,7 +133,13 @@ const NAMES: BlockSqlNames = {
 /** The keys a request read returns, which no extra column may shadow. */
 const REQUEST_KEYS: readonly string[] = [
   "id",
+  "target",
   "role",
+  "subjectType",
+  "subjectId",
+  "action",
+  "emergency",
+  "review",
   "reason",
   "duration",
   "status",
@@ -186,6 +235,7 @@ function build(ctx: BlockSqlContext): string {
   const join = ctx.flag("join", false);
   const provider = accessModel(ctx) === "provider";
   const hasReason = ctx.has("requests", "reason");
+  const records = recordsEnabled(ctx);
 
   const reasonOf = (row: string): string =>
     hasReason ? `${row}.${c("reason")}` : "null::text";
@@ -198,8 +248,18 @@ function build(ctx: BlockSqlContext): string {
   const status = (row: string, approval: string): string =>
     `case when ${row}.${c("endedAt")} is not null then 'ended' when ${row}.${c("grantedAt")} is not null then 'granted' else coalesce(${approval}.${a("status")}, 'pending') end`;
 
+  const recordJson = (row: string): string =>
+    records
+      ? `, 'target', ${row}.${c("target")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'action', ${row}.${c("action")}, 'emergency', ${row}.${c("emergency")}, 'review', case when ${row}.${c("reviewedAt")} is null then null else jsonb_build_object('verdict', ${row}.${c("reviewVerdict")}, 'note', ${row}.${c("reviewNote")}, 'reviewedBy', ${row}.${c("reviewedBy")}, 'reviewedAt', ${row}.${c("reviewedAt")}) end`
+      : "";
+
   const json = (row: string, state: string): string =>
-    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'userId', ${row}.${c("user")}, 'role', ${row}.${c("role")}, 'previousRole', ${row}.${c("previousRole")}, 'reason', ${reasonOf(row)}, 'duration', ${row}.${c("duration")}::text, 'status', ${state}, 'approvalId', ${row}.${c("approval")}, 'grantedAt', ${row}.${c("grantedAt")}, 'expiresAt', ${row}.${c("expiresAt")}, 'endedAt', ${row}.${c("endedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'userId', ${row}.${c("user")}, 'role', ${row}.${c("role")}${recordJson(row)}, 'previousRole', ${row}.${c("previousRole")}, 'reason', ${reasonOf(row)}, 'duration', ${row}.${c("duration")}::text, 'status', ${state}, 'approvalId', ${row}.${c("approval")}, 'grantedAt', ${row}.${c("grantedAt")}, 'expiresAt', ${row}.${c("expiresAt")}, 'endedAt', ${row}.${c("endedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
+
+  const recordPayload = (row: string): string =>
+    records
+      ? `, 'target', ${row}.${c("target")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'action', ${row}.${c("action")}`
+      : `, 'target', 'role', 'subjectType', null::text, 'subjectId', null::text, 'action', null::text`;
 
   const record = (
     event: string,
@@ -209,7 +269,7 @@ function build(ctx: BlockSqlContext): string {
   ): string =>
     ctx.record({
       type: event,
-      payload: `jsonb_build_object('organizationId', ${row}.${c("tenant")}::text, 'userId', ${row}.${c("user")}, 'role', ${row}.${c("role")}, 'id', ${row}.${c("id")}, 'approvalId', ${row}.${c("approval")}, 'expiresAt', ${row}.${c("expiresAt")}${extra})`,
+      payload: `jsonb_build_object('organizationId', ${row}.${c("tenant")}::text, 'userId', ${row}.${c("user")}, 'role', ${row}.${c("role")}, 'id', ${row}.${c("id")}, 'approvalId', ${row}.${c("approval")}, 'expiresAt', ${row}.${c("expiresAt")}${recordPayload(row)}${extra})`,
       subject: `'access-requests/' || ${row}.${c("id")}::text`,
       tenant: `${row}.${c("tenant")}`,
       audit: {
@@ -263,12 +323,78 @@ function build(ctx: BlockSqlContext): string {
     end if;
   end if;`;
 
+  const recordColumnsDdl = (
+    before: string,
+    prefix: string,
+    after = ",",
+  ): string =>
+    [
+      `${c("target")} text not null default 'role' check (${c("target")} in ('role', 'record'))`,
+      `${c("subjectType")} text check (length(${c("subjectType")}) between 1 and 200)`,
+      `${c("subjectId")} text check (length(${c("subjectId")}) between 1 and 200)`,
+      `${c("action")} text check (length(${c("action")}) between 1 and 200)`,
+      `${c("emergency")} boolean not null default false`,
+      `${c("member")} uuid`,
+      `${c("reviewVerdict")} text check (${c("reviewVerdict")} in ('justified', 'unjustified'))`,
+      `${c("reviewNote")} text check (length(${c("reviewNote")}) <= 2000)`,
+      `${c("reviewedBy")} uuid`,
+      `${c("reviewedAt")} timestamptz`,
+    ]
+      .map((column) => `${before}${prefix}${column}${after}`)
+      .join("");
+
+  const membership = (tenant: string): string =>
+    `exists (select 1 from ${m} m where m.${mt} = ${tenant} and m.${mu} = auth.uid())`;
+
+  const kit = {
+    requests,
+    c,
+    json,
+    record,
+    reasonOf,
+    hasReason,
+    policy,
+    max,
+    approvals,
+    membership,
+  };
+
+  const grantBranch = records
+    ? `
+  if v_row.${c("target")} = 'record' then
+    v_ends := now() + v_row.${c("duration")};${grantRecordSql(ctx, kit)}
+    update ${requests} r
+    set ${c("grantedAt")} = now(), ${c("expiresAt")} = v_ends, ${c("member")} = v_member
+    where r.${c("id")} = v_row.${c("id")}
+    returning * into v_row;
+    if not v_row.${c("emergency")} then
+      ${record("access.request_approved", "v_row")}
+    end if;
+    ${ctx.hook("after_access_grant", [["uuid", `v_row.${c("id")}`]])}
+    return;
+  end if;`
+    : "";
+
+  const endBranch = (revert: string): string =>
+    records
+      ? `
+  if v_row.${c("target")} = 'record' then${endRecordSql(ctx, kit)}
+  else${revert.replaceAll("\n", "\n  ")}
+  end if;`
+      : revert;
+
+  const expireBranch = records
+    ? `
+    if v_row.${c("target")} = 'role' then${revertRole.replaceAll("\n", "\n    ")}
+    end if;`
+    : revertRole;
+
   const tables = ctx.manages
     ? `create table if not exists ${requests} (
   ${c("id")} uuid primary key default gen_random_uuid(),
   ${c("tenant")} ${ctx.idType} not null,
   ${c("user")} uuid not null,
-  ${c("role")} text not null check (length(${c("role")}) between 1 and 200),
+  ${c("role")} text${records ? "" : " not null"} check (length(${c("role")}) between 1 and 200),${records ? recordColumnsDdl("\n  ", "") : ""}
   ${c("previousRole")} text,
 ${hasReason ? `  ${c("reason")} text check (${c("reason")} is null or length(${c("reason")}) <= 2000),\n` : ""}  ${c("duration")} interval check (${c("duration")} is null or ${c("duration")} > interval '0'),
   ${c("approval")} uuid references ${ar} (${a("id")}) on delete cascade,
@@ -280,7 +406,14 @@ ${hasReason ? `  ${c("reason")} text check (${c("reason")} is null or length(${c
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("createdAt")} desc);${addExtraColumns(requests, extras)}
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${c("approval")}) where ${c("approval")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_expiry_idx`)} on ${requests} (${c("expiresAt")}) where ${c("grantedAt")} is not null and ${c("endedAt")} is null;
-${lockTable(requests, { read: true })}
+${
+  records
+    ? `alter table ${requests} alter column ${c("role")} drop not null;${recordColumnsDdl("\n", `alter table ${requests} add column if not exists `, ";")}
+create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_subject_idx`)} on ${requests} (${c("subjectType")}, ${c("subjectId")}, ${c("user")}) where ${c("subjectType")} is not null;
+create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_emergency_idx`)} on ${requests} (${c("tenant")}, ${c("createdAt")} desc) where ${c("emergency")};
+`
+    : ""
+}${lockTable(requests, { read: true })}
 ${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("access_requests_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} or ${c("user")} = (select auth.uid())` }), { drop: true, target: requests })}
 `
     : "";
@@ -330,7 +463,7 @@ begin
   perform pg_advisory_xact_lock(hashtextextended('access_request:' || request_access.tenant::text || ':' || v_me::text, 0));
   if exists (
     select 1 from ${requests} r join ${ar} x on x.${a("id")} = r.${c("approval")}
-    where r.${c("tenant")} = request_access.tenant and r.${c("user")} = v_me and x.${a("status")} = 'pending'
+    where r.${c("tenant")} = request_access.tenant and r.${c("user")} = v_me and x.${a("status")} = 'pending'${records ? ` and r.${c("target")} = 'role'` : ""}
   ) then
     ${fail("ACCESS_REQUEST_PENDING", "you already have a pending access request here", "23505")}
   end if;
@@ -366,13 +499,13 @@ set search_path = ''
 as $$
 declare
   v_row ${requests}%rowtype;
-  v_previous text;
+  v_previous text;${records ? "\n  v_ends timestamptz;\n  v_member uuid;" : ""}
 begin
   select * into v_row from ${requests} r where r.${c("id")} = grant_access_request.request_id for update;
   if not found or v_row.${c("grantedAt")} is not null then
     return;
   end if;
-  ${ctx.hook("before_access_grant", [["uuid", `v_row.${c("id")}`]])}${grantRole}
+  ${ctx.hook("before_access_grant", [["uuid", `v_row.${c("id")}`]])}${grantBranch}${grantRole}
   update ${requests} r
   set ${c("previousRole")} = v_previous,
       ${c("grantedAt")} = now(),
@@ -405,7 +538,7 @@ begin
   end if;
   if v_row.${c("grantedAt")} is null or v_row.${c("endedAt")} is not null then
     ${fail("ACCESS_NOT_GRANTED", "this access isn't active", "22023")}
-  end if;${revertRole}
+  end if;${endBranch(revertRole)}
   update ${requests} r set ${c("endedAt")} = now() where r.${c("id")} = v_row.${c("id")} returning * into v_row;
   ${record("access.ended", "v_row", ", 'reason', 'revoked'")}
   return ${json("v_row", "'ended'")};
@@ -430,7 +563,7 @@ begin
     order by r.${c("expiresAt")}
     limit greatest(coalesce(expire_access_grants.max_grants, 200), 1)
     for update skip locked
-  loop${revertRole}
+  loop${expireBranch}
     update ${requests} r set ${c("endedAt")} = now() where r.${c("id")} = v_row.${c("id")} returning * into v_row;
     ${record("access.ended", "v_row", ", 'reason', 'expired'")}
     v_count := v_count + 1;
@@ -486,7 +619,7 @@ as $$
   ) items
 $$;
 ${userGrant(`${fn("list_access_requests")}(${ctx.idType}, text, boolean, integer, timestamptz)`)}
-`;
+${records ? recordAccessSql(ctx, kit) : ""}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -502,6 +635,25 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "end_access", args: ["uuid"], returns: "jsonb" },
     { name: "get_access_request", args: ["uuid"], returns: "jsonb" },
+    ...(recordsEnabled(ctx)
+      ? [
+          {
+            name: "request_record_access",
+            args: ["text", "text", "text", "text", "interval"],
+            returns: "jsonb",
+          },
+          {
+            name: "open_emergency_access",
+            args: ["text", "text", "text"],
+            returns: "jsonb",
+          },
+          {
+            name: "review_emergency_access",
+            args: ["uuid", "text", "text"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
   ];
 }
 
@@ -522,15 +674,17 @@ export const ACCESS_REQUESTS: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Access requests",
   description:
-    "Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.",
+    "Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.",
   requires: ["memberships", "permissions", "approvals"],
-  integrates: ["outbox", "audit"],
+  integrates: ["outbox", "audit", "subjects", "notifications"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,
   build,
+  unusedPermissions: (ctx) =>
+    recordsEnabled(ctx) ? [] : ["emergency", "review"],
   permissionKeys: (ctx) =>
     ctx.option("policy") === undefined
       ? [

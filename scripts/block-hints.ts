@@ -13,6 +13,11 @@ import { renderBlocks } from "../packages/better-supabase/src/sql/index.ts";
 
 const CODE = /^[A-Z][A-Z0-9_]*$/;
 
+/** A subject with a record team, so the SQL that needs one renders its hints. */
+const TEAM_SUBJECT = {
+  record: { table: "public.records", team: { actions: ["read"] } },
+} as const;
+
 /** The SQL of `module`, rendered next to the modules it needs most often. */
 function moduleSql(module: string): string {
   for (const names of [
@@ -20,7 +25,8 @@ function moduleSql(module: string): string {
     [module, "outbox", "organizations"],
   ]) {
     try {
-      return renderBlocks(names)
+      return [names, [...names, "subjects"]]
+        .flatMap((each) => renderBlocks(each, { subjects: TEAM_SUBJECT }))
         .filter((file) => file.module === module)
         .map((file) => file.contents)
         .join("\n");

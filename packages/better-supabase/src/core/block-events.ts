@@ -483,14 +483,38 @@ export interface CollaborationEventData extends SubjectEventData {
 export interface AccessRequestEventData {
   readonly organizationId: string;
   readonly userId: string;
-  readonly role: string;
+  /** The requested role; null for a record request. */
+  readonly role: string | null;
   /** The access request. */
   readonly id: string;
   readonly approvalId?: string | null;
-  /** When the granted role ends; null for a grant without a duration. */
+  /** When the granted access ends; null for a grant without a duration. */
   readonly expiresAt?: string | null;
-  /** For `access.ended`: `expired` or `revoked`. */
-  readonly reason?: string;
+  /** `role` for a role request, `record` for access to one record. */
+  readonly target?: "role" | "record";
+  /** A record request's subject type, such as `client`; null for a role. */
+  readonly subjectType?: string | null;
+  readonly subjectId?: string | null;
+  /** The action a record request asks for, such as `read`. */
+  readonly action?: string | null;
+  /**
+   * For `access.ended`: `expired` or `revoked`. For
+   * `access_request.emergency_opened`: the reason the user gave.
+   */
+  readonly reason?: string | null;
+  /** For `access_request.emergency_reviewed`: `justified` or `unjustified`. */
+  readonly verdict?: "justified" | "unjustified";
+}
+
+/**
+ * `access_request.emergency_opened` and `access_request.emergency_reviewed`:
+ * emergency access is always to one record.
+ */
+export interface EmergencyAccessEventData extends AccessRequestEventData {
+  readonly target: "record";
+  readonly subjectType: string;
+  readonly subjectId: string;
+  readonly action: string;
 }
 
 /** `subject_member.added` and `subject_member.ended`, from the subjects block. */

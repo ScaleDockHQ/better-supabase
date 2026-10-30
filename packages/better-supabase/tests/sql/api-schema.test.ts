@@ -22,14 +22,24 @@ const MODULE_OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
   approvals: { options: { tenantPolicies: true } },
 };
 
+// Record access requests exist only next to a subject with a team.
+const MODULE_BLOCKS: Readonly<Record<string, readonly string[]>> = {
+  "access-requests": ["subjects"],
+};
+
+const TEAM_SUBJECT = {
+  record: { table: "public.records", team: { actions: ["read"] } },
+};
+
 /** The schema file, with `billing` for a module that needs its customer column. */
 const schemaFileWith = (
   name: string,
   api: NonNullable<BlockConfig["api"]>,
 ): string => {
   try {
-    return renderBlocks([name], {
+    return renderBlocks([...(MODULE_BLOCKS[name] ?? []), name], {
       modules: { [name]: { ...MODULE_OPTIONS[name], api } },
+      ...(MODULE_BLOCKS[name] ? { subjects: TEAM_SUBJECT } : {}),
     }).find((file) => file.module === name && file.kind === "schema")!.contents;
   } catch {
     return renderBlocks(["billing", name], {
