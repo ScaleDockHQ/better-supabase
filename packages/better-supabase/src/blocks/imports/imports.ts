@@ -3,9 +3,20 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { ImportBatchReply, ImportItem } from "./define-import.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { blockCall, recordOf, textOf } from "../shared.ts";
+import {
+  blockCall,
+  nullableInstant,
+  nullableText,
+  optionalText,
+  recordOf,
+  recordOrEmpty,
+  recordsOf,
+  requiredInstant,
+  textOf,
+} from "../shared.ts";
 
 export interface ImportsOptions {
   readonly transport: BlockTransport;
@@ -17,24 +28,338 @@ export interface ImportsOptions {
   readonly logger?: Logger;
 }
 
+export type ImportRunStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "canceled";
+
+/** What a run did to one entity. */
+export interface ImportEntityCounts {
+  readonly inserted: number;
+  readonly updated: number;
+  readonly unchanged: number;
+  readonly conflicted: number;
+  /** Records of a full run the source no longer sends. */
+  readonly missing: number;
+}
+
+export interface ImportRunError {
+  readonly entity: string;
+  readonly key: string | null;
+  /** A hint code, such as `IMPORT_ITEM_INVALID` or `IMPORT_TARGET_UNKNOWN`. */
+  readonly code: string;
+  readonly message: string;
+}
+
+/** Lets a scope reuse another scope's records for some entities. */
+export interface ImportScopeAlias {
+  readonly scope: string;
+  readonly of: string;
+  readonly entities: readonly string[];
+}
+
+export interface ImportRun {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly source: string;
+  readonly status: ImportRunStatus;
+  readonly mapping: Readonly<Record<string, string>>;
+  readonly counts: Readonly<Record<string, ImportEntityCounts>>;
+  readonly errors: readonly ImportRunError[];
+  readonly dryRun: boolean;
+  readonly full: boolean;
+  readonly inputChecksum: string | null;
+  readonly correlationId: string | null;
+  readonly scopeAliases: readonly ImportScopeAlias[];
+  readonly createdBy: string | null;
+  readonly createdAt: Temporal.Instant;
+  readonly startedAt: Temporal.Instant | null;
+  readonly finishedAt: Temporal.Instant | null;
+}
+
+export interface StartImportRunOptions {
+  /** CSV header to field, for runs that come from a file. */
+  readonly mapping?: Readonly<Record<string, string>>;
+  /** Run every write, then roll it back and report only the counts. */
+  readonly dryRun?: boolean;
+  /** The run sends the source's whole data; `finish` marks what it left out. */
+  readonly full?: boolean;
+  /** Identifies the input, so a caller can tell a repeated file. */
+  readonly inputChecksum?: string;
+  readonly correlationId?: string;
+  readonly scopeAliases?: readonly ImportScopeAlias[];
+}
+
+export interface ListImportRunsOptions {
+  readonly source?: string;
+  readonly status?: ImportRunStatus;
+  /** At most 200; defaults to 50. */
+  readonly limit?: number;
+}
+
+/** One key of `resolve`: the key, or the key within a scope. */
+export type ImportKey =
+  | string
+  | { readonly key: string; readonly scope?: string; readonly role?: string };
+
+export interface ResolvedImportKey {
+  readonly key: string;
+  readonly scope: string;
+  readonly role: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+}
+
+export interface UpsertBatchResult extends ImportBatchReply {
+  /** True when the run is a dry run: nothing was written. */
+  readonly dryRun: boolean;
+}
+
 export interface Imports {
+  /** Starts a run and returns its id. Prefer `runs.start`. */
   start(
     organizationId: string,
-    kind: string,
+    source: string,
     mapping?: Readonly<Record<string, string>>,
   ): AsyncResult<{ readonly id: string }>;
+  readonly runs: {
+    /**
+     * Starts a pending run. Fails with `IMPORT_RUN_ACTIVE` while another is
+     * open.
+     */
+    start(
+      organizationId: string,
+      source: string,
+      options?: StartImportRunOptions,
+    ): AsyncResult<{ readonly id: string }>;
+    get(id: string): AsyncResult<ImportRun>;
+    list(
+      organizationId: string,
+      options?: ListImportRunsOptions,
+    ): AsyncResult<readonly ImportRun[]>;
+    /** Cancels a pending or running run; `false` when it already ended. */
+    cancel(id: string): AsyncResult<boolean>;
+  };
+  /** Marks a pending run running (service role). */
+  markRunning(id: string): AsyncResult<boolean>;
+  /**
+   * Writes one batch of an entity through its `importTarget` (service role).
+   * Each item inserts, is unchanged, updates, or is `conflicted`.
+   */
+  upsertBatch(
+    runId: string,
+    entity: string,
+    items: readonly ImportItem[],
+  ): AsyncResult<UpsertBatchResult>;
+  /**
+   * Looks up the subjects keys imported to; a key never imported is left out
+   * (service role).
+   */
+  resolve(
+    runId: string,
+    entity: string,
+    keys: readonly ImportKey[],
+  ): AsyncResult<readonly ResolvedImportKey[]>;
+  /**
+   * Ends a running run, marks missing records on a full run and emits the
+   * import events (service role).
+   */
+  finish(
+    runId: string,
+  ): AsyncResult<Readonly<Record<string, ImportEntityCounts>>>;
 }
+
+const toCount = (value: unknown): number =>
+  typeof value === "number" ? value : Number(value ?? 0);
+
+const entityCounts = (value: unknown): ImportEntityCounts => {
+  const row = recordOrEmpty(value);
+
+  return {
+    inserted: toCount(row["inserted"]),
+    updated: toCount(row["updated"]),
+    unchanged: toCount(row["unchanged"]),
+    conflicted: toCount(row["conflicted"]),
+    missing: toCount(row["missing"]),
+  };
+};
+
+const countsOf = (value: unknown): Record<string, ImportEntityCounts> =>
+  Object.fromEntries(
+    Object.entries(recordOrEmpty(value)).map(([entity, counts]) => [
+      entity,
+      entityCounts(counts),
+    ]),
+  );
+
+const STATUSES: readonly ImportRunStatus[] = [
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "canceled",
+];
+
+function runOf(value: unknown, fn: string): ImportRun {
+  const row = recordOf(value, fn);
+  const status = textOf(row["status"]);
+  const found = STATUSES.find((item) => item === status);
+
+  if (found === undefined) {
+    throw new TypeError(`${fn} returned the status "${status}"`);
+  }
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    source: textOf(row["source"]),
+    status: found,
+    mapping: Object.fromEntries(
+      Object.entries(recordOrEmpty(row["mapping"])).map(([key, item]) => [
+        key,
+        textOf(item),
+      ]),
+    ),
+    counts: countsOf(row["counts"]),
+    errors: recordsOf(row["errors"], fn).map((error) => ({
+      entity: textOf(error["entity"]),
+      key: nullableText(error["key"]),
+      code: textOf(error["code"]),
+      message: textOf(error["message"]),
+    })),
+    dryRun: row["dryRun"] === true,
+    full: row["full"] === true,
+    inputChecksum: nullableText(row["inputChecksum"]),
+    correlationId: nullableText(row["correlationId"]),
+    scopeAliases: recordsOf(row["scopeAliases"], fn).map((alias) => ({
+      scope: textOf(alias["scope"]),
+      of: textOf(alias["of"]),
+      entities: Array.isArray(alias["entities"])
+        ? alias["entities"].map(textOf)
+        : [],
+    })),
+    createdBy: nullableText(row["createdBy"]),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    startedAt: nullableInstant(row["startedAt"]),
+    finishedAt: nullableInstant(row["finishedAt"]),
+  };
+}
+
+const itemArg = (item: ImportItem): Record<string, unknown> => ({
+  key: item.key,
+  scope: item.scope ?? "",
+  data: item.data,
+  refs: item.refs ?? {},
+});
+
+const keyArg = (key: ImportKey): Record<string, unknown> =>
+  typeof key === "string"
+    ? { key }
+    : {
+        key: key.key,
+        ...(key.scope === undefined ? {} : { scope: key.scope }),
+        ...(key.role === undefined ? {} : { role: key.role }),
+      };
+
+const startArg = (start: StartImportRunOptions): Record<string, unknown> => ({
+  ...(start.mapping ? { mapping: start.mapping } : {}),
+  ...(start.dryRun === undefined ? {} : { dryRun: start.dryRun }),
+  ...(start.full === undefined ? {} : { full: start.full }),
+  ...(start.inputChecksum === undefined
+    ? {}
+    : { inputChecksum: start.inputChecksum }),
+  ...(start.correlationId === undefined
+    ? {}
+    : { correlationId: start.correlationId }),
+  ...(start.scopeAliases === undefined
+    ? {}
+    : { scopeAliases: start.scopeAliases }),
+});
 
 export function createImports(options: ImportsOptions): Imports {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
+  const idOf = (value: unknown, fn: string): { readonly id: string } => ({
+    id: textOf(recordOf(value, fn)["id"]),
+  });
+
   const client: Imports = {
-    start: (organizationId, kind, mapping) =>
+    start: (organizationId, source, mapping) =>
       call(
         "start_import",
-        { tenant: organizationId, kind, mapping: mapping ?? {} },
-        (value) => ({ id: textOf(recordOf(value, "start_import")["id"]) }),
+        { tenant: organizationId, source, mapping: mapping ?? {} },
+        (value) => idOf(value, "start_import"),
       ),
+    runs: {
+      start: (organizationId, source, startOptions = {}) =>
+        call(
+          "start_import_run",
+          { tenant: organizationId, source, options: startArg(startOptions) },
+          (value) => idOf(value, "start_import_run"),
+        ),
+      get: (id) =>
+        call("get_import_run", { id }, (value) =>
+          runOf(value, "get_import_run"),
+        ),
+      list: (organizationId, listOptions = {}) =>
+        call(
+          "list_import_runs",
+          {
+            tenant: organizationId,
+            source: listOptions.source ?? null,
+            status: listOptions.status ?? null,
+            row_limit: listOptions.limit ?? 50,
+          },
+          (value) =>
+            (Array.isArray(value) ? value : []).map((row) =>
+              runOf(row, "list_import_runs"),
+            ),
+        ),
+      cancel: (id) =>
+        call("cancel_import_run", { id }, (value) => value === true),
+    },
+    markRunning: (id) =>
+      call("mark_import_running", { id }, (value) => value === true),
+    upsertBatch: (runId, entity, items) =>
+      call(
+        "import_upsert_batch",
+        { run: runId, entity, items: items.map(itemArg) },
+        (value) => {
+          const row = recordOf(value, "import_upsert_batch");
+
+          return {
+            inserted: toCount(row["inserted"]),
+            updated: toCount(row["updated"]),
+            unchanged: toCount(row["unchanged"]),
+            conflicted: toCount(row["conflicted"]),
+            errors: recordsOf(row["errors"], "import_upsert_batch").map(
+              (error) => ({
+                key: nullableText(error["key"]),
+                code: textOf(error["code"]),
+                message: textOf(error["message"]),
+              }),
+            ),
+            dryRun: row["dryRun"] === true,
+          };
+        },
+      ),
+    resolve: (runId, entity, keys) =>
+      call(
+        "import_resolve",
+        { run: runId, entity, keys: keys.map(keyArg) },
+        (value) =>
+          recordsOf(value, "import_resolve").map((row): ResolvedImportKey => ({
+            key: textOf(row["key"]),
+            scope: optionalText(row["scope"]) ?? "",
+            role: optionalText(row["role"]) ?? "primary",
+            subjectType: textOf(row["subjectType"]),
+            subjectId: textOf(row["subjectId"]),
+          })),
+      ),
+    finish: (runId) =>
+      call("finish_import_run", { run: runId }, (value) => countsOf(value)),
   };
 
   return withBlockHooks(client, options.hooks, {

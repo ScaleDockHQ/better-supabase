@@ -1,7 +1,7 @@
 -- better-supabase module: imports
--- @bsb-block imports@1 managed
--- @bsb-hash sha256:87a02f085eb2bf41c21d107bf08cee321a2db9358e25c85f187963bead3ef5e7
--- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
+-- @bsb-block imports@2 managed
+-- @bsb-hash sha256:78ea0f58a9c9e2e49e78d2aa8a61622a1b4ccb4bfc7013e133fcb28575831b38
+-- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -67,39 +67,194 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "centrakit"."import_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
--- centrakit.import_runs is the app's table, and it has every column this block needs.
+-- centrakit.import_runs is the app's table: this block adds only the columns it needs.
+alter table "centrakit"."import_runs" add column if not exists "source" text;
+alter table "centrakit"."import_runs" add column if not exists "dry_run" boolean not null default false;
+alter table "centrakit"."import_runs" add column if not exists "full" boolean not null default false;
+alter table "centrakit"."import_runs" add column if not exists "input_checksum" text;
+alter table "centrakit"."import_runs" add column if not exists "correlation_id" text;
+alter table "centrakit"."import_runs" add column if not exists "scope_aliases" jsonb not null default '[]'::jsonb;
+alter table "centrakit"."import_runs" add column if not exists "started_at" timestamptz;
+alter table "centrakit"."import_runs" add column if not exists "finished_at" timestamptz;
 alter table "centrakit"."import_runs" enable row level security;
 grant select on "centrakit"."import_runs" to authenticated;
 grant all on "centrakit"."import_runs" to service_role;
 create index if not exists "import_runs_tenant_idx" on "centrakit"."import_runs" ("tenant_id");
+-- One pending or running run per organization and source.
+create unique index if not exists "import_runs_active_idx" on "centrakit"."import_runs" ("tenant_id", "source") where "status" in ('pending', 'running');
 
-create or replace function "better_supabase"."start_import"(tenant uuid, kind text, mapping jsonb)
+create table if not exists "better_supabase"."import_records" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "source" text not null,
+  "scope" text not null default '',
+  "entity" text not null,
+  "external_key" text not null,
+  "role" text not null default 'primary',
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "content_hash" text not null,
+  "first_run_id" uuid not null,
+  "last_run_id" uuid not null,
+  "subject_updated_at_at_import" timestamptz,
+  "missing_since" timestamptz,
+  constraint "import_records_key" unique ("tenant_id", "source", "scope", "entity", "external_key", "role")
+);
+create index if not exists "import_records_subject_idx" on "better_supabase"."import_records" ("tenant_id", "subject_type", "subject_id");
+alter table "better_supabase"."import_records" enable row level security;
+revoke all on "better_supabase"."import_records" from public, anon, authenticated;
+grant select on "better_supabase"."import_records" to authenticated;
+grant all on "better_supabase"."import_records" to service_role;
+
+create or replace function "better_supabase"."start_import_run"(tenant uuid, source text, options jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_variable
 declare
   v_id uuid;
+  v_options jsonb := coalesce(start_import_run.options, '{}'::jsonb);
 begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', start_import.tenant, 'imports.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', start_import_run.tenant, 'imports.manage'), false)) then
     raise exception 'not allowed to import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  insert into "centrakit"."import_runs" ("tenant_id", "kind", "mapping", "created_by")
-  values (start_import.tenant, start_import.kind, coalesce(start_import.mapping, '{}'::jsonb), auth.uid())
-  returning "id" into v_id;
+  if start_import_run.source is null or start_import_run.source = '' then
+    raise exception 'an import run needs a source' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if jsonb_typeof(coalesce(v_options -> 'scopeAliases', '[]'::jsonb)) <> 'array' then
+    raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  begin
+    insert into "centrakit"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "scope_aliases", "created_by")
+    values (
+      start_import_run.tenant,
+      start_import_run.source,
+      coalesce(v_options -> 'mapping', '{}'::jsonb),
+      coalesce((v_options ->> 'dryRun')::boolean, false),
+      coalesce((v_options ->> 'full')::boolean, false),
+      v_options ->> 'inputChecksum',
+      v_options ->> 'correlationId',
+      coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
+      auth.uid()
+    )
+    returning r."id" into v_id;
+  exception when unique_violation then
+    raise exception 'an import of this source is already pending or running' using errcode = '55P03', hint = 'IMPORT_RUN_ACTIVE';
+  end;
   return jsonb_build_object('id', v_id);
 end;
 $$;
+revoke execute on function "better_supabase"."start_import_run"(uuid, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."start_import_run"(uuid, text, jsonb) to authenticated, service_role;
+
+-- The first release's entry point: a run without options.
+create or replace function "better_supabase"."start_import"(tenant uuid, source text, mapping jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$
+  select "better_supabase"."start_import_run"(start_import.tenant, start_import.source, jsonb_build_object('mapping', coalesce(start_import.mapping, '{}'::jsonb)));
+$$;
 revoke execute on function "better_supabase"."start_import"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."start_import"(uuid, text, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."get_import_run"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_run "centrakit"."import_runs";
+begin
+  select * into v_run from "centrakit"."import_runs" r where r."id" = get_import_run.id;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
+    raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
+  end if;
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_import_run"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_import_run"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_import_runs"(tenant uuid, source text default null, status text default null, row_limit integer default 50)
+returns setof jsonb
+language plpgsql
+security definer
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', list_import_runs.tenant, 'imports.manage'), false)) then
+    raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
+  end if;
+  return query
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
+    from "centrakit"."import_runs" r
+    where r."tenant_id" = list_import_runs.tenant
+      and (list_import_runs.source is null or r."source" = list_import_runs.source)
+      and (list_import_runs.status is null or r."status" = list_import_runs.status)
+    order by r."created_at" desc, r."id" desc
+    limit least(greatest(coalesce(list_import_runs.row_limit, 50), 1), 200);
+end;
+$$;
+revoke execute on function "better_supabase"."list_import_runs"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_import_runs"(uuid, text, text, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."cancel_import_run"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_run "centrakit"."import_runs";
+begin
+  if not (centrakit.authz_actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_run from "centrakit"."import_runs" r where r."id" = cancel_import_run.id for update;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
+    raise exception 'not allowed to cancel this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
+  end if;
+  if v_run."status" not in ('pending', 'running') then
+    raise exception 'this import already finished' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+  end if;
+  update "centrakit"."import_runs" r set "status" = better_supabase.as_column_type('canceled', (null::"centrakit"."import_runs")."status"), "finished_at" = now()
+  where r."id" = cancel_import_run.id;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."cancel_import_run"(uuid) from public, anon;
+grant execute on function "better_supabase"."cancel_import_run"(uuid) to authenticated, service_role;
 
 -- The run moves from pending to running before the first batch, so a run
 -- that dies mid-way is visible as running rather than pending.
@@ -111,7 +266,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  update "centrakit"."import_runs" set "status" = 'running'
+  update "centrakit"."import_runs" set "status" = 'running', "started_at" = now()
   where "id" = mark_import_running.id and "status" = 'pending';
   if not found then
     raise exception 'no pending import with this id' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
@@ -122,6 +277,8 @@ $$;
 revoke execute on function "better_supabase"."mark_import_running"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."mark_import_running"(uuid) to service_role;
 
+-- Closes a run whose rows the caller wrote itself (`defineImport` without a
+-- target); `finish_import_run` closes a run that used `import_upsert_batch`.
 create or replace function "better_supabase"."finish_import"(id uuid, status text, count integer, error text)
 returns boolean
 language plpgsql
@@ -131,12 +288,14 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant uuid;
+  v_source text;
 begin
   update "centrakit"."import_runs" set "status" = better_supabase.as_column_type(finish_import.status, (null::"centrakit"."import_runs")."status"),
-    "counts" = jsonb_build_object('imported', finish_import.count),
-    "errors" = case when finish_import.error is null then '[]'::jsonb else jsonb_build_array(finish_import.error) end
+    "finished_at" = now(),
+    "counts" = case when finish_import.status = 'completed' then jsonb_build_object("source", jsonb_build_object('inserted', finish_import.count, 'updated', 0, 'unchanged', 0, 'conflicted', 0, 'missing', 0)) else "counts" end,
+    "errors" = case when finish_import.error is null then "errors" else "errors" || jsonb_build_array(jsonb_build_object('entity', "source", 'key', null, 'code', 'IMPORT_ITEM_INVALID', 'message', finish_import.error)) end
   where "id" = finish_import.id
-  returning "tenant_id" into v_tenant;
+  returning "tenant_id", "source" into v_tenant, v_source;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
@@ -150,6 +309,352 @@ end;
 $$;
 revoke execute on function "better_supabase"."finish_import"(uuid, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_import"(uuid, text, integer, text) to service_role;
+
+-- Writes the items of one entity: an unknown key inserts, an equal hash is
+-- unchanged and writes nothing, a changed hash updates unless the row changed
+-- after the last import (conflicted). Returns the counts and the item errors.
+create or replace function "better_supabase"."import_apply_batch"(run uuid, entity text, items jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_run_id uuid := import_apply_batch.run;
+  v_entity text := import_apply_batch.entity;
+  v_items jsonb := import_apply_batch.items;
+  v_run "centrakit"."import_runs";
+  v_item jsonb;
+  v_call jsonb;
+  v_key text;
+  v_scope text;
+  v_data jsonb;
+  v_hash text;
+  v_rec "better_supabase"."import_records";
+  v_other text;
+  v_found boolean;
+  v_done boolean;
+  v_subject_id text;
+  v_subject_type text;
+  v_current timestamptz;
+  v_out jsonb;
+  v_subjects jsonb;
+  v_subject jsonb;
+  v_inserted integer := 0;
+  v_updated integer := 0;
+  v_unchanged integer := 0;
+  v_conflicted integer := 0;
+  v_errors jsonb := '[]'::jsonb;
+  v_message text;
+  v_hint text;
+begin
+  select * into v_run from "centrakit"."import_runs" r where r."id" = v_run_id;
+  if v_entity <> all (array[]::text[]) then
+    raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
+  end if;
+  if jsonb_typeof(v_items) <> 'array' then
+    raise exception 'items must be an array of { key, scope, data, refs }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+
+  for v_item in select e.value from jsonb_array_elements(v_items) e loop
+    v_key := v_item ->> 'key';
+    v_scope := coalesce(v_item ->> 'scope', '');
+    v_data := v_item -> 'data';
+
+    if v_key is null or v_key = '' or jsonb_typeof(v_data) is distinct from 'object' then
+      v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', 'IMPORT_ITEM_INVALID', 'message', 'an item needs a key and a data object'));
+      continue;
+    end if;
+
+    -- jsonb text is key-ordered, so equal content hashes equally.
+    v_hash := encode(extensions.digest(v_data::text, 'sha256'), 'hex');
+
+    begin
+      v_done := false;
+      select * into v_rec from "better_supabase"."import_records" x
+      where x."tenant_id" = v_run."tenant_id" and x."source" = v_run."source" and x."scope" = v_scope
+        and x."entity" = v_entity and x."external_key" = v_key and x."role" = 'primary';
+      v_found := found;
+
+      if not v_found then
+        -- A cloned administration reuses the subjects of the scope it aliases
+        -- when the content is equal there.
+        for v_other in
+          select a."of" from jsonb_to_recordset(v_run."scope_aliases") as a(scope text, "of" text, entities jsonb)
+          where a.scope = v_scope
+            and (a.entities is null or jsonb_typeof(a.entities) <> 'array' or jsonb_array_length(a.entities) = 0 or a.entities ? v_entity)
+        loop
+          if exists (
+            select 1 from "better_supabase"."import_records" x
+            where x."tenant_id" = v_run."tenant_id" and x."source" = v_run."source" and x."scope" = v_other
+              and x."entity" = v_entity and x."external_key" = v_key and x."role" = 'primary' and x."content_hash" = v_hash
+          ) then
+            insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_updated_at_at_import")
+            select x."tenant_id", x."source", v_scope, x."entity", x."external_key", x."role", x."subject_type", x."subject_id", x."content_hash", v_run_id, v_run_id, x."subject_updated_at_at_import"
+            from "better_supabase"."import_records" x
+            where x."tenant_id" = v_run."tenant_id" and x."source" = v_run."source" and x."scope" = v_other
+              and x."entity" = v_entity and x."external_key" = v_key
+            on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do nothing;
+            v_unchanged := v_unchanged + 1;
+            v_done := true;
+            exit;
+          end if;
+        end loop;
+      elsif v_rec."content_hash" = v_hash then
+        update "better_supabase"."import_records" x set "last_run_id" = v_run_id, "missing_since" = null
+        where x."tenant_id" = v_rec."tenant_id" and x."source" = v_rec."source" and x."scope" = v_rec."scope"
+          and x."entity" = v_rec."entity" and x."external_key" = v_rec."external_key"
+          and (x."last_run_id" is distinct from v_run_id or x."missing_since" is not null);
+        v_unchanged := v_unchanged + 1;
+        v_done := true;
+      else
+        -- A row a user changed after the last import stays as it is.
+        v_current := null;
+        null;
+        if v_current is not null and v_rec."subject_updated_at_at_import" is not null and v_current > v_rec."subject_updated_at_at_import" then
+          update "better_supabase"."import_records" x set "last_run_id" = v_run_id, "missing_since" = null
+          where x."id" = v_rec."id";
+          v_conflicted := v_conflicted + 1;
+          v_done := true;
+        end if;
+      end if;
+
+      if not v_done then
+        v_subject_id := case when v_found then v_rec."subject_id" else null end;
+        v_call := v_item || jsonb_build_object('tenant', v_run."tenant_id", 'scope', v_scope);
+        raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
+
+        v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
+        if not exists (
+          select 1 from jsonb_array_elements(v_subjects) s
+          where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
+        ) then
+          raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+        end if;
+
+        for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+          insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_updated_at_at_import", "missing_since")
+          values (
+            v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
+            coalesce(v_subject ->> 'role', 'primary'),
+            coalesce(v_subject ->> 'subjectType', v_subject_type),
+            v_subject ->> 'subjectId',
+            v_hash, v_run_id, v_run_id,
+            coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
+            null
+          )
+          on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
+            "subject_type" = excluded."subject_type",
+            "subject_id" = excluded."subject_id",
+            "content_hash" = excluded."content_hash",
+            "last_run_id" = excluded."last_run_id",
+            "subject_updated_at_at_import" = excluded."subject_updated_at_at_import",
+            "missing_since" = null;
+        end loop;
+
+        if v_found then
+          v_updated := v_updated + 1;
+        else
+          v_inserted := v_inserted + 1;
+        end if;
+      end if;
+    exception when others then
+      get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
+      v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
+    end;
+  end loop;
+
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors);
+end;
+$$;
+revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) to service_role;
+
+-- The single write path of an import (service role). A dry run writes inside a
+-- subtransaction it rolls back, then keeps the counts.
+create or replace function "better_supabase"."import_upsert_batch"(run uuid, entity text, items jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_run_id uuid := import_upsert_batch.run;
+  v_entity text := import_upsert_batch.entity;
+  v_run "centrakit"."import_runs";
+  v_result jsonb;
+begin
+  select * into v_run from "centrakit"."import_runs" r where r."id" = v_run_id for update;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if v_run."status" <> 'running' then
+    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+  end if;
+
+  if v_run."dry_run" then
+    begin
+      v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
+      raise exception 'dry run' using errcode = 'BSDRY';
+    exception when sqlstate 'BSDRY' then
+      null;
+    end;
+  else
+    v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
+  end if;
+
+  update "centrakit"."import_runs" r set
+    "counts" = jsonb_set(r."counts", array[v_entity], jsonb_build_object(
+      'inserted', coalesce(r."counts" -> v_entity ->> 'inserted', '0')::integer + coalesce((v_result ->> 'inserted')::integer, 0),
+      'updated', coalesce(r."counts" -> v_entity ->> 'updated', '0')::integer + coalesce((v_result ->> 'updated')::integer, 0),
+      'unchanged', coalesce(r."counts" -> v_entity ->> 'unchanged', '0')::integer + coalesce((v_result ->> 'unchanged')::integer, 0),
+      'conflicted', coalesce(r."counts" -> v_entity ->> 'conflicted', '0')::integer + coalesce((v_result ->> 'conflicted')::integer, 0),
+      'missing', coalesce((r."counts" -> v_entity ->> 'missing')::integer, 0)
+    )),
+    "errors" = r."errors" || coalesce(v_result -> 'errors', '[]'::jsonb)
+  where r."id" = v_run_id;
+  return v_result || jsonb_build_object('dryRun', v_run."dry_run");
+end;
+$$;
+revoke execute on function "better_supabase"."import_upsert_batch"(uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_upsert_batch"(uuid, text, jsonb) to service_role;
+
+-- Bulk external key to subject. keys is an array of text, or of { key, scope,
+-- role }; a scope that aliases another resolves through it.
+create or replace function "better_supabase"."import_resolve"(run uuid, entity text, keys jsonb)
+returns jsonb
+language plpgsql
+security definer
+stable
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_run "centrakit"."import_runs";
+begin
+  select * into v_run from "centrakit"."import_runs" r where r."id" = import_resolve.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if jsonb_typeof(import_resolve.keys) <> 'array' then
+    raise exception 'keys must be an array' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('key', q.key, 'scope', q.scope, 'role', q.role, 'subjectType', m."subject_type", 'subjectId', m."subject_id") order by q.ord)
+    from (
+      select k.ord,
+        case when jsonb_typeof(k.value) = 'string' then k.value #>> '{}' else k.value ->> 'key' end as key,
+        case when jsonb_typeof(k.value) = 'string' then '' else coalesce(k.value ->> 'scope', '') end as scope,
+        case when jsonb_typeof(k.value) = 'string' then 'primary' else coalesce(k.value ->> 'role', 'primary') end as role
+      from jsonb_array_elements(import_resolve.keys) with ordinality k(value, ord)
+    ) q
+    join lateral (
+      select x."subject_type", x."subject_id"
+      from "better_supabase"."import_records" x
+      where x."tenant_id" = v_run."tenant_id" and x."source" = v_run."source"
+        and x."entity" = import_resolve.entity and x."external_key" = q.key and x."role" = q.role
+        and (x."scope" = q.scope or x."scope" in (
+          select a."of" from jsonb_to_recordset(v_run."scope_aliases") as a(scope text, "of" text, entities jsonb)
+          where a.scope = q.scope
+            and (a.entities is null or jsonb_typeof(a.entities) <> 'array' or jsonb_array_length(a.entities) = 0 or a.entities ? import_resolve.entity)
+        ))
+      order by (x."scope" = q.scope) desc
+      limit 1
+    ) m on true
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."import_resolve"(uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_resolve"(uuid, text, jsonb) to service_role;
+
+-- Closes a run that wrote through import_upsert_batch. A full run marks the
+-- records of its entities it didn't see, and never deletes them.
+create or replace function "better_supabase"."finish_import_run"(run uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_run_id uuid := finish_import_run.run;
+  v_run "centrakit"."import_runs";
+  v_entity text;
+  v_missing integer;
+  v_total integer := 0;
+  v_counts jsonb;
+begin
+  select * into v_run from "centrakit"."import_runs" r where r."id" = v_run_id for update;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if v_run."status" <> 'running' then
+    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+  end if;
+  v_counts := v_run."counts";
+
+  if v_run."full" then
+    for v_entity in select k.key from jsonb_object_keys(v_run."counts") k(key) loop
+      select count(*)::integer into v_missing from "better_supabase"."import_records" x
+      where x."tenant_id" = v_run."tenant_id" and x."source" = v_run."source" and x."entity" = v_entity
+        and x."role" = 'primary' and x."last_run_id" <> v_run_id
+        and x."scope" in (select y."scope" from "better_supabase"."import_records" y where y."tenant_id" = v_run."tenant_id" and y."source" = v_run."source" and y."entity" = v_entity and y."last_run_id" = v_run_id);
+      if not v_run."dry_run" then
+        update "better_supabase"."import_records" x set "missing_since" = coalesce(x."missing_since", now())
+        where x."tenant_id" = v_run."tenant_id" and x."source" = v_run."source" and x."entity" = v_entity
+          and x."last_run_id" <> v_run_id
+          and x."scope" in (select y."scope" from "better_supabase"."import_records" y where y."tenant_id" = v_run."tenant_id" and y."source" = v_run."source" and y."entity" = v_entity and y."last_run_id" = v_run_id);
+      end if;
+      v_counts := jsonb_set(v_counts, array[v_entity, 'missing'], to_jsonb(v_missing));
+    end loop;
+  end if;
+
+  update "centrakit"."import_runs" r set "status" = better_supabase.as_column_type('completed', (null::"centrakit"."import_runs")."status"), "finished_at" = now(), "counts" = v_counts
+  where r."id" = v_run_id;
+
+  if not v_run."dry_run" then
+    for v_entity in select k.key from jsonb_object_keys(v_counts) k(key) loop
+      v_total := v_total + coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0) + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0);
+      perform "better_supabase".emit_event('import.entity_completed', jsonb_build_object('organizationId', v_run."tenant_id", 'id', v_run_id, 'entity', v_entity, 'counts', v_counts -> v_entity), 'imports/' || v_run_id::text, (v_run."tenant_id")::text, null, 'domain');
+    end loop;
+    perform "better_supabase".emit_event('import.completed', jsonb_build_object('organizationId', v_run."tenant_id", 'id', v_run_id, 'count', v_total), 'imports/' || v_run_id::text, (v_run."tenant_id")::text, null, 'domain');
+  end if;
+  return v_counts;
+end;
+$$;
+revoke execute on function "better_supabase"."finish_import_run"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."finish_import_run"(uuid) to service_role;
+
+-- Queues one job per chunk of an entity's items, so a worker writes a large
+-- import in batches; the dedupe key makes a retry harmless.
+create or replace function "better_supabase"."enqueue_import_chunks"(run uuid, entity text, chunks integer)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_run "centrakit"."import_runs";
+  v_chunk integer;
+begin
+  select * into v_run from "centrakit"."import_runs" r where r."id" = enqueue_import_chunks.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if enqueue_import_chunks.chunks is null or enqueue_import_chunks.chunks < 1 then
+    raise exception 'chunks must be at least 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  for v_chunk in 0 .. enqueue_import_chunks.chunks - 1 loop
+    perform "better_supabase"."enqueue_job"(queue => '''imports''', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
+  end loop;
+  return enqueue_import_chunks.chunks;
+end;
+$$;
+revoke execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, integer) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -182,6 +687,24 @@ create policy bsb_tenant_scope_update on "centrakit"."import_runs" as restrictiv
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "centrakit"."import_runs";
 create policy bsb_tenant_scope_delete on "centrakit"."import_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
+create policy bsb_tenant_scope_select on "better_supabase"."import_records" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
+create policy bsb_tenant_scope_insert on "better_supabase"."import_records" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
+create policy bsb_tenant_scope_update on "better_supabase"."import_records" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
+create policy bsb_tenant_scope_delete on "better_supabase"."import_records" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 

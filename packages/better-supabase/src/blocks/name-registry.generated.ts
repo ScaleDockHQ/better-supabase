@@ -1006,9 +1006,10 @@ export interface BlockNameRegistry {
   };
   readonly "imports": {
     readonly tables: {
-      readonly "runs": "id" | "tenant" | "kind" | "status" | "mapping" | "counts" | "errors" | "createdBy" | "createdAt";
+      readonly "runs": "id" | "tenant" | "source" | "status" | "mapping" | "counts" | "errors" | "dryRun" | "full" | "inputChecksum" | "correlationId" | "scopeAliases" | "createdBy" | "createdAt" | "startedAt" | "finishedAt";
+      readonly "records": "id" | "tenant" | "source" | "scope" | "entity" | "externalKey" | "role" | "subjectType" | "subjectId" | "contentHash" | "firstRun" | "lastRun" | "subjectUpdatedAt" | "missingSince";
     };
-    readonly functions: "finish_import" | "mark_import_running" | "start_import";
+    readonly functions: "cancel_import_run" | "enqueue_import_chunks" | "finish_import" | "finish_import_run" | "get_import_run" | "import_apply_batch" | "import_resolve" | "import_upsert_batch" | "list_import_runs" | "mark_import_running" | "start_import" | "start_import_run";
     readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};

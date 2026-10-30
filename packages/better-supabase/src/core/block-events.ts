@@ -433,6 +433,8 @@ export interface SaasEventData {
   readonly name?: string;
   readonly status?: string;
   readonly count?: number;
+  /** Counts per outcome of one import entity (`import.entity_completed`). */
+  readonly counts?: Readonly<Record<string, number>>;
   readonly role?: string;
   readonly error?: string | null;
   /** The other end of a relation, for `subject.linked` and `subject.unlinked`. */

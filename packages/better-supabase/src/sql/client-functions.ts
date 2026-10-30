@@ -119,7 +119,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "acquire_lease begin_idempotent complete_idempotent extend_idempotent extend_lease purge_idempotency_keys release_idempotent release_lease",
   identities:
     "backfill_verified_emails begin_identity_link my_identities principal_by_identity redeem_identity_link unlink_identity",
-  imports: "start_import",
+  imports:
+    "cancel_import_run finish_import_run get_import_run import_resolve import_upsert_batch list_import_runs mark_import_running start_import start_import_run",
   inbox:
     "assign_conversation cancel_inbox_message create_inbox create_inbox_attachment create_inbox_team delete_message_template discard_inbox_draft edit_inbox_message get_conversation get_inbox_message inbox_counts inbox_file_failed list_conversation_events list_inbox_conversations list_inbox_drafts list_inbox_messages list_scheduled_inbox_messages mark_conversation_read pending_inbound_events pending_inbox_files publish_due_inbox_messages purge_contact purge_inbound_events react_to_inbox_message record_delivery record_inbound reschedule_inbox_message save_inbox_draft schedule_inbox_message send_inbox_draft send_inbox_message set_bot_mode set_conversation_status set_delivery_status set_inbound_event_status set_inbox_member set_inbox_team_member start_conversation store_inbound_event suggest_inbox_draft update_inbox upsert_contact upsert_message_template wake_snoozed_conversations",
   incidents:

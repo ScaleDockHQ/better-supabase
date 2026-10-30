@@ -558,6 +558,16 @@ export const customersByStatusArgs: v.GenericSchema<{ p_limit?: number; p_status
   p_status: v.string(),
 }), v.title("customers_by_status arguments"));
 
+export const importCustomerArgs: v.GenericSchema<{ item: Json; run: string; subject_id: string }> = v.pipe(v.object({
+  item: json,
+  run: v.pipe(v.string(), v.uuid()),
+  subject_id: v.string(),
+}), v.title("import_customer arguments"));
+
+export const importCustomerUpdatedAtArgs: v.GenericSchema<{ subject_id: string }> = v.pipe(v.object({
+  subject_id: v.string(),
+}), v.title("import_customer_updated_at arguments"));
+
 export const islandCountsArgs: v.GenericSchema<{ args: Json }> = v.pipe(v.object({
   args: json,
 }), v.title("island_counts arguments"));
@@ -591,6 +601,10 @@ export const setMyAvatarPathArgs: v.GenericSchema<{ avatar_path: string }> = v.p
 export const updateMyProfileArgs: v.GenericSchema<{ full_name: string }> = v.pipe(v.object({
   full_name: v.string(),
 }), v.title("update_my_profile arguments"));
+
+export const importCustomerResult: v.GenericSchema<Json> = json;
+
+export const importCustomerUpdatedAtResult: v.GenericSchema<string | null> = v.nullable(v.pipe(v.string(), v.isoTimestamp()));
 
 export const islandCountsResult: v.GenericSchema<Json> = json;
 

@@ -8,15 +8,56 @@ export interface ImportColumn {
   readonly label?: string;
 }
 
+/** One item of an `upsertBatch` call (ADR 0141). */
+export interface ImportItem {
+  /** The record's key in the source system. */
+  readonly key: string;
+  /**
+   * The key's namespace in the source, such as a company; `''` when it has
+   * none.
+   */
+  readonly scope?: string;
+  /** What the target writes. Its hash decides insert, unchanged or changed. */
+  readonly data: Readonly<Record<string, unknown>>;
+  /** Keys of other imported records this one points at, by entity. */
+  readonly refs?: Readonly<Record<string, string>>;
+}
+
+/** The outcome counts of one batch or one entity of a run. */
+export interface ImportBatchCounts {
+  readonly inserted: number;
+  readonly updated: number;
+  readonly unchanged: number;
+  readonly conflicted: number;
+}
+
 export interface ImportDefinition<T> {
-  readonly kind: string;
+  /**
+   * The source system the run reads from; one run per tenant and source is
+   * active.
+   */
+  readonly source: string;
   readonly columns: StandardSchemaV1<unknown, T>;
   /** Stable id of a row, so a rerun skips a row that already imported. */
   readonly key: (row: T) => string;
-  readonly insert: (
+  /**
+   * The legacy writer. Without `target` it writes each batch itself; with a
+   * `target`, `runImport` sends the rows through `hooks.upsertBatch` instead.
+   */
+  readonly insert?: (
     batch: readonly T[],
     ctx: { readonly organizationId: string },
   ) => Promise<void>;
+  /**
+   * Writes through the external record map: the entity (an `importTarget`) and
+   * how a row becomes an item. A rerun then updates or skips what imported.
+   */
+  readonly target?: {
+    readonly entity: string;
+    readonly item: (
+      row: T,
+    ) => Omit<ImportItem, "key"> & Partial<Pick<ImportItem, "key">>;
+  };
 }
 
 export interface ImportRowError {
@@ -33,6 +74,12 @@ export interface DryRunResult<T> {
 export function defineImport<T>(
   definition: ImportDefinition<T>,
 ): ImportDefinition<T> {
+  if (definition.insert === undefined && definition.target === undefined) {
+    throw new TypeError(
+      `import "${definition.source}" needs an insert function or a target`,
+    );
+  }
+
   return definition;
 }
 
@@ -87,7 +134,7 @@ export async function dryRun<T>(
     const parsed = await validate(
       definition.columns,
       record,
-      `${definition.kind} row ${index + 2}`,
+      `${definition.source} row ${index + 2}`,
     );
 
     if (parsed.ok) {
@@ -102,12 +149,23 @@ export async function dryRun<T>(
 
 const BATCH = 100;
 
+/** What `import_upsert_batch` answers for one batch. */
+export interface ImportBatchReply extends ImportBatchCounts {
+  readonly errors: readonly {
+    readonly key: string | null;
+    readonly code: string;
+    readonly message: string;
+  }[];
+}
+
 export interface RunImportResult<T> {
   readonly id: string;
   readonly status: "completed" | "failed";
   readonly imported: number;
   readonly errors: readonly ImportRowError[];
   readonly rows: readonly T[];
+  /** Per outcome, for a run that wrote through `target`. */
+  readonly counts?: ImportBatchCounts;
 }
 
 /**
@@ -124,6 +182,11 @@ export async function runImport<T>(
     readonly organizationId: string;
     readonly importedKeys?: ReadonlySet<string>;
     readonly start: () => Promise<string>;
+    /** Writes a batch through `import_upsert_batch`; needed with `target`. */
+    readonly upsertBatch?: (
+      entity: string,
+      items: readonly ImportItem[],
+    ) => Promise<ImportBatchReply>;
     /** Marks the run `running` before the first batch (`mark_import_running`). */
     readonly running?: (id: string) => Promise<void>;
     readonly finish: (
@@ -169,12 +232,46 @@ export async function runImport<T>(
 
   await hooks.running?.(id);
   let inserted = 0;
+  const totals = { inserted: 0, updated: 0, unchanged: 0, conflicted: 0 };
 
   for (let index = 0; index < fresh.length; index += BATCH) {
     const batch = fresh.slice(index, index + BATCH);
 
     try {
-      await definition.insert(batch, { organizationId: hooks.organizationId });
+      if (definition.target === undefined) {
+        await definition.insert?.(batch, {
+          organizationId: hooks.organizationId,
+        });
+      } else {
+        const { entity, item } = definition.target;
+
+        if (hooks.upsertBatch === undefined) {
+          throw new TypeError(
+            `import "${definition.source}" has a target, so runImport needs hooks.upsertBatch`,
+          );
+        }
+
+        const reply = await hooks.upsertBatch(
+          entity,
+          batch.map((row) => ({
+            ...item(row),
+            key: item(row).key ?? definition.key(row),
+          })),
+        );
+
+        totals.inserted += reply.inserted;
+        totals.updated += reply.updated;
+        totals.unchanged += reply.unchanged;
+        totals.conflicted += reply.conflicted;
+
+        if (reply.errors.length > 0) {
+          throw new Error(
+            reply.errors
+              .map((item) => `${item.key ?? "item"}: ${item.message}`)
+              .join("; "),
+          );
+        }
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const first = index + 1;
@@ -206,6 +303,7 @@ export async function runImport<T>(
     imported: fresh.length,
     errors: [],
     rows: fresh,
+    ...(definition.target === undefined ? {} : { counts: totals }),
   };
 }
 

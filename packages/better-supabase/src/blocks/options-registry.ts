@@ -50,6 +50,7 @@ import type { GuestsSqlOptions } from "./guests/options.ts";
 import type { HiringSqlOptions } from "./hiring/options.ts";
 import type { IdentitiesSqlOptions } from "./identities/options.ts";
 import type { ImpersonationSqlOptions } from "./impersonation/options.ts";
+import type { ImportsSqlOptions } from "./imports/options.ts";
 import type { InboxSqlOptions } from "./inbox/options.ts";
 import type { IncidentsSqlOptions } from "./incidents/options.ts";
 import type { InspectionsSqlOptions } from "./inspections/options.ts";
@@ -189,6 +190,7 @@ import { guestsSqlOptions } from "./guests/options.ts";
 import { hiringSqlOptions } from "./hiring/options.ts";
 import { identitiesSqlOptions } from "./identities/options.ts";
 import { impersonationSqlOptions } from "./impersonation/options.ts";
+import { importsSqlOptions } from "./imports/options.ts";
 import { inboxSqlOptions } from "./inbox/options.ts";
 import { incidentsSqlOptions } from "./incidents/options.ts";
 import { inspectionsSqlOptions } from "./inspections/options.ts";
@@ -347,7 +349,7 @@ export interface BlockOptionsRegistry {
   readonly idempotency: None;
   readonly identities: IdentitiesSqlOptions;
   readonly impersonation: ImpersonationSqlOptions;
-  readonly imports: None;
+  readonly imports: ImportsSqlOptions;
   readonly inbox: InboxSqlOptions;
   readonly incidents: IncidentsSqlOptions;
   readonly inspections: InspectionsSqlOptions;
@@ -511,7 +513,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   hiring: hiringSqlOptions,
   idempotency: NO_OPTIONS,
   impersonation: impersonationSqlOptions,
-  imports: NO_OPTIONS,
+  imports: importsSqlOptions,
   inbox: inboxSqlOptions,
   incidents: incidentsSqlOptions,
   inspections: inspectionsSqlOptions,

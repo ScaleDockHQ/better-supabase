@@ -6,8 +6,11 @@ export {
   runImport,
   suggestMapping,
   type DryRunResult,
+  type ImportBatchCounts,
+  type ImportBatchReply,
   type ImportColumn,
   type ImportDefinition,
+  type ImportItem,
   type ImportRowError,
   type RunImportResult,
 } from "./define-import.ts";
@@ -23,7 +26,23 @@ export {
   type PreviewImportResult,
 } from "./app-table-import.ts";
 
-export { createImports, type Imports, type ImportsOptions } from "./imports.ts";
+export {
+  createImports,
+  type Imports,
+  type ImportsOptions,
+  type ImportEntityCounts,
+  type ImportKey,
+  type ImportRun,
+  type ImportRunError,
+  type ImportRunStatus,
+  type ImportScopeAlias,
+  type ListImportRunsOptions,
+  type ResolvedImportKey,
+  type StartImportRunOptions,
+  type UpsertBatchResult,
+} from "./imports.ts";
+
+export { importsSqlOptions, type ImportsSqlOptions } from "./options.ts";
 
 export { importsBlock } from "./manifest.ts";
 

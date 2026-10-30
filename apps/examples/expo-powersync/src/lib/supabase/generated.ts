@@ -809,6 +809,20 @@ export type Functions = {
     };
     Returns: (Models["customers"]['Row'])[];
   };
+  import_customer: {
+    Args: {
+      item: Json | null;
+      run: string | null;
+      subject_id: string | null;
+    };
+    Returns: Json;
+  };
+  import_customer_updated_at: {
+    Args: {
+      subject_id: string | null;
+    };
+    Returns: string | null;
+  };
   island_counts: {
     Args: {
       args: Json | null;

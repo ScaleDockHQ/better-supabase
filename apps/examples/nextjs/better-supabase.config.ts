@@ -508,7 +508,19 @@ export default defineConfig({
     content: {},
     "jsonb-schemas": {},
     forms: {},
-    imports: {},
+    // An import target the pgTAP tests drive; real apps point one at each
+    // table their source system fills.
+    imports: {
+      options: {
+        targets: {
+          customer: {
+            subjectType: "customer",
+            write: "public.import_customer",
+            updatedAt: "public.import_customer_updated_at",
+          },
+        },
+      },
+    },
     // Brand starters reach the organizations whose `brand` matches.
     templates: {
       options: { brand: { table: "public.organizations", column: "brand" } },

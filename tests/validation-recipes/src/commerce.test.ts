@@ -138,7 +138,7 @@ describe.skipIf(!live)("commerce recipe", () => {
       const variants = new Map<string, string>();
 
       const products = defineImport<ProductRow>({
-        kind: "products",
+        source: "products",
         columns: productRow,
         key: (row) => row.sku,
         async insert(batch, { organizationId: tenant }) {
