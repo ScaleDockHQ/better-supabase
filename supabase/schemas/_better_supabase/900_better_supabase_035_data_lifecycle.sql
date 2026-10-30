@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:fa752f2bf7d0e64ea06ce21a4cf75c89e675599ea5498aedbea74a9be7d20313
+-- @bsb-hash sha256:fe07c35c2af3cf1e6b029faa4b8c837f2dff582874d37f2a5bbb32375c3a99b4
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -558,6 +558,7 @@ as $$
     ('user', 'better_supabase.shift_availability', '"better_supabase"."shift_availability"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.acknowledgements', '"better_supabase"."acknowledgements"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.acknowledgement_notices', '"better_supabase"."acknowledgement_notices"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.observations', '"better_supabase"."observations"', 'performer_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'organization_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true),
     ('organization', 'public.memberships', '"public"."memberships"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'organization_id', true, array['token_hash']::text[], true),
@@ -897,7 +898,9 @@ as $$
     ('organization', 'better_supabase.acknowledgements', '"better_supabase"."acknowledgements"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.acknowledgement_notices', '"better_supabase"."acknowledgement_notices"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.consent_purposes', '"better_supabase"."consent_purposes"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.consents', '"better_supabase"."consents"', 'tenant_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.consents', '"better_supabase"."consents"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.observation_definitions', '"better_supabase"."observation_definitions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.observations', '"better_supabase"."observations"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
@@ -1660,6 +1663,11 @@ begin
   from "better_supabase"."consents" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
   if jsonb_array_length(v_rows) > 0 then
     v_parts := v_parts || jsonb_build_object('better_supabase.consents', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."observations" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.observations', v_rows);
   end if;
   insert into "better_supabase"."data_exports" ("subject", "organization_id", "subject_type", "subject_id", "format")
   values ('record', v_tenant, request_subject_export.subject_type, request_subject_export.subject_id, request_subject_export.format)
