@@ -3978,9 +3978,9 @@ begin
   insert into "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id", "version_id", "content_hash", "signers", "sign_order", "approval_request_id", "message", "meaning", "requested_by")
   values (create_signature_request.tenant, create_signature_request.subject_type, create_signature_request.subject_id, v_version, v_hash, create_signature_request.signers, create_signature_request.sign_order, create_signature_request.approval_request_id, nullif(trim(create_signature_request.message), ''), create_signature_request.meaning, auth.uid())
   returning * into v_row;
-  perform "better_supabase".emit_event('signature.requested', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'versionId', v_row."version_id"), 'signature-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/signatures');
+  perform "better_supabase".emit_event('signature_request.requested', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'versionId', v_row."version_id"), 'signature-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/signatures');
   perform better_supabase.audit_event(
-    event_type => 'signature.requested',
+    event_type => 'signature_request.requested',
     category => 'data',
     target_type => 'signature_request',
     record_id => v_row."id"::text,
@@ -8182,7 +8182,7 @@ begin
   on conflict do nothing;
   v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = v_id), '[]'::jsonb);
   v_first := v_subjects -> 0;
-  perform "better_supabase".emit_event('engagement.logged', jsonb_build_object('organizationId', v_tenant, 'engagementId', v_id, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects), 'engagements/' || v_id::text, (v_tenant::text)::text, null, 'better-supabase/activities');
+  perform "better_supabase".emit_event('activity.logged', jsonb_build_object('organizationId', v_tenant, 'engagementId', v_id, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects), 'engagements/' || v_id::text, (v_tenant::text)::text, null, 'better-supabase/activities');
   if v_owner is not null and v_owner is distinct from auth.uid() and v_owner is distinct from v_previous_owner then
     v_claims := current_setting('request.jwt.claims', true);
     perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
@@ -14012,16 +14012,29 @@ begin
   exception when unique_violation then
     raise exception 'another stage of this pipeline has this key' using errcode = '23505', hint = 'PIPELINE_STAGE_KEY_TAKEN';
   end;
-  perform "better_supabase".emit_event('pipeline_stage.saved', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
+  if save_pipeline_stage.stage is null then
+    perform "better_supabase".emit_event('pipeline_stage.created', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
   perform better_supabase.audit_event(
-    event_type => 'pipeline_stage.saved',
+    event_type => 'pipeline_stage.created',
     category => 'configuration',
     target_type => 'pipeline',
     record_id => v_pipeline::text,
-    summary => 'saved stage ' || save_pipeline_stage.name,
+    summary => 'created stage ' || save_pipeline_stage.name,
     tenant => (v_tenant::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category)
   );
+  else
+    perform "better_supabase".emit_event('pipeline_stage.updated', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
+  perform better_supabase.audit_event(
+    event_type => 'pipeline_stage.updated',
+    category => 'configuration',
+    target_type => 'pipeline',
+    record_id => v_pipeline::text,
+    summary => 'updated stage ' || save_pipeline_stage.name,
+    tenant => (v_tenant::text)::uuid,
+    metadata => jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category)
+  );
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_pipeline_stage_save"(uuid)');
   begin
@@ -14187,9 +14200,10 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  perform "better_supabase".emit_event('segment.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'segmentId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name"), 'segments/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/segments');
+  if v_old."id" is null then
+    perform "better_supabase".emit_event('segment.created', jsonb_build_object('organizationId', v_row."tenant_id", 'segmentId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name"), 'segments/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/segments');
   perform better_supabase.audit_event(
-    event_type => 'segment.saved',
+    event_type => 'segment.created',
     category => 'data',
     target_type => 'segment',
     record_id => v_row."id"::text,
@@ -14197,6 +14211,18 @@ begin
     tenant => (v_row."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'segmentId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name")
   );
+  else
+    perform "better_supabase".emit_event('segment.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'segmentId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name"), 'segments/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/segments');
+  perform better_supabase.audit_event(
+    event_type => 'segment.updated',
+    category => 'data',
+    target_type => 'segment',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."tenant_id"::text)::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'segmentId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'conditions', v_row."conditions", 'memberCount', v_row."member_count", 'refreshedAt', v_row."refreshed_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 exception when unique_violation then
   raise exception 'Another segment in this organization has this name' using errcode = '23505', hint = 'SEGMENT_NAME_TAKEN';
@@ -16751,7 +16777,7 @@ begin
     v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = v_id), '[]'::jsonb);
     v_first := v_subjects -> 0;
   end if;
-  perform "better_supabase".emit_event('engagement.updated', jsonb_build_object('organizationId', v_tenant, 'engagementId', v_id, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects), 'engagements/' || v_id::text, (v_tenant::text)::text, null, 'better-supabase/activities');
+  perform "better_supabase".emit_event('activity.updated', jsonb_build_object('organizationId', v_tenant, 'engagementId', v_id, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects), 'engagements/' || v_id::text, (v_tenant::text)::text, null, 'better-supabase/activities');
   if v_owner is not null and v_owner is distinct from auth.uid() and v_owner is distinct from v_previous_owner then
     v_claims := current_setting('request.jwt.claims', true);
     perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
