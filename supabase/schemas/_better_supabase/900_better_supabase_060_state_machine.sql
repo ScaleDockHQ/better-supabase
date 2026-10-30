@@ -1,6 +1,6 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:f41a463009eacb764372ba145907a6b3ab52852868afd4ff25110f6d77af91dc
+-- @bsb-hash sha256:449b3bef7336c87f583e2cd3915d2f60a719567d1debf6c0b862cc06722f8199
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -682,7 +682,7 @@ grant execute on function "better_supabase"."status_state"(text, text) to authen
 create or replace function "better_supabase"."list_status_history"(subject_type text, subject_id text, before timestamptz default null, max_rows integer default 50)
 returns jsonb
 language plpgsql
-stable
+volatile
 security invoker
 set search_path = ''
 as $$
@@ -692,6 +692,7 @@ begin
       if not exists (select 1 from "better_supabase"."work_items" s where s."id" = (list_status_history.subject_id)::uuid) then
         raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
       end if;
+      perform "better_supabase"."record_subject_read"(list_status_history.subject_type, list_status_history.subject_id, null, 'state-machine', 'list_status_history');
       return coalesce((
         select jsonb_agg(jsonb_build_object('id', r.id, 'from', r.from_status, 'to', r.to_status,
           'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",
@@ -709,6 +710,7 @@ begin
       if not exists (select 1 from "public"."change_requests" s where s."id" = (list_status_history.subject_id)::uuid) then
         raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
       end if;
+      perform "better_supabase"."record_subject_read"(list_status_history.subject_type, list_status_history.subject_id, null, 'state-machine', 'list_status_history');
       return coalesce((
         select jsonb_agg(jsonb_build_object('id', r.id, 'from', r.from_status, 'to', r.to_status,
           'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",
@@ -726,6 +728,7 @@ begin
       if not exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (list_status_history.subject_id)::uuid) then
         raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
       end if;
+      perform "better_supabase"."record_subject_read"(list_status_history.subject_type, list_status_history.subject_id, null, 'state-machine', 'list_status_history');
       return coalesce((
         select jsonb_agg(jsonb_build_object('id', r.id, 'from', r.from_status, 'to', r.to_status,
           'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",

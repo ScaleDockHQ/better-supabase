@@ -1,6 +1,6 @@
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:919025ecc6ab8a854271e0535b8f22091fdde6530a2740a0a2e672ae4139315e
+-- @bsb-hash sha256:22695a356cbdec8f9c981dc7c3d9b72368ae07a646982284ad28ae67ec3cc957
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -142,7 +142,7 @@ create or replace function "better_supabase"."list_activity"(
 )
 returns jsonb
 language plpgsql
-stable
+volatile
 security invoker
 set search_path = ''
 as $$
@@ -286,6 +286,9 @@ begin
     order by u.at desc, u.id desc
     limit v_limit
   ) x;
+  if list_activity.subject_id is not null and jsonb_array_length(v_rows) > 0 then
+    perform "better_supabase"."record_subject_read"(list_activity.subject_type, list_activity.subject_id, null, 'timeline', 'list_activity');
+  end if;
   return v_rows;
 end;
 $$;
