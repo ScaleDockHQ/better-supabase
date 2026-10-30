@@ -22,6 +22,9 @@ export type InventoryEvents = {
   readonly "purchase_order.placed": CommerceEventData;
   readonly "purchase_order.received": CommerceEventData;
   readonly "purchase_order.cancelled": CommerceEventData;
+  readonly "purchase_requisition.created": CommerceEventData;
+  readonly "purchase_requisition.approved": CommerceEventData;
+  readonly "inventory_receipt.created": CommerceEventData;
 };
 
 /** The `inventory` block's event types, for its manifest and `onBlockEvent`. */
@@ -40,4 +43,7 @@ export const inventoryEvents: Events<InventoryEvents> = defineEvents({
   "purchase_order.placed": event<CommerceEventData>(),
   "purchase_order.received": event<CommerceEventData>(),
   "purchase_order.cancelled": event<CommerceEventData>(),
+  "purchase_requisition.created": event<CommerceEventData>(),
+  "purchase_requisition.approved": event<CommerceEventData>(),
+  "inventory_receipt.created": event<CommerceEventData>(),
 });

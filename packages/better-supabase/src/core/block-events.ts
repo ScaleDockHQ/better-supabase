@@ -605,6 +605,10 @@ export interface CommerceEventData {
   readonly allocated?: string;
   readonly supplierType?: string | null;
   readonly supplierId?: string | null;
+  /** For goods receipts: the purchase order the delivery belongs to. */
+  readonly purchaseOrderId?: string;
+  /** For goods receipts: the incoming inspection the receipt opened. */
+  readonly inspectionId?: string | null;
   readonly orderId?: string;
   readonly number?: string;
   readonly customerId?: string | null;

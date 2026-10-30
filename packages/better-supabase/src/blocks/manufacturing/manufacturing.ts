@@ -388,6 +388,11 @@ export interface RequirementDocuments<F extends object = Record<never, never>> {
   readonly productionOrders: readonly ProductionOrderDetail<F>[];
   /** The inventory block's draft purchase orders. */
   readonly purchaseOrders: readonly { readonly id: string }[];
+  /**
+   * The inventory block's purchase requisitions, with
+   * `options.purchaseSuggestions: "requisition"`.
+   */
+  readonly purchaseRequisitions: readonly { readonly id: string }[];
 }
 
 export interface Manufacturing<F extends object = Record<never, never>> {
@@ -1052,6 +1057,10 @@ export function createManufacturing<
                 row["purchaseOrders"],
                 "create_from_requirements",
               ).map((p) => ({ id: textOf(p["id"]) })),
+              purchaseRequisitions: recordsOf(
+                row["purchaseRequisitions"] ?? [],
+                "create_from_requirements",
+              ).map((p) => ({ id: textOf(p["id"]) })),
             };
           },
         ).andThen((documents) =>
@@ -1060,6 +1069,7 @@ export function createManufacturing<
             .map((productionOrders) => ({
               productionOrders,
               purchaseOrders: documents.purchaseOrders,
+              purchaseRequisitions: documents.purchaseRequisitions,
             })),
         ),
       ),

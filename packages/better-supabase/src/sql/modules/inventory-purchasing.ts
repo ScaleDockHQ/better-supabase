@@ -3,47 +3,14 @@ import type { InventoryNames } from "./inventory-stock.ts";
 
 import { fail, userGrant } from "../shared.ts";
 import { movementLots } from "./inventory-ledger.ts";
+import { receiptSql } from "./inventory-procurement.ts";
+import {
+  linesCheck,
+  linesVariantCheck,
+  UNIT_COST,
+} from "./inventory-purchase-lines.ts";
 import { columns, guard, locationsOf, moveStock } from "./inventory-stock.ts";
-
-const UUID =
-  "'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'";
-
-const QUANTITY = "'^[0-9]{1,14}([.][0-9]{1,6})?$'";
-
-/**
- * Raises unless `lines` is a non-empty array of objects whose `key` is a uuid
- * (once each) and whose `quantity` is a positive number with up to six
- * decimals. The variant's scale decides how many it may have (ADR 0127).
- */
-function linesCheck(lines: string, key: string, extra = ""): string {
-  return `if jsonb_typeof(${lines}) is distinct from 'array' or jsonb_array_length(${lines}) = 0
-    or exists (
-      select 1 from jsonb_array_elements(${lines}) e
-      where jsonb_typeof(e) <> 'object'
-        or coalesce(e ->> '${key}', '') !~ ${UUID}
-        or case when coalesce(e ->> 'quantity', '') ~ ${QUANTITY} then (e ->> 'quantity')::numeric <= 0 else true end${extra}
-    )
-    or (select count(distinct e ->> '${key}') from jsonb_array_elements(${lines}) e) <> jsonb_array_length(${lines}) then
-    ${fail("INVENTORY_LINES_INVALID", `lines must be a non-empty list with a unique ${key} and a positive quantity each`, "22023")}
-  end if;`;
-}
-
-/** Raises unless every line's `variantId` is a variant of the tenant. */
-function linesVariantCheck(
-  ctx: BlockSqlContext,
-  lines: string,
-  tenant: string,
-): string {
-  const catalog = ctx.of("catalog");
-  const v = columns(catalog, "variants");
-
-  return `if exists (
-    select 1 from jsonb_array_elements(${lines}) e
-    where not exists (select 1 from ${catalog.table("variants")} cv where cv.${v("id")} = (e ->> 'variantId')::uuid and cv.${v("tenant")} = ${tenant})
-  ) then
-    ${fail("INVENTORY_VARIANT_NOT_FOUND", "a line names a variant outside this organization", "P0002")}
-  end if;`;
-}
+import { supplierBlockedSql } from "./procurement-sql.ts";
 
 export function transferFunctions(
   ctx: BlockSqlContext,
@@ -251,6 +218,11 @@ export function purchaseOrderFunctions(
   const lv = columns(ctx, "levels");
   const l = locationsOf(ctx).col;
   const currencyUnits = ctx.of("catalog").fn("currency_minor_units");
+  const receipt = receiptSql(ctx);
+
+  // A supplier that names a contacts party marked blocked gets no order.
+  const blocked = (id: string, tenant: string): string =>
+    supplierBlockedSql(ctx, id, tenant);
 
   const load = (
     name: string,
@@ -296,11 +268,11 @@ begin
   end if;
   if (save_purchase_order.supplier_type is null) <> (save_purchase_order.supplier_id is null) then
     ${fail("INVENTORY_SUPPLIER_INVALID", "supplier_type and supplier_id go together", "22023")}
-  end if;
+  end if;${blocked("save_purchase_order.supplier_id", "save_purchase_order.tenant")}
   if save_purchase_order.currency is null or ${currencyUnits}(save_purchase_order.currency) is null then
     ${fail("INVENTORY_CURRENCY_INVALID", "the currency must be an ISO 4217 code", "22023")}
   end if;
-  ${linesCheck("save_purchase_order.lines", "variantId", "\n        or coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$'")}
+  ${linesCheck("save_purchase_order.lines", "variantId", `\n        or coalesce(e ->> 'unitCost', '') !~ ${UNIT_COST}`)}
   ${linesVariantCheck(ctx, "save_purchase_order.lines", "save_purchase_order.tenant")}
   if v_id is null then
     insert into ${orders} (${po("tenant")}, ${po("location")}, ${po("supplierType")}, ${po("supplierId")}, ${po("currency")}, ${po("expectedAt")}, ${po("note")})
@@ -342,7 +314,7 @@ begin
   ${load("place_purchase_order")}
   if v_row.status <> 'draft' then
     ${statusError}
-  end if;
+  end if;${blocked("v_row.supplier_id", "v_row.tenant")}
   insert into ${levels} as x (${lv("tenant")}, ${lv("variant")}, ${lv("location")}, ${lv("incoming")})
   select v_row.tenant, y.${pl("variant")}, v_row.location, y.${pl("quantity")}
   from ${lines} y where y.${pl("order")} = place_purchase_order.purchase_order
@@ -361,7 +333,7 @@ ${userGrant(`${fn("place_purchase_order")}(uuid)`)}
 -- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
--- the quantity still on backorder.
+-- the quantity still on backorder${receipt.result === "" ? "" : ", plus receiptId: the goods receipt of\n-- this delivery"}.
 create or replace function ${fn("receive_purchase_order")}(purchase_order uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -372,13 +344,13 @@ declare
   v_row record;
   v_line record;
   v_backordered numeric;
-  v_status text;
+  v_status text;${receipt.declare}
 begin
   ${load("receive_purchase_order")}
   if v_row.status not in ('ordered', 'partially_received') then
     ${statusError}
   end if;
-  ${linesCheck("receive_purchase_order.lines", "lineId")}
+  ${linesCheck("receive_purchase_order.lines", "lineId")}${receipt.start}
   for v_line in
     select y.${pl("id")} as id, y.${pl("variant")} as variant, y.${pl("quantity")} as ordered,
       y.${pl("received")} as received, (e ->> 'quantity')::numeric as quantity, y.${pl("unitCost")} as unit_cost,
@@ -395,15 +367,15 @@ begin
     update ${lines} y set ${pl("received")} = y.${pl("received")} + v_line.quantity where y.${pl("id")} = v_line.id;
     update ${levels} x set ${lv("incoming")} = greatest(x.${lv("incoming")} - v_line.quantity, 0), ${lv("updatedAt")} = now()
     where x.${lv("variant")} = v_line.variant and x.${lv("location")} = v_row.location;
-    perform ${moveStock(ctx, { tenant: "v_row.tenant", variant: "v_line.variant", location: "v_row.location", quantity: "v_line.quantity", reason: "'receipt'", referenceType: "'purchase_order'", referenceId: "receive_purchase_order.purchase_order::text", detail: "v_line.detail || jsonb_build_object('unitCost', v_line.unit_cost::text, 'currency', v_row.currency::text)" })};
+    perform ${moveStock(ctx, { tenant: "v_row.tenant", variant: "v_line.variant", location: "v_row.location", quantity: "v_line.quantity", reason: "'receipt'", referenceType: "'purchase_order'", referenceId: "receive_purchase_order.purchase_order::text", detail: "v_line.detail || jsonb_build_object('unitCost', v_line.unit_cost::text, 'currency', v_row.currency::text)" })};${receipt.line}
   end loop;
   select coalesce(sum(y.${pl("quantity")} - y.${pl("received")}), 0) into v_backordered
   from ${lines} y where y.${pl("order")} = receive_purchase_order.purchase_order;
   v_status := case when v_backordered = 0 then 'received' else 'partially_received' end;
   update ${orders} x set ${po("status")} = ${ctx.cast("purchaseOrders", "status", "v_status")}, ${po("updatedAt")} = now()
   where x.${po("id")} = receive_purchase_order.purchase_order;
-  ${event("purchase_order.received", "receive_purchase_order", "v_status")}
-  return jsonb_build_object('status', v_status, 'backordered', v_backordered);
+  ${event("purchase_order.received", "receive_purchase_order", "v_status")}${receipt.finish}
+  return jsonb_build_object('status', v_status, 'backordered', v_backordered${receipt.result});
 end;
 $$;
 ${userGrant(`${fn("receive_purchase_order")}(uuid, jsonb)`)}

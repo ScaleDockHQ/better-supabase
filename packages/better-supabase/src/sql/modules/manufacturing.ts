@@ -96,7 +96,7 @@ const NAMES: BlockSqlNames = {
     "before_production_order_complete",
     "after_production_order_complete",
   ],
-  options: ["extraColumns"],
+  options: ["extraColumns", "purchaseSuggestions"],
   tables: {
     boms: {
       name: "boms",

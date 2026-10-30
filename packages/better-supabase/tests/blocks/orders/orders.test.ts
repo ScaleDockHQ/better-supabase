@@ -1630,6 +1630,31 @@ describe("orders from documents", () => {
     ]);
   });
 
+  it("drafts a drop ship purchase order from an order", async () => {
+    const { orders: o, calls } = orders({
+      purchase_order_from_order: () => ({
+        id: "po1",
+        orderId: "o1",
+        shipTo: ADDRESS,
+      }),
+    });
+
+    expect(
+      await o.purchaseOrderFromOrder("o1", { id: "s1" }).orThrow(),
+    ).toEqual({ id: "po1", orderId: "o1" });
+    expect(calls).toEqual([
+      {
+        fn: "purchase_order_from_order",
+        args: {
+          order_id: "o1",
+          supplier_id: "s1",
+          supplier_type: "company",
+          location: null,
+        },
+      },
+    ]);
+  });
+
   it("passes a fulfillment line's stock detail", async () => {
     const { orders: o, calls } = orders({
       create_fulfillment: () => ({

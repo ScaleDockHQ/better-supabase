@@ -505,6 +505,7 @@ describe("createManufacturing", () => {
     });
     expect(requirements.items[0]?.reorderPoint).toBeUndefined();
     expect(documents.purchaseOrders).toEqual([{ id: "po1" }]);
+    expect(documents.purchaseRequisitions).toEqual([]);
     expect(documents.productionOrders[0]?.status).toBe("draft");
     expect(t.calls.map(([fn, args]) => [fn, args])).toEqual([
       ["lot_genealogy", { lot_id: "lot-bread", direction: "down" }],

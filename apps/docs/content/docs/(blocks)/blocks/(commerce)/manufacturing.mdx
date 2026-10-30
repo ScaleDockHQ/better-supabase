@@ -197,35 +197,36 @@ order is done. The generic chart maps `work_in_progress` to account 1350.
 
 ## Methods
 
-| Method                                               | Returns                                                    |
-| ---------------------------------------------------- | ---------------------------------------------------------- |
-| `saveBom(variantId, input, bomId)`                   | the version with its components and operations             |
-| `activateBom(bomId)`                                 | the active version                                         |
-| `getBom(bomId)`                                      | the version with its components and operations             |
-| `listBoms(variantId)`                                | every version, by variant and the latest first             |
-| `explodeBom(variantId, quantity)`                    | the components at every level and the materials to buy     |
-| `whereUsed(variantId)`                               | the versions the variant goes into, every level up         |
-| `saveWorkCenter(input, workCenterId)`                | the work center                                            |
-| `workCenters()`                                      | the work centers by name                                   |
-| `createOrder(input)`                                 | the draft order                                            |
-| `release(orderId, { allowShortage })`                | the released order with its operations and allocations     |
-| `startOperation(operationId)`                        | the order                                                  |
-| `finishOperation(operationId, minutes)`              | the order                                                  |
-| `recordConsumption(orderId, variantId, qty, detail)` | the order with the consumption                             |
-| `complete(orderId, produced, { scrap, lot })`        | the done order with its costs and output lot               |
-| `cancel(orderId, reason)`                            | the canceled order                                         |
-| `getOrder(orderId)`                                  | the order with its operations, components and consumptions |
-| `listOrders({ status, variantId, limit })`           | the orders, the earliest due first, then the latest        |
-| `lotGenealogy(lotId, direction)`                     | the lots down or up the genealogy                          |
-| `lotRecall(lotId)`                                   | the lots, stock, documents and orders a recall reaches     |
-| `requirements(horizonDays)`                          | the produce and purchase suggestions                       |
-| `createFromRequirements(items)`                      | the draft production orders and purchase orders            |
+| Method                                               | Returns                                                         |
+| ---------------------------------------------------- | --------------------------------------------------------------- |
+| `saveBom(variantId, input, bomId)`                   | the version with its components and operations                  |
+| `activateBom(bomId)`                                 | the active version                                              |
+| `getBom(bomId)`                                      | the version with its components and operations                  |
+| `listBoms(variantId)`                                | every version, by variant and the latest first                  |
+| `explodeBom(variantId, quantity)`                    | the components at every level and the materials to buy          |
+| `whereUsed(variantId)`                               | the versions the variant goes into, every level up              |
+| `saveWorkCenter(input, workCenterId)`                | the work center                                                 |
+| `workCenters()`                                      | the work centers by name                                        |
+| `createOrder(input)`                                 | the draft order                                                 |
+| `release(orderId, { allowShortage })`                | the released order with its operations and allocations          |
+| `startOperation(operationId)`                        | the order                                                       |
+| `finishOperation(operationId, minutes)`              | the order                                                       |
+| `recordConsumption(orderId, variantId, qty, detail)` | the order with the consumption                                  |
+| `complete(orderId, produced, { scrap, lot })`        | the done order with its costs and output lot                    |
+| `cancel(orderId, reason)`                            | the canceled order                                              |
+| `getOrder(orderId)`                                  | the order with its operations, components and consumptions      |
+| `listOrders({ status, variantId, limit })`           | the orders, the earliest due first, then the latest             |
+| `lotGenealogy(lotId, direction)`                     | the lots down or up the genealogy                               |
+| `lotRecall(lotId)`                                   | the lots, stock, documents and orders a recall reaches          |
+| `requirements(horizonDays)`                          | the produce and purchase suggestions                            |
+| `createFromRequirements(items)`                      | the draft production orders and purchase orders or requisitions |
 
 ## Options
 
-| Option         | Default | Does                                         |
-| -------------- | ------- | -------------------------------------------- |
-| `extraColumns` | none    | Extra columns on the production orders table |
+| Option                | Default | Does                                                                                                         |
+| --------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `extraColumns`        | none    | Extra columns on the production orders table                                                                 |
+| `purchaseSuggestions` | `order` | What `purchase` suggestions become: draft purchase orders (`order`) or purchase requisitions (`requisition`) |
 
 The client's `fields` schema types those columns on every order it returns.
 
@@ -254,9 +255,20 @@ and `production_order.cancelled`. The
 
 ## Purchasing
 
-Material requirements create the inventory block's draft purchase orders. A
-purchasing block with requisitions and approvals isn't part of this release;
-when it ships, `createFromRequirements` will create requisitions through it.
+By default, `createFromRequirements` turns `purchase` suggestions into the
+inventory block's draft purchase orders, one per supplier. Set
+`purchaseSuggestions: "requisition"` to create
+[purchase requisitions](/docs/blocks/inventory#requisitions) instead, which go
+through approval (with the approvals block) before anyone orders them:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  manufacturing: { options: { purchaseSuggestions: "requisition" } },
+},
+```
+
+The result then lists the new requisitions under `purchaseRequisitions`, and
+`purchaseOrders` is empty.
 
 ## Without the client
 

@@ -79,11 +79,62 @@ export interface InvoiceCharge {
   readonly fields?: Readonly<Record<string, unknown>>;
 }
 
+/** `sales` for what customers owe, `purchase` for a bill from a supplier. */
+export type InvoiceDirection = "sales" | "purchase";
+
+/** How a purchase bill compares with its purchase order and receipts. */
+export type InvoiceMatchStatus =
+  | "matched"
+  | "price_variance"
+  | "quantity_variance"
+  | "not_received"
+  | "not_applicable";
+
+const MATCH_STATUSES: readonly InvoiceMatchStatus[] = [
+  "matched",
+  "price_variance",
+  "quantity_variance",
+  "not_received",
+  "not_applicable",
+];
+
+/** One billed variant of a three-way match. Quantities are base units. */
+export interface InvoiceMatchLine {
+  readonly variantId: string;
+  /** Billed on this bill. */
+  readonly quantity: string;
+  /** Billed across the purchase order's bills. */
+  readonly billedQuantity: string;
+  readonly orderedQuantity: string;
+  readonly receivedQuantity: string;
+  /** This bill's net amount for the variant. */
+  readonly amount: Money;
+  /** The quantity at the purchase order's unit cost. */
+  readonly expectedAmount: Money;
+  readonly status: Exclude<InvoiceMatchStatus, "not_applicable">;
+}
+
+/** The three-way match of a purchase bill; the worst line decides. */
+export interface InvoiceMatch {
+  readonly invoiceId: string;
+  readonly purchaseOrderId?: string;
+  readonly status: InvoiceMatchStatus;
+  readonly lines: readonly InvoiceMatchLine[];
+}
+
 /** An invoice. `F` types the extra columns the `fields` schema describes. */
 export interface Invoice<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly kind: "invoice" | "credit_note";
+  /** `sales` unless the invoice is a purchase bill. */
+  readonly direction: InvoiceDirection;
+  /** The supplier's own number on a purchase bill. */
+  readonly supplierReference?: string;
+  /** The inventory purchase order a purchase bill bills. */
+  readonly purchaseOrderId?: string;
+  /** Accounting dimension codes by dimension key, such as `project`. */
+  readonly dimensions?: Readonly<Record<string, string>>;
   /** Set on issue; a draft has none. */
   readonly number?: bigint;
   readonly identifier?: string;
@@ -130,6 +181,16 @@ export interface Invoice<F extends object = Record<never, never>> {
 
 export interface InvoiceInput<F extends object = Record<never, never>> {
   readonly title: string;
+  /**
+   * `purchase` for a bill from the supplier in `company` or `contact`. Needs
+   * `invoices.purchase`; defaults to `sales`.
+   */
+  readonly direction?: InvoiceDirection;
+  readonly supplierReference?: string;
+  /** An inventory purchase order of the organization, for the match. */
+  readonly purchaseOrderId?: string;
+  /** Accounting dimension codes by key; the expense lines carry them. */
+  readonly dimensions?: Readonly<Record<string, string>>;
   /** Defaults to the lines' currency, then `EUR`. */
   readonly currency?: string;
   readonly company?: RecordRef;
@@ -157,6 +218,9 @@ export interface InvoicePatch<F extends object = Record<never, never>> {
   readonly pricesIncludeTax?: boolean;
   readonly discountBps?: number;
   readonly discountAmount?: Money;
+  readonly supplierReference?: string | null;
+  readonly purchaseOrderId?: string | null;
+  readonly dimensions?: Readonly<Record<string, string>> | null;
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
@@ -265,11 +329,21 @@ export interface Invoices<F extends object = Record<never, never>> {
       readonly actor?: TransitionActor;
     },
   ): AsyncResult<Invoice<F>>;
+  /**
+   * What customers owe (`sales`, the default) or what the organization owes its
+   * suppliers (`purchase`), by days past due.
+   */
   aging(
     organizationId: string,
     currency: string,
     asOf?: Temporal.PlainDate,
+    direction?: InvoiceDirection,
   ): AsyncResult<InvoiceAging>;
+  /**
+   * Runs the three-way match of a purchase bill against its purchase order and
+   * receipts, and records `invoice.match_checked`.
+   */
+  match(invoiceId: string): AsyncResult<InvoiceMatch>;
   payments(invoiceId: string): AsyncResult<readonly InvoicePayment[]>;
   /**
    * An invoice from an accepted quote: the full invoice once, minus the
@@ -332,6 +406,10 @@ const KNOWN = new Set([
   "discount_bps",
   "discount_amount",
   "prices_include_tax",
+  "direction",
+  "supplier_reference",
+  "purchase_order_id",
+  "dimensions",
   "created_by",
   "created_at",
   "updated_at",
@@ -363,6 +441,49 @@ function paymentOf(
   });
 }
 
+function dimensionsOf(
+  value: unknown,
+): Readonly<Record<string, string>> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value).filter(
+    (entry): entry is [string, string] => typeof entry[1] === "string",
+  );
+
+  return entries.length === 0 ? undefined : Object.fromEntries(entries);
+}
+
+function matchOf(value: unknown): InvoiceMatch {
+  const row = recordOf(value, "purchase_bill_match");
+  const currency = textOf(row["currency"]);
+
+  return compact<InvoiceMatch>({
+    invoiceId: textOf(row["invoiceId"]),
+    purchaseOrderId: optionalText(row["purchaseOrderId"]),
+    status: enumOrThrow(row["status"], MATCH_STATUSES, "invoice match status"),
+    lines: recordsOf(row["lines"], "invoice match lines").map((line) => ({
+      variantId: textOf(line["variantId"]),
+      quantity: textOf(line["quantity"]),
+      billedQuantity: textOf(line["billedQuantity"]),
+      orderedQuantity: textOf(line["orderedQuantity"]),
+      receivedQuantity: textOf(line["receivedQuantity"]),
+      amount: moneyOf(line["amount"], currency, "invoice match amount"),
+      expectedAmount: moneyOf(
+        line["expectedAmount"],
+        currency,
+        "invoice match expectedAmount",
+      ),
+      status: enumOrThrow(
+        line["status"],
+        ["matched", "price_variance", "quantity_variance", "not_received"],
+        "invoice match line status",
+      ),
+    })),
+  });
+}
+
 function invoiceOf(value: unknown): Invoice {
   const row = recordOf(value, "invoice");
   const currency = textOf(row["currency"]);
@@ -378,6 +499,10 @@ function invoiceOf(value: unknown): Invoice {
       ["invoice", "credit_note"] as const,
       "invoice kind",
     ),
+    direction: row["direction"] === "purchase" ? "purchase" : "sales",
+    supplierReference: optionalText(row["supplier_reference"]),
+    purchaseOrderId: optionalText(row["purchase_order_id"]),
+    dimensions: dimensionsOf(row["dimensions"]),
     number:
       row["number"] === null || row["number"] === undefined
         ? undefined
@@ -603,7 +728,7 @@ export function createInvoices<
         fields: charge.fields,
         ...actorArg(charge.actor),
       }),
-    aging: (organizationId, currency, asOf) =>
+    aging: (organizationId, currency, asOf, direction) =>
       amountsError(currency, []) === undefined
         ? call(
             "invoice_aging",
@@ -611,6 +736,7 @@ export function createInvoices<
               tenant: organizationId,
               currency,
               as_of: asOf === undefined ? null : asOf.toString(),
+              ...(direction === undefined ? {} : { direction }),
             },
             (value) => {
               const row = recordOf(value, "invoice_aging");
@@ -632,6 +758,8 @@ export function createInvoices<
             },
           )
         : AsyncResult.err(unknownCurrency(currency)),
+    match: (invoiceId) =>
+      call("purchase_bill_match", { invoice: invoiceId }, matchOf),
     payments: (invoiceId) =>
       call("list_invoice_payments", { invoice: invoiceId }, (value) => {
         const row = recordOf(value, "list_invoice_payments");

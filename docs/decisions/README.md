@@ -149,3 +149,4 @@ add one, and link it from the code or config it explains.
 | [0145](0145-document-template-variables.md)                   | Document templates read a typed variable contract, look up per entity and language, and use tenant-editable text blocks                            |
 | [0146](0146-drive-document-number-formats.md)                 | Controlled document types can set a `numberFormat` and count from their own numbering entity                                                       |
 | [0147](0147-remove-047-deprecated-wrappers.md)                | The deprecated compliance acknowledgement wrappers and `inbox.contacts.upsert` are removed before 0.47 ships                                       |
+| [0147](0147-purchase-bills-on-invoices.md)                    | Purchase bills live on the invoices table by direction; receipts, requisitions on approvals, a three-way match and credit limits                   |

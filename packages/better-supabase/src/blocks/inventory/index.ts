@@ -46,6 +46,16 @@ export {
 } from "./tracking.ts";
 
 export {
+  REQUISITION_STATUSES,
+  type InventoryProcurement,
+  type PurchaseRequisition,
+  type RequisitionInput,
+  type RequisitionLine,
+  type RequisitionLineInput,
+  type RequisitionStatus,
+} from "./procurement.ts";
+
+export {
   extendBlock,
   withBlockHooks,
   wrapTransport,

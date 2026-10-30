@@ -23,12 +23,13 @@ const MODULE_OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
 };
 
 // Record access requests exist only next to a subject with a team, project
-// costs only next to tasks, and supplier statuses from qualifications only next
-// to qualifications.
+// costs only next to tasks, supplier statuses from qualifications only next
+// to qualifications, and drop ship purchase orders only next to inventory.
 const MODULE_BLOCKS: Readonly<Record<string, readonly string[]>> = {
   "access-requests": ["subjects"],
   "billable-time": ["tasks"],
   contacts: ["qualifications"],
+  orders: ["catalog", "inventory"],
 };
 
 const TEAM_SUBJECT = {

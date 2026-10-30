@@ -54,6 +54,16 @@ export type InvoicesSqlOptions = {
   readonly quoteLineValues?: Readonly<
     Record<string, Readonly<Record<string, string>>>
   >;
+  /** The number prefix of a purchase bill. Default `BILL-`. */
+  readonly purchasePrefix?: string;
+  /** The number prefix of a purchase credit note. Default `BCN-`. */
+  readonly purchaseCreditPrefix?: string;
+  /**
+   * The price difference a three-way match accepts per line: `bps` of the
+   * expected amount or `amount` minor units, whichever is larger. Default `{
+   * bps: 100, amount: 500 }`.
+   */
+  readonly matchTolerance?: { readonly bps?: number; readonly amount?: number };
 };
 
 export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
@@ -77,4 +87,8 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
       option.unknown<NonNullable<InvoicesSqlOptions["depositLine"]>>(),
     quoteLineValues:
       option.unknown<NonNullable<InvoicesSqlOptions["quoteLineValues"]>>(),
+    purchasePrefix: option.string({ default: "BILL-" }),
+    purchaseCreditPrefix: option.string({ default: "BCN-" }),
+    matchTolerance:
+      option.unknown<NonNullable<InvoicesSqlOptions["matchTolerance"]>>(),
   });

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:fcccbb5d3c71eeda0582aaabe9e2769d80b9035ad4c46e2fb8b6a98a24639fe1
+-- @bsb-hash sha256:31c5b5b46e357898159b9210f88b963cf329dc6fb8fde1485a1075e875c8e414
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1715,7 +1715,7 @@ grant execute on function "better_supabase"."material_requirements"(uuid, intege
 -- a draft production order, purchase items become draft purchase orders of
 -- the inventory block, one per location, supplier ({ supplierType,
 -- supplierId }) and currency, at unitCost or the variant's average cost.
--- Returns { productionOrders, purchaseOrders }.
+-- Returns { productionOrders, purchaseOrders, purchaseRequisitions }.
 create or replace function "better_supabase"."create_from_requirements"(tenant uuid, items jsonb)
 returns jsonb
 language plpgsql
@@ -1778,7 +1778,7 @@ begin
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     v_purchases := v_purchases || jsonb_build_array(v_purchase);
   end loop;
-  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', v_purchases);
+  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', v_purchases, 'purchaseRequisitions', '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."create_from_requirements"(uuid, jsonb) from public, anon;
@@ -1998,7 +1998,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:c24f18a006a3013625cc580d186e53e6578fe27a8165f68af8ddb43396b6aea3
+-- @bsb-hash sha256:44b943d68bfdccd81747f3e45d3c458b135c0f6872272f954e31a12e89a82b61
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3768,7 +3768,7 @@ grant execute on function "better_supabase"."material_requirements"(uuid, intege
 -- a draft production order, purchase items become draft purchase orders of
 -- the inventory block, one per location, supplier ({ supplierType,
 -- supplierId }) and currency, at unitCost or the variant's average cost.
--- Returns { productionOrders, purchaseOrders }.
+-- Returns { productionOrders, purchaseOrders, purchaseRequisitions }.
 create or replace function "better_supabase"."create_from_requirements"(tenant uuid, items jsonb)
 returns jsonb
 language plpgsql
@@ -3831,7 +3831,7 @@ begin
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     v_purchases := v_purchases || jsonb_build_array(v_purchase);
   end loop;
-  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', v_purchases);
+  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', v_purchases, 'purchaseRequisitions', '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."create_from_requirements"(uuid, jsonb) from public, anon;
@@ -4076,7 +4076,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:ce26cdef49830275007f1690949f383a7bf07addd85d733f4d31864cdb6f6a8f
+-- @bsb-hash sha256:2769923ad6652834114272d33b6fe4e297cca4e7016de36caf0ddb1c019fd9b8
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5795,7 +5795,7 @@ grant execute on function "app_private"."material_requirements"(uuid, integer) t
 -- a draft production order, purchase items become draft purchase orders of
 -- the inventory block, one per location, supplier ({ supplierType,
 -- supplierId }) and currency, at unitCost or the variant's average cost.
--- Returns { productionOrders, purchaseOrders }.
+-- Returns { productionOrders, purchaseOrders, purchaseRequisitions }.
 create or replace function "app_private"."create_from_requirements"(tenant uuid, items jsonb)
 returns jsonb
 language plpgsql
@@ -5858,7 +5858,7 @@ begin
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     v_purchases := v_purchases || jsonb_build_array(v_purchase);
   end loop;
-  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', v_purchases);
+  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', v_purchases, 'purchaseRequisitions', '[]'::jsonb);
 end;
 $$;
 revoke execute on function "app_private"."create_from_requirements"(uuid, jsonb) from public, anon;
@@ -6078,7 +6078,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:572bfe5e9d3b42caedf0aec8c5a2da8f44f4c9823bbea66f003b2fb08ffa23b0
+-- @bsb-hash sha256:e1182024d93aa53f5074c2aa638893ac28d6fd07901b5842cb0ebcc508902270
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7792,7 +7792,7 @@ grant execute on function "better_supabase"."material_requirements"(uuid, intege
 -- a draft production order, purchase items become draft purchase orders of
 -- the inventory block, one per location, supplier ({ supplierType,
 -- supplierId }) and currency, at unitCost or the variant's average cost.
--- Returns { productionOrders, purchaseOrders }.
+-- Returns { productionOrders, purchaseOrders, purchaseRequisitions }.
 create or replace function "better_supabase"."create_from_requirements"(tenant uuid, items jsonb)
 returns jsonb
 language plpgsql
@@ -7855,7 +7855,7 @@ begin
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     v_purchases := v_purchases || jsonb_build_array(v_purchase);
   end loop;
-  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', v_purchases);
+  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', v_purchases, 'purchaseRequisitions', '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."create_from_requirements"(uuid, jsonb) from public, anon;
@@ -8286,7 +8286,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:ba67cb43aece9a65d4ff2c4917a5b5256b01aba5f5941a6b93629707a0deaa3f
+-- @bsb-hash sha256:691200b5a846fac7e839e1ae07164ddde9d52af8c31650e3cc7b63f6aca056da
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9953,7 +9953,7 @@ grant execute on function "better_supabase"."material_requirements"(uuid, intege
 -- a draft production order, purchase items become draft purchase orders of
 -- the inventory block, one per location, supplier ({ supplierType,
 -- supplierId }) and currency, at unitCost or the variant's average cost.
--- Returns { productionOrders, purchaseOrders }.
+-- Returns { productionOrders, purchaseOrders, purchaseRequisitions }.
 create or replace function "better_supabase"."create_from_requirements"(tenant uuid, items jsonb)
 returns jsonb
 language plpgsql
@@ -10016,7 +10016,7 @@ begin
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     v_purchases := v_purchases || jsonb_build_array(v_purchase);
   end loop;
-  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', v_purchases);
+  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', v_purchases, 'purchaseRequisitions', '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."create_from_requirements"(uuid, jsonb) from public, anon;
@@ -10236,7 +10236,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:4ffb5fa55db8e328bf6f719b68ecbba30ee3dec7a37f8b6c01e86b41504303cc
+-- @bsb-hash sha256:f7b8a6d8dc6d303ea287e748e5a1307024fc89726bc070f373268b6757881228
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11950,7 +11950,7 @@ grant execute on function "better_supabase"."material_requirements"(uuid, intege
 -- a draft production order, purchase items become draft purchase orders of
 -- the inventory block, one per location, supplier ({ supplierType,
 -- supplierId }) and currency, at unitCost or the variant's average cost.
--- Returns { productionOrders, purchaseOrders }.
+-- Returns { productionOrders, purchaseOrders, purchaseRequisitions }.
 create or replace function "better_supabase"."create_from_requirements"(tenant uuid, items jsonb)
 returns jsonb
 language plpgsql
@@ -12013,7 +12013,7 @@ begin
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     v_purchases := v_purchases || jsonb_build_array(v_purchase);
   end loop;
-  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', v_purchases);
+  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', v_purchases, 'purchaseRequisitions', '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."create_from_requirements"(uuid, jsonb) from public, anon;
