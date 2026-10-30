@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_145_observations.sql
+-- ==== schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
 -- @bsb-hash sha256:82ed074a33ae0f79d43ecc7e5cf8bde000ef9a51d8477bdeb73bc679cbfdf763
@@ -1093,7 +1093,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_145_observations.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block-data observations
 -- @bsb-hash sha256:60a418ee7d27530f37b366a45350503d8d5481d1f1904ec2a586de82869b3749
