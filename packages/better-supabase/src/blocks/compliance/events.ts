@@ -37,17 +37,6 @@ export interface PolicyPublishedEventData {
   readonly number: number;
 }
 
-/**
- * `compliance_policy.acknowledged`: a member acknowledged a policy's current
- * version.
- */
-export interface PolicyAcknowledgedEventData {
-  readonly organizationId: string;
-  readonly policyId: string;
-  readonly versionId: string;
-  readonly userId: string;
-}
-
 /** The events of the `compliance` block: type to data. */
 export type ComplianceEvents = {
   readonly "control.created": ControlSavedEventData;
@@ -55,7 +44,6 @@ export type ComplianceEvents = {
   readonly "control.evidence_added": ControlEvidenceAddedEventData;
   readonly "evidence_task.missed": EvidenceTaskMissedEventData;
   readonly "compliance_policy.published": PolicyPublishedEventData;
-  readonly "compliance_policy.acknowledged": PolicyAcknowledgedEventData;
 };
 
 /** The `compliance` block's event types, for its manifest and `onBlockEvent`. */
@@ -65,5 +53,4 @@ export const complianceEvents: Events<ComplianceEvents> = defineEvents({
   "control.evidence_added": event<ControlEvidenceAddedEventData>(),
   "evidence_task.missed": event<EvidenceTaskMissedEventData>(),
   "compliance_policy.published": event<PolicyPublishedEventData>(),
-  "compliance_policy.acknowledged": event<PolicyAcknowledgedEventData>(),
 });

@@ -48,6 +48,10 @@ blocks: {
 
 A block can contribute its own record type, so a block that keeps a current
 version column registers it without an `on` entry.
+[compliance](/docs/blocks/compliance) contributes its policies as
+`compliance_policy` and assigns each policy that requires acknowledgement to
+the `member` role itself, so the `before_acknowledgement_assignment_create`
+hook doesn't run for those assignments.
 
 ## Assigning
 

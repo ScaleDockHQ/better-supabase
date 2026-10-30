@@ -4,6 +4,7 @@ import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
 import { COMPLIANCE } from "../../../src/sql/modules/compliance.ts";
 import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
@@ -70,9 +71,74 @@ describe("compliance module", () => {
       expect.arrayContaining([
         "save_control",
         "control_posture",
-        "acknowledge_compliance_policy",
+        "list_compliance_policies",
       ]),
     );
+    expect(contract?.functions.map((fn) => fn.name)).not.toContain(
+      "acknowledge_compliance_policy",
+    );
+  });
+
+  it("assigns policies to the member role through the acknowledgements block", () => {
+    const sql = sqlOf();
+
+    expect(sql).toContain(
+      `perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);`,
+    );
+    expect(sql).toContain(
+      `perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');`,
+    );
+    expect(sql).toContain(`from "better_supabase"."acknowledgements" ack`);
+    expect(sql).not.toContain("policy_acknowledgements");
+    expect(sql).not.toContain("compliance.acknowledge");
+  });
+
+  it("refuses to build on acknowledgements in custom mode", () => {
+    expect(() =>
+      sqlOf({ modules: { acknowledgements: { mode: "custom" } } }),
+    ).toThrow("blocks.compliance needs the acknowledgements tables");
+  });
+
+  it("moves version 1 policy acknowledgements onto the acknowledgements block", () => {
+    const upgrade = (layout: Layout = {}): string =>
+      (
+        upgradePlan([{ module: "compliance", version: 1 }], layout)[0]?.steps ??
+        []
+      )
+        .map((step) => step.sql)
+        .join("\n");
+
+    const managed = upgrade();
+
+    expect(managed).toContain(
+      'create table if not exists "better_supabase"."acknowledgements"',
+    );
+    expect(managed).toContain(
+      `select x.tenant_id, 'compliance_policy', x.policy_id::text, x.version_id, x.user_id, x.acknowledged_at
+  from "better_supabase".policy_acknowledgements x`,
+    );
+    expect(managed).toContain(
+      `select x."tenant_id", 'compliance_policy', x."id"::text, 'role', 'member'`,
+    );
+    expect(managed).toContain(
+      'drop table "better_supabase".policy_acknowledgements cascade;',
+    );
+    expect(managed).toContain(
+      'drop function if exists "better_supabase"."acknowledge_compliance_policy"(uuid);',
+    );
+    expect(upgrade({ modules: { compliance: { mode: "custom" } } })).toBe("");
+  });
+
+  it("contributes the policy's current version to the acknowledgements block", () => {
+    const sql = renderBlocks(BASE, {})
+      .filter((file) => file.module === "acknowledgements")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      `if current_acknowledgement_version.subject_type = 'compliance_policy' then`,
+    );
+    expect(sql).toContain(`s."current_version_id"::uuid`);
   });
 
   it("keeps a framework's kind and a control's source and jurisdiction", () => {

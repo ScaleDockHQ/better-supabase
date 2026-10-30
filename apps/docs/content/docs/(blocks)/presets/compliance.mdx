@@ -30,8 +30,9 @@ whatever they require:
 | [compliance](/docs/blocks/compliance)   | Frameworks, controls, evidence tasks and versioned policies |
 | [attachments](/docs/blocks/attachments) | Evidence files                                              |
 
-The compliance block requires [versions](/docs/blocks/versions), which the
-preset installs with it, and the `audit` block from `saas` keeps who changed
+The compliance block requires [versions](/docs/blocks/versions) and
+[acknowledgements](/docs/blocks/acknowledgements), which the preset installs
+with it, and the `audit` block from `saas` keeps who changed
 a control or its evidence.
 
 ## How the blocks connect
@@ -42,8 +43,8 @@ plans evidence that has to be collected again every `intervalDays`, with an
 assignee. A control's status follows from its evidence and tasks: it fails
 when a task is overdue or all its evidence has lapsed, and `posture` rolls
 the statuses up per framework. `publishPolicy` freezes a policy as a version,
-and each member acknowledges that version with `acknowledgePolicy`
-([compliance](/docs/blocks/compliance)).
+and each member acknowledges that version through the acknowledgements
+block's `acknowledge` ([compliance](/docs/blocks/compliance#acknowledgements)).
 
 ## With ReUI
 

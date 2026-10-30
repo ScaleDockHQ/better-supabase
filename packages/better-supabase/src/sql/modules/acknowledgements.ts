@@ -115,7 +115,11 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-function tables(ctx: BlockSqlContext): string {
+/**
+ * The acknowledgements tables, also run by the compliance upgrade that moves
+ * policy acknowledgements here before the module files.
+ */
+export function acknowledgementTables(ctx: BlockSqlContext): string {
   const assignments = ctx.table("assignments");
   const acks = ctx.table("acknowledgements");
   const notices = ctx.table("notices");
@@ -226,7 +230,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Acknowledgements: members confirm they read the current version of a
 -- record they are assigned to, directly, through a team or through a role.
-${tables(ctx)}${acknowledgementFunctions(ctx)}`;
+${acknowledgementTables(ctx)}${acknowledgementFunctions(ctx)}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {

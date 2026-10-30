@@ -1,3 +1,4 @@
+import type { SubjectConfig } from "../../config/types/subjects.ts";
 import type { BlockSqlContext } from "../context.ts";
 import type { Subject } from "../subjects.ts";
 
@@ -80,8 +81,31 @@ export function acknowledgementFunctions(ctx: BlockSqlContext): string {
   const versions = ctx.of("versions");
   const vt = versions.table("versions");
   const v = (column: string): string => versions.col("versions", column);
-  const subjects = subjectsOption(ctx, ["versionColumn"]);
-  const columns = versionColumns(ctx, subjects);
+  const contributed = ctx.contributions("acknowledgements");
+
+  const contributedTables = new Set(
+    contributed.flatMap((each) => ctx.subjects[each.subject]?.table ?? []),
+  );
+
+  // A block's own records join the subjects even when `on` lists others.
+  const always = (entry: SubjectConfig): boolean =>
+    contributedTables.has(entry.table);
+
+  const listed = subjectsOption(ctx, ["versionColumn"], { always });
+
+  const withRecords = subjectsOption(ctx, ["versionColumn"], {
+    always,
+    joined: Object.fromEntries(
+      contributed.flatMap((each) =>
+        each.record === undefined ? [] : [[each.subject, { ...each.record }]],
+      ),
+    ),
+  });
+
+  // With no subjects listed every record type stays acknowledgeable, so a
+  // contributed record only narrows the types once the app lists some.
+  const subjects = listed.length === 0 ? listed : withRecords;
+  const columns = versionColumns(ctx, withRecords);
 
   // `subjectTypeGuard` rereads `on` without the `versionColumn` key.
   const typeGuard =
@@ -274,6 +298,71 @@ end;
 $$;
 revoke execute on function ${fn("current_acknowledgement_version")}(${idType}, text, text) from public, anon, authenticated;
 
+-- Writes an assignment without checking the caller, for assign_acknowledgement
+-- and for blocks that assign their own records after their own check (the
+-- compliance policies). Assigning the same principal again updates its due
+-- period.
+create or replace function ${fn("place_acknowledgement_assignment")}(tenant ${idType}, subject_type text, subject_id text, principal_type text, principal_id text, due_in_days integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row ${assignments}%rowtype;
+  v_existed boolean;
+begin
+  select exists (
+    select 1 from ${assignments} x
+    where x.${g("tenant")} = place_acknowledgement_assignment.tenant
+      and x.${g("subjectType")} = place_acknowledgement_assignment.subject_type
+      and x.${g("subjectId")} = place_acknowledgement_assignment.subject_id
+      and x.${g("principalType")} = place_acknowledgement_assignment.principal_type
+      and x.${g("principalId")} = place_acknowledgement_assignment.principal_id
+  ) into v_existed;
+  insert into ${assignments} (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")}, ${g("dueInDays")})
+  values (place_acknowledgement_assignment.tenant, place_acknowledgement_assignment.subject_type, place_acknowledgement_assignment.subject_id, place_acknowledgement_assignment.principal_type, place_acknowledgement_assignment.principal_id, place_acknowledgement_assignment.due_in_days)
+  on conflict (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")})
+  do update set ${g("dueInDays")} = excluded.${g("dueInDays")}
+  returning * into v_row;
+  if not v_existed then
+    ${assignmentRecord("acknowledgement_assignment.created", `'asked ' || v_row.${g("principalType")} || ' ' || v_row.${g("principalId")} || ' to acknowledge ' || v_row.${g("subjectType")} || ' ' || v_row.${g("subjectId")}`)}
+  end if;
+  return ${assignmentJson("v_row")};
+end;
+$$;
+revoke execute on function ${fn("place_acknowledgement_assignment")}(${idType}, text, text, text, text, integer) from public, anon, authenticated;
+
+-- Removes one principal's assignment without checking the caller, for blocks
+-- that manage their own records' assignments. Acknowledgements already given
+-- stay.
+create or replace function ${fn("drop_acknowledgement_assignment")}(tenant ${idType}, subject_type text, subject_id text, principal_type text, principal_id text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row ${assignments}%rowtype;
+begin
+  delete from ${assignments} x
+  where x.${g("tenant")} = drop_acknowledgement_assignment.tenant
+    and x.${g("subjectType")} = drop_acknowledgement_assignment.subject_type
+    and x.${g("subjectId")} = drop_acknowledgement_assignment.subject_id
+    and x.${g("principalType")} = drop_acknowledgement_assignment.principal_type
+    and x.${g("principalId")} = drop_acknowledgement_assignment.principal_id
+  returning * into v_row;
+  if not found then
+    return false;
+  end if;
+  ${assignmentRecord("acknowledgement_assignment.deleted", `'removed the acknowledgement assignment of ' || v_row.${g("principalType")} || ' ' || v_row.${g("principalId")} || ' on ' || v_row.${g("subjectType")} || ' ' || v_row.${g("subjectId")}`)}
+  return true;
+end;
+$$;
+revoke execute on function ${fn("drop_acknowledgement_assignment")}(${idType}, text, text, text, text) from public, anon, authenticated;
+
 -- Asks a member, a team or everyone holding a role to acknowledge a record,
 -- within due_in_days of each new version. Assigning the same principal again
 -- updates its due period.
@@ -285,9 +374,11 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row ${assignments}%rowtype;
-  v_existed boolean;
+  v_assignment jsonb;
 begin
+  if not (better_supabase.actor_may_write()) then
+    ${fail("ACTOR_READ_ONLY", "This session is read-only")}
+  end if;
   if not (${SERVICE_CALLER} or (${ctx.can("tenant", "assign_acknowledgement.tenant", manage)} and ${readable("assign_acknowledgement.subject_type", "assign_acknowledgement.subject_id", "assign_acknowledgement.tenant")})) then
     ${forbidden("not allowed to assign acknowledgements on this record")}
   end if;${typeGuard}
@@ -317,24 +408,12 @@ begin
     ["text", "assign_acknowledgement.principal_type"],
     ["text", "assign_acknowledgement.principal_id"],
   ])}
-  select exists (
-    select 1 from ${assignments} x
-    where x.${g("tenant")} = assign_acknowledgement.tenant
-      and x.${g("subjectType")} = assign_acknowledgement.subject_type
-      and x.${g("subjectId")} = assign_acknowledgement.subject_id
-      and x.${g("principalType")} = assign_acknowledgement.principal_type
-      and x.${g("principalId")} = assign_acknowledgement.principal_id
-  ) into v_existed;
-  insert into ${assignments} (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")}, ${g("dueInDays")})
-  values (assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id, assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days)
-  on conflict (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")})
-  do update set ${g("dueInDays")} = excluded.${g("dueInDays")}
-  returning * into v_row;
-  if not v_existed then
-    ${assignmentRecord("acknowledgement_assignment.created", `'asked ' || v_row.${g("principalType")} || ' ' || v_row.${g("principalId")} || ' to acknowledge ' || v_row.${g("subjectType")} || ' ' || v_row.${g("subjectId")}`)}
-  end if;
-  ${ctx.hook("after_acknowledgement_assignment_create", [["uuid", `v_row.${g("id")}`]])}
-  return ${assignmentJson("v_row")};
+  v_assignment := ${fn("place_acknowledgement_assignment")}(
+    assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id,
+    assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days
+  );
+  ${ctx.hook("after_acknowledgement_assignment_create", [["uuid", "(v_assignment ->> 'id')::uuid"]])}
+  return v_assignment;
 end;
 $$;
 ${userGrant(`${fn("assign_acknowledgement")}(${idType}, text, text, text, text, integer)`)}

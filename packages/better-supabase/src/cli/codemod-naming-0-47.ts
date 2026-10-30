@@ -54,6 +54,12 @@ const REVIEW_0_47: readonly ReviewHint[] = [
     message:
       "AI document versions moved to the versions table (`subject_type = 'ai_document'`, the text in `content`): read them through `documents.versions(documentId)`",
   },
+  {
+    pattern:
+      /acknowledge_compliance_policy|compliance_policy_acknowledgements|policy_acknowledgements|pending_only\s*=>|["'`](?:POLICY_NOT_PUBLISHED|COMPLIANCE_POLICY_NOT_PUBLISHED|compliance\.acknowledge|(?:compliance_)?policy\.acknowledged)["'`]/,
+    message:
+      "Policy acknowledgements moved onto the acknowledgements block: call `acknowledge('compliance_policy', id)` and `list_my_acknowledgements` instead of `acknowledge_compliance_policy` and `list_compliance_policies(pending_only)`, read `acknowledgements` instead of `policy_acknowledgements`, match `ACKNOWLEDGEMENT_NO_VERSION` and `ACKNOWLEDGEMENT_NOT_ASSIGNED` instead of `POLICY_NOT_PUBLISHED`, grant `acknowledgements.acknowledge` instead of `compliance.acknowledge`, and listen for `acknowledgement.created` instead of `policy.acknowledged`",
+  },
 ];
 
 const SQL_HINT = new RegExp(

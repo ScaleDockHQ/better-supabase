@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:23c5c971008d0940ddb9bdb6ee6439462e188c6590ffdc7a3d740137645e0c80
+-- @bsb-hash sha256:fbeb41014bf4ffcb7abc493e4526bdec29ba9790ed1aec153f36346c1118e553
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -162,6 +162,71 @@ end;
 $$;
 revoke execute on function "better_supabase"."current_acknowledgement_version"(uuid, text, text) from public, anon, authenticated;
 
+-- Writes an assignment without checking the caller, for assign_acknowledgement
+-- and for blocks that assign their own records after their own check (the
+-- compliance policies). Assigning the same principal again updates its due
+-- period.
+create or replace function "better_supabase"."place_acknowledgement_assignment"(tenant uuid, subject_type text, subject_id text, principal_type text, principal_id text, due_in_days integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
+  v_existed boolean;
+begin
+  select exists (
+    select 1 from "better_supabase"."acknowledgement_assignments" x
+    where x."tenant_id" = place_acknowledgement_assignment.tenant
+      and x."subject_type" = place_acknowledgement_assignment.subject_type
+      and x."subject_id" = place_acknowledgement_assignment.subject_id
+      and x."principal_type" = place_acknowledgement_assignment.principal_type
+      and x."principal_id" = place_acknowledgement_assignment.principal_id
+  ) into v_existed;
+  insert into "better_supabase"."acknowledgement_assignments" ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id", "due_in_days")
+  values (place_acknowledgement_assignment.tenant, place_acknowledgement_assignment.subject_type, place_acknowledgement_assignment.subject_id, place_acknowledgement_assignment.principal_type, place_acknowledgement_assignment.principal_id, place_acknowledgement_assignment.due_in_days)
+  on conflict ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
+  do update set "due_in_days" = excluded."due_in_days"
+  returning * into v_row;
+  if not v_existed then
+    null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id", 'dueInDays', v_row."due_in_days", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."place_acknowledgement_assignment"(uuid, text, text, text, text, integer) from public, anon, authenticated;
+
+-- Removes one principal's assignment without checking the caller, for blocks
+-- that manage their own records' assignments. Acknowledgements already given
+-- stay.
+create or replace function "better_supabase"."drop_acknowledgement_assignment"(tenant uuid, subject_type text, subject_id text, principal_type text, principal_id text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
+begin
+  delete from "better_supabase"."acknowledgement_assignments" x
+  where x."tenant_id" = drop_acknowledgement_assignment.tenant
+    and x."subject_type" = drop_acknowledgement_assignment.subject_type
+    and x."subject_id" = drop_acknowledgement_assignment.subject_id
+    and x."principal_type" = drop_acknowledgement_assignment.principal_type
+    and x."principal_id" = drop_acknowledgement_assignment.principal_id
+  returning * into v_row;
+  if not found then
+    return false;
+  end if;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."drop_acknowledgement_assignment"(uuid, text, text, text, text) from public, anon, authenticated;
+
 -- Asks a member, a team or everyone holding a role to acknowledge a record,
 -- within due_in_days of each new version. Assigning the same principal again
 -- updates its due period.
@@ -173,8 +238,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
-  v_existed boolean;
+  v_assignment jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -210,31 +274,19 @@ begin
         using assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id, assign_acknowledgement.principal_type, assign_acknowledgement.principal_id;
     end if;
   end;
-  select exists (
-    select 1 from "better_supabase"."acknowledgement_assignments" x
-    where x."tenant_id" = assign_acknowledgement.tenant
-      and x."subject_type" = assign_acknowledgement.subject_type
-      and x."subject_id" = assign_acknowledgement.subject_id
-      and x."principal_type" = assign_acknowledgement.principal_type
-      and x."principal_id" = assign_acknowledgement.principal_id
-  ) into v_existed;
-  insert into "better_supabase"."acknowledgement_assignments" ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id", "due_in_days")
-  values (assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id, assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days)
-  on conflict ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
-  do update set "due_in_days" = excluded."due_in_days"
-  returning * into v_row;
-  if not v_existed then
-    null;
-  end if;
+  v_assignment := "better_supabase"."place_acknowledgement_assignment"(
+    assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id,
+    assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days
+  );
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_acknowledgement_assignment_create"(uuid)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using v_row."id";
+        using (v_assignment ->> 'id')::uuid;
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id", 'dueInDays', v_row."due_in_days", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return v_assignment;
 end;
 $$;
 revoke execute on function "better_supabase"."assign_acknowledgement"(uuid, text, text, text, text, integer) from public, anon;
@@ -667,7 +719,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:cef26eb56d1204d78daba5a01a2c03798aba8a13f33d70f486089266a4c6d623
+-- @bsb-hash sha256:d2d49a7345b71d5f0719d3ef50866f53ffe4e625a098424a3f3536a482deea1b
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -815,6 +867,9 @@ security definer
 set search_path = ''
 as $$
 begin
+  if current_acknowledgement_version.subject_type = 'compliance_policy' then
+    return (select s."current_version_id"::uuid from "better_supabase"."policies" s where s."id" = (current_acknowledgement_version.subject_id)::uuid and s."tenant_id" = current_acknowledgement_version.tenant);
+  end if;
   return (
     select x."id" from "better_supabase"."versions" x
     where x."tenant_id" = current_acknowledgement_version.tenant
@@ -828,6 +883,89 @@ end;
 $$;
 revoke execute on function "better_supabase"."current_acknowledgement_version"(uuid, text, text) from public, anon, authenticated;
 
+-- Writes an assignment without checking the caller, for assign_acknowledgement
+-- and for blocks that assign their own records after their own check (the
+-- compliance policies). Assigning the same principal again updates its due
+-- period.
+create or replace function "better_supabase"."place_acknowledgement_assignment"(tenant uuid, subject_type text, subject_id text, principal_type text, principal_id text, due_in_days integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
+  v_existed boolean;
+begin
+  select exists (
+    select 1 from "better_supabase"."acknowledgement_assignments" x
+    where x."tenant_id" = place_acknowledgement_assignment.tenant
+      and x."subject_type" = place_acknowledgement_assignment.subject_type
+      and x."subject_id" = place_acknowledgement_assignment.subject_id
+      and x."principal_type" = place_acknowledgement_assignment.principal_type
+      and x."principal_id" = place_acknowledgement_assignment.principal_id
+  ) into v_existed;
+  insert into "better_supabase"."acknowledgement_assignments" ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id", "due_in_days")
+  values (place_acknowledgement_assignment.tenant, place_acknowledgement_assignment.subject_type, place_acknowledgement_assignment.subject_id, place_acknowledgement_assignment.principal_type, place_acknowledgement_assignment.principal_id, place_acknowledgement_assignment.due_in_days)
+  on conflict ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
+  do update set "due_in_days" = excluded."due_in_days"
+  returning * into v_row;
+  if not v_existed then
+    perform "better_supabase".emit_event('acknowledgement_assignment.created', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'assignmentId', v_row."id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id"), 'acknowledgement-assignments/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/acknowledgements');
+  perform better_supabase.audit_event(
+    event_type => 'acknowledgement_assignment.created',
+    category => 'data',
+    target_type => 'acknowledgement_assignment',
+    record_id => v_row."id"::text,
+    summary => 'asked ' || v_row."principal_type" || ' ' || v_row."principal_id" || ' to acknowledge ' || v_row."subject_type" || ' ' || v_row."subject_id",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'assignmentId', v_row."id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id")
+  );
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id", 'dueInDays', v_row."due_in_days", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."place_acknowledgement_assignment"(uuid, text, text, text, text, integer) from public, anon, authenticated;
+
+-- Removes one principal's assignment without checking the caller, for blocks
+-- that manage their own records' assignments. Acknowledgements already given
+-- stay.
+create or replace function "better_supabase"."drop_acknowledgement_assignment"(tenant uuid, subject_type text, subject_id text, principal_type text, principal_id text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
+begin
+  delete from "better_supabase"."acknowledgement_assignments" x
+  where x."tenant_id" = drop_acknowledgement_assignment.tenant
+    and x."subject_type" = drop_acknowledgement_assignment.subject_type
+    and x."subject_id" = drop_acknowledgement_assignment.subject_id
+    and x."principal_type" = drop_acknowledgement_assignment.principal_type
+    and x."principal_id" = drop_acknowledgement_assignment.principal_id
+  returning * into v_row;
+  if not found then
+    return false;
+  end if;
+  perform "better_supabase".emit_event('acknowledgement_assignment.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'assignmentId', v_row."id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id"), 'acknowledgement-assignments/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/acknowledgements');
+  perform better_supabase.audit_event(
+    event_type => 'acknowledgement_assignment.deleted',
+    category => 'data',
+    target_type => 'acknowledgement_assignment',
+    record_id => v_row."id"::text,
+    summary => 'removed the acknowledgement assignment of ' || v_row."principal_type" || ' ' || v_row."principal_id" || ' on ' || v_row."subject_type" || ' ' || v_row."subject_id",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'assignmentId', v_row."id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id")
+  );
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."drop_acknowledgement_assignment"(uuid, text, text, text, text) from public, anon, authenticated;
+
 -- Asks a member, a team or everyone holding a role to acknowledge a record,
 -- within due_in_days of each new version. Assigning the same principal again
 -- updates its due period.
@@ -839,8 +977,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
-  v_existed boolean;
+  v_assignment jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -882,40 +1019,19 @@ begin
         using assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id, assign_acknowledgement.principal_type, assign_acknowledgement.principal_id;
     end if;
   end;
-  select exists (
-    select 1 from "better_supabase"."acknowledgement_assignments" x
-    where x."tenant_id" = assign_acknowledgement.tenant
-      and x."subject_type" = assign_acknowledgement.subject_type
-      and x."subject_id" = assign_acknowledgement.subject_id
-      and x."principal_type" = assign_acknowledgement.principal_type
-      and x."principal_id" = assign_acknowledgement.principal_id
-  ) into v_existed;
-  insert into "better_supabase"."acknowledgement_assignments" ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id", "due_in_days")
-  values (assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id, assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days)
-  on conflict ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
-  do update set "due_in_days" = excluded."due_in_days"
-  returning * into v_row;
-  if not v_existed then
-    perform "better_supabase".emit_event('acknowledgement_assignment.created', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'assignmentId', v_row."id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id"), 'acknowledgement-assignments/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/acknowledgements');
-  perform better_supabase.audit_event(
-    event_type => 'acknowledgement_assignment.created',
-    category => 'data',
-    target_type => 'acknowledgement_assignment',
-    record_id => v_row."id"::text,
-    summary => 'asked ' || v_row."principal_type" || ' ' || v_row."principal_id" || ' to acknowledge ' || v_row."subject_type" || ' ' || v_row."subject_id",
-    tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'assignmentId', v_row."id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id")
+  v_assignment := "better_supabase"."place_acknowledgement_assignment"(
+    assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id,
+    assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days
   );
-  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_acknowledgement_assignment_create"(uuid)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using v_row."id";
+        using (v_assignment ->> 'id')::uuid;
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id", 'dueInDays', v_row."due_in_days", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return v_assignment;
 end;
 $$;
 revoke execute on function "better_supabase"."assign_acknowledgement"(uuid, text, text, text, text, integer) from public, anon;
@@ -1414,7 +1530,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:149a64ce4cdc430f3041b9ea563f344fc8bb9a13d04fe23e0d11924527dc0db5
+-- @bsb-hash sha256:df87bf412c1bff720c14386be916c3f5e175baedbe21a59bb4a00473e309e196
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1580,6 +1696,71 @@ end;
 $$;
 revoke execute on function "app_private"."current_acknowledgement_version"(uuid, text, text) from public, anon, authenticated;
 
+-- Writes an assignment without checking the caller, for assign_acknowledgement
+-- and for blocks that assign their own records after their own check (the
+-- compliance policies). Assigning the same principal again updates its due
+-- period.
+create or replace function "app_private"."place_acknowledgement_assignment"(tenant uuid, subject_type text, subject_id text, principal_type text, principal_id text, due_in_days integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."acknowledgement_assignments"%rowtype;
+  v_existed boolean;
+begin
+  select exists (
+    select 1 from "app_private"."acknowledgement_assignments" x
+    where x."tenant_id" = place_acknowledgement_assignment.tenant
+      and x."subject_type" = place_acknowledgement_assignment.subject_type
+      and x."subject_id" = place_acknowledgement_assignment.subject_id
+      and x."principal_type" = place_acknowledgement_assignment.principal_type
+      and x."principal_id" = place_acknowledgement_assignment.principal_id
+  ) into v_existed;
+  insert into "app_private"."acknowledgement_assignments" ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id", "due_in_days")
+  values (place_acknowledgement_assignment.tenant, place_acknowledgement_assignment.subject_type, place_acknowledgement_assignment.subject_id, place_acknowledgement_assignment.principal_type, place_acknowledgement_assignment.principal_id, place_acknowledgement_assignment.due_in_days)
+  on conflict ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
+  do update set "due_in_days" = excluded."due_in_days"
+  returning * into v_row;
+  if not v_existed then
+    null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id", 'dueInDays', v_row."due_in_days", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "app_private"."place_acknowledgement_assignment"(uuid, text, text, text, text, integer) from public, anon, authenticated;
+
+-- Removes one principal's assignment without checking the caller, for blocks
+-- that manage their own records' assignments. Acknowledgements already given
+-- stay.
+create or replace function "app_private"."drop_acknowledgement_assignment"(tenant uuid, subject_type text, subject_id text, principal_type text, principal_id text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."acknowledgement_assignments"%rowtype;
+begin
+  delete from "app_private"."acknowledgement_assignments" x
+  where x."tenant_id" = drop_acknowledgement_assignment.tenant
+    and x."subject_type" = drop_acknowledgement_assignment.subject_type
+    and x."subject_id" = drop_acknowledgement_assignment.subject_id
+    and x."principal_type" = drop_acknowledgement_assignment.principal_type
+    and x."principal_id" = drop_acknowledgement_assignment.principal_id
+  returning * into v_row;
+  if not found then
+    return false;
+  end if;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."drop_acknowledgement_assignment"(uuid, text, text, text, text) from public, anon, authenticated;
+
 -- Asks a member, a team or everyone holding a role to acknowledge a record,
 -- within due_in_days of each new version. Assigning the same principal again
 -- updates its due period.
@@ -1591,8 +1772,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "app_private"."acknowledgement_assignments"%rowtype;
-  v_existed boolean;
+  v_assignment jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1628,31 +1808,19 @@ begin
         using assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id, assign_acknowledgement.principal_type, assign_acknowledgement.principal_id;
     end if;
   end;
-  select exists (
-    select 1 from "app_private"."acknowledgement_assignments" x
-    where x."tenant_id" = assign_acknowledgement.tenant
-      and x."subject_type" = assign_acknowledgement.subject_type
-      and x."subject_id" = assign_acknowledgement.subject_id
-      and x."principal_type" = assign_acknowledgement.principal_type
-      and x."principal_id" = assign_acknowledgement.principal_id
-  ) into v_existed;
-  insert into "app_private"."acknowledgement_assignments" ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id", "due_in_days")
-  values (assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id, assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days)
-  on conflict ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
-  do update set "due_in_days" = excluded."due_in_days"
-  returning * into v_row;
-  if not v_existed then
-    null;
-  end if;
+  v_assignment := "app_private"."place_acknowledgement_assignment"(
+    assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id,
+    assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days
+  );
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_acknowledgement_assignment_create"(uuid)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using v_row."id";
+        using (v_assignment ->> 'id')::uuid;
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id", 'dueInDays', v_row."due_in_days", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return v_assignment;
 end;
 $$;
 revoke execute on function "app_private"."assign_acknowledgement"(uuid, text, text, text, text, integer) from public, anon;
@@ -2085,7 +2253,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:35058b84b2aef86e55aecf00118470f25cb44a73e02cf51dad572bb88f6a295f
+-- @bsb-hash sha256:130c5bd29692b8ea0224b7ad57ab42804a8cabf79c8e06772d7a0702b3b6f252
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2246,6 +2414,71 @@ end;
 $$;
 revoke execute on function "better_supabase"."current_acknowledgement_version"(uuid, text, text) from public, anon, authenticated;
 
+-- Writes an assignment without checking the caller, for assign_acknowledgement
+-- and for blocks that assign their own records after their own check (the
+-- compliance policies). Assigning the same principal again updates its due
+-- period.
+create or replace function "better_supabase"."place_acknowledgement_assignment"(tenant uuid, subject_type text, subject_id text, principal_type text, principal_id text, due_in_days integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
+  v_existed boolean;
+begin
+  select exists (
+    select 1 from "better_supabase"."acknowledgement_assignments" x
+    where x."tenant_id" = place_acknowledgement_assignment.tenant
+      and x."subject_type" = place_acknowledgement_assignment.subject_type
+      and x."subject_id" = place_acknowledgement_assignment.subject_id
+      and x."principal_type" = place_acknowledgement_assignment.principal_type
+      and x."principal_id" = place_acknowledgement_assignment.principal_id
+  ) into v_existed;
+  insert into "better_supabase"."acknowledgement_assignments" ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id", "due_in_days")
+  values (place_acknowledgement_assignment.tenant, place_acknowledgement_assignment.subject_type, place_acknowledgement_assignment.subject_id, place_acknowledgement_assignment.principal_type, place_acknowledgement_assignment.principal_id, place_acknowledgement_assignment.due_in_days)
+  on conflict ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
+  do update set "due_in_days" = excluded."due_in_days"
+  returning * into v_row;
+  if not v_existed then
+    null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id", 'dueInDays', v_row."due_in_days", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."place_acknowledgement_assignment"(uuid, text, text, text, text, integer) from public, anon, authenticated;
+
+-- Removes one principal's assignment without checking the caller, for blocks
+-- that manage their own records' assignments. Acknowledgements already given
+-- stay.
+create or replace function "better_supabase"."drop_acknowledgement_assignment"(tenant uuid, subject_type text, subject_id text, principal_type text, principal_id text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
+begin
+  delete from "better_supabase"."acknowledgement_assignments" x
+  where x."tenant_id" = drop_acknowledgement_assignment.tenant
+    and x."subject_type" = drop_acknowledgement_assignment.subject_type
+    and x."subject_id" = drop_acknowledgement_assignment.subject_id
+    and x."principal_type" = drop_acknowledgement_assignment.principal_type
+    and x."principal_id" = drop_acknowledgement_assignment.principal_id
+  returning * into v_row;
+  if not found then
+    return false;
+  end if;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."drop_acknowledgement_assignment"(uuid, text, text, text, text) from public, anon, authenticated;
+
 -- Asks a member, a team or everyone holding a role to acknowledge a record,
 -- within due_in_days of each new version. Assigning the same principal again
 -- updates its due period.
@@ -2257,8 +2490,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
-  v_existed boolean;
+  v_assignment jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2294,31 +2526,19 @@ begin
         using assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id, assign_acknowledgement.principal_type, assign_acknowledgement.principal_id;
     end if;
   end;
-  select exists (
-    select 1 from "better_supabase"."acknowledgement_assignments" x
-    where x."tenant_id" = assign_acknowledgement.tenant
-      and x."subject_type" = assign_acknowledgement.subject_type
-      and x."subject_id" = assign_acknowledgement.subject_id
-      and x."principal_type" = assign_acknowledgement.principal_type
-      and x."principal_id" = assign_acknowledgement.principal_id
-  ) into v_existed;
-  insert into "better_supabase"."acknowledgement_assignments" ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id", "due_in_days")
-  values (assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id, assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days)
-  on conflict ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
-  do update set "due_in_days" = excluded."due_in_days"
-  returning * into v_row;
-  if not v_existed then
-    null;
-  end if;
+  v_assignment := "better_supabase"."place_acknowledgement_assignment"(
+    assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id,
+    assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days
+  );
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_acknowledgement_assignment_create"(uuid)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using v_row."id";
+        using (v_assignment ->> 'id')::uuid;
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id", 'dueInDays', v_row."due_in_days", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return v_assignment;
 end;
 $$;
 revoke execute on function "better_supabase"."assign_acknowledgement"(uuid, text, text, text, text, integer) from public, anon;
@@ -2845,7 +3065,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:6dae94387683a601cb22be781e78d065643872b8ba3390a913386a4d9ceeaa51
+-- @bsb-hash sha256:f6f0184ece32df3fd8cb0142ceb6304d75935016c53c6f7176d2c60f19d0566a
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3000,6 +3220,71 @@ end;
 $$;
 revoke execute on function "better_supabase"."current_acknowledgement_version"(uuid, text, text) from public, anon, authenticated;
 
+-- Writes an assignment without checking the caller, for assign_acknowledgement
+-- and for blocks that assign their own records after their own check (the
+-- compliance policies). Assigning the same principal again updates its due
+-- period.
+create or replace function "better_supabase"."place_acknowledgement_assignment"(tenant uuid, subject_type text, subject_id text, principal_type text, principal_id text, due_in_days integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
+  v_existed boolean;
+begin
+  select exists (
+    select 1 from "better_supabase"."acknowledgement_assignments" x
+    where x."tenant_id" = place_acknowledgement_assignment.tenant
+      and x."subject_type" = place_acknowledgement_assignment.subject_type
+      and x."subject_id" = place_acknowledgement_assignment.subject_id
+      and x."principal_type" = place_acknowledgement_assignment.principal_type
+      and x."principal_id" = place_acknowledgement_assignment.principal_id
+  ) into v_existed;
+  insert into "better_supabase"."acknowledgement_assignments" ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id", "due_in_days")
+  values (place_acknowledgement_assignment.tenant, place_acknowledgement_assignment.subject_type, place_acknowledgement_assignment.subject_id, place_acknowledgement_assignment.principal_type, place_acknowledgement_assignment.principal_id, place_acknowledgement_assignment.due_in_days)
+  on conflict ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
+  do update set "due_in_days" = excluded."due_in_days"
+  returning * into v_row;
+  if not v_existed then
+    null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id", 'dueInDays', v_row."due_in_days", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."place_acknowledgement_assignment"(uuid, text, text, text, text, integer) from public, anon, authenticated;
+
+-- Removes one principal's assignment without checking the caller, for blocks
+-- that manage their own records' assignments. Acknowledgements already given
+-- stay.
+create or replace function "better_supabase"."drop_acknowledgement_assignment"(tenant uuid, subject_type text, subject_id text, principal_type text, principal_id text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
+begin
+  delete from "better_supabase"."acknowledgement_assignments" x
+  where x."tenant_id" = drop_acknowledgement_assignment.tenant
+    and x."subject_type" = drop_acknowledgement_assignment.subject_type
+    and x."subject_id" = drop_acknowledgement_assignment.subject_id
+    and x."principal_type" = drop_acknowledgement_assignment.principal_type
+    and x."principal_id" = drop_acknowledgement_assignment.principal_id
+  returning * into v_row;
+  if not found then
+    return false;
+  end if;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."drop_acknowledgement_assignment"(uuid, text, text, text, text) from public, anon, authenticated;
+
 -- Asks a member, a team or everyone holding a role to acknowledge a record,
 -- within due_in_days of each new version. Assigning the same principal again
 -- updates its due period.
@@ -3011,8 +3296,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
-  v_existed boolean;
+  v_assignment jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3048,31 +3332,19 @@ begin
         using assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id, assign_acknowledgement.principal_type, assign_acknowledgement.principal_id;
     end if;
   end;
-  select exists (
-    select 1 from "better_supabase"."acknowledgement_assignments" x
-    where x."tenant_id" = assign_acknowledgement.tenant
-      and x."subject_type" = assign_acknowledgement.subject_type
-      and x."subject_id" = assign_acknowledgement.subject_id
-      and x."principal_type" = assign_acknowledgement.principal_type
-      and x."principal_id" = assign_acknowledgement.principal_id
-  ) into v_existed;
-  insert into "better_supabase"."acknowledgement_assignments" ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id", "due_in_days")
-  values (assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id, assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days)
-  on conflict ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
-  do update set "due_in_days" = excluded."due_in_days"
-  returning * into v_row;
-  if not v_existed then
-    null;
-  end if;
+  v_assignment := "better_supabase"."place_acknowledgement_assignment"(
+    assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id,
+    assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days
+  );
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_acknowledgement_assignment_create"(uuid)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using v_row."id";
+        using (v_assignment ->> 'id')::uuid;
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id", 'dueInDays', v_row."due_in_days", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return v_assignment;
 end;
 $$;
 revoke execute on function "better_supabase"."assign_acknowledgement"(uuid, text, text, text, text, integer) from public, anon;
@@ -3505,7 +3777,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:f8426e14ced924dccc29730e74197e52b8d6a21d21d7a84d1c1f01b602bb5f07
+-- @bsb-hash sha256:fe075324ec75422f175bf4608f3d30168aadd047379a93ed02c8c2559cee5e7a
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3666,6 +3938,71 @@ end;
 $$;
 revoke execute on function "better_supabase"."current_acknowledgement_version"(uuid, text, text) from public, anon, authenticated;
 
+-- Writes an assignment without checking the caller, for assign_acknowledgement
+-- and for blocks that assign their own records after their own check (the
+-- compliance policies). Assigning the same principal again updates its due
+-- period.
+create or replace function "better_supabase"."place_acknowledgement_assignment"(tenant uuid, subject_type text, subject_id text, principal_type text, principal_id text, due_in_days integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
+  v_existed boolean;
+begin
+  select exists (
+    select 1 from "better_supabase"."acknowledgement_assignments" x
+    where x."org_id" = place_acknowledgement_assignment.tenant
+      and x."subject_type" = place_acknowledgement_assignment.subject_type
+      and x."subject_id" = place_acknowledgement_assignment.subject_id
+      and x."principal_type" = place_acknowledgement_assignment.principal_type
+      and x."principal_id" = place_acknowledgement_assignment.principal_id
+  ) into v_existed;
+  insert into "better_supabase"."acknowledgement_assignments" ("org_id", "subject_type", "subject_id", "principal_type", "principal_id", "due_in_days")
+  values (place_acknowledgement_assignment.tenant, place_acknowledgement_assignment.subject_type, place_acknowledgement_assignment.subject_id, place_acknowledgement_assignment.principal_type, place_acknowledgement_assignment.principal_id, place_acknowledgement_assignment.due_in_days)
+  on conflict ("org_id", "subject_type", "subject_id", "principal_type", "principal_id")
+  do update set "due_in_days" = excluded."due_in_days"
+  returning * into v_row;
+  if not v_existed then
+    null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id", 'dueInDays', v_row."due_in_days", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."place_acknowledgement_assignment"(uuid, text, text, text, text, integer) from public, anon, authenticated;
+
+-- Removes one principal's assignment without checking the caller, for blocks
+-- that manage their own records' assignments. Acknowledgements already given
+-- stay.
+create or replace function "better_supabase"."drop_acknowledgement_assignment"(tenant uuid, subject_type text, subject_id text, principal_type text, principal_id text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
+begin
+  delete from "better_supabase"."acknowledgement_assignments" x
+  where x."org_id" = drop_acknowledgement_assignment.tenant
+    and x."subject_type" = drop_acknowledgement_assignment.subject_type
+    and x."subject_id" = drop_acknowledgement_assignment.subject_id
+    and x."principal_type" = drop_acknowledgement_assignment.principal_type
+    and x."principal_id" = drop_acknowledgement_assignment.principal_id
+  returning * into v_row;
+  if not found then
+    return false;
+  end if;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."drop_acknowledgement_assignment"(uuid, text, text, text, text) from public, anon, authenticated;
+
 -- Asks a member, a team or everyone holding a role to acknowledge a record,
 -- within due_in_days of each new version. Assigning the same principal again
 -- updates its due period.
@@ -3677,8 +4014,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."acknowledgement_assignments"%rowtype;
-  v_existed boolean;
+  v_assignment jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3714,31 +4050,19 @@ begin
         using assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id, assign_acknowledgement.principal_type, assign_acknowledgement.principal_id;
     end if;
   end;
-  select exists (
-    select 1 from "better_supabase"."acknowledgement_assignments" x
-    where x."org_id" = assign_acknowledgement.tenant
-      and x."subject_type" = assign_acknowledgement.subject_type
-      and x."subject_id" = assign_acknowledgement.subject_id
-      and x."principal_type" = assign_acknowledgement.principal_type
-      and x."principal_id" = assign_acknowledgement.principal_id
-  ) into v_existed;
-  insert into "better_supabase"."acknowledgement_assignments" ("org_id", "subject_type", "subject_id", "principal_type", "principal_id", "due_in_days")
-  values (assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id, assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days)
-  on conflict ("org_id", "subject_type", "subject_id", "principal_type", "principal_id")
-  do update set "due_in_days" = excluded."due_in_days"
-  returning * into v_row;
-  if not v_existed then
-    null;
-  end if;
+  v_assignment := "better_supabase"."place_acknowledgement_assignment"(
+    assign_acknowledgement.tenant, assign_acknowledgement.subject_type, assign_acknowledgement.subject_id,
+    assign_acknowledgement.principal_type, assign_acknowledgement.principal_id, assign_acknowledgement.due_in_days
+  );
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_acknowledgement_assignment_create"(uuid)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using v_row."id";
+        using (v_assignment ->> 'id')::uuid;
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id", 'dueInDays', v_row."due_in_days", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return v_assignment;
 end;
 $$;
 revoke execute on function "better_supabase"."assign_acknowledgement"(uuid, text, text, text, text, integer) from public, anon;

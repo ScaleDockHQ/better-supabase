@@ -1,6 +1,6 @@
 ---
 title: From 0.46 to 0.47
-description: What to check when upgrading from better-supabase 0.46 to 0.47, where block entity keys equal the entity's singular, three subject types and the hint codes take the new nouns, block functions are renamed, every event type names its entity and a past verb, and doctor adds BS423 and BS424. AI document versions move onto the versions block, and with the tasks block postmortem action items become tasks.
+description: What to check when upgrading from better-supabase 0.46 to 0.47, where block entity keys equal the entity's singular, three subject types and the hint codes take the new nouns, block functions are renamed, every event type names its entity and a past verb, policy acknowledgements move onto the acknowledgements block, and doctor adds BS423 and BS424. AI document versions move onto the versions block, and with the tasks block postmortem action items become tasks.
 ---
 
 0.47.0 finishes the naming convention (ADR 0130): the key of every entity in
@@ -23,6 +23,7 @@ tasks block postmortem action items become tasks.
 | [Event types](#event-types)                         | Run `codemod 0.47`, then check `saved` types        |
 | [AI document versions](#ai-document-versions)       | Run `upgrade`; copy a renamed table by hand         |
 | [Postmortem action items](#postmortem-action-items) | With `tasks`, use `addPostmortemAction`             |
+| [Policy acknowledgements](#policy-acknowledgements) | Call the acknowledgements block |
 | [The SQL modules](#the-sql-modules)                 | Run `upgrade` and generate a migration              |
 
 ## Entity keys
@@ -282,6 +283,35 @@ creates one and links it in the new `incident_postmortem_actions` table,
 until 0.48, which removes them. Existing items aren't copied into tasks: add
 the ones that are still open with `addPostmortemAction`. `codemod 0.47` lists
 the lines that use `actionItems`.
+
+## Policy acknowledgements
+
+The compliance block now requires the
+[acknowledgements block](/docs/blocks/acknowledgements) and keeps its policy
+acknowledgements there (ADR 0131). `upgrade` installs it with compliance, and
+the data step copies every `policy_acknowledgements` row into
+`acknowledgements` as a `compliance_policy` acknowledgement of the same
+version, assigns every live policy that requires acknowledgement to the
+`member` role, and drops `policy_acknowledgements`. Saving a policy that
+requires acknowledgement assigns it the same way.
+
+| 0.46                                                  | 0.47                                                         |
+| ----------------------------------------------------- | ------------------------------------------------------------ |
+| `acknowledge_compliance_policy(policy_id)`            | `acknowledge('compliance_policy', policy_id::text)`          |
+| `list_compliance_policies(tenant, ..., pending_only)` | `list_my_acknowledgements(tenant)`                           |
+| `compliance_policy_acknowledgements(policy_id)`       | `acknowledgement_status` and `acknowledgements_of`           |
+| `policy_acknowledgements` table                       | `acknowledgements`, `subject_type = 'compliance_policy'`     |
+| `compliance.acknowledge` permission                   | `acknowledgements.acknowledge`                               |
+| `policy.acknowledged`, `compliance_policy.acknowledged` events | `acknowledgement.created` |
+| `POLICY_NOT_PUBLISHED` hint                           | `ACKNOWLEDGEMENT_NO_VERSION`, `ACKNOWLEDGEMENT_NOT_ASSIGNED` |
+
+The client methods `acknowledgePolicy`, `acknowledgements(policyId)` and
+`policies(organizationId, { pendingOnly })` still work and call the
+acknowledgements functions; they are deprecated and go in 0.48. Move to
+`db.acknowledgements.acknowledge`, `mine` and `status`. A role that granted
+`compliance.acknowledge` grants `acknowledgements.acknowledge`
+(`PERMISSION_KEY_RENAMES`), and `EVENT_TYPE_RENAMES` maps the old event. The
+codemod lists the old calls, the table, the hint and the event for review.
 
 ## The SQL modules
 

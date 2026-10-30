@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
--- @bsb-block compliance@1 managed
--- @bsb-hash sha256:de5cc24630e4d748185948ee70ef360afaab19160c05d88759f9e9501a7e3834
--- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
+-- @bsb-block compliance@2 managed
+-- @bsb-hash sha256:a96374850caa13bf2798c51fb3ab63f194ce3f6497c6afc5b9fdb0583010d05e
+-- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -84,20 +84,13 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
 end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Compliance controls: frameworks of controls, evidence linked to them,
--- recurring evidence tasks, and versioned policies members acknowledge.
+-- recurring evidence tasks, and versioned policies members acknowledge
+-- through the acknowledgements block.
 
 create table if not exists "better_supabase"."control_frameworks" (
   "id" uuid primary key default gen_random_uuid(),
@@ -234,29 +227,7 @@ grant all on "better_supabase"."policies" to service_role;
 drop policy if exists policies_read on "better_supabase"."policies";
 create policy policies_read on "better_supabase"."policies"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')));
-
-create table if not exists "better_supabase"."policy_acknowledgements" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "policy_id" uuid not null,
-  "version_id" uuid not null references "better_supabase"."versions" ("id") on delete restrict,
-  "user_id" uuid not null,
-  "acknowledged_at" timestamptz not null default now(),
-  unique ("policy_id", "version_id", "user_id"),
-  foreign key ("tenant_id", "policy_id") references "better_supabase"."policies" ("tenant_id", "id") on delete cascade
-);
-create index if not exists "policy_acknowledgements_user_idx" on "better_supabase"."policy_acknowledgements" ("tenant_id", "user_id");
-create index if not exists "policy_acknowledgements_parent_idx" on "better_supabase"."policy_acknowledgements" ("tenant_id", "policy_id");
-create index if not exists "policy_acknowledgements_version_idx" on "better_supabase"."policy_acknowledgements" ("version_id");
-alter table "better_supabase"."policy_acknowledgements" enable row level security;
-revoke all on "better_supabase"."policy_acknowledgements" from public, anon, authenticated;
-grant select on "better_supabase"."policy_acknowledgements" to authenticated;
-grant all on "better_supabase"."policy_acknowledgements" to service_role;
-drop policy if exists policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
-create policy policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
-  for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 -- kind is standard, legal (a register of legal obligations), internal or
@@ -342,9 +313,7 @@ begin
   if save_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = save_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  v_new := false;
   if save_control.control_id is null then
-    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
     insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
     values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
@@ -361,11 +330,7 @@ begin
       raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
     end if;
   end if;
-  if v_new then
-    null;
-  else
-    null;
-  end if;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
@@ -670,7 +635,10 @@ revoke execute on function "better_supabase"."notify_overdue_evidence_tasks"() f
 grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to service_role;
 
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
--- versions publish_compliance_policy writes.
+-- versions publish_compliance_policy writes. A policy that requires
+-- acknowledgement is assigned once to every member holding the member role
+-- (acknowledgements block); turning the requirement off removes that
+-- assignment.
 create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
@@ -680,6 +648,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."policies"%rowtype;
+  v_required boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -692,6 +661,9 @@ begin
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
+  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."policies" x
+    where x."tenant_id" = save_compliance_policy.tenant
+      and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
   if save_compliance_policy.policy_id is null then
     insert into "better_supabase"."policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
     values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
@@ -708,14 +680,20 @@ begin
       raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
     end if;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  if v_row."requires_acknowledgement" and v_row."archived_at" is null and v_required is distinct from true then
+    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);
+  elsif not v_row."requires_acknowledgement" and v_required then
+    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
 grant execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
 
 -- Publishes the policy text as a new frozen version (versions block) and
--- makes it current. Members acknowledge each published version again.
+-- makes it current. Members acknowledge each published version again, through
+-- acknowledge in the acknowledgements block.
 create or replace function "better_supabase"."publish_compliance_policy"(policy_id uuid, content jsonb, label text default null)
 returns jsonb
 language plpgsql
@@ -751,12 +729,14 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) to authenticated, service_role;
 
+-- Archives a policy and removes its member role assignment, so members stop
+-- seeing it as pending.
 create or replace function "better_supabase"."archive_compliance_policy"(policy_id uuid)
 returns jsonb
 language plpgsql
@@ -779,54 +759,17 @@ begin
   update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."archive_compliance_policy"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_compliance_policy"(uuid) to authenticated, service_role;
 
--- The caller acknowledges the policy's current version. A second call keeps
--- the first acknowledgement.
-create or replace function "better_supabase"."acknowledge_compliance_policy"(policy_id uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."policies"%rowtype;
-  v_me uuid := auth.uid();
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = acknowledge_compliance_policy.policy_id;
-  if not found then
-    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
-  end if;
-  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.acknowledge'), false) then
-    raise exception 'not allowed to acknowledge policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
-  end if;
-  if v_row."current_version_id" is null or v_row."archived_at" is not null then
-    raise exception 'the policy has no published version to acknowledge' using errcode = '55000', hint = 'COMPLIANCE_POLICY_NOT_PUBLISHED';
-  end if;
-  insert into "better_supabase"."policy_acknowledgements" ("tenant_id", "policy_id", "version_id", "user_id")
-  values (v_row."tenant_id", v_row."id", v_row."current_version_id", v_me)
-  on conflict ("policy_id", "version_id", "user_id") do nothing;
-  if found then
-    null;
-  end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
-end;
-$$;
-revoke execute on function "better_supabase"."acknowledge_compliance_policy"(uuid) from public, anon;
-grant execute on function "better_supabase"."acknowledge_compliance_policy"(uuid) to authenticated, service_role;
-
 -- The policies, with the caller's acknowledgement of each current version
--- and how many members acknowledged it. pending_only: the published policies
--- that need the caller's acknowledgement.
-create or replace function "better_supabase"."list_compliance_policies"(tenant uuid, include_archived boolean default false, pending_only boolean default false)
+-- and how many members acknowledged it. list_my_acknowledgements in the
+-- acknowledgements block lists the ones the caller still has to acknowledge.
+create or replace function "better_supabase"."list_compliance_policies"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -834,58 +777,19 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.read'), false)) or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.acknowledge'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.read'), false)) then
     raise exception 'not allowed to read policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
     from "better_supabase"."policies" x
     where x."tenant_id" = list_compliance_policies.tenant
       and (coalesce(list_compliance_policies.include_archived, false) or x."archived_at" is null)
-      and (not coalesce(list_compliance_policies.pending_only, false) or (
-        x."requires_acknowledgement" and x."current_version_id" is not null and x."archived_at" is null and (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()) is null
-      ))
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_compliance_policies"(uuid, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."list_compliance_policies"(uuid, boolean, boolean) to authenticated, service_role;
-
--- Every member and when they acknowledged the policy's current version
--- (null: not yet), for the policy's owner and compliance reviewers.
-create or replace function "better_supabase"."compliance_policy_acknowledgements"(policy_id uuid)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  v_row "better_supabase"."policies"%rowtype;
-begin
-  select * into v_row from "better_supabase"."policies" x where x."id" = compliance_policy_acknowledgements.policy_id;
-  if not found then
-    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)) then
-    raise exception 'not allowed to read policy acknowledgements' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
-  end if;
-  return jsonb_build_object(
-    'id', v_row."id",
-    'versionId', v_row."current_version_id",
-    'versionNumber', v_row."version_number",
-    'members', (
-      select coalesce(jsonb_agg(jsonb_build_object('userId', m."user_id", 'acknowledgedAt', ack."acknowledged_at")
-        order by ack."acknowledged_at" nulls first, m."user_id"), '[]'::jsonb)
-      from "better_supabase"."memberships" m
-      left join "better_supabase"."policy_acknowledgements" ack on ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = m."user_id"
-      where m."organization_id" = v_row."tenant_id"
-    )
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."compliance_policy_acknowledgements"(uuid) from public, anon;
-grant execute on function "better_supabase"."compliance_policy_acknowledgements"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -992,7 +896,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policies" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
 create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
@@ -1005,27 +909,6 @@ create policy bsb_tenant_scope_update on "better_supabase"."policies" as restric
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
 create policy bsb_tenant_scope_delete on "better_supabase"."policies" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."policy_acknowledgements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()))
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -1045,7 +928,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:a2e4b2323ab82894622f551ade6096a98698cb06059a01e883297d503f278090
+-- @bsb-hash sha256:9c44ced4c1d777800cd14ebf32d0ed3d61bd8a151f1db686028b7ab2d9b4a5b7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1053,17 +936,20 @@ grant select on better_supabase.blocks to service_role;
 
 -- Subject types renamed in 0.47 (`codemod 0.47`).
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."versions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."versions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_assignments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgements"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgements" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('compliance', 1, 'managed')
+values ('compliance', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
--- @bsb-block compliance@1 managed
--- @bsb-hash sha256:cd7f814937ea84b53c313363491545690248618e5009aecaf8931f887ad0c25a
--- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
+-- @bsb-block compliance@2 managed
+-- @bsb-hash sha256:ea9ba3e7730c0340c74ab221c08de9a44f757a2034c833cc0635ab8e20ab43f1
+-- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1145,20 +1031,13 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
 end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Compliance controls: frameworks of controls, evidence linked to them,
--- recurring evidence tasks, and versioned policies members acknowledge.
+-- recurring evidence tasks, and versioned policies members acknowledge
+-- through the acknowledgements block.
 
 create table if not exists "better_supabase"."control_frameworks" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1295,29 +1174,7 @@ grant all on "better_supabase"."policies" to service_role;
 drop policy if exists policies_read on "better_supabase"."policies";
 create policy policies_read on "better_supabase"."policies"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')));
-
-create table if not exists "better_supabase"."policy_acknowledgements" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "policy_id" uuid not null,
-  "version_id" uuid not null references "better_supabase"."versions" ("id") on delete restrict,
-  "user_id" uuid not null,
-  "acknowledged_at" timestamptz not null default now(),
-  unique ("policy_id", "version_id", "user_id"),
-  foreign key ("tenant_id", "policy_id") references "better_supabase"."policies" ("tenant_id", "id") on delete cascade
-);
-create index if not exists "policy_acknowledgements_user_idx" on "better_supabase"."policy_acknowledgements" ("tenant_id", "user_id");
-create index if not exists "policy_acknowledgements_parent_idx" on "better_supabase"."policy_acknowledgements" ("tenant_id", "policy_id");
-create index if not exists "policy_acknowledgements_version_idx" on "better_supabase"."policy_acknowledgements" ("version_id");
-alter table "better_supabase"."policy_acknowledgements" enable row level security;
-revoke all on "better_supabase"."policy_acknowledgements" from public, anon, authenticated;
-grant select on "better_supabase"."policy_acknowledgements" to authenticated;
-grant all on "better_supabase"."policy_acknowledgements" to service_role;
-drop policy if exists policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
-create policy policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
-  for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 -- kind is standard, legal (a register of legal obligations), internal or
@@ -1403,9 +1260,7 @@ begin
   if save_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = save_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  v_new := false;
   if save_control.control_id is null then
-    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
     insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
     values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
@@ -1422,29 +1277,16 @@ begin
       raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
     end if;
   end if;
-  if v_new then
-    perform "better_supabase".emit_event('control.created', jsonb_build_object('organizationId', v_row."tenant_id", 'controlId', v_row."id", 'frameworkId', v_row."framework_id", 'code', v_row."code"), 'controls/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/compliance');
+  perform "better_supabase".emit_event('control.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'controlId', v_row."id", 'frameworkId', v_row."framework_id", 'code', v_row."code"), 'controls/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/compliance');
   perform better_supabase.audit_event(
-    event_type => 'control.created',
+    event_type => 'control.saved',
     category => 'data',
     target_type => 'control',
     record_id => v_row."id"::text,
-    summary => 'created control ' || v_row."code",
+    summary => 'saved control ' || v_row."code",
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'controlId', v_row."id", 'frameworkId', v_row."framework_id", 'code', v_row."code")
   );
-  else
-    perform "better_supabase".emit_event('control.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'controlId', v_row."id", 'frameworkId', v_row."framework_id", 'code', v_row."code"), 'controls/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/compliance');
-  perform better_supabase.audit_event(
-    event_type => 'control.updated',
-    category => 'data',
-    target_type => 'control',
-    record_id => v_row."id"::text,
-    summary => 'updated control ' || v_row."code",
-    tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'controlId', v_row."id", 'frameworkId', v_row."framework_id", 'code', v_row."code")
-  );
-  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
@@ -1786,7 +1628,10 @@ revoke execute on function "better_supabase"."notify_overdue_evidence_tasks"() f
 grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to service_role;
 
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
--- versions publish_compliance_policy writes.
+-- versions publish_compliance_policy writes. A policy that requires
+-- acknowledgement is assigned once to every member holding the member role
+-- (acknowledgements block); turning the requirement off removes that
+-- assignment.
 create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
@@ -1796,6 +1641,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."policies"%rowtype;
+  v_required boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1808,6 +1654,9 @@ begin
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
+  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."policies" x
+    where x."tenant_id" = save_compliance_policy.tenant
+      and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
   if save_compliance_policy.policy_id is null then
     insert into "better_supabase"."policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
     values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
@@ -1824,14 +1673,20 @@ begin
       raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
     end if;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  if v_row."requires_acknowledgement" and v_row."archived_at" is null and v_required is distinct from true then
+    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);
+  elsif not v_row."requires_acknowledgement" and v_required then
+    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
 grant execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
 
 -- Publishes the policy text as a new frozen version (versions block) and
--- makes it current. Members acknowledge each published version again.
+-- makes it current. Members acknowledge each published version again, through
+-- acknowledge in the acknowledgements block.
 create or replace function "better_supabase"."publish_compliance_policy"(policy_id uuid, content jsonb, label text default null)
 returns jsonb
 language plpgsql
@@ -1866,9 +1721,9 @@ begin
     "version_number" = (v_version ->> 'number')::integer, "published_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  perform "better_supabase".emit_event('compliance_policy.published', jsonb_build_object('organizationId', v_row."tenant_id", 'policyId', v_row."id", 'versionId', v_row."current_version_id", 'number', v_row."version_number"), 'policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/compliance');
+  perform "better_supabase".emit_event('policy.published', jsonb_build_object('organizationId', v_row."tenant_id", 'policyId', v_row."id", 'versionId', v_row."current_version_id", 'number', v_row."version_number"), 'policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/compliance');
   perform better_supabase.audit_event(
-    event_type => 'compliance_policy.published',
+    event_type => 'policy.published',
     category => 'data',
     target_type => 'policy',
     record_id => v_row."id"::text,
@@ -1876,12 +1731,14 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'policyId', v_row."id", 'versionId', v_row."current_version_id", 'number', v_row."version_number")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) to authenticated, service_role;
 
+-- Archives a policy and removes its member role assignment, so members stop
+-- seeing it as pending.
 create or replace function "better_supabase"."archive_compliance_policy"(policy_id uuid)
 returns jsonb
 language plpgsql
@@ -1904,63 +1761,17 @@ begin
   update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."archive_compliance_policy"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_compliance_policy"(uuid) to authenticated, service_role;
 
--- The caller acknowledges the policy's current version. A second call keeps
--- the first acknowledgement.
-create or replace function "better_supabase"."acknowledge_compliance_policy"(policy_id uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."policies"%rowtype;
-  v_me uuid := auth.uid();
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = acknowledge_compliance_policy.policy_id;
-  if not found then
-    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
-  end if;
-  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.acknowledge'), false) then
-    raise exception 'not allowed to acknowledge policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
-  end if;
-  if v_row."current_version_id" is null or v_row."archived_at" is not null then
-    raise exception 'the policy has no published version to acknowledge' using errcode = '55000', hint = 'COMPLIANCE_POLICY_NOT_PUBLISHED';
-  end if;
-  insert into "better_supabase"."policy_acknowledgements" ("tenant_id", "policy_id", "version_id", "user_id")
-  values (v_row."tenant_id", v_row."id", v_row."current_version_id", v_me)
-  on conflict ("policy_id", "version_id", "user_id") do nothing;
-  if found then
-    perform "better_supabase".emit_event('compliance_policy.acknowledged', jsonb_build_object('organizationId', v_row."tenant_id", 'policyId', v_row."id", 'versionId', v_row."current_version_id", 'userId', v_me), 'policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/compliance');
-  perform better_supabase.audit_event(
-    event_type => 'compliance_policy.acknowledged',
-    category => 'data',
-    target_type => 'policy',
-    record_id => v_row."id"::text,
-    summary => 'acknowledged policy ' || v_row."title" || ' version ' || v_row."version_number"::text,
-    tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'policyId', v_row."id", 'versionId', v_row."current_version_id", 'userId', v_me)
-  );
-  end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
-end;
-$$;
-revoke execute on function "better_supabase"."acknowledge_compliance_policy"(uuid) from public, anon;
-grant execute on function "better_supabase"."acknowledge_compliance_policy"(uuid) to authenticated, service_role;
-
 -- The policies, with the caller's acknowledgement of each current version
--- and how many members acknowledged it. pending_only: the published policies
--- that need the caller's acknowledgement.
-create or replace function "better_supabase"."list_compliance_policies"(tenant uuid, include_archived boolean default false, pending_only boolean default false)
+-- and how many members acknowledged it. list_my_acknowledgements in the
+-- acknowledgements block lists the ones the caller still has to acknowledge.
+create or replace function "better_supabase"."list_compliance_policies"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -1968,58 +1779,19 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.read'), false)) or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.acknowledge'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.read'), false)) then
     raise exception 'not allowed to read policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
     from "better_supabase"."policies" x
     where x."tenant_id" = list_compliance_policies.tenant
       and (coalesce(list_compliance_policies.include_archived, false) or x."archived_at" is null)
-      and (not coalesce(list_compliance_policies.pending_only, false) or (
-        x."requires_acknowledgement" and x."current_version_id" is not null and x."archived_at" is null and (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()) is null
-      ))
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_compliance_policies"(uuid, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."list_compliance_policies"(uuid, boolean, boolean) to authenticated, service_role;
-
--- Every member and when they acknowledged the policy's current version
--- (null: not yet), for the policy's owner and compliance reviewers.
-create or replace function "better_supabase"."compliance_policy_acknowledgements"(policy_id uuid)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  v_row "better_supabase"."policies"%rowtype;
-begin
-  select * into v_row from "better_supabase"."policies" x where x."id" = compliance_policy_acknowledgements.policy_id;
-  if not found then
-    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)) then
-    raise exception 'not allowed to read policy acknowledgements' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
-  end if;
-  return jsonb_build_object(
-    'id', v_row."id",
-    'versionId', v_row."current_version_id",
-    'versionNumber', v_row."version_number",
-    'members', (
-      select coalesce(jsonb_agg(jsonb_build_object('userId', m."user_id", 'acknowledgedAt', ack."acknowledged_at")
-        order by ack."acknowledged_at" nulls first, m."user_id"), '[]'::jsonb)
-      from "better_supabase"."memberships" m
-      left join "better_supabase"."policy_acknowledgements" ack on ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = m."user_id"
-      where m."organization_id" = v_row."tenant_id"
-    )
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."compliance_policy_acknowledgements"(uuid) from public, anon;
-grant execute on function "better_supabase"."compliance_policy_acknowledgements"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2126,7 +1898,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policies" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
 create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
@@ -2139,27 +1911,6 @@ create policy bsb_tenant_scope_update on "better_supabase"."policies" as restric
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
 create policy bsb_tenant_scope_delete on "better_supabase"."policies" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."policy_acknowledgements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()))
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -2179,7 +1930,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:4a8ca08ae1243dc1aa52aa73660999d4cc602cf6b99736b57a46c50697193620
+-- @bsb-hash sha256:a34d429ab8689d4c250c791987e38820838ba0b316d2fd5649b57002884176a8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2268,15 +2019,15 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_plans"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_plans" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('compliance', 1, 'managed')
+values ('compliance', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
--- @bsb-block compliance@1 managed
--- @bsb-hash sha256:d5df719cf6b29f5ed3f1dfe11bea04ecd3e114e88010fbb99eeab3a42c9e3872
--- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
+-- @bsb-block compliance@2 managed
+-- @bsb-hash sha256:75dcd12c27aa930c36c563abce771721e38747944e32765aa247fa2c7f0611ed
+-- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2358,14 +2109,6 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "app_private"."policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."policy_acknowledgements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -2376,7 +2119,8 @@ alter default privileges in schema "app_private" revoke all on tables from publi
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Compliance controls: frameworks of controls, evidence linked to them,
--- recurring evidence tasks, and versioned policies members acknowledge.
+-- recurring evidence tasks, and versioned policies members acknowledge
+-- through the acknowledgements block.
 
 create table if not exists "app_private"."control_frameworks" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2513,29 +2257,7 @@ grant all on "app_private"."policies" to service_role;
 drop policy if exists policies_read on "app_private"."policies";
 create policy policies_read on "app_private"."policies"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')));
-
-create table if not exists "app_private"."policy_acknowledgements" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "policy_id" uuid not null,
-  "version_id" uuid not null references "better_supabase"."versions" ("id") on delete restrict,
-  "user_id" uuid not null,
-  "acknowledged_at" timestamptz not null default now(),
-  unique ("policy_id", "version_id", "user_id"),
-  foreign key ("tenant_id", "policy_id") references "app_private"."policies" ("tenant_id", "id") on delete cascade
-);
-create index if not exists "policy_acknowledgements_user_idx" on "app_private"."policy_acknowledgements" ("tenant_id", "user_id");
-create index if not exists "policy_acknowledgements_parent_idx" on "app_private"."policy_acknowledgements" ("tenant_id", "policy_id");
-create index if not exists "policy_acknowledgements_version_idx" on "app_private"."policy_acknowledgements" ("version_id");
-alter table "app_private"."policy_acknowledgements" enable row level security;
-revoke all on "app_private"."policy_acknowledgements" from public, anon, authenticated;
-grant select on "app_private"."policy_acknowledgements" to authenticated;
-grant all on "app_private"."policy_acknowledgements" to service_role;
-drop policy if exists policy_acknowledgements_read on "app_private"."policy_acknowledgements";
-create policy policy_acknowledgements_read on "app_private"."policy_acknowledgements"
-  for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 -- kind is standard, legal (a register of legal obligations), internal or
@@ -2621,9 +2343,7 @@ begin
   if save_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = save_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  v_new := false;
   if save_control.control_id is null then
-    v_new := not exists (select 1 from "app_private"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
     insert into "app_private"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
     values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
@@ -2640,11 +2360,7 @@ begin
       raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
     end if;
   end if;
-  if v_new then
-    null;
-  else
-    null;
-  end if;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "app_private"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
@@ -2949,7 +2665,10 @@ revoke execute on function "app_private"."notify_overdue_evidence_tasks"() from 
 grant execute on function "app_private"."notify_overdue_evidence_tasks"() to service_role;
 
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
--- versions publish_compliance_policy writes.
+-- versions publish_compliance_policy writes. A policy that requires
+-- acknowledgement is assigned once to every member holding the member role
+-- (acknowledgements block); turning the requirement off removes that
+-- assignment.
 create or replace function "app_private"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
@@ -2959,6 +2678,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "app_private"."policies"%rowtype;
+  v_required boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2971,6 +2691,9 @@ begin
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
+  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "app_private"."policies" x
+    where x."tenant_id" = save_compliance_policy.tenant
+      and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
   if save_compliance_policy.policy_id is null then
     insert into "app_private"."policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
     values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
@@ -2987,14 +2710,20 @@ begin
       raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
     end if;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "app_private"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "app_private"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  if v_row."requires_acknowledgement" and v_row."archived_at" is null and v_required is distinct from true then
+    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);
+  elsif not v_row."requires_acknowledgement" and v_required then
+    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "app_private"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
 grant execute on function "app_private"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
 
 -- Publishes the policy text as a new frozen version (versions block) and
--- makes it current. Members acknowledge each published version again.
+-- makes it current. Members acknowledge each published version again, through
+-- acknowledge in the acknowledgements block.
 create or replace function "app_private"."publish_compliance_policy"(policy_id uuid, content jsonb, label text default null)
 returns jsonb
 language plpgsql
@@ -3030,12 +2759,14 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "app_private"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "app_private"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "app_private"."publish_compliance_policy"(uuid, jsonb, text) from public, anon;
 grant execute on function "app_private"."publish_compliance_policy"(uuid, jsonb, text) to authenticated, service_role;
 
+-- Archives a policy and removes its member role assignment, so members stop
+-- seeing it as pending.
 create or replace function "app_private"."archive_compliance_policy"(policy_id uuid)
 returns jsonb
 language plpgsql
@@ -3058,54 +2789,17 @@ begin
   update "app_private"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "app_private"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "app_private"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "app_private"."archive_compliance_policy"(uuid) from public, anon;
 grant execute on function "app_private"."archive_compliance_policy"(uuid) to authenticated, service_role;
 
--- The caller acknowledges the policy's current version. A second call keeps
--- the first acknowledgement.
-create or replace function "app_private"."acknowledge_compliance_policy"(policy_id uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "app_private"."policies"%rowtype;
-  v_me uuid := auth.uid();
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_row from "app_private"."policies" x where x."id" = acknowledge_compliance_policy.policy_id;
-  if not found then
-    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
-  end if;
-  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.acknowledge'), false) then
-    raise exception 'not allowed to acknowledge policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
-  end if;
-  if v_row."current_version_id" is null or v_row."archived_at" is not null then
-    raise exception 'the policy has no published version to acknowledge' using errcode = '55000', hint = 'COMPLIANCE_POLICY_NOT_PUBLISHED';
-  end if;
-  insert into "app_private"."policy_acknowledgements" ("tenant_id", "policy_id", "version_id", "user_id")
-  values (v_row."tenant_id", v_row."id", v_row."current_version_id", v_me)
-  on conflict ("policy_id", "version_id", "user_id") do nothing;
-  if found then
-    null;
-  end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "app_private"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "app_private"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
-end;
-$$;
-revoke execute on function "app_private"."acknowledge_compliance_policy"(uuid) from public, anon;
-grant execute on function "app_private"."acknowledge_compliance_policy"(uuid) to authenticated, service_role;
-
 -- The policies, with the caller's acknowledgement of each current version
--- and how many members acknowledged it. pending_only: the published policies
--- that need the caller's acknowledgement.
-create or replace function "app_private"."list_compliance_policies"(tenant uuid, include_archived boolean default false, pending_only boolean default false)
+-- and how many members acknowledged it. list_my_acknowledgements in the
+-- acknowledgements block lists the ones the caller still has to acknowledge.
+create or replace function "app_private"."list_compliance_policies"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -3113,58 +2807,19 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.read'), false)) or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.acknowledge'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.read'), false)) then
     raise exception 'not allowed to read policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "app_private"."policy_acknowledgements" ack where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "app_private"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
     from "app_private"."policies" x
     where x."tenant_id" = list_compliance_policies.tenant
       and (coalesce(list_compliance_policies.include_archived, false) or x."archived_at" is null)
-      and (not coalesce(list_compliance_policies.pending_only, false) or (
-        x."requires_acknowledgement" and x."current_version_id" is not null and x."archived_at" is null and (select ack."acknowledged_at" from "app_private"."policy_acknowledgements" ack where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()) is null
-      ))
   );
 end;
 $$;
-revoke execute on function "app_private"."list_compliance_policies"(uuid, boolean, boolean) from public, anon;
-grant execute on function "app_private"."list_compliance_policies"(uuid, boolean, boolean) to authenticated, service_role;
-
--- Every member and when they acknowledged the policy's current version
--- (null: not yet), for the policy's owner and compliance reviewers.
-create or replace function "app_private"."compliance_policy_acknowledgements"(policy_id uuid)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  v_row "app_private"."policies"%rowtype;
-begin
-  select * into v_row from "app_private"."policies" x where x."id" = compliance_policy_acknowledgements.policy_id;
-  if not found then
-    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)) then
-    raise exception 'not allowed to read policy acknowledgements' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
-  end if;
-  return jsonb_build_object(
-    'id', v_row."id",
-    'versionId', v_row."current_version_id",
-    'versionNumber', v_row."version_number",
-    'members', (
-      select coalesce(jsonb_agg(jsonb_build_object('userId', m."user_id", 'acknowledgedAt', ack."acknowledged_at")
-        order by ack."acknowledged_at" nulls first, m."user_id"), '[]'::jsonb)
-      from "better_supabase"."memberships" m
-      left join "app_private"."policy_acknowledgements" ack on ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = m."user_id"
-      where m."organization_id" = v_row."tenant_id"
-    )
-  );
-end;
-$$;
-revoke execute on function "app_private"."compliance_policy_acknowledgements"(uuid) from public, anon;
-grant execute on function "app_private"."compliance_policy_acknowledgements"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."list_compliance_policies"(uuid, boolean) from public, anon;
+grant execute on function "app_private"."list_compliance_policies"(uuid, boolean) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -3271,7 +2926,7 @@ create policy bsb_tenant_scope_select on "app_private"."policies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."policies";
 create policy bsb_tenant_scope_insert on "app_private"."policies" as restrictive
@@ -3284,27 +2939,6 @@ create policy bsb_tenant_scope_update on "app_private"."policies" as restrictive
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "app_private"."policies";
 create policy bsb_tenant_scope_delete on "app_private"."policies" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."policy_acknowledgements";
-drop policy if exists bsb_tenant_scope_select on "app_private"."policy_acknowledgements";
-create policy bsb_tenant_scope_select on "app_private"."policy_acknowledgements" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."policy_acknowledgements";
-create policy bsb_tenant_scope_insert on "app_private"."policy_acknowledgements" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."policy_acknowledgements";
-create policy bsb_tenant_scope_update on "app_private"."policy_acknowledgements" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()))
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."policy_acknowledgements";
-create policy bsb_tenant_scope_delete on "app_private"."policy_acknowledgements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -3324,7 +2958,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:a2e4b2323ab82894622f551ade6096a98698cb06059a01e883297d503f278090
+-- @bsb-hash sha256:9c44ced4c1d777800cd14ebf32d0ed3d61bd8a151f1db686028b7ab2d9b4a5b7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3332,17 +2966,20 @@ grant select on better_supabase.blocks to service_role;
 
 -- Subject types renamed in 0.47 (`codemod 0.47`).
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."versions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."versions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_assignments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgements"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgements" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('compliance', 1, 'managed')
+values ('compliance', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
--- @bsb-block compliance@1 managed
--- @bsb-hash sha256:07563a1e837381bce0ac1c6a839ff584b18dd3ffd3a6aea0544aa056ac7bf3e0
--- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
+-- @bsb-block compliance@2 managed
+-- @bsb-hash sha256:9ce75952fb15248f8139745d6d952cb6db0bb7328d1a61ed271062cd1641679b
+-- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3424,20 +3061,13 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
 end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Compliance controls: frameworks of controls, evidence linked to them,
--- recurring evidence tasks, and versioned policies members acknowledge.
+-- recurring evidence tasks, and versioned policies members acknowledge
+-- through the acknowledgements block.
 
 create table if not exists "better_supabase"."control_frameworks" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3574,29 +3204,7 @@ grant all on "better_supabase"."policies" to service_role;
 drop policy if exists policies_read on "better_supabase"."policies";
 create policy policies_read on "better_supabase"."policies"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')));
-
-create table if not exists "better_supabase"."policy_acknowledgements" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "policy_id" uuid not null,
-  "version_id" uuid not null references "better_supabase"."versions" ("id") on delete restrict,
-  "user_id" uuid not null,
-  "acknowledged_at" timestamptz not null default now(),
-  unique ("policy_id", "version_id", "user_id"),
-  foreign key ("tenant_id", "policy_id") references "better_supabase"."policies" ("tenant_id", "id") on delete cascade
-);
-create index if not exists "policy_acknowledgements_user_idx" on "better_supabase"."policy_acknowledgements" ("tenant_id", "user_id");
-create index if not exists "policy_acknowledgements_parent_idx" on "better_supabase"."policy_acknowledgements" ("tenant_id", "policy_id");
-create index if not exists "policy_acknowledgements_version_idx" on "better_supabase"."policy_acknowledgements" ("version_id");
-alter table "better_supabase"."policy_acknowledgements" enable row level security;
-revoke all on "better_supabase"."policy_acknowledgements" from public, anon, authenticated;
-grant select on "better_supabase"."policy_acknowledgements" to authenticated;
-grant all on "better_supabase"."policy_acknowledgements" to service_role;
-drop policy if exists policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
-create policy policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
-  for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 -- kind is standard, legal (a register of legal obligations), internal or
@@ -3682,9 +3290,7 @@ begin
   if save_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = save_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  v_new := false;
   if save_control.control_id is null then
-    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
     insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
     values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
@@ -3701,11 +3307,7 @@ begin
       raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
     end if;
   end if;
-  if v_new then
-    null;
-  else
-    null;
-  end if;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
@@ -4010,7 +3612,10 @@ revoke execute on function "better_supabase"."notify_overdue_evidence_tasks"() f
 grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to service_role;
 
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
--- versions publish_compliance_policy writes.
+-- versions publish_compliance_policy writes. A policy that requires
+-- acknowledgement is assigned once to every member holding the member role
+-- (acknowledgements block); turning the requirement off removes that
+-- assignment.
 create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
@@ -4020,6 +3625,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."policies"%rowtype;
+  v_required boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4032,6 +3638,9 @@ begin
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
+  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."policies" x
+    where x."tenant_id" = save_compliance_policy.tenant
+      and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
   if save_compliance_policy.policy_id is null then
     insert into "better_supabase"."policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
     values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
@@ -4048,14 +3657,20 @@ begin
       raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
     end if;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  if v_row."requires_acknowledgement" and v_row."archived_at" is null and v_required is distinct from true then
+    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);
+  elsif not v_row."requires_acknowledgement" and v_required then
+    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
 grant execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
 
 -- Publishes the policy text as a new frozen version (versions block) and
--- makes it current. Members acknowledge each published version again.
+-- makes it current. Members acknowledge each published version again, through
+-- acknowledge in the acknowledgements block.
 create or replace function "better_supabase"."publish_compliance_policy"(policy_id uuid, content jsonb, label text default null)
 returns jsonb
 language plpgsql
@@ -4091,12 +3706,14 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) to authenticated, service_role;
 
+-- Archives a policy and removes its member role assignment, so members stop
+-- seeing it as pending.
 create or replace function "better_supabase"."archive_compliance_policy"(policy_id uuid)
 returns jsonb
 language plpgsql
@@ -4119,54 +3736,17 @@ begin
   update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."archive_compliance_policy"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_compliance_policy"(uuid) to authenticated, service_role;
 
--- The caller acknowledges the policy's current version. A second call keeps
--- the first acknowledgement.
-create or replace function "better_supabase"."acknowledge_compliance_policy"(policy_id uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."policies"%rowtype;
-  v_me uuid := auth.uid();
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = acknowledge_compliance_policy.policy_id;
-  if not found then
-    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
-  end if;
-  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.acknowledge'), false) then
-    raise exception 'not allowed to acknowledge policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
-  end if;
-  if v_row."current_version_id" is null or v_row."archived_at" is not null then
-    raise exception 'the policy has no published version to acknowledge' using errcode = '55000', hint = 'COMPLIANCE_POLICY_NOT_PUBLISHED';
-  end if;
-  insert into "better_supabase"."policy_acknowledgements" ("tenant_id", "policy_id", "version_id", "user_id")
-  values (v_row."tenant_id", v_row."id", v_row."current_version_id", v_me)
-  on conflict ("policy_id", "version_id", "user_id") do nothing;
-  if found then
-    null;
-  end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
-end;
-$$;
-revoke execute on function "better_supabase"."acknowledge_compliance_policy"(uuid) from public, anon;
-grant execute on function "better_supabase"."acknowledge_compliance_policy"(uuid) to authenticated, service_role;
-
 -- The policies, with the caller's acknowledgement of each current version
--- and how many members acknowledged it. pending_only: the published policies
--- that need the caller's acknowledgement.
-create or replace function "better_supabase"."list_compliance_policies"(tenant uuid, include_archived boolean default false, pending_only boolean default false)
+-- and how many members acknowledged it. list_my_acknowledgements in the
+-- acknowledgements block lists the ones the caller still has to acknowledge.
+create or replace function "better_supabase"."list_compliance_policies"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -4174,58 +3754,19 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.read'), false)) or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.acknowledge'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.read'), false)) then
     raise exception 'not allowed to read policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
     from "better_supabase"."policies" x
     where x."tenant_id" = list_compliance_policies.tenant
       and (coalesce(list_compliance_policies.include_archived, false) or x."archived_at" is null)
-      and (not coalesce(list_compliance_policies.pending_only, false) or (
-        x."requires_acknowledgement" and x."current_version_id" is not null and x."archived_at" is null and (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()) is null
-      ))
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_compliance_policies"(uuid, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."list_compliance_policies"(uuid, boolean, boolean) to authenticated, service_role;
-
--- Every member and when they acknowledged the policy's current version
--- (null: not yet), for the policy's owner and compliance reviewers.
-create or replace function "better_supabase"."compliance_policy_acknowledgements"(policy_id uuid)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  v_row "better_supabase"."policies"%rowtype;
-begin
-  select * into v_row from "better_supabase"."policies" x where x."id" = compliance_policy_acknowledgements.policy_id;
-  if not found then
-    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)) then
-    raise exception 'not allowed to read policy acknowledgements' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
-  end if;
-  return jsonb_build_object(
-    'id', v_row."id",
-    'versionId', v_row."current_version_id",
-    'versionNumber', v_row."version_number",
-    'members', (
-      select coalesce(jsonb_agg(jsonb_build_object('userId', m."user_id", 'acknowledgedAt', ack."acknowledged_at")
-        order by ack."acknowledged_at" nulls first, m."user_id"), '[]'::jsonb)
-      from "better_supabase"."memberships" m
-      left join "better_supabase"."policy_acknowledgements" ack on ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = m."user_id"
-      where m."organization_id" = v_row."tenant_id"
-    )
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."compliance_policy_acknowledgements"(uuid) from public, anon;
-grant execute on function "better_supabase"."compliance_policy_acknowledgements"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -4332,7 +3873,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policies" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
 create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
@@ -4345,27 +3886,6 @@ create policy bsb_tenant_scope_update on "better_supabase"."policies" as restric
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
 create policy bsb_tenant_scope_delete on "better_supabase"."policies" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."policy_acknowledgements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()))
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -4522,32 +4042,14 @@ as $$ select "better_supabase"."archive_compliance_policy"($1) $$;
 revoke execute on function "api"."archive_compliance_policy"(uuid) from public, anon;
 grant execute on function "api"."archive_compliance_policy"(uuid) to authenticated, service_role;
 
-create or replace function "api"."acknowledge_compliance_policy"(policy_id uuid)
+create or replace function "api"."list_compliance_policies"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."acknowledge_compliance_policy"($1) $$;
-revoke execute on function "api"."acknowledge_compliance_policy"(uuid) from public, anon;
-grant execute on function "api"."acknowledge_compliance_policy"(uuid) to authenticated, service_role;
-
-create or replace function "api"."list_compliance_policies"(tenant uuid, include_archived boolean default false, pending_only boolean default false)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."list_compliance_policies"($1, $2, $3) $$;
-revoke execute on function "api"."list_compliance_policies"(uuid, boolean, boolean) from public, anon;
-grant execute on function "api"."list_compliance_policies"(uuid, boolean, boolean) to authenticated, service_role;
-
-create or replace function "api"."compliance_policy_acknowledgements"(policy_id uuid)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."compliance_policy_acknowledgements"($1) $$;
-revoke execute on function "api"."compliance_policy_acknowledgements"(uuid) from public, anon;
-grant execute on function "api"."compliance_policy_acknowledgements"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."list_compliance_policies"($1, $2) $$;
+revoke execute on function "api"."list_compliance_policies"(uuid, boolean) from public, anon;
+grant execute on function "api"."list_compliance_policies"(uuid, boolean) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4565,7 +4067,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:a2e4b2323ab82894622f551ade6096a98698cb06059a01e883297d503f278090
+-- @bsb-hash sha256:9c44ced4c1d777800cd14ebf32d0ed3d61bd8a151f1db686028b7ab2d9b4a5b7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4573,17 +4075,20 @@ grant select on better_supabase.blocks to service_role;
 
 -- Subject types renamed in 0.47 (`codemod 0.47`).
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."versions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."versions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_assignments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgements"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgements" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('compliance', 1, 'managed')
+values ('compliance', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
--- @bsb-block compliance@1 managed
--- @bsb-hash sha256:0becf8cc6611014d038b25daf5f14c696742094597a4f8db837bbc7b549f32a3
--- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
+-- @bsb-block compliance@2 managed
+-- @bsb-hash sha256:3243450fa9124db3921a9421f2fb269b8852db1245493d0d6be1b5c6c3dcbbff
+-- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -4665,20 +4170,13 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
 end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Compliance controls: frameworks of controls, evidence linked to them,
--- recurring evidence tasks, and versioned policies members acknowledge.
+-- recurring evidence tasks, and versioned policies members acknowledge
+-- through the acknowledgements block.
 
 -- better_supabase.control_frameworks is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."control_frameworks" add column if not exists "id" uuid default gen_random_uuid();
@@ -4795,26 +4293,7 @@ grant all on "better_supabase"."policies" to service_role;
 drop policy if exists bsb_policies_read on "better_supabase"."policies";
 create policy bsb_policies_read on "better_supabase"."policies"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')));
-
--- better_supabase.policy_acknowledgements is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."policy_acknowledgements" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."policy_acknowledgements" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."policy_acknowledgements" add column if not exists "policy_id" uuid;
-alter table "better_supabase"."policy_acknowledgements" add column if not exists "version_id" uuid references "better_supabase"."versions" ("id") on delete restrict;
-alter table "better_supabase"."policy_acknowledgements" add column if not exists "user_id" uuid;
-alter table "better_supabase"."policy_acknowledgements" add column if not exists "acknowledged_at" timestamptz not null default now();
-create unique index if not exists "bsb_policy_acknowledgements_policy_version_user_key" on "better_supabase"."policy_acknowledgements" ("policy_id", "version_id", "user_id");
-create index if not exists "policy_acknowledgements_user_idx" on "better_supabase"."policy_acknowledgements" ("tenant_id", "user_id");
-create index if not exists "policy_acknowledgements_parent_idx" on "better_supabase"."policy_acknowledgements" ("tenant_id", "policy_id");
-create index if not exists "policy_acknowledgements_version_idx" on "better_supabase"."policy_acknowledgements" ("version_id");
-alter table "better_supabase"."policy_acknowledgements" enable row level security;
-grant select on "better_supabase"."policy_acknowledgements" to authenticated;
-grant all on "better_supabase"."policy_acknowledgements" to service_role;
-drop policy if exists bsb_policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
-create policy bsb_policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
-  for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 -- kind is standard, legal (a register of legal obligations), internal or
@@ -4900,9 +4379,7 @@ begin
   if save_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = save_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  v_new := false;
   if save_control.control_id is null then
-    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
     insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
     values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
@@ -4919,11 +4396,7 @@ begin
       raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
     end if;
   end if;
-  if v_new then
-    null;
-  else
-    null;
-  end if;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
@@ -5228,7 +4701,10 @@ revoke execute on function "better_supabase"."notify_overdue_evidence_tasks"() f
 grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to service_role;
 
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
--- versions publish_compliance_policy writes.
+-- versions publish_compliance_policy writes. A policy that requires
+-- acknowledgement is assigned once to every member holding the member role
+-- (acknowledgements block); turning the requirement off removes that
+-- assignment.
 create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
@@ -5238,6 +4714,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."policies"%rowtype;
+  v_required boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5250,6 +4727,9 @@ begin
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
+  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."policies" x
+    where x."tenant_id" = save_compliance_policy.tenant
+      and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
   if save_compliance_policy.policy_id is null then
     insert into "better_supabase"."policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
     values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
@@ -5266,14 +4746,20 @@ begin
       raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
     end if;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  if v_row."requires_acknowledgement" and v_row."archived_at" is null and v_required is distinct from true then
+    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);
+  elsif not v_row."requires_acknowledgement" and v_required then
+    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
 grant execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
 
 -- Publishes the policy text as a new frozen version (versions block) and
--- makes it current. Members acknowledge each published version again.
+-- makes it current. Members acknowledge each published version again, through
+-- acknowledge in the acknowledgements block.
 create or replace function "better_supabase"."publish_compliance_policy"(policy_id uuid, content jsonb, label text default null)
 returns jsonb
 language plpgsql
@@ -5309,12 +4795,14 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) to authenticated, service_role;
 
+-- Archives a policy and removes its member role assignment, so members stop
+-- seeing it as pending.
 create or replace function "better_supabase"."archive_compliance_policy"(policy_id uuid)
 returns jsonb
 language plpgsql
@@ -5337,54 +4825,17 @@ begin
   update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."archive_compliance_policy"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_compliance_policy"(uuid) to authenticated, service_role;
 
--- The caller acknowledges the policy's current version. A second call keeps
--- the first acknowledgement.
-create or replace function "better_supabase"."acknowledge_compliance_policy"(policy_id uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."policies"%rowtype;
-  v_me uuid := auth.uid();
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = acknowledge_compliance_policy.policy_id;
-  if not found then
-    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
-  end if;
-  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.acknowledge'), false) then
-    raise exception 'not allowed to acknowledge policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
-  end if;
-  if v_row."current_version_id" is null or v_row."archived_at" is not null then
-    raise exception 'the policy has no published version to acknowledge' using errcode = '55000', hint = 'COMPLIANCE_POLICY_NOT_PUBLISHED';
-  end if;
-  insert into "better_supabase"."policy_acknowledgements" ("tenant_id", "policy_id", "version_id", "user_id")
-  values (v_row."tenant_id", v_row."id", v_row."current_version_id", v_me)
-  on conflict ("policy_id", "version_id", "user_id") do nothing;
-  if found then
-    null;
-  end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
-end;
-$$;
-revoke execute on function "better_supabase"."acknowledge_compliance_policy"(uuid) from public, anon;
-grant execute on function "better_supabase"."acknowledge_compliance_policy"(uuid) to authenticated, service_role;
-
 -- The policies, with the caller's acknowledgement of each current version
--- and how many members acknowledged it. pending_only: the published policies
--- that need the caller's acknowledgement.
-create or replace function "better_supabase"."list_compliance_policies"(tenant uuid, include_archived boolean default false, pending_only boolean default false)
+-- and how many members acknowledged it. list_my_acknowledgements in the
+-- acknowledgements block lists the ones the caller still has to acknowledge.
+create or replace function "better_supabase"."list_compliance_policies"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -5392,58 +4843,19 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.read'), false)) or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.acknowledge'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.read'), false)) then
     raise exception 'not allowed to read policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
     from "better_supabase"."policies" x
     where x."tenant_id" = list_compliance_policies.tenant
       and (coalesce(list_compliance_policies.include_archived, false) or x."archived_at" is null)
-      and (not coalesce(list_compliance_policies.pending_only, false) or (
-        x."requires_acknowledgement" and x."current_version_id" is not null and x."archived_at" is null and (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()) is null
-      ))
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_compliance_policies"(uuid, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."list_compliance_policies"(uuid, boolean, boolean) to authenticated, service_role;
-
--- Every member and when they acknowledged the policy's current version
--- (null: not yet), for the policy's owner and compliance reviewers.
-create or replace function "better_supabase"."compliance_policy_acknowledgements"(policy_id uuid)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  v_row "better_supabase"."policies"%rowtype;
-begin
-  select * into v_row from "better_supabase"."policies" x where x."id" = compliance_policy_acknowledgements.policy_id;
-  if not found then
-    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)) then
-    raise exception 'not allowed to read policy acknowledgements' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
-  end if;
-  return jsonb_build_object(
-    'id', v_row."id",
-    'versionId', v_row."current_version_id",
-    'versionNumber', v_row."version_number",
-    'members', (
-      select coalesce(jsonb_agg(jsonb_build_object('userId', m."user_id", 'acknowledgedAt', ack."acknowledged_at")
-        order by ack."acknowledged_at" nulls first, m."user_id"), '[]'::jsonb)
-      from "better_supabase"."memberships" m
-      left join "better_supabase"."policy_acknowledgements" ack on ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = m."user_id"
-      where m."organization_id" = v_row."tenant_id"
-    )
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."compliance_policy_acknowledgements"(uuid) from public, anon;
-grant execute on function "better_supabase"."compliance_policy_acknowledgements"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -5550,7 +4962,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policies" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
 create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
@@ -5563,27 +4975,6 @@ create policy bsb_tenant_scope_update on "better_supabase"."policies" as restric
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
 create policy bsb_tenant_scope_delete on "better_supabase"."policies" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."policy_acknowledgements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()))
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -5603,7 +4994,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:a2e4b2323ab82894622f551ade6096a98698cb06059a01e883297d503f278090
+-- @bsb-hash sha256:9c44ced4c1d777800cd14ebf32d0ed3d61bd8a151f1db686028b7ab2d9b4a5b7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5611,17 +5002,20 @@ grant select on better_supabase.blocks to service_role;
 
 -- Subject types renamed in 0.47 (`codemod 0.47`).
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."versions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."versions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_assignments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgements"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgements" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('compliance', 1, 'managed')
+values ('compliance', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
--- @bsb-block compliance@1 managed
--- @bsb-hash sha256:2d22d86213f2664c8ec736212eeae7c45e71c319a11b9e1fa90b2665b7c79e87
--- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
+-- @bsb-block compliance@2 managed
+-- @bsb-hash sha256:9eb8fe1ed9355bdbe1cfc9afeb2b9a2f2ff3d878aa4ed424487994bf5f85aa9b
+-- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -5703,20 +5097,13 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
 end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Compliance controls: frameworks of controls, evidence linked to them,
--- recurring evidence tasks, and versioned policies members acknowledge.
+-- recurring evidence tasks, and versioned policies members acknowledge
+-- through the acknowledgements block.
 
 create table if not exists "better_supabase"."control_frameworks" (
   "id" uuid primary key default gen_random_uuid(),
@@ -5853,29 +5240,7 @@ grant all on "better_supabase"."policies" to service_role;
 drop policy if exists policies_read on "better_supabase"."policies";
 create policy policies_read on "better_supabase"."policies"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "org_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')));
-
-create table if not exists "better_supabase"."policy_acknowledgements" (
-  "id" uuid primary key default gen_random_uuid(),
-  "org_id" uuid not null,
-  "policy_id" uuid not null,
-  "version_id" uuid not null references "better_supabase"."versions" ("id") on delete restrict,
-  "user_id" uuid not null,
-  "acknowledged_at" timestamptz not null default now(),
-  unique ("policy_id", "version_id", "user_id"),
-  foreign key ("org_id", "policy_id") references "better_supabase"."policies" ("org_id", "id") on delete cascade
-);
-create index if not exists "policy_acknowledgements_user_idx" on "better_supabase"."policy_acknowledgements" ("org_id", "user_id");
-create index if not exists "policy_acknowledgements_parent_idx" on "better_supabase"."policy_acknowledgements" ("org_id", "policy_id");
-create index if not exists "policy_acknowledgements_version_idx" on "better_supabase"."policy_acknowledgements" ("version_id");
-alter table "better_supabase"."policy_acknowledgements" enable row level security;
-revoke all on "better_supabase"."policy_acknowledgements" from public, anon, authenticated;
-grant select on "better_supabase"."policy_acknowledgements" to authenticated;
-grant all on "better_supabase"."policy_acknowledgements" to service_role;
-drop policy if exists policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
-create policy policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
-  for select to authenticated
-  using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('compliance.read')));
+  using ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 -- kind is standard, legal (a register of legal obligations), internal or
@@ -5961,9 +5326,7 @@ begin
   if save_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."org_id" = v_framework."org_id" and m."user_id" = save_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  v_new := false;
   if save_control.control_id is null then
-    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
     insert into "better_supabase"."controls" ("org_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
     values (v_framework."org_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
@@ -5980,11 +5343,7 @@ begin
       raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
     end if;
   end if;
-  if v_new then
-    null;
-  else
-    null;
-  end if;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
@@ -6289,7 +5648,10 @@ revoke execute on function "better_supabase"."notify_overdue_evidence_tasks"() f
 grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to service_role;
 
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
--- versions publish_compliance_policy writes.
+-- versions publish_compliance_policy writes. A policy that requires
+-- acknowledgement is assigned once to every member holding the member role
+-- (acknowledgements block); turning the requirement off removes that
+-- assignment.
 create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
@@ -6299,6 +5661,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."policies"%rowtype;
+  v_required boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -6311,6 +5674,9 @@ begin
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
+  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."policies" x
+    where x."org_id" = save_compliance_policy.tenant
+      and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
   if save_compliance_policy.policy_id is null then
     insert into "better_supabase"."policies" ("org_id", "key", "title", "owner_id", "requires_acknowledgement")
     values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
@@ -6327,14 +5693,20 @@ begin
       raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
     end if;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."org_id" = ack."org_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."org_id" = v_row."org_id"));
+  if v_row."requires_acknowledgement" and v_row."archived_at" is null and v_required is distinct from true then
+    perform "better_supabase"."place_acknowledgement_assignment"(v_row."org_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);
+  elsif not v_row."requires_acknowledgement" and v_required then
+    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."org_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."org_id" = ack."org_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."org_id" = v_row."org_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
 grant execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
 
 -- Publishes the policy text as a new frozen version (versions block) and
--- makes it current. Members acknowledge each published version again.
+-- makes it current. Members acknowledge each published version again, through
+-- acknowledge in the acknowledgements block.
 create or replace function "better_supabase"."publish_compliance_policy"(policy_id uuid, content jsonb, label text default null)
 returns jsonb
 language plpgsql
@@ -6370,12 +5742,14 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."org_id" = ack."org_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."org_id" = v_row."org_id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."org_id" = ack."org_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."org_id" = v_row."org_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) to authenticated, service_role;
 
+-- Archives a policy and removes its member role assignment, so members stop
+-- seeing it as pending.
 create or replace function "better_supabase"."archive_compliance_policy"(policy_id uuid)
 returns jsonb
 language plpgsql
@@ -6398,54 +5772,17 @@ begin
   update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."org_id" = ack."org_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."org_id" = v_row."org_id"));
+  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."org_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."org_id" = ack."org_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."org_id" = v_row."org_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."archive_compliance_policy"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_compliance_policy"(uuid) to authenticated, service_role;
 
--- The caller acknowledges the policy's current version. A second call keeps
--- the first acknowledgement.
-create or replace function "better_supabase"."acknowledge_compliance_policy"(policy_id uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."policies"%rowtype;
-  v_me uuid := auth.uid();
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = acknowledge_compliance_policy.policy_id;
-  if not found then
-    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
-  end if;
-  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."org_id", 'compliance.acknowledge'), false) then
-    raise exception 'not allowed to acknowledge policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
-  end if;
-  if v_row."current_version_id" is null or v_row."archived_at" is not null then
-    raise exception 'the policy has no published version to acknowledge' using errcode = '55000', hint = 'COMPLIANCE_POLICY_NOT_PUBLISHED';
-  end if;
-  insert into "better_supabase"."policy_acknowledgements" ("org_id", "policy_id", "version_id", "user_id")
-  values (v_row."org_id", v_row."id", v_row."current_version_id", v_me)
-  on conflict ("policy_id", "version_id", "user_id") do nothing;
-  if found then
-    null;
-  end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."org_id" = ack."org_id" and am."user_id" = ack."user_id" where ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."org_id" = v_row."org_id"));
-end;
-$$;
-revoke execute on function "better_supabase"."acknowledge_compliance_policy"(uuid) from public, anon;
-grant execute on function "better_supabase"."acknowledge_compliance_policy"(uuid) to authenticated, service_role;
-
 -- The policies, with the caller's acknowledgement of each current version
--- and how many members acknowledged it. pending_only: the published policies
--- that need the caller's acknowledgement.
-create or replace function "better_supabase"."list_compliance_policies"(tenant uuid, include_archived boolean default false, pending_only boolean default false)
+-- and how many members acknowledged it. list_my_acknowledgements in the
+-- acknowledgements block lists the ones the caller still has to acknowledge.
+create or replace function "better_supabase"."list_compliance_policies"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -6453,58 +5790,19 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.read'), false)) or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.acknowledge'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_compliance_policies.tenant, 'compliance.read'), false)) then
     raise exception 'not allowed to read policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."policy_acknowledgements" ack join "better_supabase"."memberships" am on am."org_id" = ack."org_id" and am."user_id" = ack."user_id" where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."org_id" = x."org_id")) order by x."title"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."org_id" = ack."org_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."org_id" = x."org_id")) order by x."title"), '[]'::jsonb)
     from "better_supabase"."policies" x
     where x."org_id" = list_compliance_policies.tenant
       and (coalesce(list_compliance_policies.include_archived, false) or x."archived_at" is null)
-      and (not coalesce(list_compliance_policies.pending_only, false) or (
-        x."requires_acknowledgement" and x."current_version_id" is not null and x."archived_at" is null and (select ack."acknowledged_at" from "better_supabase"."policy_acknowledgements" ack where ack."policy_id" = x."id" and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()) is null
-      ))
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_compliance_policies"(uuid, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."list_compliance_policies"(uuid, boolean, boolean) to authenticated, service_role;
-
--- Every member and when they acknowledged the policy's current version
--- (null: not yet), for the policy's owner and compliance reviewers.
-create or replace function "better_supabase"."compliance_policy_acknowledgements"(policy_id uuid)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  v_row "better_supabase"."policies"%rowtype;
-begin
-  select * into v_row from "better_supabase"."policies" x where x."id" = compliance_policy_acknowledgements.policy_id;
-  if not found then
-    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'compliance.read'), false)) then
-    raise exception 'not allowed to read policy acknowledgements' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
-  end if;
-  return jsonb_build_object(
-    'id', v_row."id",
-    'versionId', v_row."current_version_id",
-    'versionNumber', v_row."version_number",
-    'members', (
-      select coalesce(jsonb_agg(jsonb_build_object('userId', m."user_id", 'acknowledgedAt', ack."acknowledged_at")
-        order by ack."acknowledged_at" nulls first, m."user_id"), '[]'::jsonb)
-      from "better_supabase"."memberships" m
-      left join "better_supabase"."policy_acknowledgements" ack on ack."policy_id" = v_row."id" and ack."version_id" = v_row."current_version_id" and ack."user_id" = m."user_id"
-      where m."org_id" = v_row."org_id"
-    )
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."compliance_policy_acknowledgements"(uuid) from public, anon;
-grant execute on function "better_supabase"."compliance_policy_acknowledgements"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -6611,7 +5909,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policies" as restric
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "org_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')))
+    or ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
 create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
@@ -6624,27 +5922,6 @@ create policy bsb_tenant_scope_update on "better_supabase"."policies" as restric
   with check ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
 create policy bsb_tenant_scope_delete on "better_supabase"."policies" as restrictive
-  for delete to public
-  using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."policy_acknowledgements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_select on "better_supabase"."policy_acknowledgements" as restrictive
-  for select to public
-  using (
-    "org_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('compliance.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements" as restrictive
-  for insert to public
-  with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_update on "better_supabase"."policy_acknowledgements" as restrictive
-  for update to public
-  using ("org_id" in (select better_supabase.member_organization_ids()))
-  with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements";
-create policy bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgements" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
@@ -6664,7 +5941,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:a2e4b2323ab82894622f551ade6096a98698cb06059a01e883297d503f278090
+-- @bsb-hash sha256:9c44ced4c1d777800cd14ebf32d0ed3d61bd8a151f1db686028b7ab2d9b4a5b7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -6672,8 +5949,11 @@ grant select on better_supabase.blocks to service_role;
 
 -- Subject types renamed in 0.47 (`codemod 0.47`).
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."versions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."versions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_assignments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgements"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgements" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('compliance', 1, 'managed')
+values ('compliance', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

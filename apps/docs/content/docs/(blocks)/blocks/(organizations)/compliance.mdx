@@ -17,7 +17,8 @@ better-supabase add compliance
 import { createCompliance } from "better-supabase/blocks/compliance";
 ```
 
-The module requires `tenant`, `permissions` and `versions`. With
+The module requires `tenant`, `permissions`, `versions` and
+[acknowledgements](/docs/blocks/acknowledgements). With
 [attachments](/docs/blocks/attachments) a piece of evidence can be a file,
 with [notifications](/docs/blocks/notifications) a missed task notifies its
 assignee, with `outbox` it records the events, and with `audit` every change
@@ -25,14 +26,16 @@ is audited.
 
 ## Tables
 
-| Table                     | Holds                                                                                              |
-| ------------------------- | -------------------------------------------------------------------------------------------------- |
-| `control_frameworks`      | A framework per organization by `key`, with a name and version                                     |
-| `controls`                | A control in a framework by `code`, with a title, an owner and whether it applies                  |
-| `control_evidence`        | Evidence for a control: an attachment, a note or both, who collected it and until when it is valid |
-| `evidence_tasks`          | Recurring evidence: a title, an interval in days, the next due date and an assignee                |
-| `policies`                | A policy by `key` with an owner and its current published version                                  |
-| `policy_acknowledgements` | Which member acknowledged which version of a policy, and when                                      |
+| Table                | Holds                                                                                              |
+| -------------------- | -------------------------------------------------------------------------------------------------- |
+| `control_frameworks` | A framework per organization by `key`, with a name and version                                     |
+| `controls`           | A control in a framework by `code`, with a title, an owner and whether it applies                  |
+| `control_evidence`   | Evidence for a control: an attachment, a note or both, who collected it and until when it is valid |
+| `evidence_tasks`     | Recurring evidence: a title, an interval in days, the next due date and an assignee                |
+| `policies`           | A policy by `key` with an owner and its current published version                                  |
+
+Who acknowledged which version of a policy lives in the acknowledgements
+block's `acknowledgements` table.
 
 Members with `compliance.read` read every table.
 
@@ -175,56 +178,78 @@ const policy = await controls
 await controls
   .publishPolicy(policy.id, { body: markdown }, "2026 edition")
   .orThrow();
-await controls.acknowledgePolicy(policy.id).orThrow();
 ```
 
 `publishPolicy` stores the content as a frozen [version](/docs/blocks/versions)
-and makes it current. Members acknowledge the current version with
-`compliance.acknowledge`; publishing again asks everyone to acknowledge the new
-version. `policies(organizationId, { pendingOnly: true })` lists the policies
-waiting for the caller, and `acknowledgements(policyId)` lists every member
-with the time they acknowledged the current version. An archived policy can't
-be published or acknowledged.
+and makes it current. `policies(organizationId)` lists the policies with how
+many members acknowledged the current version. An archived policy can't be
+published.
 
-| Method                                 | Returns                                      |
-| -------------------------------------- | -------------------------------------------- |
-| `saveFramework(organizationId, input)` | the framework                                |
-| `frameworks(organizationId)`           | the frameworks                               |
-| `saveControl(input)`                   | the control                                  |
-| `getControl(controlId)`                | the control with its evidence and tasks      |
-| `controls(organizationId, options)`    | the controls by framework and code           |
-| `addEvidence(controlId, input)`        | the evidence                                 |
-| `removeEvidence(evidenceId)`           | the removed evidence                         |
-| `saveEvidenceTask(controlId, input)`   | the task                                     |
-| `evidenceTasks(organizationId, opts)`  | the tasks, the earliest due first            |
-| `posture(organizationId, frameworkId)` | one rollup per framework                     |
-| `notifyOverdue()`                      | how many lapsed tasks it reported            |
-| `savePolicy(organizationId, input)`    | the policy                                   |
-| `publishPolicy(policyId, content)`     | the policy with its new version              |
-| `archivePolicy(policyId)`              | the archived policy                          |
-| `acknowledgePolicy(policyId)`          | the policy with the caller's acknowledgement |
-| `policies(organizationId, options)`    | the policies with acknowledgement counts     |
-| `acknowledgements(policyId)`           | every member and when they acknowledged      |
+### Acknowledgements
+
+Members acknowledge policies through the
+[acknowledgements block](/docs/blocks/acknowledgements). Saving a policy that
+requires acknowledgement assigns it once to the `member` role, so every member
+with that role is asked to acknowledge each published version; turning
+`requiresAcknowledgement` off or archiving the policy removes that assignment.
+Assign other roles, teams or users, with a due date, through
+`db.acknowledgements.assign`.
+
+```ts
+const record = { type: "compliance_policy", id: policy.id };
+
+const pending = await db.acknowledgements.mine(organizationId).orThrow();
+await db.acknowledgements.acknowledge(record).orThrow();
+const status = await db.acknowledgements.status(record).orThrow();
+```
+
+Acknowledging needs `acknowledgements.acknowledge`, which members have. The
+policy's current version is the one members acknowledge. `acknowledgePolicy`,
+`acknowledgements(policyId)` and `policies(organizationId, { pendingOnly })`
+still work in 0.47 and call the acknowledgements functions; they go in 0.48.
+
+| Method                                 | Returns                                  |
+| -------------------------------------- | ---------------------------------------- |
+| `saveFramework(organizationId, input)` | the framework                            |
+| `frameworks(organizationId)`           | the frameworks                           |
+| `saveControl(input)`                   | the control                              |
+| `getControl(controlId)`                | the control with its evidence and tasks  |
+| `controls(organizationId, options)`    | the controls by framework and code       |
+| `addEvidence(controlId, input)`        | the evidence                             |
+| `removeEvidence(evidenceId)`           | the removed evidence                     |
+| `saveEvidenceTask(controlId, input)`   | the task                                 |
+| `evidenceTasks(organizationId, opts)`  | the tasks, the earliest due first        |
+| `posture(organizationId, frameworkId)` | one rollup per framework                 |
+| `notifyOverdue()`                      | how many lapsed tasks it reported        |
+| `savePolicy(organizationId, input)`    | the policy                               |
+| `publishPolicy(policyId, content)`     | the policy with its new version          |
+| `archivePolicy(policyId)`              | the archived policy                      |
+| `policies(organizationId, options)`    | the policies with acknowledgement counts |
 
 ## Errors
 
-| Hint                              | Cause                                                                       |
-| --------------------------------- | --------------------------------------------------------------------------- |
-| `CONTROL_FORBIDDEN`               | the caller lacks `compliance.read`, `.manage`, `.collect` or `.acknowledge` |
-| `CONTROL_INVALID`                 | a field is invalid, or the attachment or a member isn't in the organization |
-| `CONTROL_FRAMEWORK_NOT_FOUND`     | no framework with this id                                                   |
-| `CONTROL_NOT_FOUND`               | no control with this id                                                     |
-| `CONTROL_EVIDENCE_NOT_FOUND`      | no evidence with this id                                                    |
-| `EVIDENCE_TASK_NOT_FOUND`         | the evidence task isn't a task of this control                              |
-| `COMPLIANCE_POLICY_NOT_FOUND`     | no policy with this id                                                      |
-| `COMPLIANCE_POLICY_INVALID`       | the content isn't an object, or the owner isn't a member                    |
-| `COMPLIANCE_POLICY_ARCHIVED`      | the policy is archived and can't be published                               |
-| `COMPLIANCE_POLICY_NOT_PUBLISHED` | the policy has no current version to acknowledge, or it is archived         |
+| Hint                          | Cause                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| `CONTROL_FORBIDDEN`           | the caller lacks `compliance.read`, `.manage` or `.collect`                 |
+| `CONTROL_INVALID`             | a field is invalid, or the attachment or a member isn't in the organization |
+| `CONTROL_FRAMEWORK_NOT_FOUND` | no framework with this id                                                   |
+| `CONTROL_NOT_FOUND`           | no control with this id                                                     |
+| `CONTROL_EVIDENCE_NOT_FOUND`  | no evidence with this id                                                    |
+| `EVIDENCE_TASK_NOT_FOUND`     | the evidence task isn't a task of this control                              |
+| `COMPLIANCE_POLICY_NOT_FOUND` | no policy with this id                                                      |
+| `COMPLIANCE_POLICY_INVALID`   | the content isn't an object, or the owner isn't a member                    |
+| `COMPLIANCE_POLICY_ARCHIVED`  | the policy is archived and can't be published                               |
+
+Acknowledging a policy fails with the
+[acknowledgements hints](/docs/blocks/acknowledgements#errors):
+`ACKNOWLEDGEMENT_NO_VERSION` before the first publish and
+`ACKNOWLEDGEMENT_NOT_ASSIGNED` once it is archived.
 
 ## Events
 
-`control.created`, `control.updated`, `control.evidence_added`, `evidence_task.missed`,
-`compliance_policy.published` and `compliance_policy.acknowledged`. The
+`control.created`, `control.updated`, `control.evidence_added`, `evidence_task.missed`
+and `compliance_policy.published`. An acknowledgement emits the acknowledgements
+block's `acknowledgement.created`. The
 [events page](/docs/extending/events) lists their payloads.
 
 ## Without the client
