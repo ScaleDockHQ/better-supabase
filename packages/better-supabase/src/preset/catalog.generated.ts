@@ -14591,6 +14591,100 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Risk",
+          "fields": true
+        },
+        {
+          "name": "RiskAssessedEventData"
+        },
+        {
+          "name": "RiskAssessment"
+        },
+        {
+          "name": "RiskAssessmentInput"
+        },
+        {
+          "name": "RiskChange",
+          "fields": true
+        },
+        {
+          "name": "RiskClosedEventData"
+        },
+        {
+          "name": "RiskDetail",
+          "fields": true
+        },
+        {
+          "name": "RiskEventData"
+        },
+        {
+          "name": "RiskHeatmap"
+        },
+        {
+          "name": "RiskHeatmapCell"
+        },
+        {
+          "name": "RiskInput",
+          "fields": true
+        },
+        {
+          "name": "RiskLink"
+        },
+        {
+          "name": "RiskListOptions"
+        },
+        {
+          "name": "RiskMatrix"
+        },
+        {
+          "name": "RiskMatrixBand"
+        },
+        {
+          "name": "RiskMatrixEventData"
+        },
+        {
+          "name": "RiskMatrixInput"
+        },
+        {
+          "name": "RiskMatrixLevel"
+        },
+        {
+          "name": "RiskRating"
+        },
+        {
+          "name": "RiskReviewDateReachedEventData"
+        },
+        {
+          "name": "RiskReviewedEventData"
+        },
+        {
+          "name": "Risks",
+          "fields": true
+        },
+        {
+          "name": "RiskScoring"
+        },
+        {
+          "name": "RisksEvents"
+        },
+        {
+          "name": "RisksOptions"
+        },
+        {
+          "name": "RisksSqlOptions"
+        },
+        {
+          "name": "RiskStatus"
+        },
+        {
+          "name": "RiskTreatment"
+        },
+        {
+          "name": "RiskTreatmentChangedEventData"
+        }
+      ],
       "entitySchemas": {
         "risk": {
           "input": {
@@ -14859,6 +14953,20 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         }
+      },
+      "events": {
+        "type": "RisksEvents",
+        "types": [
+          "risk_matrix.created",
+          "risk_matrix.updated",
+          "risk.created",
+          "risk.updated",
+          "risk.assessed",
+          "risk.treatment_changed",
+          "risk.reviewed",
+          "risk.closed",
+          "risk.review_date_reached"
+        ]
       },
       "schedules": [
         {
