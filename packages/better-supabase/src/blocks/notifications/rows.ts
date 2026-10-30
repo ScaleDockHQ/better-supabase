@@ -1,5 +1,6 @@
 import type {
   ListOptions,
+  NotificationSubscription,
   PageOptions,
   SubscriptionLevel,
 } from "./api-types.ts";
@@ -116,8 +117,30 @@ export function filtersOf(filters: PageOptions): Record<string, unknown> {
   };
 }
 
-export const LEVELS: readonly SubscriptionLevel[] = [
-  "participating",
-  "all",
-  "ignore",
-];
+const LEVELS: readonly SubscriptionLevel[] = ["participating", "all", "ignore"];
+
+/**
+ * Parses one row of `list_notification_subscriptions` the way the block client
+ * does. Use it for a page payload RPC that returns the same rows. Returns
+ * `undefined` for a value that is not an object or has an unknown level.
+ */
+export function subscriptionOf(
+  value: unknown,
+): NotificationSubscription | undefined {
+  const row = objectOrNull(value);
+  const level = LEVELS.find((entry) => entry === row?.["level"]);
+
+  if (row === null || level === undefined) {
+    return undefined;
+  }
+
+  return {
+    subject: {
+      type: String(row["subject_type"]),
+      id: String(row["subject_id"]),
+    },
+    level,
+    tenant: nullableText(row["tenant"]),
+    createdAt: nullableInstant(row["created_at"]),
+  };
+}

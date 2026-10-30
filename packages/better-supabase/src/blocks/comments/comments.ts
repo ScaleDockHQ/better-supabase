@@ -130,6 +130,11 @@ export interface ListCommentsOptions extends CursorPageOptions<Temporal.Instant>
   readonly limit?: number;
   /** Comments to skip, for page-number paging. */
   readonly offset?: number;
+  /**
+   * Default `true`: deleted comments stay in the list as placeholders, so
+   * replies keep their parent. `false` leaves them out, as `counts` does.
+   */
+  readonly includeDeleted?: boolean;
 }
 
 /**
@@ -385,6 +390,9 @@ export function createComments<
             max_rows: list.limit,
             skip: list.offset,
             after_id: list.cursorId,
+            ...(list.includeDeleted === undefined
+              ? {}
+              : { include_deleted: list.includeDeleted }),
           },
           (value) => recordsOf(value, "list_comments").map(commentOf),
         ).andThen(fields.rows),

@@ -2034,7 +2034,7 @@ export interface BlockNameRegistry {
       readonly "secrets": "id" | "endpoint" | "tenant" | "secret" | "vaultId" | "expiresAt" | "createdAt";
       readonly "deliveries": "id" | "tenant" | "endpoint" | "event" | "run" | "type" | "subject" | "payload" | "status" | "attempt" | "availableAt" | "leasedUntil" | "responseStatus" | "responseBody" | "durationMs" | "lastError" | "processedAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "claim_webhook_deliveries" | "complete_webhook_delivery" | "dispatch_webhook" | "drop_webhook_vault_secret" | "publish_webhook_event" | "publish_webhook_events" | "purge_webhook_deliveries" | "redeliver_webhook" | "reset_webhook_endpoint" | "rotate_webhook_secret" | "webhook_secrets";
+    readonly functions: "claim_webhook_deliveries" | "complete_webhook_delivery" | "create_webhook_endpoint" | "delete_webhook_endpoint" | "dispatch_webhook" | "drop_webhook_vault_secret" | "list_webhook_endpoints" | "publish_webhook_event" | "publish_webhook_events" | "purge_webhook_deliveries" | "redeliver_webhook" | "reset_webhook_endpoint" | "rotate_webhook_secret" | "update_webhook_endpoint" | "webhook_secrets";
     readonly actions: "manage" | "view";
     readonly hooks: "after_webhook_delivery";
     readonly entities: {

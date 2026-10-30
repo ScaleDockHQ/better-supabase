@@ -21,7 +21,7 @@ import {
   UrlCheckError,
   WebhookPolicyError,
 } from "../../../src/blocks/webhooks/index.ts";
-import { dbError } from "../../../src/core/errors.ts";
+import { DbException, dbError } from "../../../src/core/errors.ts";
 import { EventHub } from "../../../src/core/events.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 import { testWebhookSecretStore } from "../../../src/testing/index.ts";
@@ -1464,5 +1464,95 @@ describe("createWebhooks: encoders and credentials", () => {
       body: "del-1",
       headers: { "content-type": "text/plain" },
     });
+  });
+});
+
+describe("endpoint management", () => {
+  const endpoint = {
+    id: "ep-1",
+    tenant: "org-1",
+    name: "CRM",
+    url: "https://crm.test/hooks",
+    enabled: true,
+    eventTypes: ["deal.won"],
+    permissions: null,
+    batch: false,
+    signing: "v1",
+    format: null,
+    credentialRef: null,
+    failingSince: null,
+    disabledAt: null,
+    disabledReason: null,
+    createdBy: "u1",
+    createdAt: "2026-10-29T12:00:00Z",
+    updatedAt: null,
+  };
+
+  it("sends only the fields the input sets and parses the endpoint", async () => {
+    const block = fakeBlock([], {
+      create_webhook_endpoint: () => endpoint,
+      update_webhook_endpoint: () => ({ ...endpoint, enabled: false }),
+      list_webhook_endpoints: () => [endpoint],
+      delete_webhook_endpoint: () => true,
+    });
+
+    const webhooks = createWebhooks({ transport: block.transport });
+
+    const created = await webhooks
+      .createEndpoint({
+        tenant: "org-1",
+        url: "https://crm.test/hooks",
+        eventTypes: ["deal.won"],
+        name: "CRM",
+      })
+      .orThrow();
+
+    expect(created).toMatchObject({
+      id: "ep-1",
+      format: "cloudevents",
+      signing: "v1",
+      createdBy: "u1",
+    });
+    expect(created.createdAt.toString()).toBe("2026-10-29T12:00:00Z");
+
+    const updated = await webhooks
+      .updateEndpoint("ep-1", { enabled: false })
+      .orThrow();
+
+    expect(updated.enabled).toBe(false);
+    expect(await webhooks.listEndpoints("org-1").orThrow()).toHaveLength(1);
+    await webhooks.deleteEndpoint("ep-1").orThrow();
+
+    expect(block.calls.map(({ fn, args }) => [fn, args])).toEqual([
+      [
+        "create_webhook_endpoint",
+        {
+          tenant: "org-1",
+          fields: {
+            name: "CRM",
+            url: "https://crm.test/hooks",
+            eventTypes: ["deal.won"],
+          },
+        },
+      ],
+      [
+        "update_webhook_endpoint",
+        { endpoint: "ep-1", fields: { enabled: false } },
+      ],
+      ["list_webhook_endpoints", { tenant: "org-1" }],
+      ["delete_webhook_endpoint", { endpoint: "ep-1" }],
+    ]);
+  });
+
+  it("returns the database error of a denied write", async () => {
+    const block = fakeBlock([], {
+      update_webhook_endpoint: () => {
+        throw new DbException(dbError("forbidden", "denied"));
+      },
+    });
+
+    const webhooks = createWebhooks({ transport: block.transport });
+    const result = await webhooks.updateEndpoint("ep-1", { name: "x" });
+    expect(result.error?.kind).toBe("forbidden");
   });
 });

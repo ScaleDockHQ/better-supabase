@@ -53,6 +53,39 @@ signing for `overlap` (`'24 hours'` by default), so receivers can switch
 without missing a delivery. Pass `secret` to import one, for example when you
 migrate from another system.
 
+### Manage endpoints
+
+`createEndpoint`, `updateEndpoint`, `listEndpoints` and `deleteEndpoint` run
+as the user, so a settings page needs no service role. Each write checks
+`webhooks.manage` in the endpoint's organization (the module's
+`permissions.manage`), and `listEndpoints` checks `webhooks.read`; the service
+role may manage any endpoint. A table without a tenant column leaves endpoint
+management to the service role.
+
+```ts title="app/settings/webhooks/actions.ts"
+const endpoint = await db.webhooksOut
+  .createEndpoint({
+    tenant: organizationId,
+    url: "https://crm.example.com/hooks",
+    eventTypes: ["deal.won", "invoice.*"],
+    name: "CRM",
+  })
+  .orThrow();
+
+await db.webhooksOut.updateEndpoint(endpoint.id, { enabled: false }).orThrow();
+
+const endpoints = await db.webhooksOut.listEndpoints(organizationId).orThrow();
+await db.webhooksOut.deleteEndpoint(endpoint.id).orThrow();
+```
+
+`updateEndpoint` changes only the fields you pass, and turning `enabled` back
+on clears the failure streak. The writable fields are `name`, `url`,
+`enabled`, `eventTypes`, `permissions`, `batch`, `signing`, `format` and
+`credentialRef`, each where the table has the column. The database checks the
+URL against `options.allowHttp` and rejects an unknown field or a value of the
+wrong type. The endpoint it returns never includes a secret, and deleting an
+endpoint deletes its secrets and deliveries.
+
 ### Ed25519 signatures
 
 An endpoint with `signing` set to `'v1a'` is signed with an Ed25519 key
@@ -544,6 +577,8 @@ wherever they are.
 | `WEBHOOK_TYPE_REQUIRED`        | `publish` or `dispatch` without an event type                |
 | `WEBHOOK_FORBIDDEN`            | The caller lacks `webhooks.manage` in the organization       |
 | `WEBHOOK_ENDPOINT_NOT_FOUND`   | No endpoint with that id                                     |
+| `WEBHOOK_ENDPOINT_URL`         | An endpoint write without an allowed `url`                   |
+| `WEBHOOK_ENDPOINT_INVALID`     | An endpoint write with an unknown field or a wrong type      |
 | `WEBHOOK_ENDPOINT_DISABLED`    | Dispatching or redelivering to a disabled endpoint           |
 | `WEBHOOK_DELIVERY_NOT_FOUND`   | No delivery with that id                                     |
 | `WEBHOOK_DELIVERY_IN_PROGRESS` | Redelivering a delivery that hasn't finished                 |
@@ -572,12 +607,15 @@ export async function addEndpoint(
 ) {
   const ctx = await bsb.context();
   const db = postgres.asUser(ctx.auth.claims);
-  const [endpoint] = await db.queryRaw<{ id: string }>(
-    `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
-     values ($1, $2, $3, $4) returning id`,
-    [organizationId, new URL(input.url).host, input.url, input.events],
-  );
   const webhooks = createWebhooks({ transport: sqlTransport(db) });
-  return webhooks.rotateSecret(endpoint!.id).orThrow();
+  const endpoint = await webhooks
+    .createEndpoint({
+      tenant: organizationId,
+      name: new URL(input.url).host,
+      url: input.url,
+      eventTypes: input.events,
+    })
+    .orThrow();
+  return webhooks.rotateSecret(endpoint.id).orThrow();
 }
 ```

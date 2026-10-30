@@ -23007,6 +23007,20 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "CreateWebhookEndpointInput"
+        },
+        {
+          "name": "WebhookEndpoint"
+        },
+        {
+          "name": "WebhookEndpointFields"
+        },
+        {
+          "name": "WebhookEndpoints"
+        }
+      ],
       "events": {
         "type": "WebhooksEvents",
         "types": [

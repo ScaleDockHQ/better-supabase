@@ -250,7 +250,7 @@ export interface WebhooksRouteOptions
   readonly onError?: (error: unknown) => void;
 }
 
-export interface Webhooks {
+export interface Webhooks extends WebhookEndpoints {
   /** Queues the event for each subscribed endpoint; returns how many. */
   publish(event: PublishInput): AsyncResult<number>;
   /**
@@ -293,6 +293,77 @@ export interface Webhooks {
   purge(options?: PurgeWebhookDeliveriesOptions): AsyncResult<number>;
   /** A job handler that runs `purge`; schedule it nightly. */
   purgeJob(options?: PurgeWebhookDeliveriesOptions): JobHandler<unknown>;
+}
+
+/**
+ * An endpoint as `listEndpoints` and the endpoint writes return it. A column
+ * the table doesn't have reads as `null` (or the default for `batch`, `signing`
+ * and `format`).
+ */
+export interface WebhookEndpoint {
+  readonly id: string;
+  readonly tenant: string | null;
+  readonly name: string | null;
+  readonly url: string;
+  readonly enabled: boolean;
+  readonly eventTypes: readonly string[];
+  readonly permissions: readonly string[] | null;
+  readonly batch: boolean;
+  readonly signing: "v1" | "v1a";
+  readonly format: string;
+  readonly credentialRef: CredentialRef | null;
+  /** When the current failure streak started. */
+  readonly failingSince: Temporal.Instant | null;
+  readonly disabledAt: Temporal.Instant | null;
+  readonly disabledReason: string | null;
+  readonly createdBy: string | null;
+  readonly createdAt: Temporal.Instant;
+  readonly updatedAt: Temporal.Instant | null;
+}
+
+/**
+ * The endpoint fields `createEndpoint` and `updateEndpoint` write. A field the
+ * endpoints table doesn't have fails with `WEBHOOK_ENDPOINT_INVALID`.
+ */
+export interface WebhookEndpointFields {
+  readonly name?: string;
+  /** `https://`, or `http://` too with `options.allowHttp`. */
+  readonly url?: string;
+  /** Turning an endpoint back on clears its failure streak. */
+  readonly enabled?: boolean;
+  readonly eventTypes?: readonly string[];
+  readonly permissions?: readonly string[] | null;
+  readonly batch?: boolean;
+  readonly signing?: "v1" | "v1a";
+  readonly format?: string;
+  readonly credentialRef?: CredentialRef | null;
+}
+
+export interface CreateWebhookEndpointInput extends WebhookEndpointFields {
+  readonly tenant: string;
+  readonly url: string;
+  readonly eventTypes: readonly string[];
+}
+
+/**
+ * Endpoint management. Each call checks the module's manage permission
+ * (`webhooks.manage`) in the endpoint's tenant, and `listEndpoints` the view
+ * permission (`webhooks.read`); the service role may manage any endpoint.
+ */
+export interface WebhookEndpoints {
+  /** Adds an endpoint; rotate a secret for it before it can sign deliveries. */
+  createEndpoint(
+    input: CreateWebhookEndpointInput,
+  ): AsyncResult<WebhookEndpoint>;
+  /** Changes the fields that `changes` names. */
+  updateEndpoint(
+    endpointId: string,
+    changes: WebhookEndpointFields,
+  ): AsyncResult<WebhookEndpoint>;
+  /** The tenant's endpoints, newest first, without their secrets. */
+  listEndpoints(tenant: string): AsyncResult<readonly WebhookEndpoint[]>;
+  /** Deletes an endpoint with its secrets and deliveries. */
+  deleteEndpoint(endpointId: string): AsyncResult<void>;
 }
 
 export interface PurgeWebhookDeliveriesOptions {

@@ -230,7 +230,7 @@ export function hookNames(
 
 const VARIABLES = "#variable_conflict use_column";
 
-function grants(fn: string, args: string, clients: boolean): string {
+export function grants(fn: string, args: string, clients: boolean): string {
   const signature = `${fn}(${args})`;
 
   // Not userGrant: this also revokes from authenticated, and changing the
@@ -242,7 +242,7 @@ grant execute on function ${signature} to authenticated, service_role;`
 }
 
 /** Raises unless the caller is the service or may `action` in `tenant`. */
-function guard(
+export function guard(
   n: HookNames,
   tenant: string,
   action: "manage" | "view",
@@ -262,7 +262,7 @@ function endpointTenant(n: HookNames, id: string): string {
   from ${n.table("endpoints")} d where d.${n.col("endpoints", "id")} = ${id};`;
 }
 
-const touched = (n: HookNames, table: string, alias = ""): string =>
+export const touched = (n: HookNames, table: string, alias = ""): string =>
   n.has(table, "updatedAt")
     ? `, ${alias}${n.col(table, "updatedAt")} = now()`
     : "";

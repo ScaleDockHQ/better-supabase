@@ -603,6 +603,128 @@ describe.skipIf(!live)("webhooks-out", () => {
     }
   });
 
+  it("creates, updates, lists and deletes endpoints for a manager only", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+
+    const sql: SqlClient = {
+      async queryRaw<T>(text: string, params: unknown[] = []) {
+        const { rows } = await client.query(text, params);
+
+        // SAFETY: the test reads only the `value` column sqlTransport selects.
+        return rows as T[];
+      },
+    };
+
+    try {
+      await client.query("begin");
+
+      for (const who of Object.keys(USERS) as Who[]) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], `ep-${who}-${USERS[who]}@example.test`],
+        );
+      }
+
+      for (const file of renderBlocks(
+        ["organizations", "outbox", "webhooks-out"],
+        LAYOUT,
+      )) {
+        await client.query(file.contents);
+      }
+
+      await s.as("owner");
+
+      const organization = await s.value<string>(
+        "better_supabase.create_organization($1)",
+        [{ name: "Acme", slug: `acme-ep-${USERS.owner.slice(0, 8)}` }],
+      );
+
+      await client.query(
+        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
+        [organization, USERS.member],
+      );
+
+      const webhooks = createWebhooks({ transport: sqlTransport(sql) });
+
+      const created = await webhooks
+        .createEndpoint({
+          tenant: organization,
+          url: "https://crm.test/hooks",
+          eventTypes: ["deal.won"],
+          name: "CRM",
+          signing: "v1a",
+        })
+        .orThrow();
+
+      expect(created).toMatchObject({
+        tenant: organization,
+        name: "CRM",
+        enabled: true,
+        eventTypes: ["deal.won"],
+        signing: "v1a",
+        createdBy: USERS.owner,
+      });
+
+      const updated = await webhooks
+        .updateEndpoint(created.id, {
+          eventTypes: ["deal.lost"],
+          enabled: false,
+        })
+        .orThrow();
+
+      expect(updated).toMatchObject({
+        name: "CRM",
+        enabled: false,
+        eventTypes: ["deal.lost"],
+      });
+      expect(
+        (await webhooks.listEndpoints(organization).orThrow()).map(
+          (endpoint) => endpoint.id,
+        ),
+      ).toEqual([created.id]);
+
+      expect(
+        await s.hint("select better_supabase.create_webhook_endpoint($1, $2)", [
+          organization,
+          { url: "http://crm.test", eventTypes: [] },
+        ]),
+      ).toBe("WEBHOOK_ENDPOINT_URL");
+      expect(
+        await s.hint("select better_supabase.update_webhook_endpoint($1, $2)", [
+          created.id,
+          { enabled: "yes" },
+        ]),
+      ).toBe("WEBHOOK_ENDPOINT_INVALID");
+
+      await s.as("member");
+      expect(
+        await s.hint("select better_supabase.update_webhook_endpoint($1, $2)", [
+          created.id,
+          { name: "Mine" },
+        ]),
+      ).toBe("WEBHOOK_FORBIDDEN");
+      expect(
+        await s.hint("select better_supabase.delete_webhook_endpoint($1)", [
+          created.id,
+        ]),
+      ).toBe("WEBHOOK_FORBIDDEN");
+
+      await s.as("owner");
+      await webhooks.deleteEndpoint(created.id).orThrow();
+      expect(await webhooks.listEndpoints(organization).orThrow()).toEqual([]);
+      expect(
+        await s.hint("select better_supabase.delete_webhook_endpoint($1)", [
+          created.id,
+        ]),
+      ).toBe("WEBHOOK_ENDPOINT_NOT_FOUND");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("keeps a 0.8 endpoint on the standard format after the upgrade", async () => {
     const client = await pool.connect();
     const s = new Session(client);

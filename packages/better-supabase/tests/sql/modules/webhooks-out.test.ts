@@ -78,6 +78,52 @@ describe("webhooks-out module", () => {
     expect(sql).toContain("publish_webhook_event.event_id::uuid");
   });
 
+  it("manages endpoints through guarded definers that check the URL and fields", () => {
+    const sql = renderBlocks(["permissions", "outbox", "webhooks-out"]).find(
+      (file) => file.path.includes("webhooks_out"),
+    )!.contents;
+
+    for (const fn of [
+      '"create_webhook_endpoint"(tenant uuid, fields jsonb)',
+      '"update_webhook_endpoint"(endpoint uuid, fields jsonb)',
+      '"list_webhook_endpoints"(tenant uuid)',
+      '"delete_webhook_endpoint"(endpoint uuid)',
+    ]) {
+      expect(sql).toContain(
+        `create or replace function "better_supabase".${fn}`,
+      );
+    }
+
+    expect(sql).toContain("WEBHOOK_ENDPOINT_URL");
+    expect(sql).toContain("WEBHOOK_ENDPOINT_INVALID");
+    expect(sql).toContain("WEBHOOK_ENDPOINT_NOT_FOUND");
+    expect(sql).toContain("!~* '^https://'");
+
+    expect(
+      body({ "webhooks-out": { options: { allowHttp: true } } }),
+    ).toContain("!~* '^https?://'");
+
+    const untenanted = overApp({
+      "webhooks-out": {
+        columns: {
+          endpoints: { tenant: null, permissions: null, batch: null },
+          deliveries: { tenant: null, subject: null },
+          secrets: { tenant: null },
+        },
+        options: { defaultFormat: "standard" },
+      },
+    });
+
+    const create = untenanted.slice(
+      untenanted.indexOf('"create_webhook_endpoint"(tenant'),
+      untenanted.indexOf('"update_webhook_endpoint"(endpoint'),
+    );
+
+    expect(create).toContain("insert into");
+    expect(create).not.toContain("'permissions'");
+    expect(create).not.toContain("'batch'");
+  });
+
   it("allows http when asked and grants clients access through the access model", () => {
     expect(
       body({ "webhooks-out": { options: { allowHttp: true } } }),
@@ -162,6 +208,10 @@ describe("webhooks-out module", () => {
       "purge_webhook_deliveries",
       "rotate_webhook_secret",
       "webhook_secrets",
+      "create_webhook_endpoint",
+      "update_webhook_endpoint",
+      "list_webhook_endpoints",
+      "delete_webhook_endpoint",
     ]);
   });
 

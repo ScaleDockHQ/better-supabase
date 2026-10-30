@@ -182,7 +182,7 @@ describe("comments module", () => {
       { module: "attachments", version: 1 },
     ]);
 
-    expect(plan).toMatchObject({ module: "comments", from: 7, to: 8 });
+    expect(plan).toMatchObject({ module: "comments", from: 7, to: 9 });
     const sql = plan!.steps.map((step) => step.sql).join("\n");
     expect(sql).toContain(
       `create table if not exists "better_supabase"."messages" (`,

@@ -1,6 +1,6 @@
 -- better-supabase module: comments
--- @bsb-block comments@8 managed
--- @bsb-hash sha256:5041ac4574f5c5118d9e191655a457765fa35293176a714e0defb8d6fac75088
+-- @bsb-block comments@9 managed
+-- @bsb-hash sha256:7cf51aa331ba5854c19b22fc72ce0bed81c6102616c9f0143c498fab5d6a6235
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -279,8 +279,10 @@ revoke execute on function "better_supabase"."comment_sent"(uuid) from public, a
 grant execute on function "better_supabase"."comment_sent"(uuid) to authenticated, service_role;
 
 -- A record's comments and replies in one list, oldest first; deleted ones
--- stay as placeholders so replies keep their parent. Page with after and
--- after_id (the last comment's sent_at and id) or skip (an offset).
+-- stay as placeholders so replies keep their parent, unless include_deleted
+-- is false. Page with after and after_id (the last comment's sent_at and id)
+-- or skip (an offset).
+drop function if exists "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid);
 create or replace function "better_supabase"."list_comments"(
   tenant uuid,
   subject_type text,
@@ -288,7 +290,8 @@ create or replace function "better_supabase"."list_comments"(
   after timestamptz default null,
   max_rows integer default 100,
   skip integer default 0,
-  after_id uuid default null
+  after_id uuid default null,
+  include_deleted boolean default true
 )
 returns jsonb
 language plpgsql
@@ -305,6 +308,7 @@ begin
   return "better_supabase"."comments_json"(array(
     select x."id" from "better_supabase"."messages" x
     where x."conversation_id" = v_conv and x."sent_at" is not null
+      and (coalesce(list_comments.include_deleted, true) or x."deleted_at" is null)
       and (list_comments.after is null
         or (x."sent_at", x."id") > (list_comments.after, coalesce(list_comments.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
     order by x."sent_at", x."id"
@@ -313,8 +317,8 @@ begin
   ));
 end;
 $$;
-revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
-grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid, boolean) to authenticated, service_role;
 
 -- The top-level comments anchored to a file, oldest first: on its pages,
 -- regions and moments, on any record the caller can read.

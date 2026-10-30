@@ -442,7 +442,11 @@ with `preferences({ tenant? })`. With `tenant`, `preferences` returns the
 choices for that organization and the ones that hold everywhere (`tenant`
 null), so a settings page can show both. In SQL they are
 `list_notification_subscriptions(tenant, subject_type, subject_id)` and
-`list_notification_preferences(tenant)`, granted to `authenticated`. With
+`list_notification_preferences(tenant)`, granted to `authenticated`. A page
+payload RPC that returns `list_notification_subscriptions` rows parses each
+with `subscriptionOf(row)` from `better-supabase/blocks/notifications`, the
+way the client does; it returns `undefined` for a row with an unknown level.
+With
 `database.sql.api` set, the module also writes `security_invoker` views of
 `notification_recipients` and `notification_preferences` in that schema, so
 the Data API and PowerSync uploads reach them while row level security on
@@ -573,19 +577,51 @@ The idempotency key is the delivery id, so a retried delivery reaches the
 provider under the same key and sends one email. Passing `email` next to a
 channel named `email` throws.
 
-| Option        | Use                                                                                                                    |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `transport`   | The `DeliveryTransport` that sends the mail                                                                            |
-| `from`        | The sender, e.g. `Acme <notifications@acme.com>`                                                                       |
-| `replyTo`     | An optional reply address                                                                                              |
-| `compose`     | `(message) => ({ subject, text?, html?, replyTo?, category?, templateKey? })`; defaults to the rendered title and body |
-| `unsubscribe` | `(message) => ({ url?, mailto? })`: your signed unsubscribe link for notification mail                                 |
+| Option           | Use                                                                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `transport`      | The `DeliveryTransport` that sends the mail                                                                            |
+| `from`           | The sender, e.g. `Acme <notifications@acme.com>`                                                                       |
+| `replyTo`        | An optional reply address                                                                                              |
+| `compose`        | `(message) => ({ subject, text?, html?, replyTo?, category?, templateKey? })`; defaults to the rendered title and body |
+| `unsubscribe`    | `(message) => ({ url?, mailto? })`: your signed unsubscribe link for notification mail                                 |
+| `composeContact` | `(message) => ComposedEmail` for a contact recipient; defaults to the same subject and text as `compose`'s default     |
 
 A recipient without an email address is skipped. Without `compose`, the
 block needs `render`, and a notification it can't render fails its delivery.
 A `templateKey` from `compose` (for example `assigned-v2`) is stored on the
 delivery's `template_key` column, so you can tell which template a sent
 email used.
+
+#### Contacts without an account
+
+`recipients` also takes `{ email, name? }` for someone without an account,
+such as a customer who receives a quote. `send` checks the address, stores
+the notification for the user recipients as usual and hands it to each
+contact right away through every channel with `sendToContact` (the `email`
+channel has it). A contact gets no inbox row and no delivery row, so a failed
+send is not retried; the result reports it in `contacts`:
+
+```ts
+const sent = await notifications
+  .send("quote.sent", {
+    tenant: organizationId,
+    data: { quoteId: quote.id },
+    key: `quote-sent:${quote.id}`,
+    recipients: [ownerId, { email: "cara@client.example", name: "Cara Lee" }],
+  })
+  .orThrow();
+
+sent?.contacts; // [{ email, channel: "email", status: "sent", providerMessageId }]
+```
+
+The idempotency key is the event id, the channel and the lowercased address,
+so a contact gets one mail per notification. When no user receives it, the
+contacts still do, under the id `key:<key>` when the send has a `key` (a
+repeated send reaches the provider under the same key) or a new id without
+one. The name goes into the `To` header without quotes, backslashes or line
+breaks. An invalid address fails the send with `NOTIFICATION_CONTACT_EMAIL`
+before anything is stored. Contact mail has no unsubscribe link of its own;
+put one in `composeContact` when the mail is not transactional.
 
 `resendTransport({ apiKey })` posts to `https://api.resend.com/emails` with
 `fetch` and the delivery id in the `Idempotency-Key` header. Read the key
@@ -978,6 +1014,7 @@ stored as dismissed, so other channels can deliver it.
 | `NOTIFICATION_ACTIONS_INVALID`     | `actions` that aren't the shape described under Actions             |
 | `NOTIFICATION_RESOLUTION_INVALID`  | A `resolution` that isn't a JSON object                             |
 | `NOTIFICATION_LEVEL_UNKNOWN`       | A subscription level other than `participating`, `all` or `ignore`  |
+| `NOTIFICATION_CONTACT_EMAIL`       | A `{ email }` recipient whose address isn't valid (TypeScript)      |
 | `NOTIFICATION_STATUS_UNKNOWN`      | Completing a delivery with a status the block doesn't know          |
 | `NOTIFICATION_TOO_MANY_RECIPIENTS` | More recipients than `options.maxRecipients`                        |
 | `NOTIFICATION_SUPPRESSION_ADDRESS` | `suppress` without an address                                       |

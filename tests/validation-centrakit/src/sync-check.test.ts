@@ -180,10 +180,10 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           "centrakit.inbound_webhook_events",
           "centrakit.workflow_events",
         ],
-        // The 0.35 upgrade drops transition, which gains an actor argument,
-        // and the schema files create it again.
+        // The latest upgrade drops list_comments, which gains an
+        // include_deleted argument, and the schema files create it again.
         "warning BS235": [
-          "supabase/migrations/20261028190126_better_supabase_block_upgrade.sql:4",
+          "supabase/migrations/20261030133241_better_supabase_block_upgrade.sql:4",
         ],
         // The adopt options that keep CentraKit's own token storage, secret column,
         // audit values and event sources.

@@ -47,6 +47,7 @@ import {
 } from "../shared.ts";
 import { encoderRegistry, WEBHOOK_FORMAT } from "./encoders.ts";
 import { WebhookPolicyError, fetchTransport } from "./http.ts";
+import { endpointMethods } from "./outgoing-endpoints.ts";
 import { sqlSecretStore } from "./secrets.ts";
 import { standardWebhooks } from "./signers.ts";
 import { publicUrl } from "./url-policy.ts";
@@ -767,6 +768,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
         );
 
   const client: Webhooks = {
+    ...endpointMethods(db, defaultFormat),
     purge,
     purgeJob: (jobOptions) => async () => purge(jobOptions).orThrow(),
     publish: (event) => db("publish_webhook_event", publishArgs(event), Number),

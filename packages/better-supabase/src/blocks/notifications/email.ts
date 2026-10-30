@@ -1,4 +1,5 @@
 import type {
+  ContactMessage,
   NotificationChannel,
   NotificationMessage,
   NotificationSendResult,
@@ -8,6 +9,7 @@ import type {
   MailCategory,
   UnsubscribeTarget,
 } from "./delivery.ts";
+import type { RenderedText } from "./types.ts";
 
 import { mailHeaders } from "./delivery.ts";
 
@@ -40,6 +42,13 @@ export interface EmailChannelOptions {
     message: NotificationMessage,
   ) => ComposedEmail | Promise<ComposedEmail>;
   /**
+   * The mail for a `{ email, name }` recipient of `send`. Defaults to the same
+   * subject and text as `compose`'s default.
+   */
+  readonly composeContact?: (
+    message: ContactMessage,
+  ) => ComposedEmail | Promise<ComposedEmail>;
+  /**
    * Where the reader unsubscribes from this mail, such as a signed link to your
    * preferences route. Only `notification` mail carries it.
    */
@@ -48,7 +57,9 @@ export interface EmailChannelOptions {
   ) => UnsubscribeTarget | undefined | Promise<UnsubscribeTarget | undefined>;
 }
 
-function defaultCompose(message: NotificationMessage): ComposedEmail {
+function defaultCompose(message: {
+  readonly text?: RenderedText;
+}): ComposedEmail {
   const text = message.text;
 
   if (text === undefined) {
@@ -61,9 +72,22 @@ function defaultCompose(message: NotificationMessage): ComposedEmail {
 }
 
 /**
+ * A `"Name" <address>` mailbox, without quotes, backslashes or line breaks in
+ * the name.
+ */
+function mailbox(contact: ContactMessage["contact"]): string {
+  const name = contact.name?.replaceAll(/["\\\r\n]/g, "").trim();
+
+  return name === undefined || name === ""
+    ? contact.email
+    : `"${name}" <${contact.email}>`;
+}
+
+/**
  * A `NotificationChannel` named `email` that sends through `transport`, with
  * the delivery id as the idempotency key. A recipient without an address is
- * skipped.
+ * skipped. It also sends to the `{ email, name }` recipients of `send`, keyed
+ * by the event id and the address, without an unsubscribe header.
  */
 export function emailChannel(
   options: EmailChannelOptions,
@@ -79,6 +103,45 @@ export function emailChannel(
   }
 
   const compose = options.compose ?? defaultCompose;
+  const composeContact = options.composeContact ?? defaultCompose;
+
+  const deliver = async (
+    mail: ComposedEmail,
+    to: string,
+    idempotencyKey: string,
+    unsubscribe: (() => Promise<UnsubscribeTarget | undefined>) | undefined,
+  ): Promise<NotificationSendResult> => {
+    const category = mail.category ?? "notification";
+
+    const target =
+      category === "notification" ? await unsubscribe?.() : undefined;
+
+    const replyTo = mail.replyTo ?? options.replyTo;
+
+    const receipt = await transport.send(
+      {
+        from: options.from,
+        to,
+        subject: mail.subject,
+        ...(mail.text === undefined ? {} : { text: mail.text }),
+        ...(mail.html === undefined ? {} : { html: mail.html }),
+        ...(replyTo === undefined ? {} : { replyTo }),
+        category,
+        headers: mailHeaders(category, target),
+      },
+      { idempotencyKey },
+    );
+
+    return {
+      provider: transport.provider,
+      ...(receipt?.providerMessageId === undefined
+        ? {}
+        : { providerMessageId: receipt.providerMessageId }),
+      ...(mail.templateKey === undefined
+        ? {}
+        : { templateKey: mail.templateKey }),
+    };
+  };
 
   return {
     apiVersion: 1,
@@ -88,39 +151,24 @@ export function emailChannel(
         return { status: "skipped", provider: transport.provider };
       }
 
-      const mail = await compose(message);
-      const category = mail.category ?? "notification";
+      const { unsubscribe } = options;
 
-      const unsubscribe =
-        category === "notification"
-          ? await options.unsubscribe?.(message)
-          : undefined;
-
-      const replyTo = mail.replyTo ?? options.replyTo;
-
-      const receipt = await transport.send(
-        {
-          from: options.from,
-          to: message.email,
-          subject: mail.subject,
-          ...(mail.text === undefined ? {} : { text: mail.text }),
-          ...(mail.html === undefined ? {} : { html: mail.html }),
-          ...(replyTo === undefined ? {} : { replyTo }),
-          category,
-          headers: mailHeaders(category, unsubscribe),
-        },
-        { idempotencyKey: message.deliveryId },
+      return deliver(
+        await compose(message),
+        message.email,
+        message.deliveryId,
+        unsubscribe === undefined
+          ? undefined
+          : async () => unsubscribe(message),
       );
-
-      return {
-        provider: transport.provider,
-        ...(receipt?.providerMessageId === undefined
-          ? {}
-          : { providerMessageId: receipt.providerMessageId }),
-        ...(mail.templateKey === undefined
-          ? {}
-          : { templateKey: mail.templateKey }),
-      };
+    },
+    async sendToContact(message): Promise<NotificationSendResult> {
+      return deliver(
+        await composeContact(message),
+        mailbox(message.contact),
+        message.key,
+        undefined,
+      );
     },
   };
 }

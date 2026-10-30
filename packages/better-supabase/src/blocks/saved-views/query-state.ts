@@ -1,6 +1,6 @@
 import type { FilterQuery } from "../../list/filter-query.ts";
 import type { ListQueryInput } from "../../list/list-query.ts";
-import type { SavedViewDisplayState, SavedViewState } from "./saved-views.ts";
+import type { SavedViewDisplayState, SavedViewState } from "./types.ts";
 
 /**
  * The URL state of a list as nuqs returns it from

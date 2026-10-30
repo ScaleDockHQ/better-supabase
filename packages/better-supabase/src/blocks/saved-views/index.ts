@@ -1,15 +1,25 @@
 export {
   createSavedViews,
   defaultView,
-  SAVED_VIEW_DENSITIES,
-  SAVED_VIEW_KINDS,
-  SAVED_VIEW_SCOPES,
   savedViewIssues,
   savedViewStateSchema,
 } from "./saved-views.ts";
 
 export type {
   DefaultViewCandidate,
+  SavedViews,
+  SavedViewsOptions,
+  SaveViewInput,
+  SavedViewRef,
+} from "./saved-views.ts";
+
+export {
+  SAVED_VIEW_DENSITIES,
+  SAVED_VIEW_KINDS,
+  SAVED_VIEW_SCOPES,
+} from "./types.ts";
+
+export type {
   DuplicateViewInput,
   SavedView,
   SavedViewColumns,
@@ -19,13 +29,11 @@ export type {
   SavedViewList,
   SavedViewPreference,
   SavedViewPreferenceInput,
-  SavedViews,
   SavedViewScope,
-  SavedViewsOptions,
   SavedViewState,
-  SaveViewInput,
-  SavedViewRef,
-} from "./saved-views.ts";
+} from "./types.ts";
+
+export { viewOf } from "./rows.ts";
 
 export {
   displayStateOf,
