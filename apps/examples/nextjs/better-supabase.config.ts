@@ -451,6 +451,9 @@ export default defineConfig({
     // Nonconformities, complaints, incidents and more, each on its kind's
     // pipeline, with actions as work items and a close guard.
     cases: {},
+    // Audit programmes and inspections with a checklist; findings assess
+    // controls and raise cases.
+    inspections: {},
     // Vital signs on a customer's record, with the seeded vitals definitions;
     // a critical value alerts the record's leads.
     observations: { options: { defaults: "vitals" } },

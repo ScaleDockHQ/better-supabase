@@ -64,6 +64,7 @@ import type { impersonationBlock } from "../../src/blocks/impersonation/manifest
 import type { importsBlock } from "../../src/blocks/imports/manifest.ts";
 import type { inboxBlock } from "../../src/blocks/inbox/manifest.ts";
 import type { incidentsBlock } from "../../src/blocks/incidents/manifest.ts";
+import type { inspectionsBlock } from "../../src/blocks/inspections/manifest.ts";
 import type { inventoryBlock } from "../../src/blocks/inventory/manifest.ts";
 import type { invoicesBlock } from "../../src/blocks/invoices/manifest.ts";
 import type { jsonbSchemasBlock } from "../../src/blocks/jsonb-schemas/manifest.ts";
@@ -227,6 +228,7 @@ export type AllBlocks = {
   readonly compliance: typeof complianceBlock;
   readonly acknowledgements: typeof acknowledgementsBlock;
   readonly incidents: typeof incidentsBlock;
+  readonly inspections: typeof inspectionsBlock;
   readonly courses: typeof coursesBlock;
   readonly sequences: typeof sequencesBlock;
   readonly "lead-scoring": typeof leadScoringBlock;

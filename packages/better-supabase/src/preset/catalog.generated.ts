@@ -8134,6 +8134,162 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "inspections",
+      "title": "Audits and inspections",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "forms"
+      ],
+      "integrates": [
+        "cases",
+        "compliance",
+        "relations",
+        "numbering",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "inspections",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "inspections",
+      "entities": {
+        "specs": {
+          "inspection": {
+            "table": "inspections",
+            "singular": "inspection",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "number",
+                  "scope",
+                  "summary"
+                ]
+              }
+            }
+          },
+          "inspection_program": {
+            "table": "programs",
+            "singular": "inspection_program",
+            "subject": {
+              "title": "name",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "inspection_finding": {
+            "table": "findings",
+            "singular": "inspection_finding",
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          },
+          "inspection_member": {
+            "table": "members",
+            "singular": "inspection_member"
+          }
+        },
+        "tables": {
+          "inspections": {
+            "name": "inspections",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "program": "program_id",
+              "number": "number",
+              "sequence": "sequence",
+              "kind": "kind",
+              "title": "title",
+              "scope": "scope",
+              "criteria": "criteria",
+              "auditeeType": "auditee_type",
+              "auditeeId": "auditee_id",
+              "lead": "lead_id",
+              "plannedStart": "planned_start",
+              "plannedEnd": "planned_end",
+              "startedAt": "started_at",
+              "completedAt": "completed_at",
+              "closedAt": "closed_at",
+              "status": "status",
+              "checklistForm": "checklist_form_id",
+              "checklistSubmission": "checklist_submission_id",
+              "summary": "summary",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "programs": {
+            "name": "inspection_programs",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "periodStart": "period_start",
+              "periodEnd": "period_end",
+              "owner": "owner_id",
+              "status": "status",
+              "notes": "notes",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "findings": {
+            "name": "inspection_findings",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "inspection": "inspection_id",
+              "number": "number",
+              "type": "type",
+              "title": "title",
+              "description": "description",
+              "clause": "clause",
+              "control": "control_id",
+              "evidence": "evidence",
+              "case": "case_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "members": {
+            "name": "inspection_members",
+            "columns": {
+              "inspection": "inspection_id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "role": "role",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "inspections.read",
+          "write": "inspections.write",
+          "manage": "inspections.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -17610,6 +17766,442 @@ export const PRESET_CATALOG: PresetCatalog = {
           "description": "Reports the cases whose effectiveness check date has come."
         }
       ]
+    },
+    {
+      "name": "inspections",
+      "sql": [
+        "inspections"
+      ],
+      "category": "work",
+      "client": {
+        "export": "inspectionsBlock",
+        "subpath": "better-supabase/blocks/inspections"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Inspection",
+          "fields": true
+        },
+        {
+          "name": "InspectionAuditee"
+        },
+        {
+          "name": "InspectionCancelledEventData"
+        },
+        {
+          "name": "InspectionChange",
+          "fields": true
+        },
+        {
+          "name": "InspectionDetail",
+          "fields": true
+        },
+        {
+          "name": "InspectionEventData"
+        },
+        {
+          "name": "InspectionFinding"
+        },
+        {
+          "name": "InspectionFindingCaseRaisedEventData"
+        },
+        {
+          "name": "InspectionFindingEventData"
+        },
+        {
+          "name": "InspectionFindingInput"
+        },
+        {
+          "name": "InspectionInput",
+          "fields": true
+        },
+        {
+          "name": "InspectionListOptions"
+        },
+        {
+          "name": "InspectionMember"
+        },
+        {
+          "name": "InspectionMemberRole"
+        },
+        {
+          "name": "InspectionProgram"
+        },
+        {
+          "name": "InspectionProgramEventData"
+        },
+        {
+          "name": "InspectionProgramInput"
+        },
+        {
+          "name": "InspectionProgramStatus"
+        },
+        {
+          "name": "Inspections",
+          "fields": true
+        },
+        {
+          "name": "InspectionsEvents"
+        },
+        {
+          "name": "InspectionsOptions"
+        },
+        {
+          "name": "InspectionsSqlOptions"
+        },
+        {
+          "name": "InspectionStatus"
+        }
+      ],
+      "entitySchemas": {
+        "inspection": {
+          "input": {
+            "title": "InspectionInput",
+            "fields": {
+              "kind": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "description": "One of `options.kinds`."
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "programId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "scope": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 10000
+              },
+              "criteria": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 10000
+              },
+              "auditee": {
+                "kind": "json",
+                "optional": true,
+                "nullable": true,
+                "description": "The subject audited: `{ type, id }`."
+              },
+              "leadId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "plannedStart": {
+                "kind": "plainDate",
+                "optional": true,
+                "nullable": true
+              },
+              "plannedEnd": {
+                "kind": "plainDate",
+                "optional": true,
+                "nullable": true
+              },
+              "checklistFormId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "members": {
+                "kind": "json",
+                "array": true,
+                "optional": true,
+                "description": "The team: `{ userId, role }`."
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "InspectionInput",
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "description": "One of `options.kinds`."
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "programId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "scope": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 10000
+                },
+                "criteria": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 10000
+                },
+                "auditee": {
+                  "description": "The subject audited: `{ type, id }`."
+                },
+                "leadId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "plannedStart": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "plannedEnd": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "checklistFormId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "members": {
+                  "type": "array",
+                  "items": {},
+                  "description": "The team: `{ userId, role }`."
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "kind",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "inspection_program": {
+          "input": {
+            "title": "InspectionProgramInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "periodStart": {
+                "kind": "plainDate"
+              },
+              "periodEnd": {
+                "kind": "plainDate",
+                "description": "On or after periodStart."
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "notes": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 10000
+              },
+              "programId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "InspectionProgramInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "periodStart": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "periodEnd": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "On or after periodStart."
+                },
+                "ownerId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 10000
+                },
+                "programId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "name",
+                "periodStart",
+                "periodEnd"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "inspection_finding": {
+          "input": {
+            "title": "InspectionFindingInput",
+            "fields": {
+              "type": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "description": "One of `options.findingTypes`."
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 10000
+              },
+              "clause": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 200
+              },
+              "controlId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "evidence": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 10000
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "InspectionFindingInput",
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "description": "One of `options.findingTypes`."
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 10000
+                },
+                "clause": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 200
+                },
+                "controlId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "evidence": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "type",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "InspectionsEvents",
+        "types": [
+          "inspection_program.created",
+          "inspection_program.updated",
+          "inspection_program.approved",
+          "inspection_program.closed",
+          "inspection.scheduled",
+          "inspection.updated",
+          "inspection.started",
+          "inspection.completed",
+          "inspection.closed",
+          "inspection.cancelled",
+          "inspection_finding.created",
+          "inspection_finding.updated",
+          "inspection_finding.deleted",
+          "inspection_finding.case_raised"
+        ]
+      }
     },
     {
       "name": "shifts",

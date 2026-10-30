@@ -118,6 +118,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "medications.*",
     "care_plans.*",
     "cases.*",
+    "inspections.*",
   ],
   member: [
     "organization.read",
@@ -597,6 +598,9 @@ export const OPERATIONS = {
   "cases.write": "cases.write",
   "cases.close": "cases.close",
   "cases.manage": "cases.manage",
+  "inspections.read": "inspections.read",
+  "inspections.write": "inspections.write",
+  "inspections.manage": "inspections.manage",
 } as const;
 
 /** An operation name, `<module>.<action>`. */

@@ -117,3 +117,4 @@ observations
 medications
 care-plans
 cases
+inspections

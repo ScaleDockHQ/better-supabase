@@ -5,8 +5,9 @@ import { WEB_APP } from "./types.ts";
 const RISKS = `${WEB_APP}/src/features/risks/components`;
 const OBSERVATIONS = `${WEB_APP}/src/features/observations/components`;
 const CASES = `${WEB_APP}/src/features/cases/components`;
+const INSPECTIONS = `${WEB_APP}/src/features/inspections/components`;
 
-/** Recipes for the quality, risk, observation and case blocks. */
+/** Recipes for the quality, risk, observation, case and inspection blocks. */
 export const QUALITY_RECIPES: readonly RecipeSource[] = [
   {
     slug: "risk-register",
@@ -93,6 +94,40 @@ export const QUALITY_RECIPES: readonly RecipeSource[] = [
       "One case with its severity, root cause, what still blocks closing it and its actions, and a Close button once nothing blocks it.",
     web: {
       file: `${CASES}/case-detail.tsx`,
+      components: ["alert", "badge", "button", "empty", "@reui/frame"],
+      glue: [],
+    },
+  },
+  {
+    slug: "inspection-program-calendar",
+    title: "Inspection programme calendar",
+    blocks: ["inspections"],
+    kind: "component",
+    description:
+      "The audit programme in a data grid: each inspection in the month it is planned, with its number, kind, programme and status.",
+    web: {
+      file: `${INSPECTIONS}/inspection-program-calendar.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "empty",
+        "skeleton",
+        "@reui/data-grid",
+        "@reui/frame",
+      ],
+      glue: [],
+    },
+  },
+  {
+    slug: "inspection-run",
+    title: "Inspection run",
+    blocks: ["inspections"],
+    kind: "component",
+    description:
+      "One inspection with its status, checklist and team, its findings with a Raise case button for each nonconformity, and a Close button once every one has its case.",
+    web: {
+      file: `${INSPECTIONS}/inspection-run.tsx`,
       components: ["alert", "badge", "button", "empty", "@reui/frame"],
       glue: [],
     },

@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:5f47953ee3b5db075194404039a22bb03043188dcdd706872956cd29bd29d14e
+-- @bsb-hash sha256:ff49213c9b703ad360ee9a5f5cae4aa1d70b4b352cb91136c05148a67c1efb32
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -557,6 +557,7 @@ as $$
     ('user', 'better_supabase.acknowledgement_notices', '"better_supabase"."acknowledgement_notices"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.observations', '"better_supabase"."observations"', 'performer_id', true, '{}'::text[], true),
     ('user', 'better_supabase.care_plan_evaluations', '"better_supabase"."care_plan_evaluations"', 'author_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.inspection_members', '"better_supabase"."inspection_members"', 'user_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'organization_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true),
     ('organization', 'public.memberships', '"public"."memberships"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'organization_id', true, array['token_hash']::text[], true),
@@ -910,7 +911,11 @@ as $$
     ('organization', 'better_supabase.care_plan_problems', '"better_supabase"."care_plan_problems"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.care_plan_goals', '"better_supabase"."care_plan_goals"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.care_plan_actions', '"better_supabase"."care_plan_actions"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.care_plan_evaluations', '"better_supabase"."care_plan_evaluations"', 'tenant_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.care_plan_evaluations', '"better_supabase"."care_plan_evaluations"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.inspection_programs', '"better_supabase"."inspection_programs"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.inspections', '"better_supabase"."inspections"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.inspection_members', '"better_supabase"."inspection_members"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.inspection_findings', '"better_supabase"."inspection_findings"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
@@ -1323,6 +1328,30 @@ begin
       v_name := 'better_supabase.cases';
       v_reveal := 'cases_reveal';
       v_reveal_schema := 'better_supabase';
+    when 'inspection' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."inspections" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.inspections';
+      v_reveal := 'inspections_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'inspection_program' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."inspection_programs" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.inspection_programs';
+      v_reveal := 'inspection_programs_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'inspection_finding' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."inspection_findings" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.inspection_findings';
+      v_reveal := 'inspection_findings_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'form' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."forms" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.forms';
+      v_reveal := 'forms_reveal';
+      v_reveal_schema := 'better_supabase';
     when 'care_plan' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
       from "better_supabase"."care_plans" s where s."id" = (request_subject_export.subject_id)::uuid;
@@ -1340,12 +1369,6 @@ begin
       from "better_supabase"."content_entries" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'better_supabase.content_entries';
       v_reveal := 'content_entries_reveal';
-      v_reveal_schema := 'better_supabase';
-    when 'form' then
-      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
-      from "better_supabase"."forms" s where s."id" = (request_subject_export.subject_id)::uuid;
-      v_name := 'better_supabase.forms';
-      v_reveal := 'forms_reveal';
       v_reveal_schema := 'better_supabase';
     when 'document' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant

@@ -52,6 +52,7 @@ import type { IdentitiesSqlOptions } from "./identities/options.ts";
 import type { ImpersonationSqlOptions } from "./impersonation/options.ts";
 import type { InboxSqlOptions } from "./inbox/options.ts";
 import type { IncidentsSqlOptions } from "./incidents/options.ts";
+import type { InspectionsSqlOptions } from "./inspections/options.ts";
 import type { InventorySqlOptions } from "./inventory/options.ts";
 import type { InvoicesSqlOptions } from "./invoices/options.ts";
 import type { KnowledgeSqlOptions } from "./knowledge/options.ts";
@@ -189,6 +190,7 @@ import { identitiesSqlOptions } from "./identities/options.ts";
 import { impersonationSqlOptions } from "./impersonation/options.ts";
 import { inboxSqlOptions } from "./inbox/options.ts";
 import { incidentsSqlOptions } from "./incidents/options.ts";
+import { inspectionsSqlOptions } from "./inspections/options.ts";
 import { inventorySqlOptions } from "./inventory/options.ts";
 import { invoicesSqlOptions } from "./invoices/options.ts";
 import { knowledgeSqlOptions } from "./knowledge/options.ts";
@@ -346,6 +348,7 @@ export interface BlockOptionsRegistry {
   readonly imports: None;
   readonly inbox: InboxSqlOptions;
   readonly incidents: IncidentsSqlOptions;
+  readonly inspections: InspectionsSqlOptions;
   readonly inventory: InventorySqlOptions;
   readonly invitations: InvitationsSqlOptions;
   readonly invoices: InvoicesSqlOptions;
@@ -507,6 +510,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   imports: NO_OPTIONS,
   inbox: inboxSqlOptions,
   incidents: incidentsSqlOptions,
+  inspections: inspectionsSqlOptions,
   inventory: inventorySqlOptions,
   invitations: invitationsSqlOptions,
   invoices: invoicesSqlOptions,

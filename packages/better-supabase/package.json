@@ -1075,6 +1075,11 @@
       "types": "./dist/blocks/cases/index.d.ts",
       "default": "./dist/blocks/cases/index.js"
     },
+    "./blocks/inspections": {
+      "@better-supabase/source": "./src/blocks/inspections/index.ts",
+      "types": "./dist/blocks/inspections/index.d.ts",
+      "default": "./dist/blocks/inspections/index.js"
+    },
     "./blocks/shifts": {
       "@better-supabase/source": "./src/blocks/shifts/index.ts",
       "types": "./dist/blocks/shifts/index.d.ts",
@@ -1974,6 +1979,10 @@
       "./blocks/cases": {
         "types": "./dist/blocks/cases/index.d.ts",
         "default": "./dist/blocks/cases/index.js"
+      },
+      "./blocks/inspections": {
+        "types": "./dist/blocks/inspections/index.d.ts",
+        "default": "./dist/blocks/inspections/index.js"
       },
       "./blocks/shifts": {
         "types": "./dist/blocks/shifts/index.d.ts",

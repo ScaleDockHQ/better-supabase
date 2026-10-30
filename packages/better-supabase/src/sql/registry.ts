@@ -76,6 +76,7 @@ import { IDENTITIES } from "./modules/identities.ts";
 import { IMPORTS } from "./modules/imports.ts";
 import { INBOX } from "./modules/inbox.ts";
 import { INCIDENTS } from "./modules/incidents.ts";
+import { INSPECTIONS } from "./modules/inspections.ts";
 import { INVENTORY } from "./modules/inventory.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { INVOICES } from "./modules/invoices.ts";
@@ -400,6 +401,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(MEDICATIONS),
       built(CARE_PLANS),
       built(CASES),
+      built(INSPECTIONS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

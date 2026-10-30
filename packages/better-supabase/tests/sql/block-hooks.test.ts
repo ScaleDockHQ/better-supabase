@@ -224,6 +224,14 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_case_close",
     "after_case_close",
   ],
+  inspections: [
+    "before_inspection_schedule",
+    "after_inspection_schedule",
+    "before_inspection_close",
+    "after_inspection_close",
+    "before_inspection_finding_create",
+    "after_inspection_finding_create",
+  ],
   observations: [
     "before_observation_definition_save",
     "after_observation_definition_save",

@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:1674f73fa560ed0713d92d33ecf1a79c7a7c7cbded1f36cc032902cd7335d578
+-- @bsb-hash sha256:276ff9c6467dc0a3a2b9c129c50c17c7a0aed5a40c01d9394b136865ce5f93b4
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -159,10 +159,13 @@ begin
       when 'qualification_type' then (select s."tenant_id"::text from "better_supabase"."qualification_types" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'risk' then (select s."tenant_id"::text from "better_supabase"."risks" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'case' then (select s."tenant_id"::text from "better_supabase"."cases" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'inspection' then (select s."tenant_id"::text from "better_supabase"."inspections" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'inspection_program' then (select s."tenant_id"::text from "better_supabase"."inspection_programs" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'inspection_finding' then (select s."tenant_id"::text from "better_supabase"."inspection_findings" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
-      when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'drive_node' then (select s."tenant_id"::text from "better_supabase"."drive_nodes" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)

@@ -364,6 +364,11 @@ may be your own enum or domain.
   - `better_supabase.incident_postmortems`: `id`, `tenant_id`, `incident_id`, `summary`, `status`, `published_at`; typed: `status`
   - `better_supabase.incident_postmortem_actions`: `id`, `tenant_id`, `postmortem_id`, `task_id`
   - `better_supabase.status_pages`: `id`, `tenant_id`, `slug`, `title`, `published`
+- `inspections`
+  - `better_supabase.inspection_programs`: `id`, `tenant_id`, `name`, `period_start`, `period_end`, `owner_id`, `status`, `archived_at`, `created_at`, `updated_at`
+  - `better_supabase.inspections`: `id`, `tenant_id`, `program_id`, `number`, `sequence`, `kind`, `title`, `auditee_type`, `auditee_id`, `lead_id`, `planned_start`, `planned_end`, `started_at`, `completed_at`, `closed_at`, `status`, `checklist_form_id`, `checklist_submission_id`, `created_at`, `updated_at`
+  - `better_supabase.inspection_members`: `inspection_id`, `tenant_id`, `user_id`, `role`, `created_at`
+  - `better_supabase.inspection_findings`: `id`, `tenant_id`, `inspection_id`, `number`, `type`, `title`, `control_id`, `case_id`, `created_at`, `updated_at`
 - `inventory`
   - `better_supabase.inventory_locations`: `id`, `tenant_id`, `code`, `name`, `kind`, `active`, `created_at`, `updated_at`
   - `better_supabase.stock_levels`: `tenant_id`, `variant_id`, `location_id`, `on_hand`, `reserved`, `held`, `incoming`, `available`, `reorder_point`, `updated_at`
