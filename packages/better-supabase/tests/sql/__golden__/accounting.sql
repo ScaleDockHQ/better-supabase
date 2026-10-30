@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_143_accounting.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_144_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
 -- @bsb-hash sha256:673d2782e9471e9f9baa0315d1e2859993b32c961aa97ebf5fdfe97dc4910ecc
@@ -2147,7 +2147,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_143_accounting.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_144_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
 -- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
@@ -2161,7 +2161,7 @@ values ('accounting', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_143_accounting.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_144_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
 -- @bsb-hash sha256:a9ebd120da8397ea97644972b27bf2650002e19979a43f61a7b2e106a8baf67d
@@ -4388,7 +4388,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_143_accounting.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_144_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
 -- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
@@ -4402,7 +4402,7 @@ values ('accounting', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_143_accounting.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_144_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
 -- @bsb-hash sha256:2993a29392de718234b2c64dde35e82fe243b69b4ae3f08a91a879eb31d19518
@@ -6556,7 +6556,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_143_accounting.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_144_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
 -- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
@@ -6570,7 +6570,7 @@ values ('accounting', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_143_accounting.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_144_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
 -- @bsb-hash sha256:f361054407d62ac72ca6cc65ef462f0347ae643bf31e4a15fd45dfa2774d82cd
@@ -9031,7 +9031,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_143_accounting.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_144_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
 -- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
@@ -9045,7 +9045,7 @@ values ('accounting', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_143_accounting.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_144_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
 -- @bsb-hash sha256:89f208989288d7cebca6d9f7831b80de39a941f1882f069d6136c32f00107611
@@ -11154,7 +11154,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_143_accounting.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_144_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
 -- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
@@ -11168,7 +11168,7 @@ values ('accounting', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_143_accounting.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_144_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
 -- @bsb-hash sha256:a6b0f67e703372a21eb202ce81013e68a198a0515c04bb88dede2f0b127288a7
@@ -13317,7 +13317,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_143_accounting.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_144_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
 -- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144

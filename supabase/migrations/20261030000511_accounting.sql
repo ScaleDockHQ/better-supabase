@@ -1622,6 +1622,9 @@ CREATE OR REPLACE FUNCTION better_supabase.data_lifecycle_tables()
     ('organization', 'better_supabase.post_boards', '"better_supabase"."post_boards"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.posts', '"better_supabase"."posts"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.content_entries', '"better_supabase"."content_entries"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.qualification_types', '"better_supabase"."qualification_types"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.qualification_requirements', '"better_supabase"."qualification_requirements"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.qualifications', '"better_supabase"."qualifications"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.accounting_settings', '"better_supabase"."accounting_settings"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.accounting_accounts', '"better_supabase"."accounting_accounts"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.accounting_account_roles', '"better_supabase"."accounting_account_roles"', 'tenant_id', true, '{}'::text[], true),
@@ -2043,6 +2046,9 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'posts.write' then 'posts.write'
     when 'promotions.manage' then 'promotions.manage'
     when 'promotions.read' then 'promotions.read'
+    when 'qualifications.grant' then 'qualifications.grant'
+    when 'qualifications.manage' then 'qualifications.manage'
+    when 'qualifications.read' then 'qualifications.read'
     when 'quotes.manage' then 'quotes.manage'
     when 'quotes.read' then 'quotes.read'
     when 'quotes.write' then 'quotes.write'
