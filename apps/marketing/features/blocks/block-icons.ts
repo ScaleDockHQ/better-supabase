@@ -24,6 +24,7 @@ import {
   CalendarCheckIcon,
   CalendarClockIcon,
   CalendarDaysIcon,
+  CalendarRangeIcon,
   ChartLineIcon,
   ChartSplineIcon,
   CircleUserIcon,
@@ -229,6 +230,7 @@ export const BLOCK_ICONS = {
   hiring: UserPlusIcon,
   employees: IdCardIcon,
   qualifications: AwardIcon,
+  shifts: CalendarRangeIcon,
   // Billing & commerce
   entitlements: BadgeCheckIcon,
   usage: GaugeIcon,

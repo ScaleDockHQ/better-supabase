@@ -204,6 +204,7 @@
   "./blocks/content": 30608,
   "./blocks/qualifications": 32772,
   "./blocks/risks": 33948,
+  "./blocks/shifts": 33293,
   "./blocks/contracts": 38982,
   "./blocks/compliance": 33148,
   "./blocks/incidents": 33252,

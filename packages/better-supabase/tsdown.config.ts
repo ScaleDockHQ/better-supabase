@@ -106,6 +106,7 @@ const entries = [
   "blocks/content/index",
   "blocks/qualifications/index",
   "blocks/risks/index",
+  "blocks/shifts/index",
   "blocks/security-events/index",
   "blocks/identities/index",
   "blocks/service-accounts/index",

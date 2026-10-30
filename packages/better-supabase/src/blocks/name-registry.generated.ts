@@ -1607,6 +1607,26 @@ export interface BlockNameRegistry {
     };
     readonly primary: "link";
   };
+  readonly "shifts": {
+    readonly tables: {
+      readonly "templates": "id" | "tenant" | "name" | "team" | "location" | "startsTime" | "endsTime" | "breakMinutes" | "headcount" | "requiredQualifications" | "weekdays" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "shifts": "id" | "tenant" | "template" | "team" | "location" | "startsAt" | "endsAt" | "breakMinutes" | "headcount" | "requiredQualifications" | "status" | "note" | "publishedAt" | "canceledAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "assignments": "id" | "tenant" | "shift" | "user" | "status" | "startsAt" | "endsAt" | "assignedBy" | "createdAt" | "updatedAt";
+      readonly "swaps": "id" | "tenant" | "assignment" | "fromUser" | "toUser" | "status" | "approval" | "note" | "decidedBy" | "decidedAt" | "createdAt";
+      readonly "availability": "id" | "tenant" | "user" | "onDate" | "fromTime" | "untilTime" | "kind" | "note" | "createdAt";
+    };
+    readonly functions: "archive_shift_template" | "assign_shift" | "cancel_shift" | "decide_shift_request" | "decide_shift_swap" | "generate_shifts" | "list_shift_availability" | "list_shift_templates" | "my_shifts" | "publish_shifts" | "request_open_shift" | "request_shift_swap" | "roster" | "save_shift" | "save_shift_template" | "set_shift_availability" | "shift_assignment_check" | "shift_hours" | "unassign_shift";
+    readonly actions: "read" | "write" | "request" | "manage";
+    readonly hooks: "before_shift_save" | "after_shift_save" | "before_shift_cancel" | "after_shift_cancel" | "before_shift_assignment_create" | "after_shift_assignment_create";
+    readonly entities: {
+      readonly "shift": "id" | "tenant_id" | "template_id" | "team_id" | "location_id" | "starts_at" | "ends_at" | "break_minutes" | "headcount" | "required_qualifications" | "status" | "note" | "published_at" | "canceled_at" | "created_by" | "created_at" | "updated_at";
+      readonly "shift_template": "id" | "tenant_id" | "name" | "team_id" | "location_id" | "starts_time" | "ends_time" | "break_minutes" | "headcount" | "required_qualifications" | "weekdays" | "archived_at" | "created_at" | "updated_at";
+      readonly "shift_assignment": "id" | "tenant_id" | "shift_id" | "user_id" | "status" | "starts_at" | "ends_at" | "assigned_by" | "created_at" | "updated_at";
+      readonly "shift_swap": "id" | "tenant_id" | "assignment_id" | "from_user_id" | "to_user_id" | "status" | "approval_id" | "note" | "decided_by" | "decided_at" | "created_at";
+      readonly "shift_availability": "id" | "tenant_id" | "user_id" | "on_date" | "from_time" | "until_time" | "kind" | "note" | "created_at";
+    };
+    readonly primary: "shift";
+  };
   readonly "shipments": {
     readonly tables: {
       readonly "shipments": "id" | "tenant" | "reference" | "status" | "fromAddress" | "toAddress" | "fromLocation" | "subjectType" | "subjectId" | "carrier" | "service" | "trackingNumber" | "trackingUrl" | "labelId" | "labelUrl" | "labelFormat" | "labelCost" | "currency" | "labeledAt" | "deliveredAt" | "cancelledAt" | "createdBy" | "createdAt" | "updatedAt";

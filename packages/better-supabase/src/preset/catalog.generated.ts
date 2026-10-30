@@ -7090,6 +7090,155 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "shifts",
+      "title": "Shifts",
+      "category": "people",
+      "requires": [
+        "memberships",
+        "permissions",
+        "teams"
+      ],
+      "integrates": [
+        "employees",
+        "leave",
+        "qualifications",
+        "time-tracking",
+        "assets",
+        "approvals",
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "shifts",
+      "scopes": [
+        "tenant"
+      ],
+      "tenantNameClashes": [
+        "team"
+      ],
+      "extraColumns": "shifts",
+      "entities": {
+        "specs": {
+          "shift": {
+            "table": "shifts",
+            "singular": "shift",
+            "primary": true
+          },
+          "shift_template": {
+            "table": "templates",
+            "singular": "shift_template"
+          },
+          "shift_assignment": {
+            "table": "assignments",
+            "singular": "shift_assignment"
+          },
+          "shift_swap": {
+            "table": "swaps",
+            "singular": "shift_swap"
+          },
+          "shift_availability": {
+            "table": "availability",
+            "singular": "shift_availability",
+            "plural": "shift_availability"
+          }
+        },
+        "tables": {
+          "shifts": {
+            "name": "shifts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "template": "template_id",
+              "team": "team_id",
+              "location": "location_id",
+              "startsAt": "starts_at",
+              "endsAt": "ends_at",
+              "breakMinutes": "break_minutes",
+              "headcount": "headcount",
+              "requiredQualifications": "required_qualifications",
+              "status": "status",
+              "note": "note",
+              "publishedAt": "published_at",
+              "canceledAt": "canceled_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "templates": {
+            "name": "shift_templates",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "team": "team_id",
+              "location": "location_id",
+              "startsTime": "starts_time",
+              "endsTime": "ends_time",
+              "breakMinutes": "break_minutes",
+              "headcount": "headcount",
+              "requiredQualifications": "required_qualifications",
+              "weekdays": "weekdays",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "assignments": {
+            "name": "shift_assignments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "shift": "shift_id",
+              "user": "user_id",
+              "status": "status",
+              "startsAt": "starts_at",
+              "endsAt": "ends_at",
+              "assignedBy": "assigned_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "swaps": {
+            "name": "shift_swaps",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "assignment": "assignment_id",
+              "fromUser": "from_user_id",
+              "toUser": "to_user_id",
+              "status": "status",
+              "approval": "approval_id",
+              "note": "note",
+              "decidedBy": "decided_by",
+              "decidedAt": "decided_at",
+              "createdAt": "created_at"
+            }
+          },
+          "availability": {
+            "name": "shift_availability",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "onDate": "on_date",
+              "fromTime": "from_time",
+              "untilTime": "until_time",
+              "kind": "kind",
+              "note": "note",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "shifts.read",
+          "write": "shifts.write",
+          "request": "shifts.request",
+          "manage": "shifts.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -14983,6 +15132,434 @@ export const PRESET_CATALOG: PresetCatalog = {
           "description": "Reports the risks whose review date has come."
         }
       ]
+    },
+    {
+      "name": "shifts",
+      "sql": [
+        "shifts"
+      ],
+      "category": "people",
+      "client": {
+        "export": "shiftsBlock",
+        "subpath": "better-supabase/blocks/shifts"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "MyShift",
+          "fields": true
+        },
+        {
+          "name": "RosterShift",
+          "fields": true
+        },
+        {
+          "name": "Shift",
+          "fields": true
+        },
+        {
+          "name": "ShiftAssignment"
+        },
+        {
+          "name": "ShiftAssignmentCreatedEventData"
+        },
+        {
+          "name": "ShiftAssignmentReleasedEventData"
+        },
+        {
+          "name": "ShiftAssignmentStatus"
+        },
+        {
+          "name": "ShiftAssignmentWarning"
+        },
+        {
+          "name": "ShiftAvailability"
+        },
+        {
+          "name": "ShiftAvailabilityInput"
+        },
+        {
+          "name": "ShiftAvailabilityKind"
+        },
+        {
+          "name": "ShiftCanceledEventData"
+        },
+        {
+          "name": "ShiftCreatedEventData"
+        },
+        {
+          "name": "ShiftHours"
+        },
+        {
+          "name": "ShiftInput",
+          "fields": true
+        },
+        {
+          "name": "ShiftPublishedEventData"
+        },
+        {
+          "name": "Shifts",
+          "fields": true
+        },
+        {
+          "name": "ShiftsEvents"
+        },
+        {
+          "name": "ShiftsOptions"
+        },
+        {
+          "name": "ShiftStatus"
+        },
+        {
+          "name": "ShiftSwap"
+        },
+        {
+          "name": "ShiftSwapDecidedEventData"
+        },
+        {
+          "name": "ShiftSwapRequestedEventData"
+        },
+        {
+          "name": "ShiftSwapStatus"
+        },
+        {
+          "name": "ShiftTemplate"
+        },
+        {
+          "name": "ShiftTemplateInput"
+        }
+      ],
+      "entitySchemas": {
+        "shift": {
+          "input": {
+            "title": "ShiftInput",
+            "fields": {
+              "startsAt": {
+                "kind": "instant"
+              },
+              "endsAt": {
+                "kind": "instant"
+              },
+              "teamId": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 64
+              },
+              "locationId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "breakMinutes": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0
+              },
+              "headcount": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "requiredQualifications": {
+                "kind": "string",
+                "optional": true,
+                "array": true
+              },
+              "note": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "shiftId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ShiftInput",
+              "type": "object",
+              "properties": {
+                "startsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "endsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "teamId": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "breakMinutes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "headcount": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000
+                },
+                "requiredQualifications": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "shiftId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "startsAt",
+                "endsAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "shift_template": {
+          "input": {
+            "title": "ShiftTemplateInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "startsTime": {
+                "kind": "string",
+                "minLength": 5,
+                "maxLength": 8,
+                "description": "A time of day, HH:MM."
+              },
+              "endsTime": {
+                "kind": "string",
+                "minLength": 5,
+                "maxLength": 8,
+                "description": "A time of day, HH:MM."
+              },
+              "weekdays": {
+                "kind": "integer",
+                "optional": true,
+                "array": true,
+                "minimum": 1,
+                "maximum": 7
+              },
+              "teamId": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 64
+              },
+              "locationId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "breakMinutes": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0
+              },
+              "headcount": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "requiredQualifications": {
+                "kind": "string",
+                "optional": true,
+                "array": true
+              },
+              "templateId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ShiftTemplateInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "startsTime": {
+                  "type": "string",
+                  "minLength": 5,
+                  "maxLength": 8,
+                  "description": "A time of day, HH:MM."
+                },
+                "endsTime": {
+                  "type": "string",
+                  "minLength": 5,
+                  "maxLength": 8,
+                  "description": "A time of day, HH:MM."
+                },
+                "weekdays": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 7
+                  }
+                },
+                "teamId": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "breakMinutes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "headcount": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000
+                },
+                "requiredQualifications": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "templateId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "name",
+                "startsTime",
+                "endsTime"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "shift_availability": {
+          "input": {
+            "title": "ShiftAvailabilityInput",
+            "fields": {
+              "onDate": {
+                "kind": "plainDate"
+              },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "available",
+                  "unavailable",
+                  "preferred"
+                ]
+              },
+              "fromTime": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 5,
+                "maxLength": 8,
+                "description": "A time of day, HH:MM."
+              },
+              "untilTime": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 5,
+                "maxLength": 8,
+                "description": "A time of day, HH:MM."
+              },
+              "note": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "userId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ShiftAvailabilityInput",
+              "type": "object",
+              "properties": {
+                "onDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "available",
+                    "unavailable",
+                    "preferred"
+                  ]
+                },
+                "fromTime": {
+                  "type": "string",
+                  "minLength": 5,
+                  "maxLength": 8,
+                  "description": "A time of day, HH:MM."
+                },
+                "untilTime": {
+                  "type": "string",
+                  "minLength": 5,
+                  "maxLength": 8,
+                  "description": "A time of day, HH:MM."
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "userId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "onDate",
+                "kind"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "ShiftsEvents",
+        "types": [
+          "shift.created",
+          "shift.published",
+          "shift.cancelled",
+          "shift_assignment.created",
+          "shift_assignment.released",
+          "shift_swap.requested",
+          "shift_swap.decided"
+        ]
+      }
     },
     {
       "name": "drive",

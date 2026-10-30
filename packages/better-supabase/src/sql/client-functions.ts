@@ -198,6 +198,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "get_organization_settings get_platform_settings get_user_settings reset_organization_setting reset_platform_setting reset_user_setting set_organization_setting set_platform_setting set_user_setting",
   "share-links":
     "create_share_link list_share_links record_view resolve_share_link revoke_share_link set_user_state",
+  shifts:
+    "archive_shift_template assign_shift cancel_shift decide_shift_request decide_shift_swap generate_shifts list_shift_availability list_shift_templates my_shifts publish_shifts request_open_shift request_shift_swap roster save_shift save_shift_template set_shift_availability shift_hours shifts_to_time_entries unassign_shift",
   shipments:
     "cancel_shipment create_shipment get_shipment ingest_tracking_events list_shipments list_tracking_events receive_shipment_return record_tracking_events set_shipment_label set_shipment_lines",
   signatures:
