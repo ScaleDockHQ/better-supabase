@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:a5fcc07da00b052016b7b5fba9fa82a2c5a2709e40d1b2b13385c3a6d3b3348b
+-- @bsb-hash sha256:27f8b0d352697209a0d5ddc422ded2677a8a60c989b1eca41fe0398fc6765319
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -450,7 +450,7 @@ begin
   if found then
     return v_task;
   end if;
-  v_task := ("better_supabase"."create_task"(
+  v_task := ("better_supabase"."create_work_item"(
     v_msg."tenant_id",
     (coalesce(assign_comment.attrs, '{}') - 'title') || jsonb_build_object(
       'title', coalesce(nullif(trim(assign_comment.attrs ->> 'title'), ''), left(v_msg."body", 120)),

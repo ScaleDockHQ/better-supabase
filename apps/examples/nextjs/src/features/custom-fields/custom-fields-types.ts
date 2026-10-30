@@ -4,7 +4,7 @@ import { CUSTOM_FIELD_TYPES } from "better-supabase/blocks/custom-fields";
 import * as v from "valibot";
 
 /** The records the editor defines fields for, by subject type. */
-export const FIELD_ENTITIES = ["customer", "task"] as const;
+export const FIELD_ENTITIES = ["customer", "work_item"] as const;
 
 export type FieldEntity = (typeof FIELD_ENTITIES)[number];
 

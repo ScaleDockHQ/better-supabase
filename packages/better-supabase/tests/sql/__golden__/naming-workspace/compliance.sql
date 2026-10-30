@@ -1039,14 +1039,14 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:264897e867568ee8067078622f6726da7605a5553f0dccd813b4196c21c4d9ae
+-- @bsb-hash sha256:a2e4b2323ab82894622f551ade6096a98698cb06059a01e883297d503f278090
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Subject types renamed in 0.47 (`codemod 0.47`).
-update "better_supabase"."versions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."versions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."versions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('compliance', 1, 'managed')

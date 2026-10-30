@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:ff15fc9238819ff97b5b614eff9b6e272b22cfb370d4cfa15fb5182522fe84d6
+-- @bsb-hash sha256:849ea3db75108e9f92b67dc2fcc812eee8cbdf3ef247eb3820d6bcda8db31a2f
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -120,7 +120,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,task,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project}'::text[]
+  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -154,7 +154,7 @@ begin
       return (select s."title"::text from "better_supabase"."engagements" s where s."id" = (subject_title.subject_id)::uuid);
     when 'quote' then
       return (select s."title"::text from "better_supabase"."quotes" s where s."id" = (subject_title.subject_id)::uuid);
-    when 'task', 'work_item' then
+    when 'work_item' then
       return (select s."title"::text from "better_supabase"."work_items" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'employee' then
       return (select s."name"::text from "better_supabase"."employees" s where s."id" = (subject_title.subject_id)::uuid);
@@ -214,6 +214,8 @@ begin
       return (select s."title"::text from "public"."change_requests" s where s."id" = (subject_title.subject_id)::uuid);
     when 'project' then
       return (select s."name"::text from "public"."projects" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
+    when 'task' then
+      return (select s."title"::text from "public"."tasks" s where s."id" = (subject_title.subject_id)::uuid);
     else
       return null;
   end case;
@@ -238,7 +240,7 @@ begin
       return (select '/crm/contacts/' || s."id"::text from "better_supabase"."people" s where s."id" = (subject_url.subject_id)::uuid);
     when 'deal' then
       return (select '/crm/deals' from "better_supabase"."deals" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
-    when 'task', 'work_item' then
+    when 'work_item' then
       return (select '/work' from "better_supabase"."work_items" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
     when 'employee' then
       return (select '/people' from "better_supabase"."employees" s where s."id" = (subject_url.subject_id)::uuid);
@@ -252,6 +254,8 @@ begin
       return (select '/change-requests/' || s."id"::text from "public"."change_requests" s where s."id" = (subject_url.subject_id)::uuid);
     when 'project' then
       return (select '/projects/' || s."id"::text from "public"."projects" s where s."id" = (subject_url.subject_id)::uuid and s."deleted_at" is null);
+    when 'task' then
+      return (select '/projects/' || s."project_id"::text from "public"."tasks" s where s."id" = (subject_url.subject_id)::uuid);
     else
       return null;
   end case;
@@ -344,10 +348,10 @@ begin
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'quote')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
-      'type', 'task', 'id', s."id"::text,
+      'type', 'work_item', 'id', s."id"::text,
       'title', s."title"::text, 'url', '/work'))
     from "better_supabase"."work_items" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'task')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'work_item')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'employee', 'id', s."id"::text,
@@ -528,6 +532,12 @@ begin
       'title', s."name"::text, 'url', '/projects/' || s."id"::text))
     from "public"."projects" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'project')::uuid[]) and s."deleted_at" is null), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'task', 'id', s."id"::text,
+      'title', s."title"::text, 'url', '/projects/' || s."project_id"::text))
+    from "public"."tasks" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'task')::uuid[])), '[]'::jsonb);
   return found;
 exception
   when invalid_text_representation then
@@ -653,7 +663,7 @@ begin
           else true
         end)
       );
-    when 'task', 'work_item' then
+    when 'work_item' then
       return exists (
         select 1 from "better_supabase"."work_items" s
         where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
@@ -958,6 +968,12 @@ begin
         where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
           and true
       );
+    when 'task' then
+      return exists (
+        select 1 from "public"."tasks" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and true
+      );
     else
       return false;
   end case;
@@ -1150,7 +1166,7 @@ begin
           else false
         end
       );
-    when 'task', 'work_item' then
+    when 'work_item' then
       return exists (
         select 1 from "better_supabase"."work_items" s
         where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
@@ -1486,6 +1502,12 @@ begin
       return exists (
         select 1 from "public"."projects" s
         where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
+          and false
+      );
+    when 'task' then
+      return exists (
+        select 1 from "public"."tasks" s
+        where s."id" = (can_subject_for.subject_id)::uuid
           and false
       );
     else
@@ -2129,7 +2151,7 @@ begin
       and (my_work.tenant is null or r."tenant_id" = my_work.tenant)
       and "better_supabase"."approval_eligible"(r."id")
     union all
-    select 'assigned'::text, 'task'::text, i."id"::text, i."id"::text, i."title"::text,
+    select 'assigned'::text, 'work_item'::text, i."id"::text, i."id"::text, i."title"::text,
       coalesce(i."due_at", a."created_at")
     from "better_supabase"."work_item_assignees" a
     join "better_supabase"."work_items" i on i."id" = a."work_item_id"
@@ -2150,7 +2172,7 @@ begin
     select 'sla'::text, k."subject_type"::text, k."subject_id"::text, k."id"::text, null::text,
       k."due_at"
     from "better_supabase"."sla_clocks" k
-    where k."subject_type" = 'task'
+    where k."subject_type" = 'work_item'
       and k."warned_at" is not null
       and k."met_at" is null
       and (my_work.tenant is null or k."tenant_id" = my_work.tenant)

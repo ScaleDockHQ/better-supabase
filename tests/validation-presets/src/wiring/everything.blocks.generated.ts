@@ -1046,6 +1046,10 @@ export const permissions = {
     manage: "activities.manage",
     readRestricted: "activities.read_restricted",
   },
+  activity: {
+    read: "activities.read",
+    write: "activities.write",
+  },
   agents: {
     read: "agents.read",
     create: "agents.write",
@@ -1192,6 +1196,10 @@ export const permissions = {
     collect: "compliance.collect",
     acknowledge: "compliance.acknowledge",
   },
+  compliance_policy: {
+    read: "compliance.read",
+    write: "compliance.manage",
+  },
   connectors: {
     read: "connectors.read",
     use: "connectors.use",
@@ -1302,10 +1310,6 @@ export const permissions = {
     read: "employees.read",
     write: "employees.write",
     viewSensitive: "employees.read_sensitive",
-  },
-  engagement: {
-    read: "activities.read",
-    write: "activities.write",
   },
   enrichment: {
     read: "enrichment.read",
@@ -1519,10 +1523,6 @@ export const permissions = {
     read: "pipelines.read",
     manage: "pipelines.manage",
   },
-  policy: {
-    read: "compliance.read",
-    write: "compliance.manage",
-  },
   post: {
     read: "posts.read",
     write: "posts.write",
@@ -1657,6 +1657,10 @@ export const permissions = {
     read: "tags.read",
     apply: "tags.apply",
   },
+  task: {
+    read: "tasks.read",
+    write: "tasks.write",
+  },
   tasks: {
     read: "tasks.read",
     write: "tasks.write",
@@ -1709,10 +1713,6 @@ export const permissions = {
   "webhooks-out": {
     manage: "webhooks.manage",
     view: "webhooks.read",
-  },
-  work_item: {
-    read: "tasks.read",
-    write: "tasks.write",
   },
   work_order: {
     read: "dispatch.read",

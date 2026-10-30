@@ -93,10 +93,21 @@ The step skips a type when the install
 names the entity, and skips `policy` when your `config.subjects` declares a
 `policy` subject of its own. It can run again without changing anything.
 
+If one of your own tables is already a `task`, `activity` or
+`compliance_policy` subject (a `@bsb subject` tag or a `config.subjects`
+entry), the CLI stops with an error naming the table. Keep the block on its
+old noun, which also keeps its subject type and function names:
+
+```ts title="better-supabase.config.ts"
+tasks: { names: { task: "work_item" } },
+```
+
 Until 0.48 the subject functions (`subject_title`, `can_subject` and the rest)
 still accept the old type. Rename the types your code passes, such as
-`{ type: "work_item", id }`; the codemod lists them for review. Rename types
-you store outside better-supabase tables yourself.
+`{ type: "work_item", id }`; the codemod lists them for review. Rename them
+in `blocks.<name>.on` too (`on: { compliance_policy: ... }`); doctor reports an
+`on` type that is no record type (BS346). Rename types you store outside
+better-supabase tables yourself.
 
 ## Hint codes
 

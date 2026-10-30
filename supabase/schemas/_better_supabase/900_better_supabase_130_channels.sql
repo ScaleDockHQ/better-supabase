@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:5b3ce4304c2e7fe2c7c74b2f3cb4c5a0f3db620a1a5e07d9bb3eeb0d3a0637e8
+-- @bsb-hash sha256:8e1de25a8a68177f6b1ee026f3382120665706d7fbcb822f6be1d004842e52df
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -136,7 +136,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
@@ -167,6 +167,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       else null::text
     end) <> create_channel.tenant::text, false) then
     raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';

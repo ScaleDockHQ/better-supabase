@@ -4,47 +4,19 @@ DROP POLICY "activity_entries_read" ON "better_supabase"."activity_entries";
 
 DROP POLICY "bsb_tenant_scope_select" ON "better_supabase"."activity_entries";
 
-DROP POLICY "bsb_tenant_scope_select" ON "better_supabase"."status_history";
-
-DROP POLICY "status_history_read" ON "better_supabase"."status_history";
-
-DROP POLICY "bsb_tenant_scope_select" ON "better_supabase"."status_stages";
-
-DROP POLICY "status_stages_read" ON "better_supabase"."status_stages";
-
-DROP POLICY "bsb_tenant_scope_select" ON "better_supabase"."subject_lifecycles";
-
-DROP POLICY "subject_lifecycles_read" ON "better_supabase"."subject_lifecycles";
-
 DROP TRIGGER "bsb_search_engagement_index" ON "better_supabase"."engagements";
-
-DROP TRIGGER "bsb_pipeline_status_work_item" ON "better_supabase"."work_items";
-
-DROP TRIGGER "bsb_pipeline_work_item" ON "better_supabase"."work_items";
-
-DROP TRIGGER "bsb_search_work_item_index" ON "better_supabase"."work_items";
-
-DROP TRIGGER "bsb_transition_work_item" ON "better_supabase"."work_items";
 
 DROP FUNCTION "api"."acknowledge_policy"(uuid);
 
 DROP FUNCTION "api"."archive_policy"(uuid);
 
-DROP FUNCTION "api"."archive_work_item"(uuid, boolean);
-
 DROP FUNCTION "api"."attach_engagement_recording"(uuid, uuid, text);
 
 DROP FUNCTION "api"."complete_engagement"(uuid, boolean, text);
 
-DROP FUNCTION "api"."create_work_item"(uuid, jsonb, uuid[]);
-
 DROP FUNCTION "api"."delete_engagement"(uuid);
 
 DROP FUNCTION "api"."delete_obligation"(uuid);
-
-DROP FUNCTION "api"."delete_work_item"(uuid);
-
-DROP FUNCTION "api"."delete_work_item_checklist_item"(uuid);
 
 DROP FUNCTION "api"."engagement_notes"(uuid);
 
@@ -60,17 +32,9 @@ DROP FUNCTION "api"."fail_engagement_recording"(uuid, text);
 
 DROP FUNCTION "api"."get_engagement_recording"(uuid);
 
-DROP FUNCTION "api"."get_work_item"(uuid);
-
 DROP FUNCTION "api"."list_obligations"(uuid, uuid, uuid, boolean, date, integer);
 
 DROP FUNCTION "api"."list_policies"(uuid, boolean, boolean);
-
-DROP FUNCTION "api"."list_work_item_checklist"(uuid);
-
-DROP FUNCTION "api"."list_work_item_watchers"(uuid);
-
-DROP FUNCTION "api"."list_work_items"(uuid, jsonb, text, uuid, integer);
 
 DROP FUNCTION "api"."log_engagement"(uuid, jsonb, jsonb);
 
@@ -86,8 +50,6 @@ DROP FUNCTION "api"."publish_policy"(uuid, jsonb, text);
 
 DROP FUNCTION "api"."publish_postmortem"(uuid);
 
-DROP FUNCTION "api"."repeat_work_item"(uuid, timestamp WITH time zone);
-
 DROP FUNCTION "api"."save_engagement_notes"(uuid, jsonb);
 
 DROP FUNCTION "api"."save_engagement_transcript"(uuid, jsonb, jsonb);
@@ -100,49 +62,23 @@ DROP FUNCTION "api"."save_postmortem"(uuid, jsonb);
 
 DROP FUNCTION "api"."save_target"(uuid, uuid, jsonb);
 
-DROP FUNCTION "api"."save_work_item_checklist_item"(uuid, uuid, jsonb);
-
 DROP FUNCTION "api"."set_obligation_status"(uuid, text);
-
-DROP FUNCTION "api"."set_work_item_assignees"(uuid, uuid[]);
-
-DROP FUNCTION "api"."set_work_item_recurrence"(uuid, text, text);
 
 DROP FUNCTION "api"."target_progress"(uuid, date, uuid);
 
 DROP FUNCTION "api"."update_engagement"(uuid, jsonb, jsonb);
 
-DROP FUNCTION "api"."update_work_items"(jsonb);
-
-DROP FUNCTION "api"."watch_work_item"(uuid, text);
-
-DROP FUNCTION "api"."work_item_tree"(uuid);
-
 DROP FUNCTION "better_supabase"."acknowledge_policy"(uuid);
 
 DROP FUNCTION "better_supabase"."archive_policy"(uuid);
 
-DROP FUNCTION "better_supabase"."archive_work_item"(uuid, boolean);
-
 DROP FUNCTION "better_supabase"."attach_engagement_recording"(uuid, uuid, text);
 
-DROP FUNCTION "better_supabase"."bsb_pipeline_status_work_item"();
-
-DROP FUNCTION "better_supabase"."bsb_pipeline_work_item"();
-
-DROP FUNCTION "better_supabase"."bsb_transition_work_item"();
-
 DROP FUNCTION "better_supabase"."complete_engagement"(uuid, boolean, text);
-
-DROP FUNCTION "better_supabase"."create_work_item"(uuid, jsonb, uuid[]);
 
 DROP FUNCTION "better_supabase"."delete_engagement"(uuid);
 
 DROP FUNCTION "better_supabase"."delete_obligation"(uuid);
-
-DROP FUNCTION "better_supabase"."delete_work_item"(uuid);
-
-DROP FUNCTION "better_supabase"."delete_work_item_checklist_item"(uuid);
 
 DROP FUNCTION "better_supabase"."engagement_notes"(uuid);
 
@@ -158,17 +94,9 @@ DROP FUNCTION "better_supabase"."fail_engagement_recording"(uuid, text);
 
 DROP FUNCTION "better_supabase"."get_engagement_recording"(uuid);
 
-DROP FUNCTION "better_supabase"."get_work_item"(uuid);
-
 DROP FUNCTION "better_supabase"."list_obligations"(uuid, uuid, uuid, boolean, date, integer);
 
 DROP FUNCTION "better_supabase"."list_policies"(uuid, boolean, boolean);
-
-DROP FUNCTION "better_supabase"."list_work_item_checklist"(uuid);
-
-DROP FUNCTION "better_supabase"."list_work_item_watchers"(uuid);
-
-DROP FUNCTION "better_supabase"."list_work_items"(uuid, jsonb, text, uuid, integer);
 
 DROP FUNCTION "better_supabase"."log_engagement"(uuid, jsonb, jsonb);
 
@@ -184,8 +112,6 @@ DROP FUNCTION "better_supabase"."publish_policy"(uuid, jsonb, text);
 
 DROP FUNCTION "better_supabase"."publish_postmortem"(uuid);
 
-DROP FUNCTION "better_supabase"."repeat_work_item"(uuid, timestamp WITH time zone);
-
 DROP FUNCTION "better_supabase"."save_engagement_notes"(uuid, jsonb);
 
 DROP FUNCTION "better_supabase"."save_engagement_transcript"(uuid, jsonb, jsonb);
@@ -198,23 +124,11 @@ DROP FUNCTION "better_supabase"."save_postmortem"(uuid, jsonb);
 
 DROP FUNCTION "better_supabase"."save_target"(uuid, uuid, jsonb);
 
-DROP FUNCTION "better_supabase"."save_work_item_checklist_item"(uuid, uuid, jsonb);
-
 DROP FUNCTION "better_supabase"."set_obligation_status"(uuid, text);
-
-DROP FUNCTION "better_supabase"."set_work_item_assignees"(uuid, uuid[]);
-
-DROP FUNCTION "better_supabase"."set_work_item_recurrence"(uuid, text, text);
 
 DROP FUNCTION "better_supabase"."target_progress"(uuid, date, uuid);
 
 DROP FUNCTION "better_supabase"."update_engagement"(uuid, jsonb, jsonb);
-
-DROP FUNCTION "better_supabase"."update_work_items"(jsonb);
-
-DROP FUNCTION "better_supabase"."watch_work_item"(uuid, text);
-
-DROP FUNCTION "better_supabase"."work_item_tree"(uuid);
 
 CREATE OR REPLACE FUNCTION api.acknowledge_compliance_policy (
   policy_id uuid
@@ -278,15 +192,6 @@ CREATE OR REPLACE FUNCTION api.archive_compliance_policy (
   SET search_path TO ''
   AS $function$ select "better_supabase"."archive_compliance_policy"($1) $function$;
 
-CREATE OR REPLACE FUNCTION api.archive_task (
-  work_item uuid,
-  archived  boolean
-)
-  RETURNS boolean
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."archive_task"($1, $2) $function$;
-
 CREATE OR REPLACE FUNCTION api.attach_activity_recording (
   engagement uuid,
   file       uuid,
@@ -315,16 +220,6 @@ CREATE OR REPLACE FUNCTION api.compliance_policy_acknowledgements (
   SET search_path TO ''
   AS $function$ select "better_supabase"."compliance_policy_acknowledgements"($1) $function$;
 
-CREATE OR REPLACE FUNCTION api.create_task (
-  tenant    uuid,
-  attrs     jsonb,
-  assignees uuid[]
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."create_task"($1, $2, $3) $function$;
-
 CREATE OR REPLACE FUNCTION api.delete_activity (
   engagement uuid
 )
@@ -340,22 +235,6 @@ CREATE OR REPLACE FUNCTION api.delete_contract_obligation (
   LANGUAGE sql
   SET search_path TO ''
   AS $function$ select "better_supabase"."delete_contract_obligation"($1) $function$;
-
-CREATE OR REPLACE FUNCTION api.delete_task (
-  work_item uuid
-)
-  RETURNS boolean
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."delete_task"($1) $function$;
-
-CREATE OR REPLACE FUNCTION api.delete_task_checklist_item (
-  checklist_item uuid
-)
-  RETURNS boolean
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."delete_task_checklist_item"($1) $function$;
 
 CREATE OR REPLACE FUNCTION api.fail_activity_recording (
   recording uuid,
@@ -373,14 +252,6 @@ CREATE OR REPLACE FUNCTION api.get_activity_recording (
   LANGUAGE sql
   SET search_path TO ''
   AS $function$ select "better_supabase"."get_activity_recording"($1) $function$;
-
-CREATE OR REPLACE FUNCTION api.get_task (
-  work_item uuid
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."get_task"($1) $function$;
 
 CREATE OR REPLACE FUNCTION api.goal_progress (
   tenant  uuid,
@@ -414,34 +285,6 @@ CREATE OR REPLACE FUNCTION api.list_contract_obligations (
   LANGUAGE sql
   SET search_path TO ''
   AS $function$ select "better_supabase"."list_contract_obligations"($1, $2, $3, $4, $5, $6) $function$;
-
-CREATE OR REPLACE FUNCTION api.list_task_checklist (
-  work_item uuid
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."list_task_checklist"($1) $function$;
-
-CREATE OR REPLACE FUNCTION api.list_task_watchers (
-  work_item uuid
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."list_task_watchers"($1) $function$;
-
-CREATE OR REPLACE FUNCTION api.list_tasks (
-  tenant    uuid,
-  filter    jsonb,
-  search    text,
-  after     uuid,
-  page_size integer
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."list_tasks"($1, $2, $3, $4, $5) $function$;
 
 CREATE OR REPLACE FUNCTION api.log_activity (
   tenant   uuid,
@@ -498,15 +341,6 @@ CREATE OR REPLACE FUNCTION api.publish_incident_postmortem (
   LANGUAGE sql
   SET search_path TO ''
   AS $function$ select "better_supabase"."publish_incident_postmortem"($1) $function$;
-
-CREATE OR REPLACE FUNCTION api.repeat_task (
-  work_item uuid,
-  due_at    timestamp with time zone
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."repeat_task"($1, $2) $function$;
 
 CREATE OR REPLACE FUNCTION api.save_activity_notes (
   engagement uuid,
@@ -572,16 +406,6 @@ CREATE OR REPLACE FUNCTION api.save_incident_postmortem (
   SET search_path TO ''
   AS $function$ select "better_supabase"."save_incident_postmortem"($1, $2) $function$;
 
-CREATE OR REPLACE FUNCTION api.save_task_checklist_item (
-  work_item      uuid,
-  checklist_item uuid,
-  attrs          jsonb
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."save_task_checklist_item"($1, $2, $3) $function$;
-
 CREATE OR REPLACE FUNCTION api.set_contract_obligation_status (
   obligation_id uuid,
   status        text
@@ -590,33 +414,6 @@ CREATE OR REPLACE FUNCTION api.set_contract_obligation_status (
   LANGUAGE sql
   SET search_path TO ''
   AS $function$ select "better_supabase"."set_contract_obligation_status"($1, $2) $function$;
-
-CREATE OR REPLACE FUNCTION api.set_task_assignees (
-  work_item uuid,
-  users     uuid[]
-)
-  RETURNS integer
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."set_task_assignees"($1, $2) $function$;
-
-CREATE OR REPLACE FUNCTION api.set_task_recurrence (
-  work_item uuid,
-  rrule     text,
-  tzid      text DEFAULT 'UTC'::text
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."set_task_recurrence"($1, $2, $3) $function$;
-
-CREATE OR REPLACE FUNCTION api.task_tree (
-  root uuid
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."task_tree"($1) $function$;
 
 CREATE OR REPLACE FUNCTION api.update_activity (
   engagement uuid,
@@ -627,23 +424,6 @@ CREATE OR REPLACE FUNCTION api.update_activity (
   LANGUAGE sql
   SET search_path TO ''
   AS $function$ select "better_supabase"."update_activity"($1, $2, $3) $function$;
-
-CREATE OR REPLACE FUNCTION api.update_tasks (
-  changes jsonb
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."update_tasks"($1) $function$;
-
-CREATE OR REPLACE FUNCTION api.watch_task (
-  work_item uuid,
-  level     text
-)
-  RETURNS boolean
-  LANGUAGE sql
-  SET search_path TO ''
-  AS $function$ select "better_supabase"."watch_task"($1, $2) $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.acknowledge (
   subject_type text,
@@ -686,7 +466,7 @@ begin
     raise exception 'you aren''t asked to acknowledge this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_NOT_ASSIGNED';
   end if;
   if not (coalesce(better_supabase.can('tenant', v_tenant, 'acknowledgements.acknowledge'), false) and case acknowledge.subject_type
-    when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (acknowledge.subject_id)::uuid and s."tenant_id" = v_tenant)
+    when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (acknowledge.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'compliance.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (acknowledge.subject_id)::uuid and s."tenant_id" = v_tenant and (coalesce(better_supabase.can('tenant', v_tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end) then
@@ -820,7 +600,7 @@ begin
     return jsonb_build_object('versionId', null, 'required', 0, 'acknowledged', 0, 'pending', '[]'::jsonb);
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'acknowledgements.read'), false) and case acknowledgement_status.subject_type
-    when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (acknowledgement_status.subject_id)::uuid and s."tenant_id" = v_tenant)
+    when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (acknowledgement_status.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'compliance.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (acknowledgement_status.subject_id)::uuid and s."tenant_id" = v_tenant and (coalesce(better_supabase.can('tenant', v_tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end)) then
@@ -882,7 +662,7 @@ begin
     return '[]'::jsonb;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'acknowledgements.read'), false) and case acknowledgements_of.subject_type
-    when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (acknowledgements_of.subject_id)::uuid and s."tenant_id" = v_tenant)
+    when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (acknowledgements_of.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'compliance.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (acknowledgements_of.subject_id)::uuid and s."tenant_id" = v_tenant and (coalesce(better_supabase.can('tenant', v_tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end)) then
@@ -973,7 +753,7 @@ begin
   from "better_supabase"."notification_deliveries" d
   join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
-  where activity_subject_deliveries.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,task,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project}'::text[])
+  where activity_subject_deliveries.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[])
     and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
       or (coalesce(better_supabase.can('tenant', activity_subject_deliveries.tenant, 'timeline.read'), false) and coalesce(better_supabase.can('tenant', activity_subject_deliveries.tenant, 'notifications.send'), false)))
     and ev."organization_id" = activity_subject_deliveries.tenant
@@ -1133,7 +913,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (v_old."subject_id")::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (v_old."subject_id")::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (v_old."subject_id")::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_old."subject_id")::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_old."subject_id")::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (v_old."subject_id")::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (v_old."subject_id")::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_old."subject_id")::uuid)
@@ -1164,6 +944,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (v_old."subject_id")::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (v_old."subject_id")::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (v_old."subject_id")::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (v_old."subject_id")::uuid)
       else null::text
     end) = v_old."tenant_id"::text, false) else (case v_old."subject_type"
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
@@ -1176,7 +957,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
@@ -1207,6 +988,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_old."subject_id")::uuid and s."organization_id"::text = v_old."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_old."subject_id")::uuid and s."organization_id"::text = v_old."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_old."subject_id")::uuid and s."organization_id"::text = v_old."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(v_old."subject_type", v_old."subject_id", 'read')) end)) then
     raise exception 'not allowed to amend this observation' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
@@ -1305,7 +1087,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
@@ -1336,6 +1118,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_id)::uuid and s."organization_id"::text = v_job."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_id)::uuid and s."organization_id"::text = v_job."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_id)::uuid and s."organization_id"::text = v_job."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(v_type, v_id, 'read')) then
     raise exception 'the candidate is unknown or not readable in this organization' using errcode = '42501', hint = 'HIRING_CANDIDATE_FORBIDDEN';
@@ -1381,163 +1164,6 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.archive_pipeline (
-  pipeline uuid
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_tenant uuid;
-  v_subject_type text;
-  v_used boolean;
-  v_pipeline uuid := archive_pipeline.pipeline;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select x."tenant_id", x."subject_type" into v_tenant, v_subject_type
-  from "better_supabase"."pipelines" x where x."id" = archive_pipeline.pipeline and x."archived_at" is null;
-  if v_tenant is null then
-    return false;
-  end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
-    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
-  end if;
-  case v_subject_type
-    when 'deal' then
-      perform 1 from "better_supabase"."deals" r where r."pipeline_id" = archive_pipeline.pipeline limit 1;
-      v_used := found;
-    when 'task' then
-      perform 1 from "better_supabase"."work_items" r where r."pipeline_id" = archive_pipeline.pipeline limit 1;
-      v_used := found;
-    when 'maintenance_request' then
-      perform 1 from "better_supabase"."maintenance_requests" r where r."pipeline_id" = archive_pipeline.pipeline limit 1;
-      v_used := found;
-    when 'application' then
-      perform 1 from "better_supabase"."applications" r where r."pipeline_id" = archive_pipeline.pipeline limit 1;
-      v_used := found;
-    else
-      v_used := false;
-  end case;
-  if v_used then
-    raise exception 'records are still in this pipeline; move them first' using errcode = '23503', hint = 'PIPELINE_IN_USE';
-  end if;
-  update "better_supabase"."pipelines" x set "archived_at" = now(), "is_default" = false, "updated_at" = now()
-  where x."id" = archive_pipeline.pipeline;
-  perform "better_supabase".emit_event('pipeline.archived', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'subjectType', v_subject_type), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
-  perform better_supabase.audit_event(
-    event_type => 'pipeline.archived',
-    category => 'configuration',
-    target_type => 'pipeline',
-    record_id => v_pipeline::text,
-    summary => 'archived a pipeline',
-    tenant => (v_tenant::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'subjectType', v_subject_type)
-  );
-  return true;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.archive_pipeline_stage (
-  stage uuid
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_tenant uuid;
-  v_pipeline uuid;
-  v_subject_type text;
-  v_outcome text;
-  v_used boolean;
-  v_stage uuid := archive_pipeline_stage.stage;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select x."tenant_id", x."pipeline_id", x."outcome", y."subject_type"
-    into v_tenant, v_pipeline, v_outcome, v_subject_type
-  from "better_supabase"."pipeline_stages" x join "better_supabase"."pipelines" y on y."id" = x."pipeline_id"
-  where x."id" = archive_pipeline_stage.stage and x."archived_at" is null;
-  if v_tenant is null then
-    return false;
-  end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
-    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
-  end if;
-  case v_subject_type
-    when 'deal' then
-      perform 1 from "better_supabase"."deals" r where r."stage_id" = archive_pipeline_stage.stage limit 1;
-      v_used := found;
-    when 'task' then
-      perform 1 from "better_supabase"."work_items" r where r."stage_id" = archive_pipeline_stage.stage limit 1;
-      v_used := found;
-    when 'maintenance_request' then
-      perform 1 from "better_supabase"."maintenance_requests" r where r."stage_id" = archive_pipeline_stage.stage limit 1;
-      v_used := found;
-    when 'application' then
-      perform 1 from "better_supabase"."applications" r where r."stage_id" = archive_pipeline_stage.stage limit 1;
-      v_used := found;
-    else
-      v_used := false;
-  end case;
-  if v_used then
-    raise exception 'records are in this stage; move them first' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
-  end if;
-  if v_outcome = 'open' and not exists (
-    select 1 from "better_supabase"."pipeline_stages" x where x."pipeline_id" = v_pipeline and x."outcome" = 'open'
-      and x."archived_at" is null and x."id" <> archive_pipeline_stage.stage
-  ) then
-    raise exception 'a pipeline keeps at least one open stage' using errcode = '23514', hint = 'PIPELINE_LAST_OPEN_STAGE';
-  end if;
-  update "better_supabase"."pipeline_stages" x set "archived_at" = now(), "updated_at" = now() where x."id" = archive_pipeline_stage.stage;
-  perform "better_supabase".emit_event('pipeline_stage.archived', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
-  perform better_supabase.audit_event(
-    event_type => 'pipeline_stage.archived',
-    category => 'configuration',
-    target_type => 'pipeline_stage',
-    record_id => v_stage::text,
-    summary => 'archived a pipeline stage',
-    tenant => (v_tenant::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage)
-  );
-  return true;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.archive_task (
-  work_item uuid,
-  archived  boolean
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_row "better_supabase"."work_items";
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  update "better_supabase"."work_items" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
-  returning * into v_row;
-  if v_row."id" is null then
-    return false;
-  end if;
-  if archive_task.archived then
-    perform "better_supabase".emit_event('work_item.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  end if;
-  return true;
-end;
-$function$;
-
 CREATE OR REPLACE FUNCTION better_supabase.assign_acknowledgement (
   tenant         uuid,
   subject_type   text,
@@ -1560,13 +1186,13 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', assign_acknowledgement.tenant, 'acknowledgements.manage'), false) and case assign_acknowledgement.subject_type
-    when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (assign_acknowledgement.subject_id)::uuid and s."tenant_id" = assign_acknowledgement.tenant)
+    when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (assign_acknowledgement.subject_id)::uuid and s."tenant_id" = assign_acknowledgement.tenant) and coalesce(better_supabase.can('tenant', assign_acknowledgement.tenant, 'compliance.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (assign_acknowledgement.subject_id)::uuid and s."tenant_id" = assign_acknowledgement.tenant and (coalesce(better_supabase.can('tenant', assign_acknowledgement.tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end)) then
     raise exception 'not allowed to assign acknowledgements on this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_FORBIDDEN';
   end if;
-  if assign_acknowledgement.subject_type not in ('policy', 'drive_node') then
+  if assign_acknowledgement.subject_type not in ('compliance_policy', 'drive_node') then
     raise exception 'blocks.acknowledgements.on does not allow this record type' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_SUBJECT_UNSUPPORTED';
   end if;
   if assign_acknowledgement.due_in_days is not null and (assign_acknowledgement.due_in_days < 1 or assign_acknowledgement.due_in_days > 365) then
@@ -1637,42 +1263,6 @@ begin
     end if;
   end;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'principalType', v_row."principal_type", 'principalId', v_row."principal_id", 'dueInDays', v_row."due_in_days", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.assign_comment (
-  message  uuid,
-  assignee uuid  DEFAULT NULL::uuid,
-  attrs    jsonb DEFAULT '{}'::jsonb
-)
-  RETURNS uuid
-  LANGUAGE plpgsql
-  SET search_path TO ''
-  AS $function$
-declare
-  v_msg record;
-  v_task uuid;
-begin
-  select * into v_msg from "better_supabase"."messages" x
-  where x."id" = assign_comment.message and x."sent_at" is not null and x."deleted_at" is null;
-  if not found then
-    raise exception 'no comment you can read has this id' using errcode = 'P0002', hint = 'COMMENT_NOT_FOUND';
-  end if;
-  select t."task_id" into v_task from "better_supabase"."comment_tasks" t where t."message_id" = v_msg."id";
-  if found then
-    return v_task;
-  end if;
-  v_task := ("better_supabase"."create_task"(
-    v_msg."tenant_id",
-    (coalesce(assign_comment.attrs, '{}') - 'title') || jsonb_build_object(
-      'title', coalesce(nullif(trim(assign_comment.attrs ->> 'title'), ''), left(v_msg."body", 120)),
-      'body', coalesce(assign_comment.attrs ->> 'body', v_msg."body")
-    ),
-    case when assign_comment.assignee is null then '{}'::uuid[] else array[assign_comment.assignee] end
-  ) ->> 'id')::uuid;
-  insert into "better_supabase"."comment_tasks" ("message_id", "organization_id", "task_id")
-  values (v_msg."id", v_msg."tenant_id", v_task);
-  return v_task;
 end;
 $function$;
 
@@ -1748,7 +1338,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (attachment_subject_readable.subject_id)::uuid and s."tenant_id" = attachment_subject_readable.tenant) and coalesce(better_supabase.can('tenant', attachment_subject_readable.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (attachment_subject_readable.subject_id)::uuid and s."tenant_id" = attachment_subject_readable.tenant) and coalesce(better_supabase.can('tenant', attachment_subject_readable.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (attachment_subject_readable.subject_id)::uuid and s."tenant_id" = attachment_subject_readable.tenant) and coalesce(better_supabase.can('tenant', attachment_subject_readable.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (attachment_subject_readable.subject_id)::uuid and s."tenant_id" = attachment_subject_readable.tenant) and coalesce(better_supabase.can('tenant', attachment_subject_readable.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (attachment_subject_readable.subject_id)::uuid and s."tenant_id" = attachment_subject_readable.tenant) and coalesce(better_supabase.can('tenant', attachment_subject_readable.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (attachment_subject_readable.subject_id)::uuid and s."tenant_id" = attachment_subject_readable.tenant) and coalesce(better_supabase.can('tenant', attachment_subject_readable.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (attachment_subject_readable.subject_id)::uuid and s."tenant_id" = attachment_subject_readable.tenant) and coalesce(better_supabase.can('tenant', attachment_subject_readable.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (attachment_subject_readable.subject_id)::uuid and s."tenant_id" = attachment_subject_readable.tenant) and coalesce(better_supabase.can('tenant', attachment_subject_readable.tenant, 'ledger.read'), false)
@@ -1779,6 +1369,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (attachment_subject_readable.subject_id)::uuid and s."tenant_id" = attachment_subject_readable.tenant) and coalesce(better_supabase.can('tenant', attachment_subject_readable.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (attachment_subject_readable.subject_id)::uuid and s."organization_id" = attachment_subject_readable.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (attachment_subject_readable.subject_id)::uuid and s."organization_id" = attachment_subject_readable.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (attachment_subject_readable.subject_id)::uuid and s."organization_id" = attachment_subject_readable.tenant)
     else false
   end);
 end;
@@ -1799,7 +1390,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     update "better_supabase"."attachments" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
   end loop;
 end;
@@ -1820,7 +1411,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     delete from "better_supabase"."time_rates" x where x."subject_type" = v_type and x."subject_id" = v_drop and exists (select 1 from "better_supabase"."time_rates" y where y."subject_type" = v_type and y."subject_id" = v_keep and y."tenant_id" is not distinct from x."tenant_id" and y."user_id" is not distinct from x."user_id" and y."effective_from" is not distinct from x."effective_from");
     update "better_supabase"."time_rates" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
   end loop;
@@ -1879,149 +1470,6 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.bsb_pipeline_status_task()
-  RETURNS TRIGGER
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_status text;
-begin
-  select case s."category" when 'triage' then 'triage' when 'backlog' then 'backlog' when 'unstarted' then 'unstarted' when 'started' then 'started' when 'completed' then 'completed' when 'canceled' then 'canceled' end into v_status
-  from "better_supabase"."pipeline_stages" s where s."id" = new."stage_id";
-  if v_status is not null and v_status is distinct from new."state"::text then
-    update "better_supabase"."work_items" r set "state" = (jsonb_populate_record(null::"better_supabase"."work_items", jsonb_build_object('state', v_status)))."state"
-    where r."id" = new."id";
-  end if;
-  return null;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.bsb_pipeline_task()
-  RETURNS TRIGGER
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_category text;
-  v_outcome text;
-  v_stage_name text;
-  v_claims text;
-begin
-  if tg_op = 'UPDATE' and new."stage_id" is not distinct from old."stage_id" and new."pipeline_id" is not distinct from old."pipeline_id" then
-    return new;
-  end if;
-  if new."pipeline_id" is null then
-    if new."stage_id" is not null then
-      select s."pipeline_id" into new."pipeline_id" from "better_supabase"."pipeline_stages" s where s."id" = new."stage_id";
-    else
-      new."pipeline_id" := "better_supabase"."default_pipeline"(new."tenant_id", 'task', new."team_id"::text);
-    end if;
-  end if;
-  if new."stage_id" is null then
-    select s."id" into new."stage_id" from "better_supabase"."pipeline_stages" s
-    where s."pipeline_id" = new."pipeline_id" and s."outcome" = 'open' and s."archived_at" is null
-    order by s."rank" collate "C"
-    limit 1;
-  end if;
-  select s."category", s."outcome", s."name"
-    into v_category, v_outcome, v_stage_name
-  from "better_supabase"."pipeline_stages" s
-  join "better_supabase"."pipelines" p on p."id" = s."pipeline_id"
-  where s."id" = new."stage_id"
-    and s."pipeline_id" = new."pipeline_id"
-    and s."archived_at" is null
-    and p."archived_at" is null
-    and p."tenant_id"::text = new."tenant_id"::text
-    and p."subject_type" = 'task'
-    and p."scope_id" is not distinct from new."team_id"::text;
-  if not found then
-    raise exception 'the stage is not an active stage of this record''s pipeline' using errcode = '22023', hint = 'PIPELINE_STAGE_INVALID';
-  end if;
-  if tg_op = 'INSERT' or new."stage_id" is distinct from old."stage_id" then
-    if tg_op = 'UPDATE' and old."stage_id" is not null
-      and exists (select 1 from "better_supabase"."pipeline_transitions" x where x."pipeline_id" = new."pipeline_id")
-      and not exists (
-        select 1 from "better_supabase"."pipeline_transitions" x
-        where x."from_stage_id" = old."stage_id" and x."to_stage_id" = new."stage_id"
-      ) then
-      raise exception 'that stage change is not allowed in this pipeline' using errcode = '22023', hint = 'PIPELINE_TRANSITION_INVALID';
-    end if;
-    declare
-    v_hook regprocedure := to_regprocedure('"public"."before_pipeline_stage_change"(text, text, uuid, uuid)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::text, $2::text, $3::uuid, $4::uuid)', v_hook::oid::regproc)
-        using 'task', new."id"::text, case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id";
-    end if;
-  end;
-    new."stage_entered_at" := now();
-    update "better_supabase"."pipeline_stage_history" set "exited_at" = now()
-    where "subject_type" = 'task' and "subject_id" = new."id"::text and "exited_at" is null;
-    insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_user_id")
-    values (new."tenant_id", 'task', new."id"::text, new."pipeline_id", case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id", v_stage_name, v_category, v_outcome, null, null, auth.uid());
-    if tg_op = 'UPDATE' then
-      perform "better_supabase".emit_event('pipeline.stage_changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'task', 'subjectId', new."id"::text, 'pipelineId', new."pipeline_id", 'fromStageId', old."stage_id", 'toStageId', new."stage_id", 'category', v_category, 'outcome', v_outcome), 'pipelines/' || new."pipeline_id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/pipelines');
-    end if;
-    if tg_op = 'UPDATE' then
-      v_claims := current_setting('request.jwt.claims', true);
-      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-      perform "better_supabase"."notify"(jsonb_build_object(
-        'type', 'pipeline.stage_changed',
-        'tenant', new."tenant_id",
-        'actor', auth.uid(),
-        'subject_type', 'task',
-        'subject_id', new."id"::text,
-        'summary', v_stage_name,
-        'key', 'pipeline.stage_changed:' || new."id"::text || ':' || new."stage_id"::text || ':' || extract(epoch from now())::text,
-        'data', jsonb_build_object('pipelineId', new."pipeline_id", 'fromStageId', old."stage_id", 'toStageId', new."stage_id", 'outcome', v_outcome)
-      ));
-      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
-    end if;
-    declare
-    v_hook regprocedure := to_regprocedure('"public"."after_pipeline_stage_change"(text, text, uuid)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
-        using 'task', new."id"::text, new."stage_id";
-    end if;
-  end;
-  end if;
-  return new;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.bsb_transition_task()
-  RETURNS TRIGGER
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-begin
-  if tg_op = 'INSERT' then
-    if new."state" is null then
-      new."state" := 'backlog';
-    end if;
-    
-    
-    return new;
-  end if;
-  if new."state" is not distinct from old."state" then
-    return new;
-  end if;
-  if not (case old."state"::text when 'triage' then new."state"::text = any ('{backlog,unstarted,started,completed,canceled}'::text[]) when 'backlog' then new."state"::text = any ('{triage,unstarted,started,completed,canceled}'::text[]) when 'unstarted' then new."state"::text = any ('{triage,backlog,started,completed,canceled}'::text[]) when 'started' then new."state"::text = any ('{triage,backlog,unstarted,completed,canceled}'::text[]) when 'completed' then new."state"::text = any ('{triage,backlog,unstarted,started,canceled}'::text[]) when 'canceled' then new."state"::text = any ('{triage,backlog,unstarted,started,completed}'::text[]) else false end) then
-    raise exception 'that status change is not allowed' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
-  end if;
-  insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_user_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
-        values (new."tenant_id", 'task', new."id"::text, old."state"::text, new."state"::text, coalesce(auth.uid(), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'id', '')::uuid), nullif(current_setting('better_supabase.transition_reason', true), ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'name', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'email', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet, nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'userAgent', ''));
-  
-  perform "better_supabase".emit_event('status.changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'task', 'subjectId', new."id"::text, 'from', old."state"::text, 'to', new."state"::text, 'reason', nullif(current_setting('better_supabase.transition_reason', true), '')), 'statuses/task/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/state-machine');
-  return new;
-end;
-$function$;
-
 CREATE OR REPLACE FUNCTION better_supabase.bsb_work_item_guard()
   RETURNS TRIGGER
   LANGUAGE plpgsql
@@ -2062,11 +1510,11 @@ begin
       if new."state" = 'completed' and new."progress" is not null then
         new."progress" := 100;
       end if;
-      perform "better_supabase".emit_event('work_item.closed', jsonb_build_object('organizationId', new."tenant_id", 'workItemId', new."id", 'subjectType', 'task', 'subjectId', new."id"::text, 'title', new."title", 'state', new."state", 'closeReason', new."close_reason"), 'work-items/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/tasks');
+      perform "better_supabase".emit_event('work_item.closed', jsonb_build_object('organizationId', new."tenant_id", 'workItemId', new."id", 'subjectType', 'work_item', 'subjectId', new."id"::text, 'title', new."title", 'state', new."state", 'closeReason', new."close_reason"), 'work-items/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/tasks');
     elsif not (new."state" in ('completed', 'canceled')) and old."state" in ('completed', 'canceled') then
       new."closed_at" := null;
       new."close_reason" := null;
-      perform "better_supabase".emit_event('work_item.reopened', jsonb_build_object('organizationId', new."tenant_id", 'workItemId', new."id", 'subjectType', 'task', 'subjectId', new."id"::text, 'title', new."title"), 'work-items/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/tasks');
+      perform "better_supabase".emit_event('work_item.reopened', jsonb_build_object('organizationId', new."tenant_id", 'workItemId', new."id", 'subjectType', 'work_item', 'subjectId', new."id"::text, 'title', new."title"), 'work-items/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/tasks');
     end if;
   end if;
   new."updated_at" := now();
@@ -2188,7 +1636,7 @@ begin
           else true
         end)
       );
-    when 'task', 'work_item' then
+    when 'work_item' then
       return exists (
         select 1 from "better_supabase"."work_items" s
         where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
@@ -2493,6 +1941,12 @@ begin
         where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
           and true
       );
+    when 'task' then
+      return exists (
+        select 1 from "public"."tasks" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and true
+      );
     else
       return false;
   end case;
@@ -2616,7 +2070,7 @@ begin
           else false
         end
       );
-    when 'task', 'work_item' then
+    when 'work_item' then
       return exists (
         select 1 from "better_supabase"."work_items" s
         where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
@@ -2954,6 +2408,12 @@ begin
         where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
           and false
       );
+    when 'task' then
+      return exists (
+        select 1 from "public"."tasks" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and false
+      );
     else
       return false;
   end case;
@@ -3058,7 +2518,7 @@ declare
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (consent_active.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (consent_active.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (consent_active.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (consent_active.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (consent_active.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (consent_active.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (consent_active.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (consent_active.subject_id)::uuid)
@@ -3089,6 +2549,7 @@ declare
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (consent_active.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (consent_active.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (consent_active.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (consent_active.subject_id)::uuid)
       else null::text
     end))::uuid;
   v_purpose uuid;
@@ -3140,7 +2601,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     update "better_supabase"."contracts" x set "counterparty_id" = v_keep where x."counterparty_type" = v_type and x."counterparty_id" = v_drop;
   end loop;
 end;
@@ -3194,7 +2655,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
@@ -3225,6 +2686,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       else null::text
     end) <> create_channel.tenant::text, false) then
     raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
@@ -3323,7 +2785,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -3354,6 +2816,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_row."counterparty_id")::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_row."counterparty_id")::uuid and s."organization_id"::text = v_row."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_row."counterparty_id")::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(v_row."counterparty_type", v_row."counterparty_id", 'read')) then
     raise exception 'the counterparty is unknown or not in this organization' using errcode = '22023', hint = 'CONTRACT_INVALID';
@@ -3416,7 +2879,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_deal.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_deal.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_deal.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_deal.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_deal.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_deal.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_deal.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_deal.tenant::text)
@@ -3447,6 +2910,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_deal.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_company_id)::uuid and s."organization_id"::text = create_deal.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_company_id)::uuid and s."organization_id"::text = create_deal.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_company_id)::uuid and s."organization_id"::text = create_deal.tenant::text)
       else false
     end and "better_supabase"."can_subject"(v_company_type, v_company_id, 'read')) then
     raise exception 'the company is unknown or not readable in this organization' using errcode = '42501', hint = 'DEAL_COMPANY_FORBIDDEN';
@@ -3557,7 +3021,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
@@ -3588,6 +3052,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_company_id)::uuid and s."organization_id"::text = create_invoice.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_company_id)::uuid and s."organization_id"::text = create_invoice.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_company_id)::uuid and s."organization_id"::text = create_invoice.tenant::text)
       else false
     end and "better_supabase"."can_subject"(v_company_type, v_company_id, 'read')) then
     raise exception 'the company is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_COMPANY_FORBIDDEN';
@@ -3603,7 +3068,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
@@ -3634,6 +3099,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_contact_id)::uuid and s."organization_id"::text = create_invoice.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_contact_id)::uuid and s."organization_id"::text = create_invoice.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_contact_id)::uuid and s."organization_id"::text = create_invoice.tenant::text)
       else false
     end and "better_supabase"."can_subject"(v_contact_type, v_contact_id, 'read')) then
     raise exception 'the contact is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_CONTACT_FORBIDDEN';
@@ -3744,7 +3210,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'ledger.read'), false)
@@ -3775,6 +3241,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."organization_id" = create_knowledge_document.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."organization_id" = create_knowledge_document.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."organization_id" = create_knowledge_document.tenant)
     else false
   end) then
     raise exception 'record %:% not found', create_knowledge_document.subject_type, create_knowledge_document.subject_id using errcode = 'P0002', hint = 'KNOWLEDGE_DOCUMENT_SUBJECT_NOT_FOUND';
@@ -3845,7 +3312,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
@@ -3876,6 +3343,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (create_lease.party_id)::uuid and s."organization_id"::text = create_lease.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (create_lease.party_id)::uuid and s."organization_id"::text = create_lease.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (create_lease.party_id)::uuid and s."organization_id"::text = create_lease.tenant::text)
       else false
     end and "better_supabase"."can_subject"(create_lease.party_type, create_lease.party_id, 'read')) then
     raise exception 'the party is unknown or not in this organization' using errcode = '22023', hint = 'LEASE_PARTY_INVALID';
@@ -4045,7 +3513,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
@@ -4076,6 +3544,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (create_pledge.donor_id)::uuid and s."organization_id"::text = create_pledge.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (create_pledge.donor_id)::uuid and s."organization_id"::text = create_pledge.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (create_pledge.donor_id)::uuid and s."organization_id"::text = create_pledge.tenant::text)
       else false
     end and "better_supabase"."can_subject"(create_pledge.donor_type, create_pledge.donor_id, 'read')) then
     raise exception 'the donor is unknown or not in this organization' using errcode = '22023', hint = 'DONATION_DONOR_INVALID';
@@ -4156,7 +3625,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
@@ -4187,6 +3656,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_company_id)::uuid and s."organization_id"::text = create_quote.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_company_id)::uuid and s."organization_id"::text = create_quote.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_company_id)::uuid and s."organization_id"::text = create_quote.tenant::text)
       else false
     end and "better_supabase"."can_subject"(v_company_type, v_company_id, 'read')) then
     raise exception 'the company is unknown or not readable in this organization' using errcode = '42501', hint = 'QUOTE_COMPANY_FORBIDDEN';
@@ -4202,7 +3672,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
@@ -4233,6 +3703,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = create_quote.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_contact_id)::uuid and s."organization_id"::text = create_quote.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_contact_id)::uuid and s."organization_id"::text = create_quote.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_contact_id)::uuid and s."organization_id"::text = create_quote.tenant::text)
       else false
     end and "better_supabase"."can_subject"(v_contact_type, v_contact_id, 'read')) then
     raise exception 'the contact is unknown or not readable in this organization' using errcode = '42501', hint = 'QUOTE_CONTACT_FORBIDDEN';
@@ -4340,7 +3811,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'ledger.read'), false)
@@ -4369,6 +3840,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (create_share_link.subject_id)::uuid and s."organization_id" = create_share_link.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (create_share_link.subject_id)::uuid and s."organization_id" = create_share_link.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (create_share_link.subject_id)::uuid and s."organization_id" = create_share_link.tenant)
     else null
   end
   end;
@@ -4453,7 +3925,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (create_shipment.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (create_shipment.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (create_shipment.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (create_shipment.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (create_shipment.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (create_shipment.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (create_shipment.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (create_shipment.subject_id)::uuid)
@@ -4484,6 +3956,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (create_shipment.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (create_shipment.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (create_shipment.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (create_shipment.subject_id)::uuid)
       else null::text
     end) is distinct from create_shipment.tenant::text then
     raise exception 'the record does not exist in this organization' using errcode = 'P0002', hint = 'SHIPMENT_SUBJECT_NOT_FOUND';
@@ -4567,7 +4040,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (create_signature_request.subject_id)::uuid and s."tenant_id" = create_signature_request.tenant) and coalesce(better_supabase.can('tenant', create_signature_request.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (create_signature_request.subject_id)::uuid and s."tenant_id" = create_signature_request.tenant) and coalesce(better_supabase.can('tenant', create_signature_request.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (create_signature_request.subject_id)::uuid and s."tenant_id" = create_signature_request.tenant) and coalesce(better_supabase.can('tenant', create_signature_request.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_signature_request.subject_id)::uuid and s."tenant_id" = create_signature_request.tenant) and coalesce(better_supabase.can('tenant', create_signature_request.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_signature_request.subject_id)::uuid and s."tenant_id" = create_signature_request.tenant) and coalesce(better_supabase.can('tenant', create_signature_request.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (create_signature_request.subject_id)::uuid and s."tenant_id" = create_signature_request.tenant) and coalesce(better_supabase.can('tenant', create_signature_request.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (create_signature_request.subject_id)::uuid and s."tenant_id" = create_signature_request.tenant) and coalesce(better_supabase.can('tenant', create_signature_request.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (create_signature_request.subject_id)::uuid and s."tenant_id" = create_signature_request.tenant) and coalesce(better_supabase.can('tenant', create_signature_request.tenant, 'ledger.read'), false)
@@ -4598,6 +4071,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (create_signature_request.subject_id)::uuid and s."tenant_id" = create_signature_request.tenant) and coalesce(better_supabase.can('tenant', create_signature_request.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (create_signature_request.subject_id)::uuid and s."organization_id" = create_signature_request.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (create_signature_request.subject_id)::uuid and s."organization_id" = create_signature_request.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (create_signature_request.subject_id)::uuid and s."organization_id" = create_signature_request.tenant)
     else false
   end)) then
     raise exception 'not allowed to request signatures on this record' using errcode = '42501', hint = 'SIGNATURE_FORBIDDEN';
@@ -4677,7 +4151,7 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.create_task (
+CREATE OR REPLACE FUNCTION better_supabase.create_work_item (
   tenant    uuid,
   attrs     jsonb,
   assignees uuid[]
@@ -4697,64 +4171,64 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', create_task.tenant, 'tasks.write'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', create_work_item.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
-  if nullif(trim(create_task.attrs ->> 'title'), '') is null then
+  if nullif(trim(create_work_item.attrs ->> 'title'), '') is null then
     raise exception 'a title is required' using errcode = '23502', hint = 'TASK_TITLE_REQUIRED';
   end if;
   declare
-    v_hook regprocedure := to_regprocedure('"public"."before_task_create"(uuid, jsonb)');
+    v_hook regprocedure := to_regprocedure('"public"."before_work_item_create"(uuid, jsonb)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using create_task.tenant, create_task.attrs;
+        using create_work_item.tenant, create_work_item.attrs;
     end if;
   end;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
-  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."work_items" x where x."tenant_id" = create_task.tenant;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_work_item.tenant::text || ':work_item', 0));
+  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."work_items" x where x."tenant_id" = create_work_item.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   begin
     insert into "better_supabase"."work_items" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
       "priority", "estimate", "progress", "start_at", "end_at", "due_at", "pipeline_id", "stage_id", "created_by")
-    values (create_task.tenant, v_seq, v_identifier, trim(create_task.attrs ->> 'title'), create_task.attrs ->> 'body',
-      (create_task.attrs ->> 'parentId')::uuid, (create_task.attrs ->> 'teamId')::uuid, (create_task.attrs ->> 'projectId')::uuid,
-      (create_task.attrs ->> 'iterationId')::uuid, coalesce((create_task.attrs ->> 'priority')::smallint, 0),
-      (create_task.attrs ->> 'estimate')::numeric, (create_task.attrs ->> 'progress')::smallint,
-      (create_task.attrs ->> 'startAt')::timestamptz, (create_task.attrs ->> 'endAt')::timestamptz, (create_task.attrs ->> 'dueAt')::timestamptz,
-      (create_task.attrs ->> 'pipelineId')::uuid, (create_task.attrs ->> 'stageId')::uuid, auth.uid())
+    values (create_work_item.tenant, v_seq, v_identifier, trim(create_work_item.attrs ->> 'title'), create_work_item.attrs ->> 'body',
+      (create_work_item.attrs ->> 'parentId')::uuid, (create_work_item.attrs ->> 'teamId')::uuid, (create_work_item.attrs ->> 'projectId')::uuid,
+      (create_work_item.attrs ->> 'iterationId')::uuid, coalesce((create_work_item.attrs ->> 'priority')::smallint, 0),
+      (create_work_item.attrs ->> 'estimate')::numeric, (create_work_item.attrs ->> 'progress')::smallint,
+      (create_work_item.attrs ->> 'startAt')::timestamptz, (create_work_item.attrs ->> 'endAt')::timestamptz, (create_work_item.attrs ->> 'dueAt')::timestamptz,
+      (create_work_item.attrs ->> 'pipelineId')::uuid, (create_work_item.attrs ->> 'stageId')::uuid, auth.uid())
     returning "id" into v_id;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range or foreign_key_violation then
     raise exception 'a work item field has an invalid value' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
   end;
-  if cardinality(coalesce(create_task.assignees, '{}')) > 0 then
-    perform "better_supabase"."set_task_assignees"(v_id, create_task.assignees);
+  if cardinality(coalesce(create_work_item.assignees, '{}')) > 0 then
+    perform "better_supabase"."set_work_item_assignees"(v_id, create_work_item.assignees);
   end if;
   select * into v_row from "better_supabase"."work_items" x where x."id" = v_id;
-  if jsonb_typeof(coalesce((create_task.attrs -> 'attachments'), '[]'::jsonb)) <> 'array' then
+  if jsonb_typeof(coalesce((create_work_item.attrs -> 'attachments'), '[]'::jsonb)) <> 'array' then
       raise exception 'attachments must be a list of attachment ids' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
     end if;
-    if jsonb_array_length(coalesce((create_task.attrs -> 'attachments'), '[]'::jsonb)) > 0 then
-      update "better_supabase"."attachments" f set "subject_type" = 'task', "subject_id" = v_row."id"::text
-      where f."id" = any (array(select jsonb_array_elements_text((create_task.attrs -> 'attachments'))::uuid))
+    if jsonb_array_length(coalesce((create_work_item.attrs -> 'attachments'), '[]'::jsonb)) > 0 then
+      update "better_supabase"."attachments" f set "subject_type" = 'work_item', "subject_id" = v_row."id"::text
+      where f."id" = any (array(select jsonb_array_elements_text((create_work_item.attrs -> 'attachments'))::uuid))
         and f."organization_id" = v_row."tenant_id"
-        and (f."subject_type" is null or (f."subject_type" = 'task' and f."subject_id" = v_row."id"::text))
+        and (f."subject_type" is null or (f."subject_type" = 'work_item' and f."subject_id" = v_row."id"::text))
         and ((auth.role() = 'service_role') or f."uploaded_by" = auth.uid());
       get diagnostics v_linked = row_count;
-      if v_linked <> (select count(distinct x) from jsonb_array_elements_text((create_task.attrs -> 'attachments')) x) then
+      if v_linked <> (select count(distinct x) from jsonb_array_elements_text((create_work_item.attrs -> 'attachments')) x) then
         raise exception 'attach only your own files in this organization that aren''t on another subject' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
       end if;
     end if;
-  perform "better_supabase".emit_event('work_item.created', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  perform "better_supabase".emit_event('work_item.created', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   declare
-    v_hook regprocedure := to_regprocedure('"public"."after_task_create"(uuid)');
+    v_hook regprocedure := to_regprocedure('"public"."after_work_item_create"(uuid)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = v_id);
 end;
 $function$;
 
@@ -4806,7 +4280,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (create_work_order.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (create_work_order.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (create_work_order.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (create_work_order.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (create_work_order.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (create_work_order.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (create_work_order.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (create_work_order.subject_id)::uuid)
@@ -4837,6 +4311,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (create_work_order.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (create_work_order.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (create_work_order.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (create_work_order.subject_id)::uuid)
       else null::text
     end) is distinct from create_work_order.tenant::text then
     raise exception 'the record does not exist in this organization' using errcode = 'P0002', hint = 'DISPATCH_SUBJECT_NOT_FOUND';
@@ -4927,6 +4402,36 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION better_supabase.current_acknowledgement_version (
+  tenant       uuid,
+  subject_type text,
+  subject_id   text
+)
+  RETURNS uuid
+  LANGUAGE plpgsql
+  STABLE
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+begin
+  if current_acknowledgement_version.subject_type = 'compliance_policy' then
+    return (select s."current_version_id"::uuid from "better_supabase"."policies" s where s."id" = (current_acknowledgement_version.subject_id)::uuid and s."tenant_id" = current_acknowledgement_version.tenant);
+  end if;
+  if current_acknowledgement_version.subject_type = 'drive_node' then
+    return (select s."effective_version_id"::uuid from "better_supabase"."drive_nodes" s where s."id" = (current_acknowledgement_version.subject_id)::uuid and s."tenant_id" = current_acknowledgement_version.tenant);
+  end if;
+  return (
+    select x."id" from "better_supabase"."versions" x
+    where x."tenant_id" = current_acknowledgement_version.tenant
+      and x."subject_type" = current_acknowledgement_version.subject_type
+      and x."subject_id" = current_acknowledgement_version.subject_id
+      and x."frozen"
+    order by x."number" desc
+    limit 1
+  );
+end;
+$function$;
+
 CREATE OR REPLACE FUNCTION better_supabase.deal_health (
   pipeline uuid
 )
@@ -4986,7 +4491,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -5017,6 +4522,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end) or coalesce(v_suggestion."created_by" = auth.uid(), false)) then
     raise exception 'suggestion not found' using errcode = 'P0002', hint = 'DOCUMENT_SUGGESTION_NOT_FOUND';
@@ -5039,7 +4545,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -5070,6 +4576,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end and case v_doc."subject_type"
     when 'message' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'messages.send'), false)
@@ -5082,7 +4589,7 @@ begin
     when 'post' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.write'), false)
     when 'activity' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.write'), false)
     when 'quote' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.write'), false)
-    when 'task' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.write'), false)
     when 'invoice' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.write'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.manage'), false)
@@ -5159,112 +4666,6 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.default_pipeline (
-  tenant       uuid,
-  subject_type text,
-  scope_id     text
-)
-  RETURNS uuid
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_id uuid;
-begin
-  select x."id" into v_id from "better_supabase"."pipelines" x
-  where x."tenant_id" = default_pipeline.tenant
-    and x."subject_type" = default_pipeline.subject_type
-    and x."scope_id" is not distinct from default_pipeline.scope_id
-    and x."archived_at" is null
-  order by x."is_default" desc, x."rank" collate "C"
-  limit 1;
-  if v_id is not null then
-    return v_id;
-  end if;
-  case default_pipeline.subject_type
-    when 'deal' then
-      insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default")
-      values (default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id, 'default', 'Default', true)
-      on conflict do nothing
-      returning "id" into v_id;
-      if v_id is null then
-        return "better_supabase"."default_pipeline"(default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id);
-      end if;
-      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank")
-      select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank
-      from (values
-          ('qualified', 'Qualified', 'open', 'open', 20::smallint, '8'),
-          ('discovery', 'Discovery', 'open', 'open', 35::smallint, 'G'),
-          ('proposal', 'Proposal', 'open', 'open', 55::smallint, 'O'),
-          ('negotiation', 'Negotiation', 'open', 'open', 75::smallint, 'W'),
-          ('closed_won', 'Closed won', 'won', 'success', 100::smallint, 'e'),
-          ('closed_lost', 'Closed lost', 'lost', 'failure', 0::smallint, 'm')
-      ) x(key, name, category, outcome, probability, rank);
-    when 'task' then
-      insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default")
-      values (default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id, 'default', 'Default', true)
-      on conflict do nothing
-      returning "id" into v_id;
-      if v_id is null then
-        return "better_supabase"."default_pipeline"(default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id);
-      end if;
-      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank")
-      select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank
-      from (values
-          ('triage', 'Triage', 'triage', 'open', null::smallint, '7'),
-          ('backlog', 'Backlog', 'backlog', 'open', null::smallint, 'E'),
-          ('todo', 'Todo', 'unstarted', 'open', null::smallint, 'L'),
-          ('in_progress', 'In progress', 'started', 'open', null::smallint, 'S'),
-          ('in_review', 'In review', 'started', 'open', null::smallint, 'Z'),
-          ('done', 'Done', 'completed', 'success', null::smallint, 'g'),
-          ('canceled', 'Canceled', 'canceled', 'failure', null::smallint, 'n')
-      ) x(key, name, category, outcome, probability, rank);
-    when 'maintenance_request' then
-      insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default")
-      values (default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id, 'default', 'Default', true)
-      on conflict do nothing
-      returning "id" into v_id;
-      if v_id is null then
-        return "better_supabase"."default_pipeline"(default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id);
-      end if;
-      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank")
-      select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank
-      from (values
-          ('triage', 'Triage', 'triage', 'open', null::smallint, '7'),
-          ('backlog', 'Backlog', 'backlog', 'open', null::smallint, 'E'),
-          ('todo', 'Todo', 'unstarted', 'open', null::smallint, 'L'),
-          ('in_progress', 'In progress', 'started', 'open', null::smallint, 'S'),
-          ('in_review', 'In review', 'started', 'open', null::smallint, 'Z'),
-          ('done', 'Done', 'completed', 'success', null::smallint, 'g'),
-          ('canceled', 'Canceled', 'canceled', 'failure', null::smallint, 'n')
-      ) x(key, name, category, outcome, probability, rank);
-    when 'application' then
-      insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default")
-      values (default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id, 'default', 'Default', true)
-      on conflict do nothing
-      returning "id" into v_id;
-      if v_id is null then
-        return "better_supabase"."default_pipeline"(default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id);
-      end if;
-      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank")
-      select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank
-      from (values
-          ('applied', 'Applied', 'active', 'open', null::smallint, '7'),
-          ('screening', 'Screening', 'active', 'open', null::smallint, 'E'),
-          ('interview', 'Interview', 'active', 'open', null::smallint, 'L'),
-          ('offer', 'Offer', 'active', 'open', null::smallint, 'S'),
-          ('hired', 'Hired', 'hired', 'success', null::smallint, 'Z'),
-          ('rejected', 'Rejected', 'rejected', 'failure', null::smallint, 'g'),
-          ('withdrawn', 'Withdrawn', 'withdrawn', 'failure', null::smallint, 'n')
-      ) x(key, name, category, outcome, probability, rank);
-    else
-      raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
-  end case;
-  return v_id;
-end;
-$function$;
-
 CREATE OR REPLACE FUNCTION better_supabase.delete_activity (
   engagement uuid
 )
@@ -5319,57 +4720,6 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.delete_task (
-  work_item uuid
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_row "better_supabase"."work_items";
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  delete from "better_supabase"."work_items" x
-  where x."id" = delete_task.work_item
-    and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
-  returning * into v_row;
-  if v_row."id" is null then
-    return false;
-  end if;
-  perform "better_supabase".emit_event('work_item.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  return true;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.delete_task_checklist_item (
-  checklist_item uuid
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_row "better_supabase"."work_items";
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select x.* into v_row from "better_supabase"."work_items" x join "better_supabase"."work_item_checklist_items" y on y."work_item_id" = x."id"
-  where y."id" = delete_task_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
-  if v_row."id" is null then
-    return false;
-  end if;
-  delete from "better_supabase"."work_item_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
-  perform "better_supabase".emit_event('work_item.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  return true;
-end;
-$function$;
-
 CREATE OR REPLACE FUNCTION better_supabase.dispatch_subject_merge (
   subject_table text,
   keep          text,
@@ -5385,7 +4735,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     update "better_supabase"."work_orders" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
   end loop;
 end;
@@ -5424,7 +4774,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -5455,6 +4805,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end and case v_doc."subject_type"
     when 'message' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'messages.send'), false)
@@ -5467,7 +4818,7 @@ begin
     when 'post' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.write'), false)
     when 'activity' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.write'), false)
     when 'quote' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.write'), false)
-    when 'task' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.write'), false)
     when 'invoice' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.write'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.manage'), false)
@@ -5510,7 +4861,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -5541,6 +4892,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end);
 end;
@@ -5561,7 +4913,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     update "better_supabase"."donations" x set "donor_id" = v_keep where x."donor_type" = v_type and x."donor_id" = v_drop;
     update "better_supabase"."pledges" x set "donor_id" = v_keep where x."donor_type" = v_type and x."donor_id" = v_drop;
     update "better_supabase"."donation_receipts" x set "donor_id" = v_keep where x."donor_type" = v_type and x."donor_id" = v_drop;
@@ -5608,7 +4960,7 @@ begin
       when 'post' then (select s."title"::text from "better_supabase"."posts" s where s."id" = (v_application."candidate_id")::uuid)
       when 'activity' then (select s."title"::text from "better_supabase"."engagements" s where s."id" = (v_application."candidate_id")::uuid)
       when 'quote' then (select s."title"::text from "better_supabase"."quotes" s where s."id" = (v_application."candidate_id")::uuid)
-      when 'task' then (select s."title"::text from "better_supabase"."work_items" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'work_item' then (select s."title"::text from "better_supabase"."work_items" s where s."id" = (v_application."candidate_id")::uuid)
       when 'employee' then (select s."name"::text from "better_supabase"."employees" s where s."id" = (v_application."candidate_id")::uuid)
       when 'invoice' then (select s."title"::text from "better_supabase"."invoices" s where s."id" = (v_application."candidate_id")::uuid)
       when 'ledger_account' then (select s."name"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_application."candidate_id")::uuid)
@@ -5638,6 +4990,7 @@ begin
       when 'drive_node' then (select s."name"::text from "better_supabase"."drive_nodes" s where s."id" = (v_application."candidate_id")::uuid)
       when 'change_request' then (select s."title"::text from "public"."change_requests" s where s."id" = (v_application."candidate_id")::uuid)
       when 'project' then (select s."name"::text from "public"."projects" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'task' then (select s."title"::text from "public"."tasks" s where s."id" = (v_application."candidate_id")::uuid)
       else null::text
     end),
       'jobTitle', v_job."title",
@@ -5741,7 +5094,7 @@ begin
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001
     ) x;
-  elsif v_row."subject_type" = 'task' then
+  elsif v_row."subject_type" = 'work_item' then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
       select s."id"::text as id from "better_supabase"."work_items" s
       where s."tenant_id" = v_row."tenant_id" and s."archived_at" is null
@@ -5958,6 +5311,13 @@ begin
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001
     ) x;
+  elsif v_row."subject_type" = 'task' then
+    select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
+      select s."id"::text as id from "public"."tasks" s
+      where s."organization_id" = v_row."tenant_id"
+        and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
+      limit 10001
+    ) x;
   else
     raise exception 'The segment''s subject type is not registered in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
@@ -6047,7 +5407,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'ledger.read'), false)
@@ -6078,6 +5438,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_req."subject_id")::uuid and s."organization_id" = v_req."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_req."subject_id")::uuid and s."organization_id" = v_req."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_req."subject_id")::uuid and s."organization_id" = v_req."tenant_id")
     else false
   end end))))) then
     raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
@@ -6119,7 +5480,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -6150,6 +5511,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end)) then
     raise exception 'document not found' using errcode = 'P0002', hint = 'DOCUMENT_NOT_FOUND';
@@ -6192,7 +5554,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'ledger.read'), false)
@@ -6223,6 +5585,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_req."subject_id")::uuid and s."organization_id" = v_req."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_req."subject_id")::uuid and s."organization_id" = v_req."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_req."subject_id")::uuid and s."organization_id" = v_req."tenant_id")
     else false
   end)) then
     raise exception 'not allowed to read this request' using errcode = '42501', hint = 'SIGNATURE_FORBIDDEN';
@@ -6231,17 +5594,6 @@ begin
     from "better_supabase"."signatures" g where g."request_id" = v_req."id";
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'versionId', v_req."version_id", 'contentHash', v_req."content_hash", 'signers', to_jsonb(v_req."signers"), 'order', v_req."sign_order", 'status', v_req."status", 'approvalRequestId', v_req."approval_request_id", 'message', v_req."message", 'meaning', v_req."meaning", 'requestedBy', v_req."requested_by", 'createdAt', v_req."created_at", 'completedAt', v_req."completed_at") || jsonb_build_object('signatures', v_items, 'verification', "better_supabase"."signature_verification"(v_req."id"));
 end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.get_task (
-  work_item uuid
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  STABLE
-  SET search_path TO ''
-  AS $function$
-  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = get_task.work_item
 $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.goal_progress (
@@ -6329,7 +5681,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (grant_guest_access.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (grant_guest_access.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (grant_guest_access.subject_id)::uuid)
@@ -6360,6 +5712,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (grant_guest_access.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (grant_guest_access.subject_id)::uuid)
       else null::text
     end)
     end) is distinct from v_guest."tenant_id"::text then
@@ -6402,7 +5755,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     delete from "better_supabase"."guest_grants" x where x."subject_type" = v_type and x."subject_id" = v_drop and exists (select 1 from "better_supabase"."guest_grants" y where y."subject_type" = v_type and y."subject_id" = v_keep and y."guest_id" is not distinct from x."guest_id");
     update "better_supabase"."guest_grants" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
   end loop;
@@ -6471,7 +5824,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = ((v_item ->> 'subjectId'))::uuid and s."tenant_id"::text = import_medication_orders.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = ((v_item ->> 'subjectId'))::uuid and s."tenant_id"::text = import_medication_orders.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = ((v_item ->> 'subjectId'))::uuid and s."tenant_id"::text = import_medication_orders.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'subjectId'))::uuid and s."tenant_id"::text = import_medication_orders.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'subjectId'))::uuid and s."tenant_id"::text = import_medication_orders.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = ((v_item ->> 'subjectId'))::uuid and s."tenant_id"::text = import_medication_orders.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = ((v_item ->> 'subjectId'))::uuid and s."tenant_id"::text = import_medication_orders.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = ((v_item ->> 'subjectId'))::uuid and s."tenant_id"::text = import_medication_orders.tenant::text)
@@ -6502,6 +5855,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = ((v_item ->> 'subjectId'))::uuid and s."tenant_id"::text = import_medication_orders.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ((v_item ->> 'subjectId'))::uuid and s."organization_id"::text = import_medication_orders.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = ((v_item ->> 'subjectId'))::uuid and s."organization_id"::text = import_medication_orders.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ((v_item ->> 'subjectId'))::uuid and s."organization_id"::text = import_medication_orders.tenant::text)
       else false
     end and "better_supabase"."can_subject"((v_item ->> 'subjectType'), (v_item ->> 'subjectId'), 'read')) then
       raise exception 'the record isn''t in this organization' using errcode = '22023', hint = 'MEDICATION_ORDER_INVALID';
@@ -6687,7 +6041,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (v_item ->> 'subjectId')::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid)
@@ -6718,6 +6072,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (v_item ->> 'subjectId')::uuid)
       else null::text
     end) = ingest_observations.tenant::text, false) else (case v_item ->> 'subjectType'
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
@@ -6730,7 +6085,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
@@ -6761,6 +6116,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_item ->> 'subjectId')::uuid and s."organization_id"::text = ingest_observations.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_item ->> 'subjectId')::uuid and s."organization_id"::text = ingest_observations.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_item ->> 'subjectId')::uuid and s."organization_id"::text = ingest_observations.tenant::text)
       else false
     end and "better_supabase"."can_subject"(v_item ->> 'subjectType', v_item ->> 'subjectId', 'read')) end) then
       raise exception 'the record isn''t in this organization' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
@@ -6817,7 +6173,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (invite_guest.party_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (invite_guest.party_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (invite_guest.party_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (invite_guest.party_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (invite_guest.party_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (invite_guest.party_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (invite_guest.party_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (invite_guest.party_id)::uuid)
@@ -6848,6 +6204,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (invite_guest.party_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (invite_guest.party_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (invite_guest.party_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (invite_guest.party_id)::uuid)
       else null::text
     end) is distinct from invite_guest.tenant::text then
     raise exception 'the party does not exist in this organization' using errcode = 'P0002', hint = 'GUEST_PARTY_NOT_FOUND';
@@ -6950,7 +6307,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (issue_pass.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (issue_pass.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (issue_pass.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (issue_pass.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (issue_pass.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (issue_pass.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (issue_pass.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (issue_pass.subject_id)::uuid)
@@ -6981,6 +6338,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (issue_pass.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (issue_pass.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (issue_pass.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (issue_pass.subject_id)::uuid)
       else null::text
     end) is distinct from issue_pass.tenant::text then
     raise exception 'the record does not exist in this organization' using errcode = 'P0002', hint = 'PASS_SUBJECT_NOT_FOUND';
@@ -7048,7 +6406,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     update "better_supabase"."lease_agreements" x set "party_id" = v_keep where x."party_type" = v_type and x."party_id" = v_drop;
   end loop;
 end;
@@ -7121,7 +6479,7 @@ begin
   if v_kind = 'represents' and not (v_source_type in ('person') and v_target_type in ('customer', 'drive_node')) then
     raise exception 'this kind of link doesn''t accept these record types' using errcode = '22023', hint = 'RELATION_TYPE_NOT_ALLOWED';
   end if;
-  if v_kind = 'mitigated_by' and not (v_source_type in ('risk') and v_target_type in ('control', 'task', 'drive_node')) then
+  if v_kind = 'mitigated_by' and not (v_source_type in ('risk') and v_target_type in ('control', 'work_item', 'drive_node')) then
     raise exception 'this kind of link doesn''t accept these record types' using errcode = '22023', hint = 'RELATION_TYPE_NOT_ALLOWED';
   end if;
   if v_kind = 'materialized_as' and not (v_source_type in ('risk') and v_target_type in ('case')) then
@@ -7138,7 +6496,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (link.source_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (link.source_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (link.source_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (link.source_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (link.source_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (link.source_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (link.source_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (link.source_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'ledger.read'), false)
@@ -7169,6 +6527,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (link.source_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (link.source_id)::uuid and s."organization_id" = link.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (link.source_id)::uuid and s."organization_id" = link.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (link.source_id)::uuid and s."organization_id" = link.tenant)
     else false
   end)
      or not (case link.target_type
@@ -7182,7 +6541,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (link.target_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (link.target_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (link.target_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (link.target_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (link.target_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (link.target_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (link.target_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (link.target_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'ledger.read'), false)
@@ -7213,6 +6572,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (link.target_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (link.target_id)::uuid and s."organization_id" = link.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (link.target_id)::uuid and s."organization_id" = link.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (link.target_id)::uuid and s."organization_id" = link.tenant)
     else false
   end) then
     raise exception 'not allowed to link these records' using errcode = '42501', hint = 'RELATION_SUBJECT_FORBIDDEN';
@@ -7338,7 +6698,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -7369,6 +6729,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
       else false
     end and "better_supabase"."can_subject"((v_item ->> 'type'), (v_item ->> 'id'), 'read')) then
       raise exception 'a subject is unknown or not readable in this organization' using errcode = '42501', hint = 'MAIL_SUBJECT_FORBIDDEN';
@@ -7403,7 +6764,7 @@ begin
     return '[]'::jsonb;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'acknowledgements.read'), false) and case list_acknowledgement_assignments.subject_type
-    when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (list_acknowledgement_assignments.subject_id)::uuid and s."tenant_id" = v_tenant)
+    when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (list_acknowledgement_assignments.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'compliance.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (list_acknowledgement_assignments.subject_id)::uuid and s."tenant_id" = v_tenant and (coalesce(better_supabase.can('tenant', v_tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end)) then
@@ -7436,7 +6797,7 @@ declare
   v_rows jsonb;
   v_table text;
 begin
-  if list_activity.subject_id is not null and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,task,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project}'::text[])
+  if list_activity.subject_id is not null and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[])
     and not "better_supabase"."activity_subject_readable"(list_activity.subject_type, list_activity.subject_id) then
     return '[]'::jsonb;
   end if;
@@ -7452,7 +6813,7 @@ begin
       when 'post' then 'better_supabase.posts'
       when 'activity' then 'better_supabase.engagements'
       when 'quote' then 'better_supabase.quotes'
-      when 'task' then 'better_supabase.work_items'
+      when 'work_item' then 'better_supabase.work_items'
       when 'employee' then 'better_supabase.employees'
       when 'invoice' then 'better_supabase.invoices'
       when 'ledger_account' then 'better_supabase.ledger_accounts'
@@ -7483,6 +6844,7 @@ begin
       when 'application' then 'better_supabase.applications'
       when 'change_request' then 'public.change_requests'
       when 'project' then 'public.projects'
+      when 'task' then 'public.tasks'
     end;
   end if;
   select coalesce(jsonb_agg(x.entry order by x.at desc, x.id desc), '[]'::jsonb)
@@ -7498,11 +6860,11 @@ begin
       and (list_activity.subject_id is null or y."subject_id" = list_activity.subject_id)
       and (list_activity.before is null or y."occurred_at" < list_activity.before)
       and not ((y."type" = 'status.changed' and list_activity.subject_id is not null
-      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,task,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project}'::text[])
-      and list_activity.subject_type = any ('{task,change_request,drive_node}'::text[])
+      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[])
+      and list_activity.subject_type = any ('{work_item,change_request,drive_node}'::text[])
       and (list_activity.sources is null or 'transition' = any (list_activity.sources)))
         or (y."type" in ('message.sent', 'comment.posted') and list_activity.subject_id is not null
-      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,task,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project}'::text[])
+      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[])
       and (list_activity.sources is null or 'message' = any (list_activity.sources))))
     order by y."occurred_at" desc, y."id" desc
     limit v_limit)
@@ -7523,7 +6885,7 @@ begin
       r."created_at" as at, r."id"::text as id
     from "better_supabase"."workflow_runs" r
     where list_activity.subject_id is not null
-      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,task,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project}'::text[])
+      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[])
       and (list_activity.sources is null or 'run' = any (list_activity.sources))
       and r."tenant_id" = list_activity.tenant
       and r."subject_type" = list_activity.subject_type
@@ -7536,8 +6898,8 @@ begin
       h."created_at" as at, h."id"::text as id
     from "better_supabase"."status_history" h
     where list_activity.subject_id is not null
-      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,task,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project}'::text[])
-      and list_activity.subject_type = any ('{task,change_request,drive_node}'::text[])
+      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[])
+      and list_activity.subject_type = any ('{work_item,change_request,drive_node}'::text[])
       and (list_activity.sources is null or 'transition' = any (list_activity.sources))
       and h."tenant_id" = list_activity.tenant
       and h."subject_type" = list_activity.subject_type
@@ -7551,7 +6913,7 @@ begin
     from "better_supabase"."messages" m
     join "better_supabase"."conversations" c on c."id" = m."conversation_id"
     where list_activity.subject_id is not null
-      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,task,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project}'::text[])
+      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[])
       and (list_activity.sources is null or 'message' = any (list_activity.sources))
       and c."tenant_id" = list_activity.tenant
       and c."subject_type" = list_activity.subject_type
@@ -7618,7 +6980,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
@@ -7649,6 +7011,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id")
     else false
   end end))))) or "better_supabase"."approval_eligible"(x."id")
       end
@@ -7710,7 +7073,7 @@ declare
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (list_consents.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (list_consents.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (list_consents.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (list_consents.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (list_consents.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (list_consents.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (list_consents.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (list_consents.subject_id)::uuid)
@@ -7741,6 +7104,7 @@ declare
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (list_consents.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (list_consents.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (list_consents.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (list_consents.subject_id)::uuid)
       else null::text
     end))::uuid;
 begin
@@ -7828,7 +7192,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -7859,6 +7223,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end)) then
     raise exception 'document not found' using errcode = 'P0002', hint = 'DOCUMENT_NOT_FOUND';
@@ -7897,7 +7262,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -7928,6 +7293,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end)) then
     raise exception 'document not found' using errcode = 'P0002', hint = 'DOCUMENT_NOT_FOUND';
@@ -7966,7 +7332,7 @@ declare
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (list_guest_grants.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (list_guest_grants.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (list_guest_grants.subject_id)::uuid)
@@ -7997,6 +7363,7 @@ declare
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (list_guest_grants.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (list_guest_grants.subject_id)::uuid)
       else null::text
     end)
     end);
@@ -8065,7 +7432,7 @@ begin
           group by x."subject_type", x."subject_id"
         ) q
         where case q.subject_type
-    when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (q.subject_id)::uuid and s."tenant_id" = list_my_acknowledgements.tenant)
+    when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (q.subject_id)::uuid and s."tenant_id" = list_my_acknowledgements.tenant) and coalesce(better_supabase.can('tenant', list_my_acknowledgements.tenant, 'compliance.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (q.subject_id)::uuid and s."tenant_id" = list_my_acknowledgements.tenant and (coalesce(better_supabase.can('tenant', list_my_acknowledgements.tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end
@@ -8106,7 +7473,7 @@ begin
     when 'post' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.read'), false)
     when 'activity' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'activities.read'), false)
     when 'quote' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'quotes.read'), false)
-    when 'task' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.read'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.read'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read'), false)
     when 'invoice' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false)
@@ -8193,7 +7560,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
@@ -8224,219 +7591,12 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id")
     else false
   end))
     order by x."created_at" desc
     limit least(greatest(coalesce(list_signature_requests.page_size, 50), 1), 200)
   ) q;
-  return v_rows;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.list_status_history (
-  subject_type text,
-  subject_id   text,
-  before       timestamp with time zone DEFAULT NULL::timestamp WITH time zone,
-  max_rows     integer                  DEFAULT 50
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  SET search_path TO ''
-  AS $function$
-begin
-  case list_status_history.subject_type
-    when 'task' then
-      if not exists (select 1 from "better_supabase"."work_items" s where s."id" = (list_status_history.subject_id)::uuid) then
-        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
-      end if;
-      perform "better_supabase"."record_subject_read"(list_status_history.subject_type, list_status_history.subject_id, null, 'state-machine', 'list_status_history');
-      return coalesce((
-        select jsonb_agg(jsonb_build_object('id', r.id, 'from', r.from_status, 'to', r.to_status,
-          'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",
-          'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
-        from (select h."id"::text as id, h."from_status" as from_status, h."to_status" as to_status,
-          h."actor_user_id"::text as actor, h."actor_name"::text as "actorName", h."actor_email"::text as "actorEmail", regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip", h."user_agent"::text as "userAgent", h."reason" as reason, h."created_at" as created_at
-        from "better_supabase"."status_history" h
-        where h."subject_type" = 'task'
-          and h."subject_id" = list_status_history.subject_id
-          and (list_status_history.before is null or h."created_at" < list_status_history.before)
-        order by h."created_at" desc, h."id" desc
-        limit least(greatest(coalesce(list_status_history.max_rows, 50), 1), 500)) r
-      ), '[]'::jsonb);
-    when 'change_request' then
-      if not exists (select 1 from "public"."change_requests" s where s."id" = (list_status_history.subject_id)::uuid) then
-        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
-      end if;
-      perform "better_supabase"."record_subject_read"(list_status_history.subject_type, list_status_history.subject_id, null, 'state-machine', 'list_status_history');
-      return coalesce((
-        select jsonb_agg(jsonb_build_object('id', r.id, 'from', r.from_status, 'to', r.to_status,
-          'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",
-          'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
-        from (select h."id"::text as id, h."from_status" as from_status, h."to_status" as to_status,
-          h."actor_user_id"::text as actor, h."actor_name"::text as "actorName", h."actor_email"::text as "actorEmail", regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip", h."user_agent"::text as "userAgent", h."reason" as reason, h."created_at" as created_at
-        from "better_supabase"."status_history" h
-        where h."subject_type" = 'change_request'
-          and h."subject_id" = list_status_history.subject_id
-          and (list_status_history.before is null or h."created_at" < list_status_history.before)
-        order by h."created_at" desc, h."id" desc
-        limit least(greatest(coalesce(list_status_history.max_rows, 50), 1), 500)) r
-      ), '[]'::jsonb);
-    when 'drive_node' then
-      if not exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (list_status_history.subject_id)::uuid) then
-        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
-      end if;
-      perform "better_supabase"."record_subject_read"(list_status_history.subject_type, list_status_history.subject_id, null, 'state-machine', 'list_status_history');
-      return coalesce((
-        select jsonb_agg(jsonb_build_object('id', r.id, 'from', r.from_status, 'to', r.to_status,
-          'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",
-          'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
-        from (select h."id"::text as id, h."from_status" as from_status, h."to_status" as to_status,
-          h."actor_user_id"::text as actor, h."actor_name"::text as "actorName", h."actor_email"::text as "actorEmail", regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip", h."user_agent"::text as "userAgent", h."reason" as reason, h."created_at" as created_at
-        from "better_supabase"."status_history" h
-        where h."subject_type" = 'drive_node'
-          and h."subject_id" = list_status_history.subject_id
-          and (list_status_history.before is null or h."created_at" < list_status_history.before)
-        order by h."created_at" desc, h."id" desc
-        limit least(greatest(coalesce(list_status_history.max_rows, 50), 1), 500)) r
-      ), '[]'::jsonb);
-    else
-      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
-  end case;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.list_status_stages (
-  subject_type text,
-  subject_id   text
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  STABLE
-  SET search_path TO ''
-  AS $function$
-begin
-  case list_status_stages.subject_type
-    when 'task' then
-      if not exists (select 1 from "better_supabase"."work_items" s where s."id" = (list_status_stages.subject_id)::uuid) then
-        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
-      end if;
-      return '[]'::jsonb;
-    when 'change_request' then
-      if not exists (select 1 from "public"."change_requests" s where s."id" = (list_status_stages.subject_id)::uuid) then
-        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
-      end if;
-      return '[]'::jsonb;
-    when 'drive_node' then
-      if not exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (list_status_stages.subject_id)::uuid) then
-        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
-      end if;
-      return '[]'::jsonb;
-    else
-      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
-  end case;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.list_task_checklist (
-  work_item uuid
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  STABLE
-  SET search_path TO ''
-  AS $function$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
-  from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = list_task_checklist.work_item
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.list_task_watchers (
-  work_item uuid
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  STABLE
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-  select coalesce(jsonb_agg(jsonb_build_object('userId', s."user_id", 'level', s."level") order by s."level", s."user_id"), '[]'::jsonb)
-  from "better_supabase"."work_items" x
-  join "better_supabase"."notification_subscriptions" s on s."subject_type" = 'task' and s."subject_id" = x."id"::text
-    and s."organization_id" = x."tenant_id"
-  where x."id" = list_task_watchers.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)) and s."level" in ('all', 'participating')
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.list_tasks (
-  tenant    uuid,
-  filter    jsonb,
-  search    text,
-  after     uuid,
-  page_size integer
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  STABLE
-  SET search_path TO ''
-  AS $function$
-  select coalesce(jsonb_agg(p.value order by p.number desc), '[]'::jsonb)
-  from (
-    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) as value, x."number" as number
-    from "better_supabase"."work_items" x
-    where x."tenant_id" = list_tasks.tenant and x."archived_at" is null
-      and (list_tasks.filter ->> 'teamId' is null or x."team_id" = (list_tasks.filter ->> 'teamId')::uuid)
-      and (list_tasks.filter ->> 'projectId' is null or x."project_id" = (list_tasks.filter ->> 'projectId')::uuid)
-      and (list_tasks.filter ->> 'iterationId' is null or x."iteration_id" = (list_tasks.filter ->> 'iterationId')::uuid)
-      and (list_tasks.filter ->> 'parentId' is null or x."parent_id" = (list_tasks.filter ->> 'parentId')::uuid)
-      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_tasks.filter ->> 'assigneeId')::uuid))
-      and (list_tasks.filter -> 'states' is null or x."state" = any (array(select jsonb_array_elements_text(list_tasks.filter -> 'states'))))
-      and (coalesce((list_tasks.filter ->> 'open')::boolean, false) = false or x."closed_at" is null)
-      and (list_tasks.search is null or x."title" ilike '%' || list_tasks.search || '%' or x."identifier" ilike list_tasks.search || '%')
-      and (list_tasks.after is null or x."number" < (select z."number" from "better_supabase"."work_items" z where z."id" = list_tasks.after))
-    order by x."number" desc
-    limit least(greatest(coalesce(list_tasks.page_size, 50), 1), 200)
-  ) p
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.list_trash (
-  tenant       uuid,
-  subject_type text                     DEFAULT NULL::text,
-  page_size    integer                  DEFAULT 50,
-  before       timestamp with time zone DEFAULT NULL::timestamp WITH time zone
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  STABLE
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_rows jsonb;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_trash.tenant, 'trash.read'), false)) then
-    raise exception 'not allowed to read this organization''s trash' using errcode = '42501', hint = 'TRASH_FORBIDDEN';
-  end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_after") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
-    into v_rows
-  from (
-    select x.*, (select count(*) from "better_supabase"."trash_items" b where b."batch_id" = x."batch_id")::integer as n
-    from "better_supabase"."trash_items" x
-    where x."tenant_id" = list_trash.tenant
-      and x."depth" = 0
-      and (list_trash.subject_type is null or x."subject_type" = list_trash.subject_type)
-      and (list_trash.before is null or x."trashed_at" < list_trash.before)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case x."subject_type"
-    when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'messages.read'), false)
-    when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'messages.read'), false)
-    when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
-    when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'risks.read'), false)
-    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'customers.read'), false)
-    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id" and (coalesce(better_supabase.can('tenant', x."tenant_id", 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
-    when 'project' then exists (select 1 from "public"."projects" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id")
-    else false
-  end)
-    order by x."trashed_at" desc, x."id"
-    limit least(greatest(coalesce(list_trash.page_size, 50), 1), 200)
-  ) t;
   return v_rows;
 end;
 $function$;
@@ -8505,7 +7665,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -8536,6 +7696,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
       else false
     end and "better_supabase"."can_subject"((v_item ->> 'type'), (v_item ->> 'id'), 'read')) then
       raise exception 'a subject is unknown or not readable in this organization' using errcode = '42501', hint = 'ACTIVITY_SUBJECT_FORBIDDEN';
@@ -8677,7 +7838,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (log_time.subject_id)::uuid and s."tenant_id" = log_time.tenant) and coalesce(better_supabase.can('tenant', log_time.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (log_time.subject_id)::uuid and s."tenant_id" = log_time.tenant) and coalesce(better_supabase.can('tenant', log_time.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (log_time.subject_id)::uuid and s."tenant_id" = log_time.tenant) and coalesce(better_supabase.can('tenant', log_time.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (log_time.subject_id)::uuid and s."tenant_id" = log_time.tenant) and coalesce(better_supabase.can('tenant', log_time.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (log_time.subject_id)::uuid and s."tenant_id" = log_time.tenant) and coalesce(better_supabase.can('tenant', log_time.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (log_time.subject_id)::uuid and s."tenant_id" = log_time.tenant) and coalesce(better_supabase.can('tenant', log_time.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (log_time.subject_id)::uuid and s."tenant_id" = log_time.tenant) and coalesce(better_supabase.can('tenant', log_time.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (log_time.subject_id)::uuid and s."tenant_id" = log_time.tenant) and coalesce(better_supabase.can('tenant', log_time.tenant, 'ledger.read'), false)
@@ -8708,6 +7869,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (log_time.subject_id)::uuid and s."tenant_id" = log_time.tenant) and coalesce(better_supabase.can('tenant', log_time.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (log_time.subject_id)::uuid and s."organization_id" = log_time.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (log_time.subject_id)::uuid and s."organization_id" = log_time.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (log_time.subject_id)::uuid and s."organization_id" = log_time.tenant)
     else false
   end) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
@@ -8794,7 +7956,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (v_row."subject_id")::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (v_row."subject_id")::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (v_row."subject_id")::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_row."subject_id")::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_row."subject_id")::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (v_row."subject_id")::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (v_row."subject_id")::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_row."subject_id")::uuid)
@@ -8825,6 +7987,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (v_row."subject_id")::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (v_row."subject_id")::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (v_row."subject_id")::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (v_row."subject_id")::uuid)
       else null::text
     end) = v_row."tenant_id"::text, false) else (case v_row."subject_type"
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -8837,7 +8000,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -8868,6 +8031,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_row."subject_id")::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_row."subject_id")::uuid and s."organization_id"::text = v_row."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_row."subject_id")::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read')) end)) then
     raise exception 'not allowed to correct this observation' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
@@ -8982,7 +8146,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     update "better_supabase"."medication_orders" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
   end loop;
 end;
@@ -9014,7 +8178,7 @@ begin
     where x is distinct from v_msg."author_id"
       and coalesce(better_supabase.can_user(x, 'tenant', v_msg."tenant_id", 'messages.read'), false)
         and (v_conv."access" <> 'members' or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = x))
-        and (v_conv."access" <> 'subject' or case v_conv."subject_type" when 'message' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'conversation' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'channel' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'company' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'person' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'deal' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'course' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'post' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'activity' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'quote' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'task' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'employee' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'invoice' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'ledger_account' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'product' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'product_variant' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'order' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'calendar_event' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'booking' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'asset' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'asset_location' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'lease' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'expense_report' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'expense_line' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'donation_fund' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'work_order' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'shipment' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'contract' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'control' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'compliance_policy' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'qualification_type' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'risk' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'incident' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'content_entry' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'form' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'document' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'customer' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'drive_node' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'application' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) else true end)
+        and (v_conv."access" <> 'subject' or case v_conv."subject_type" when 'message' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'conversation' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'channel' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'company' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'person' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'deal' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'course' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'post' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'activity' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'quote' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'work_item' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'employee' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'invoice' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'ledger_account' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'product' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'product_variant' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'order' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'calendar_event' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'booking' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'asset' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'asset_location' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'lease' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'expense_report' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'expense_line' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'donation_fund' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'work_order' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'shipment' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'contract' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'control' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'compliance_policy' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'qualification_type' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'risk' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'incident' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'content_entry' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'form' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'document' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'customer' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'drive_node' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'application' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) else true end)
   );
   if v_msg."mention_scope" is not null then
     v_mentioned := v_mentioned || array(
@@ -9131,7 +8295,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     declare
       v_kept uuid := (select c."id" from "better_supabase"."conversations" c where c."kind" = 'subject' and c."subject_type" = v_type and c."subject_id" = v_keep limit 1);
       v_dropped uuid := (select c."id" from "better_supabase"."conversations" c where c."kind" = 'subject' and c."subject_type" = v_type and c."subject_id" = v_drop limit 1);
@@ -9147,241 +8311,6 @@ begin
     update "better_supabase"."message_record_mentions" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
     end;
   end loop;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.move (
-  subject_type text,
-  subject_id   text,
-  previous_id  text,
-  next_id      text,
-  to_group     text
-)
-  RETURNS text
-  LANGUAGE plpgsql
-  SET search_path TO ''
-  AS $function$
-declare
-  v_tenant text;
-  v_group text;
-  v_other_tenant text;
-  v_other_group text;
-  v_previous text;
-  v_next text;
-  v_key text;
-begin
-  if not "better_supabase"."can_subject"(move.subject_type, move.subject_id, 'write') then
-    raise exception 'not allowed to move this row' using errcode = '42501', hint = 'RANK_FORBIDDEN';
-  end if;
-  case move.subject_type
-    when 'deal' then
-      select s."tenant_id"::text, s."stage_id"::text
-        into v_tenant, v_group
-        from "better_supabase"."deals" s where s."id" = (move.subject_id)::uuid;
-      if not found then
-        raise exception 'row not found' using errcode = 'P0002', hint = 'RANK_NOT_FOUND';
-      end if;
-      v_group := coalesce(move.to_group, v_group);
-      if move.previous_id is not null then
-        select s."rank", s."tenant_id"::text, s."stage_id"::text
-          into v_previous, v_other_tenant, v_other_group
-          from "better_supabase"."deals" s where s."id" = (move.previous_id)::uuid;
-        if not found then
-          raise exception 'the previous row was not found' using errcode = 'P0002', hint = 'RANK_NEIGHBOR_NOT_FOUND';
-        end if;
-        if v_other_tenant is distinct from v_tenant or v_other_group is distinct from v_group then
-          raise exception 'the previous row is in another tenant or group' using errcode = '22023', hint = 'RANK_NEIGHBOR_MISMATCH';
-        end if;
-      end if;
-      if move.next_id is not null then
-        select s."rank", s."tenant_id"::text, s."stage_id"::text
-          into v_next, v_other_tenant, v_other_group
-          from "better_supabase"."deals" s where s."id" = (move.next_id)::uuid;
-        if not found then
-          raise exception 'the next row was not found' using errcode = 'P0002', hint = 'RANK_NEIGHBOR_NOT_FOUND';
-        end if;
-        if v_other_tenant is distinct from v_tenant or v_other_group is distinct from v_group then
-          raise exception 'the next row is in another tenant or group' using errcode = '22023', hint = 'RANK_NEIGHBOR_MISMATCH';
-        end if;
-      end if;
-      if v_previous is not null and v_next is not null and v_previous collate "C" >= v_next collate "C" then
-        raise exception 'the neighbours share a rank key; rebalance the group first' using errcode = '22023', hint = 'RANK_CONFLICT';
-      end if;
-      v_key := "better_supabase"."rank_between"(v_previous, v_next);
-      update "better_supabase"."deals" s set "rank" = v_key, "stage_id" = (jsonb_populate_record(null::"better_supabase"."deals", jsonb_build_object('stage_id', v_group)))."stage_id"
-        where s."id" = (move.subject_id)::uuid;
-      if not found then
-        raise exception 'not allowed to move this row' using errcode = '42501', hint = 'RANK_FORBIDDEN';
-      end if;
-    when 'task' then
-      select s."tenant_id"::text, s."stage_id"::text
-        into v_tenant, v_group
-        from "better_supabase"."work_items" s where s."id" = (move.subject_id)::uuid;
-      if not found then
-        raise exception 'row not found' using errcode = 'P0002', hint = 'RANK_NOT_FOUND';
-      end if;
-      v_group := coalesce(move.to_group, v_group);
-      if move.previous_id is not null then
-        select s."rank", s."tenant_id"::text, s."stage_id"::text
-          into v_previous, v_other_tenant, v_other_group
-          from "better_supabase"."work_items" s where s."id" = (move.previous_id)::uuid;
-        if not found then
-          raise exception 'the previous row was not found' using errcode = 'P0002', hint = 'RANK_NEIGHBOR_NOT_FOUND';
-        end if;
-        if v_other_tenant is distinct from v_tenant or v_other_group is distinct from v_group then
-          raise exception 'the previous row is in another tenant or group' using errcode = '22023', hint = 'RANK_NEIGHBOR_MISMATCH';
-        end if;
-      end if;
-      if move.next_id is not null then
-        select s."rank", s."tenant_id"::text, s."stage_id"::text
-          into v_next, v_other_tenant, v_other_group
-          from "better_supabase"."work_items" s where s."id" = (move.next_id)::uuid;
-        if not found then
-          raise exception 'the next row was not found' using errcode = 'P0002', hint = 'RANK_NEIGHBOR_NOT_FOUND';
-        end if;
-        if v_other_tenant is distinct from v_tenant or v_other_group is distinct from v_group then
-          raise exception 'the next row is in another tenant or group' using errcode = '22023', hint = 'RANK_NEIGHBOR_MISMATCH';
-        end if;
-      end if;
-      if v_previous is not null and v_next is not null and v_previous collate "C" >= v_next collate "C" then
-        raise exception 'the neighbours share a rank key; rebalance the group first' using errcode = '22023', hint = 'RANK_CONFLICT';
-      end if;
-      v_key := "better_supabase"."rank_between"(v_previous, v_next);
-      update "better_supabase"."work_items" s set "rank" = v_key, "stage_id" = (jsonb_populate_record(null::"better_supabase"."work_items", jsonb_build_object('stage_id', v_group)))."stage_id"
-        where s."id" = (move.subject_id)::uuid;
-      if not found then
-        raise exception 'not allowed to move this row' using errcode = '42501', hint = 'RANK_FORBIDDEN';
-      end if;
-    when 'application' then
-      select s."tenant_id"::text, s."stage_id"::text
-        into v_tenant, v_group
-        from "better_supabase"."applications" s where s."id" = (move.subject_id)::uuid;
-      if not found then
-        raise exception 'row not found' using errcode = 'P0002', hint = 'RANK_NOT_FOUND';
-      end if;
-      v_group := coalesce(move.to_group, v_group);
-      if move.previous_id is not null then
-        select s."rank", s."tenant_id"::text, s."stage_id"::text
-          into v_previous, v_other_tenant, v_other_group
-          from "better_supabase"."applications" s where s."id" = (move.previous_id)::uuid;
-        if not found then
-          raise exception 'the previous row was not found' using errcode = 'P0002', hint = 'RANK_NEIGHBOR_NOT_FOUND';
-        end if;
-        if v_other_tenant is distinct from v_tenant or v_other_group is distinct from v_group then
-          raise exception 'the previous row is in another tenant or group' using errcode = '22023', hint = 'RANK_NEIGHBOR_MISMATCH';
-        end if;
-      end if;
-      if move.next_id is not null then
-        select s."rank", s."tenant_id"::text, s."stage_id"::text
-          into v_next, v_other_tenant, v_other_group
-          from "better_supabase"."applications" s where s."id" = (move.next_id)::uuid;
-        if not found then
-          raise exception 'the next row was not found' using errcode = 'P0002', hint = 'RANK_NEIGHBOR_NOT_FOUND';
-        end if;
-        if v_other_tenant is distinct from v_tenant or v_other_group is distinct from v_group then
-          raise exception 'the next row is in another tenant or group' using errcode = '22023', hint = 'RANK_NEIGHBOR_MISMATCH';
-        end if;
-      end if;
-      if v_previous is not null and v_next is not null and v_previous collate "C" >= v_next collate "C" then
-        raise exception 'the neighbours share a rank key; rebalance the group first' using errcode = '22023', hint = 'RANK_CONFLICT';
-      end if;
-      v_key := "better_supabase"."rank_between"(v_previous, v_next);
-      update "better_supabase"."applications" s set "rank" = v_key, "stage_id" = (jsonb_populate_record(null::"better_supabase"."applications", jsonb_build_object('stage_id', v_group)))."stage_id"
-        where s."id" = (move.subject_id)::uuid;
-      if not found then
-        raise exception 'not allowed to move this row' using errcode = '42501', hint = 'RANK_FORBIDDEN';
-      end if;
-    else
-      raise exception 'this subject type has no rank column in config.subjects' using errcode = '22023', hint = 'RANK_SUBJECT_UNKNOWN';
-  end case;
-  if length(v_key) > 24 then
-    perform "better_supabase"."enqueue_job"(queue => 'rank.rebalance', payload => jsonb_build_object('subjectType', move.subject_type, 'tenant', v_tenant, 'group', v_group), dedupe_key => 'rank:' || move.subject_type || ':' || coalesce(v_tenant, '') || ':' || coalesce(v_group, ''), dedupe_running => false);
-  end if;
-  return v_key;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.my_work (
-  tenant    uuid    DEFAULT NULL::uuid,
-  page_size integer DEFAULT 50
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  STABLE
-  SET search_path TO ''
-  AS $function$
-declare
-  v_me uuid := auth.uid();
-begin
-  if v_me is null then
-    return '[]'::jsonb;
-  end if;
-  return (
-    select coalesce(jsonb_agg(jsonb_build_object(
-      'kind', w.kind,
-      'subject', jsonb_build_object('type', w.subject_type, 'id', w.subject_id),
-      'ref', w.ref,
-      'title', coalesce(w.title, "better_supabase"."subject_title"(w.subject_type, w.subject_id)),
-      'url', "better_supabase"."subject_url"(w.subject_type, w.subject_id),
-      'at', w.at
-    ) order by w.at desc nulls last, w.kind, w.ref), '[]'::jsonb)
-    from (
-      select * from (
-    select 'mention'::text, c."subject_type"::text, c."subject_id"::text, m."id"::text, null::text,
-      m."sent_at"
-    from "better_supabase"."messages" m
-    join "better_supabase"."conversations" c on c."id" = m."conversation_id" and c."kind" = 'subject'
-    where v_me = any (m."mentions")
-      and m."deleted_at" is null
-      and m."sent_at" > now() - interval '30 days'
-      and (my_work.tenant is null or m."tenant_id" = my_work.tenant)
-    union all
-    select 'reminder'::text, d.subject_type, d.subject_id, d.reminder::text, null::text, d.at
-    from "better_supabase"."my_reminders_due"(my_work.tenant) d
-    where "better_supabase"."can_subject"(d.subject_type, d.subject_id, 'read')
-    union all
-    select 'approval'::text, r."subject_type"::text, r."subject_id"::text, r."id"::text, null::text,
-      r."created_at"
-    from "better_supabase"."approval_requests" r
-    where r."status" = 'pending'
-      and (r."expires_at" is null or r."expires_at" > now())
-      and (my_work.tenant is null or r."tenant_id" = my_work.tenant)
-      and "better_supabase"."approval_eligible"(r."id")
-    union all
-    select 'assigned'::text, 'task'::text, i."id"::text, i."id"::text, i."title"::text,
-      coalesce(i."due_at", a."created_at")
-    from "better_supabase"."work_item_assignees" a
-    join "better_supabase"."work_items" i on i."id" = a."work_item_id"
-    where a."user_id" = v_me
-      and i."state" not in ('completed', 'canceled')
-      and i."archived_at" is null
-      and (my_work.tenant is null or i."tenant_id" = my_work.tenant)
-    union all
-    select 'assigned'::text, 'maintenance_request'::text, i."id"::text, i."id"::text, i."title"::text,
-      coalesce(i."due_at", a."created_at")
-    from "better_supabase"."maintenance_request_assignees" a
-    join "better_supabase"."maintenance_requests" i on i."id" = a."maintenance_request_id"
-    where a."user_id" = v_me
-      and i."state" not in ('completed', 'canceled')
-      and i."archived_at" is null
-      and (my_work.tenant is null or i."tenant_id" = my_work.tenant)
-    union all
-    select 'sla'::text, k."subject_type"::text, k."subject_id"::text, k."id"::text, null::text,
-      k."due_at"
-    from "better_supabase"."sla_clocks" k
-    where k."subject_type" = 'task'
-      and k."warned_at" is not null
-      and k."met_at" is null
-      and (my_work.tenant is null or k."tenant_id" = my_work.tenant)
-      and exists (
-        select 1 from "better_supabase"."work_item_assignees" a
-        where a."work_item_id"::text = k."subject_id"::text
-          and a."user_id" = v_me)
-      ) u (kind, subject_type, subject_id, ref, title, at)
-      order by u.at desc nulls last, u.kind, u.ref
-      limit least(greatest(coalesce(my_work.page_size, 50), 1), 200)
-    ) w
-  );
 end;
 $function$;
 
@@ -9415,7 +8344,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -9446,6 +8375,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end)) then
     raise exception 'document not found' using errcode = 'P0002', hint = 'DOCUMENT_NOT_FOUND';
@@ -9461,7 +8391,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -9492,6 +8422,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end and case v_doc."subject_type"
     when 'message' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'messages.send'), false)
@@ -9504,7 +8435,7 @@ begin
     when 'post' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.write'), false)
     when 'activity' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.write'), false)
     when 'quote' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.write'), false)
-    when 'task' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.write'), false)
     when 'invoice' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.write'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.manage'), false)
@@ -9624,7 +8555,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (v_sub."subject_id"::text)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_sub."subject_id"::text)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_sub."subject_id"::text)::uuid)
@@ -9655,6 +8586,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (v_sub."subject_id"::text)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (v_sub."subject_id"::text)::uuid)
       else null::text
     end) = v_sub."tenant_id"::text, false) else (case v_sub."subject_type"::text
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
@@ -9667,7 +8599,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
@@ -9698,6 +8630,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_sub."subject_id"::text)::uuid and s."organization_id"::text = v_sub."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_sub."subject_id"::text)::uuid and s."organization_id"::text = v_sub."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_sub."subject_id"::text)::uuid and s."organization_id"::text = v_sub."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(v_sub."subject_type"::text, v_sub."subject_id"::text, 'read')) end)) then
     if p_quiet then
@@ -9842,7 +8775,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
@@ -9873,6 +8806,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
       else null::text
     end) <> open_conversation.tenant::text, false) then
         raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
@@ -9962,7 +8896,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -9993,6 +8927,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end and case v_doc."subject_type"
     when 'message' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'messages.send'), false)
@@ -10005,7 +8940,7 @@ begin
     when 'post' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.write'), false)
     when 'activity' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.write'), false)
     when 'quote' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.write'), false)
-    when 'task' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.write'), false)
     when 'invoice' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.write'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.manage'), false)
@@ -10047,7 +8982,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -10078,6 +9013,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end) then
         raise exception 'document not found' using errcode = 'P0002', hint = 'DOCUMENT_NOT_FOUND';
@@ -10129,7 +9065,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -10160,6 +9096,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end)) then
     raise exception 'document not found' using errcode = 'P0002', hint = 'DOCUMENT_NOT_FOUND';
@@ -10175,7 +9112,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -10206,6 +9143,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end and case v_doc."subject_type"
     when 'message' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'messages.send'), false)
@@ -10218,7 +9156,7 @@ begin
     when 'post' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.write'), false)
     when 'activity' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.write'), false)
     when 'quote' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.write'), false)
-    when 'task' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.write'), false)
     when 'invoice' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.write'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.manage'), false)
@@ -10263,7 +9201,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -10294,6 +9232,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end) and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'documents.suggest'), false)),
     'snapshot', case when v_snapshot."document_id" is null then null else replace(encode(v_snapshot."state", 'base64'), E'\n', '') end,
@@ -10341,7 +9280,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
@@ -10372,6 +9311,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (open_gift.donor_id)::uuid and s."organization_id"::text = open_gift.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (open_gift.donor_id)::uuid and s."organization_id"::text = open_gift.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (open_gift.donor_id)::uuid and s."organization_id"::text = open_gift.tenant::text)
       else false
     end and "better_supabase"."can_subject"(open_gift.donor_type, open_gift.donor_id, 'read')) then
     raise exception 'the donor is unknown or not in this organization' using errcode = '22023', hint = 'DONATION_DONOR_INVALID';
@@ -10422,47 +9362,9 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     update "better_supabase"."passes" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
   end loop;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.pause_lifecycle (
-  subject_type text,
-  subject_id   text,
-  until        timestamp with time zone,
-  reason       text
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SET search_path TO ''
-  AS $function$
-declare
-  v_found boolean;
-  v_changed boolean;
-begin
-  perform set_config('better_supabase.lifecycle_changed', '', true);
-  perform set_config('better_supabase.lifecycle_op', (jsonb_build_object('machine', pause_lifecycle.subject_type, 'id', pause_lifecycle.subject_id, 'op', 'pause', 'until', pause_lifecycle.until, 'reason', pause_lifecycle.reason))::text, true);
-  case pause_lifecycle.subject_type
-    when 'task' then
-      raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
-    when 'change_request' then
-      update "public"."change_requests" s set "status" = s."status"
-      where s."id" = (pause_lifecycle.subject_id)::uuid;
-    when 'drive_node' then
-      raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
-    else
-      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
-  end case;
-  v_found := found;
-  v_changed := current_setting('better_supabase.lifecycle_changed', true) = '1';
-  perform set_config('better_supabase.lifecycle_op', '', true);
-  perform set_config('better_supabase.lifecycle_changed', '', true);
-  if not v_found then
-    raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
-  end if;
-  return v_changed;
 end;
 $function$;
 
@@ -10483,129 +9385,6 @@ CREATE OR REPLACE FUNCTION better_supabase.pending_activity_recordings (
     order by rx."created_at"
     limit least(greatest(coalesce(pending_activity_recordings.batch, 20), 1), 200)
   ) p
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.pipeline_board (
-  subject_type text,
-  pipeline     uuid,
-  owner        uuid DEFAULT NULL::uuid
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  STABLE
-  SET search_path TO ''
-  AS $function$
-begin
-  case pipeline_board.subject_type
-    when 'deal' then
-      return (
-        with rows as (
-          select r."stage_id" as stage_id, r."currency"::text as currency, r."amount"::bigint as amount,
-            r."amount" * coalesce(r."probability", st."probability", 0) / 100.0 as weighted
-          from "better_supabase"."deals" r
-          join "better_supabase"."pipeline_stages" st on st."id" = r."stage_id"
-          where r."pipeline_id" = pipeline_board.pipeline and r."archived_at" is null and (pipeline_board.owner is null or r."owner_user_id" = pipeline_board.owner)
-        ),
-        counts as (select stage_id, count(*) as n from rows group by stage_id),
-        sums as (
-          select stage_id, jsonb_agg(jsonb_build_object('currency', currency, 'amount', amount::text, 'weighted', round(weighted)::bigint::text) order by currency) as totals
-          from (select stage_id, currency, coalesce(sum(amount), 0) as amount, coalesce(sum(weighted), 0) as weighted from rows where currency is not null group by stage_id, currency) x
-          group by stage_id
-        )
-        select coalesce(jsonb_agg(jsonb_build_object(
-          'stageId', st."id", 'key', st."key", 'name', st."name", 'color', st."color",
-          'category', st."category", 'outcome', st."outcome", 'probability', st."probability",
-          'wipLimit', st."wip_limit", 'count', coalesce(n.n, 0),
-          'overLimit', st."wip_limit" is not null and coalesce(n.n, 0) > st."wip_limit",
-          'totals', coalesce(m.totals, '[]'::jsonb)
-        ) order by st."rank" collate "C"), '[]'::jsonb)
-        from "better_supabase"."pipeline_stages" st
-        left join counts n on n.stage_id = st."id"
-        left join sums m on m.stage_id = st."id"
-        where st."pipeline_id" = pipeline_board.pipeline and st."archived_at" is null
-      );
-    when 'task' then
-      return (
-        with rows as (
-          select r."stage_id" as stage_id, null::text as currency, null::bigint as amount, null::numeric as weighted
-          from "better_supabase"."work_items" r
-          join "better_supabase"."pipeline_stages" st on st."id" = r."stage_id"
-          where r."pipeline_id" = pipeline_board.pipeline and r."archived_at" is null
-        ),
-        counts as (select stage_id, count(*) as n from rows group by stage_id),
-        sums as (
-          select stage_id, jsonb_agg(jsonb_build_object('currency', currency, 'amount', amount::text, 'weighted', round(weighted)::bigint::text) order by currency) as totals
-          from (select stage_id, currency, coalesce(sum(amount), 0) as amount, coalesce(sum(weighted), 0) as weighted from rows where currency is not null group by stage_id, currency) x
-          group by stage_id
-        )
-        select coalesce(jsonb_agg(jsonb_build_object(
-          'stageId', st."id", 'key', st."key", 'name', st."name", 'color', st."color",
-          'category', st."category", 'outcome', st."outcome", 'probability', st."probability",
-          'wipLimit', st."wip_limit", 'count', coalesce(n.n, 0),
-          'overLimit', st."wip_limit" is not null and coalesce(n.n, 0) > st."wip_limit",
-          'totals', coalesce(m.totals, '[]'::jsonb)
-        ) order by st."rank" collate "C"), '[]'::jsonb)
-        from "better_supabase"."pipeline_stages" st
-        left join counts n on n.stage_id = st."id"
-        left join sums m on m.stage_id = st."id"
-        where st."pipeline_id" = pipeline_board.pipeline and st."archived_at" is null
-      );
-    when 'maintenance_request' then
-      return (
-        with rows as (
-          select r."stage_id" as stage_id, null::text as currency, null::bigint as amount, null::numeric as weighted
-          from "better_supabase"."maintenance_requests" r
-          join "better_supabase"."pipeline_stages" st on st."id" = r."stage_id"
-          where r."pipeline_id" = pipeline_board.pipeline
-        ),
-        counts as (select stage_id, count(*) as n from rows group by stage_id),
-        sums as (
-          select stage_id, jsonb_agg(jsonb_build_object('currency', currency, 'amount', amount::text, 'weighted', round(weighted)::bigint::text) order by currency) as totals
-          from (select stage_id, currency, coalesce(sum(amount), 0) as amount, coalesce(sum(weighted), 0) as weighted from rows where currency is not null group by stage_id, currency) x
-          group by stage_id
-        )
-        select coalesce(jsonb_agg(jsonb_build_object(
-          'stageId', st."id", 'key', st."key", 'name', st."name", 'color', st."color",
-          'category', st."category", 'outcome', st."outcome", 'probability', st."probability",
-          'wipLimit', st."wip_limit", 'count', coalesce(n.n, 0),
-          'overLimit', st."wip_limit" is not null and coalesce(n.n, 0) > st."wip_limit",
-          'totals', coalesce(m.totals, '[]'::jsonb)
-        ) order by st."rank" collate "C"), '[]'::jsonb)
-        from "better_supabase"."pipeline_stages" st
-        left join counts n on n.stage_id = st."id"
-        left join sums m on m.stage_id = st."id"
-        where st."pipeline_id" = pipeline_board.pipeline and st."archived_at" is null
-      );
-    when 'application' then
-      return (
-        with rows as (
-          select r."stage_id" as stage_id, null::text as currency, null::bigint as amount, null::numeric as weighted
-          from "better_supabase"."applications" r
-          join "better_supabase"."pipeline_stages" st on st."id" = r."stage_id"
-          where r."pipeline_id" = pipeline_board.pipeline and (pipeline_board.owner is null or r."owner_user_id" = pipeline_board.owner)
-        ),
-        counts as (select stage_id, count(*) as n from rows group by stage_id),
-        sums as (
-          select stage_id, jsonb_agg(jsonb_build_object('currency', currency, 'amount', amount::text, 'weighted', round(weighted)::bigint::text) order by currency) as totals
-          from (select stage_id, currency, coalesce(sum(amount), 0) as amount, coalesce(sum(weighted), 0) as weighted from rows where currency is not null group by stage_id, currency) x
-          group by stage_id
-        )
-        select coalesce(jsonb_agg(jsonb_build_object(
-          'stageId', st."id", 'key', st."key", 'name', st."name", 'color', st."color",
-          'category', st."category", 'outcome', st."outcome", 'probability', st."probability",
-          'wipLimit', st."wip_limit", 'count', coalesce(n.n, 0),
-          'overLimit', st."wip_limit" is not null and coalesce(n.n, 0) > st."wip_limit",
-          'totals', coalesce(m.totals, '[]'::jsonb)
-        ) order by st."rank" collate "C"), '[]'::jsonb)
-        from "better_supabase"."pipeline_stages" st
-        left join counts n on n.stage_id = st."id"
-        left join sums m on m.stage_id = st."id"
-        where st."pipeline_id" = pipeline_board.pipeline and st."archived_at" is null
-      );
-    else
-      raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
-  end case;
-end;
 $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.prescribe_medication (
@@ -10654,7 +9433,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (prescribe_medication.subject_id)::uuid and s."tenant_id"::text = prescribe_medication.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (prescribe_medication.subject_id)::uuid and s."tenant_id"::text = prescribe_medication.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (prescribe_medication.subject_id)::uuid and s."tenant_id"::text = prescribe_medication.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (prescribe_medication.subject_id)::uuid and s."tenant_id"::text = prescribe_medication.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (prescribe_medication.subject_id)::uuid and s."tenant_id"::text = prescribe_medication.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (prescribe_medication.subject_id)::uuid and s."tenant_id"::text = prescribe_medication.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (prescribe_medication.subject_id)::uuid and s."tenant_id"::text = prescribe_medication.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (prescribe_medication.subject_id)::uuid and s."tenant_id"::text = prescribe_medication.tenant::text)
@@ -10685,6 +9464,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (prescribe_medication.subject_id)::uuid and s."tenant_id"::text = prescribe_medication.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (prescribe_medication.subject_id)::uuid and s."organization_id"::text = prescribe_medication.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (prescribe_medication.subject_id)::uuid and s."organization_id"::text = prescribe_medication.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (prescribe_medication.subject_id)::uuid and s."organization_id"::text = prescribe_medication.tenant::text)
       else false
     end and "better_supabase"."can_subject"(prescribe_medication.subject_type, prescribe_medication.subject_id, 'read')) then
     raise exception 'the record isn''t in this organization' using errcode = '22023', hint = 'MEDICATION_ORDER_INVALID';
@@ -10916,7 +9696,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -10947,6 +9727,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end)) then
     raise exception 'document not found' using errcode = 'P0002', hint = 'DOCUMENT_NOT_FOUND';
@@ -10997,7 +9778,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -11028,6 +9809,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end and case v_doc."subject_type"
     when 'message' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'messages.send'), false)
@@ -11040,7 +9822,7 @@ begin
     when 'post' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.write'), false)
     when 'activity' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.write'), false)
     when 'quote' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.write'), false)
-    when 'task' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.write'), false)
     when 'invoice' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.write'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.manage'), false)
@@ -11151,7 +9933,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant and s."archived_at" is null) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant and s."archived_at" is null) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'ledger.read'), false)
@@ -11182,6 +9964,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."organization_id" = reaction_subject_visible.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."organization_id" = reaction_subject_visible.tenant and s."deleted_at" is null)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."organization_id" = reaction_subject_visible.tenant)
     else false
   end;
 end;
@@ -11202,70 +9985,10 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     delete from "better_supabase"."reactions" x where x."subject_type" = v_type and x."subject_id" = v_drop and exists (select 1 from "better_supabase"."reactions" y where y."subject_type" = v_type and y."subject_id" = v_keep and y."actor" is not distinct from x."actor" and y."emoji" is not distinct from x."emoji");
     update "better_supabase"."reactions" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
   end loop;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.rebalance_ranks (
-  subject_type text,
-  tenant       text,
-  rank_group   text
-)
-  RETURNS integer
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_count integer := 0;
-begin
-  case rebalance_ranks.subject_type
-    when 'deal' then
-      with ordered as (
-        select s."id" as row_id,
-          row_number() over (partition by s."stage_id" order by s."rank" collate "C", s."id") as nth,
-          count(*) over (partition by s."stage_id") as total
-        from "better_supabase"."deals" s
-        where s."tenant_id"::text = rebalance_ranks.tenant
-          and (rebalance_ranks.rank_group is null or s."stage_id"::text = rebalance_ranks.rank_group)
-      )
-      update "better_supabase"."deals" t set "rank" = "better_supabase"."rank_key"(o.nth, o.total)
-      from ordered o
-      where t."id" = o.row_id;
-      get diagnostics v_count = row_count;
-    when 'task' then
-      with ordered as (
-        select s."id" as row_id,
-          row_number() over (partition by s."stage_id" order by s."rank" collate "C", s."id") as nth,
-          count(*) over (partition by s."stage_id") as total
-        from "better_supabase"."work_items" s
-        where s."tenant_id"::text = rebalance_ranks.tenant
-          and (rebalance_ranks.rank_group is null or s."stage_id"::text = rebalance_ranks.rank_group)
-      )
-      update "better_supabase"."work_items" t set "rank" = "better_supabase"."rank_key"(o.nth, o.total)
-      from ordered o
-      where t."id" = o.row_id;
-      get diagnostics v_count = row_count;
-    when 'application' then
-      with ordered as (
-        select s."id" as row_id,
-          row_number() over (partition by s."stage_id" order by s."rank" collate "C", s."id") as nth,
-          count(*) over (partition by s."stage_id") as total
-        from "better_supabase"."applications" s
-        where s."tenant_id"::text = rebalance_ranks.tenant
-          and (rebalance_ranks.rank_group is null or s."stage_id"::text = rebalance_ranks.rank_group)
-      )
-      update "better_supabase"."applications" t set "rank" = "better_supabase"."rank_key"(o.nth, o.total)
-      from ordered o
-      where t."id" = o.row_id;
-      get diagnostics v_count = row_count;
-    else
-      raise exception 'this subject type has no rank column in config.subjects' using errcode = '22023', hint = 'RANK_SUBJECT_UNKNOWN';
-  end case;
-  return v_count;
 end;
 $function$;
 
@@ -11338,7 +10061,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (record_consent.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (record_consent.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (record_consent.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (record_consent.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (record_consent.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (record_consent.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (record_consent.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (record_consent.subject_id)::uuid)
@@ -11369,6 +10092,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (record_consent.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (record_consent.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (record_consent.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (record_consent.subject_id)::uuid)
       else null::text
     end))::uuid;
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
@@ -11591,7 +10315,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
@@ -11622,6 +10346,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (record_gift.donor_id)::uuid and s."organization_id"::text = record_gift.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (record_gift.donor_id)::uuid and s."organization_id"::text = record_gift.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (record_gift.donor_id)::uuid and s."organization_id"::text = record_gift.tenant::text)
       else false
     end and "better_supabase"."can_subject"(record_gift.donor_type, record_gift.donor_id, 'read')) then
     raise exception 'the donor is unknown or not in this organization' using errcode = '22023', hint = 'DONATION_DONOR_INVALID';
@@ -11691,7 +10416,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (record_observation.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (record_observation.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (record_observation.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (record_observation.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (record_observation.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (record_observation.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (record_observation.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (record_observation.subject_id)::uuid)
@@ -11722,6 +10447,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (record_observation.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (record_observation.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (record_observation.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (record_observation.subject_id)::uuid)
       else null::text
     end) = record_observation.tenant::text, false) else (case record_observation.subject_type
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
@@ -11734,7 +10460,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
@@ -11765,6 +10491,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (record_observation.subject_id)::uuid and s."organization_id"::text = record_observation.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (record_observation.subject_id)::uuid and s."organization_id"::text = record_observation.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (record_observation.subject_id)::uuid and s."organization_id"::text = record_observation.tenant::text)
       else false
     end and "better_supabase"."can_subject"(record_observation.subject_type, record_observation.subject_id, 'read')) end) then
     raise exception 'the record isn''t in this organization, or you can''t read it' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
@@ -11818,7 +10545,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (v_item ->> 'subjectId')::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid)
@@ -11849,6 +10576,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (v_item ->> 'subjectId')::uuid)
       else null::text
     end) = record_observations.tenant::text, false) else (case v_item ->> 'subjectType'
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
@@ -11861,7 +10589,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
@@ -11892,6 +10620,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_item ->> 'subjectId')::uuid and s."organization_id"::text = record_observations.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_item ->> 'subjectId')::uuid and s."organization_id"::text = record_observations.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_item ->> 'subjectId')::uuid and s."organization_id"::text = record_observations.tenant::text)
       else false
     end and "better_supabase"."can_subject"(v_item ->> 'subjectType', v_item ->> 'subjectId', 'read')) end) then
       raise exception 'the record isn''t in this organization, or you can''t read it' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
@@ -11975,7 +10704,7 @@ declare
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (record_sla_event.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (record_sla_event.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (record_sla_event.subject_id)::uuid)
@@ -12006,6 +10735,7 @@ declare
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (record_sla_event.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (record_sla_event.subject_id)::uuid)
       else null::text
     end);
   v_clock "better_supabase"."sla_clocks";
@@ -12029,7 +10759,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
@@ -12060,6 +10790,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (record_sla_event.subject_id)::uuid and s."organization_id"::text = v_tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (record_sla_event.subject_id)::uuid and s."organization_id"::text = v_tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (record_sla_event.subject_id)::uuid and s."organization_id"::text = v_tenant::text)
       else false
     end and "better_supabase"."can_subject"(record_sla_event.subject_type, record_sla_event.subject_id, 'read'))) then
     raise exception 'not allowed to move clocks on this record' using errcode = '42501', hint = 'SLA_FORBIDDEN';
@@ -12151,7 +10882,7 @@ begin
     when 'post' then v_table := '"better_supabase"."posts"'; v_id_col := 'id'; v_tenant_col := 'tenant_id';
     when 'activity' then v_table := '"better_supabase"."engagements"'; v_id_col := 'id'; v_tenant_col := 'tenant_id';
     when 'quote' then v_table := '"better_supabase"."quotes"'; v_id_col := 'id'; v_tenant_col := 'tenant_id';
-    when 'task' then v_table := '"better_supabase"."work_items"'; v_id_col := 'id'; v_tenant_col := 'tenant_id';
+    when 'work_item' then v_table := '"better_supabase"."work_items"'; v_id_col := 'id'; v_tenant_col := 'tenant_id';
     when 'employee' then v_table := '"better_supabase"."employees"'; v_id_col := 'id'; v_tenant_col := 'tenant_id';
     when 'invoice' then v_table := '"better_supabase"."invoices"'; v_id_col := 'id'; v_tenant_col := 'tenant_id';
     when 'ledger_account' then v_table := '"better_supabase"."ledger_accounts"'; v_id_col := 'id'; v_tenant_col := 'tenant_id';
@@ -12182,6 +10913,7 @@ begin
     when 'application' then v_table := '"better_supabase"."applications"'; v_id_col := 'id'; v_tenant_col := 'tenant_id';
     when 'change_request' then v_table := '"public"."change_requests"'; v_id_col := 'id'; v_tenant_col := 'organization_id';
     when 'project' then v_table := '"public"."projects"'; v_id_col := 'id'; v_tenant_col := 'organization_id';
+    when 'task' then v_table := '"public"."tasks"'; v_id_col := 'id'; v_tenant_col := 'organization_id';
     else null;
   end case;
   if v_table is null then
@@ -12217,7 +10949,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     declare
       v_row record;
       v_st text; v_si text; v_tt text; v_ti text;
@@ -12353,7 +11085,7 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.repeat_task (
+CREATE OR REPLACE FUNCTION better_supabase.repeat_work_item (
   work_item uuid,
   due_at    timestamp with time zone
 )
@@ -12368,19 +11100,19 @@ declare
   v_id uuid;
   v_shift interval;
 begin
-  select * into v_src from "better_supabase"."work_items" x where x."id" = repeat_task.work_item for update;
+  select * into v_src from "better_supabase"."work_items" x where x."id" = repeat_work_item.work_item for update;
   if v_src."id" is null then
     raise exception 'work item not found' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   select x."id" into v_id from "better_supabase"."work_items" x where x."recurs_from" = v_src."id";
   if v_id is not null then
-    return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = v_id);
+    return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = v_id);
   end if;
-  v_shift := coalesce(repeat_task.due_at - coalesce(v_src."due_at", v_src."end_at", v_src."start_at"), interval '0');
-  v_next := "better_supabase"."create_task"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+  v_shift := coalesce(repeat_work_item.due_at - coalesce(v_src."due_at", v_src."end_at", v_src."start_at"), interval '0');
+  v_next := "better_supabase"."create_work_item"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
     'title', v_src."title", 'body', v_src."body", 'parentId', v_src."parent_id", 'teamId', v_src."team_id",
     'projectId', v_src."project_id", 'priority', v_src."priority", 'estimate', v_src."estimate",
-    'startAt', v_src."start_at" + v_shift, 'endAt', v_src."end_at" + v_shift, 'dueAt', repeat_task.due_at,
+    'startAt', v_src."start_at" + v_shift, 'endAt', v_src."end_at" + v_shift, 'dueAt', repeat_work_item.due_at,
     'pipelineId', v_src."pipeline_id")),
     array(select y."user_id" from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_src."id"));
   v_id := (v_next ->> 'id')::uuid;
@@ -12388,8 +11120,8 @@ begin
   insert into "better_supabase"."work_item_checklist_items" ("tenant_id", "work_item_id", "title", "rank", "created_by")
   select y."tenant_id", v_id, y."title", y."rank", y."created_by" from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = v_src."id";
   update "better_supabase"."recurrence_rules" rr set "subject_id" = v_id::text
-  where rr."tenant_id" = v_src."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = v_src."id"::text;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = v_id);
+  where rr."tenant_id" = v_src."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = v_src."id"::text;
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = v_id);
 end;
 $function$;
 
@@ -12441,7 +11173,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'ledger.read'), false)
@@ -12472,6 +11204,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (request_approval.subject_id)::uuid and s."organization_id" = request_approval.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (request_approval.subject_id)::uuid and s."organization_id" = request_approval.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (request_approval.subject_id)::uuid and s."organization_id" = request_approval.tenant)
     else false
   end end))) then
     raise exception 'not allowed to request approval for this record' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
@@ -12590,7 +11323,7 @@ begin
       v_name := 'better_supabase.quotes';
       v_reveal := 'quotes_reveal';
       v_reveal_schema := 'better_supabase';
-    when 'task' then
+    when 'work_item' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
       from "better_supabase"."work_items" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'better_supabase.work_items';
@@ -12775,6 +11508,12 @@ begin
       from "public"."projects" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'public.projects';
       v_reveal := 'projects_reveal';
+      v_reveal_schema := 'public';
+    when 'task' then
+      select to_jsonb(s.*), s."organization_id" into v_record, v_tenant
+      from "public"."tasks" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'public.tasks';
+      v_reveal := 'tasks_reveal';
       v_reveal_schema := 'public';
     else
       raise exception 'subject_type is not a record type in config.subjects' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';
@@ -13157,97 +11896,6 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.restore_trash (
-  item_id uuid
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_root "better_supabase"."trash_items"%rowtype;
-  v_count integer;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select r.* into v_root from "better_supabase"."trash_items" i
-    join "better_supabase"."trash_items" r on r."batch_id" = i."batch_id" and r."depth" = 0
-    where i."id" = restore_trash.item_id;
-  if not found then
-    raise exception 'trash item not found' using errcode = 'P0002', hint = 'TRASH_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_root."tenant_id", 'trash.restore'), false) and case v_root."subject_type"
-    when 'message' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'messages.send'), false)
-    when 'conversation' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'messages.send'), false)
-    when 'deal' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'deals.write'), false)
-    when 'task' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'tasks.write'), false)
-    when 'risk' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'risks.write'), false)
-    when 'customer' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'customers.write'), false)
-    when 'drive_node' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'drive.manage'), false)
-    else true
-  end)) then
-    raise exception 'not allowed to restore this record' using errcode = '42501', hint = 'TRASH_FORBIDDEN';
-  end if;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."before_untrash"(uuid)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using v_root."id";
-    end if;
-  end;
-  v_count := "better_supabase"."trash_restore_batch"(v_root."batch_id");
-  delete from "better_supabase"."trash_items" where "batch_id" = v_root."batch_id";
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."after_untrash"(uuid, uuid)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::uuid)', v_hook::oid::regproc)
-        using v_root."id", v_root."batch_id";
-    end if;
-  end;
-  return jsonb_build_object('id', v_root."id", 'batchId', v_root."batch_id", 'subjectType', v_root."subject_type", 'subjectId', v_root."subject_id", 'count', v_count);
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.resume_lifecycle (
-  subject_type text,
-  subject_id   text
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SET search_path TO ''
-  AS $function$
-declare
-  v_found boolean;
-  v_changed boolean;
-begin
-  perform set_config('better_supabase.lifecycle_changed', '', true);
-  perform set_config('better_supabase.lifecycle_op', (jsonb_build_object('machine', resume_lifecycle.subject_type, 'id', resume_lifecycle.subject_id, 'op', 'resume'))::text, true);
-  case resume_lifecycle.subject_type
-    when 'task' then
-      raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
-    when 'change_request' then
-      update "public"."change_requests" s set "status" = s."status"
-      where s."id" = (resume_lifecycle.subject_id)::uuid;
-    when 'drive_node' then
-      raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
-    else
-      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
-  end case;
-  v_found := found;
-  v_changed := current_setting('better_supabase.lifecycle_changed', true) = '1';
-  perform set_config('better_supabase.lifecycle_op', '', true);
-  perform set_config('better_supabase.lifecycle_changed', '', true);
-  if not v_found then
-    raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
-  end if;
-  return v_changed;
-end;
-$function$;
-
 CREATE OR REPLACE FUNCTION better_supabase.rule_check (
   node   jsonb,
   fields jsonb,
@@ -13341,75 +11989,6 @@ begin
       and (rules_list.trigger is null or x."trigger" = rules_list.trigger)
       and (rules_list.enabled is null or x."enabled" = rules_list.enabled)
   );
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.run_due_sequences (
-  max_count integer DEFAULT 50
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-#variable_conflict use_variable
-declare
-  v_due "better_supabase"."sequence_enrollments";
-  v_member "better_supabase"."sequence_enrollments";
-  v_sequence "better_supabase"."sequences";
-  v_step jsonb;
-  v_emails jsonb := '[]'::jsonb;
-  v_ran integer := 0;
-  v_turns integer;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
-  end if;
-  for v_due in
-    select x.* from "better_supabase"."sequence_enrollments" x
-    join "better_supabase"."sequences" y on y."id" = x."sequence_id"
-    where x."status" = 'active' and x."next_run_at" <= now() and y."status" = 'active'
-    order by x."next_run_at", x."enrollment_id"
-    limit least(greatest(coalesce(run_due_sequences.max_count, 50), 1), 500)
-    for update of x skip locked
-  loop
-    v_turns := 0;
-    loop
-      v_turns := v_turns + 1;
-      exit when v_turns > 60;
-      select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_due."enrollment_id";
-      exit when v_member."status" <> 'active' or v_member."step" is null or v_member."next_run_at" > now();
-      select * into v_sequence from "better_supabase"."sequences" x where x."id" = v_member."sequence_id";
-      v_step := (select t.value from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'id' = v_member."step");
-      if v_step is null then
-        perform "better_supabase"."sequence_place"(v_member."enrollment_id");
-        continue;
-      end if;
-      if v_step ->> 'kind' = 'email' then
-        update "better_supabase"."sequence_enrollments" x
-        set "attempts" = x."attempts" + 1, "next_run_at" = now() + interval '10 minutes', "updated_at" = now()
-        where x."enrollment_id" = v_member."enrollment_id"
-        returning * into v_member;
-        v_emails := v_emails || jsonb_build_array(jsonb_build_object(
-          'enrollmentId', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'organizationId', v_member."tenant_id",
-          'accountId', coalesce(v_member."mail_account_id", v_sequence."mail_account_id"), 'threadId', v_member."mail_thread_id",
-          'to', jsonb_build_object('address', v_member."address", 'name', v_member."name"),
-          'step', v_step, 'variables', v_member."variables", 'attempt', v_member."attempts",
-          'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id"));
-        exit;
-      end if;
-      if v_step ->> 'kind' = 'task' then
-        perform "better_supabase"."create_task"(v_member."tenant_id", jsonb_build_object(
-          'title', trim(v_step ->> 'title'),
-          'body', v_step ->> 'body',
-          'dueAt', case when v_step ? 'dueInMinutes' then now() + make_interval(mins => (v_step ->> 'dueInMinutes')::integer) end),
-          case when v_member."enrolled_by" is null then '{}'::uuid[] else array[v_member."enrolled_by"] end);
-      end if;
-      perform "better_supabase"."sequence_step_done"(v_member."enrollment_id", v_member."step");
-      v_ran := v_ran + 1;
-    end loop;
-  end loop;
-  return jsonb_build_object('ran', v_ran, 'emails', v_emails);
 end;
 $function$;
 
@@ -13818,7 +12397,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -13849,6 +12428,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end and case v_doc."subject_type"
     when 'message' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'messages.send'), false)
@@ -13861,7 +12441,7 @@ begin
     when 'post' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.write'), false)
     when 'activity' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.write'), false)
     when 'quote' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.write'), false)
-    when 'task' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.write'), false)
     when 'invoice' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.write'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.manage'), false)
@@ -14210,252 +12790,6 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.save_pipeline (
-  tenant       uuid,
-  pipeline     uuid,
-  subject_type text,
-  key          text,
-  name         text,
-  scope_id     text,
-  is_default   boolean
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_pipeline uuid := save_pipeline.pipeline;
-  v_created boolean := save_pipeline.pipeline is null;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_pipeline.tenant, 'pipelines.manage'), false)) then
-    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
-  end if;
-  if not (save_pipeline.subject_type = any ('{deal,task,maintenance_request,application}'::text[])) then
-    raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
-  end if;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."before_pipeline_save"(uuid, uuid, text, text)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline.tenant, save_pipeline.pipeline, save_pipeline.subject_type, save_pipeline.key;
-    end if;
-  end;
-  if coalesce(save_pipeline.is_default, false) then
-    update "better_supabase"."pipelines" x set "is_default" = false
-    where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-      and x."scope_id" is not distinct from save_pipeline.scope_id and x."is_default"
-      and x."id" is distinct from save_pipeline.pipeline;
-  end if;
-  begin
-    if v_created then
-      insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default", "rank")
-      values (save_pipeline.tenant, save_pipeline.subject_type, save_pipeline.scope_id, save_pipeline.key, save_pipeline.name,
-        coalesce(save_pipeline.is_default, false) or not exists (
-          select 1 from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-            and x."scope_id" is not distinct from save_pipeline.scope_id and x."archived_at" is null),
-        case
-    when (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
-  end)
-      returning "id" into v_pipeline;
-    else
-      update "better_supabase"."pipelines" x set "key" = save_pipeline.key, "name" = save_pipeline.name,
-        "is_default" = coalesce(save_pipeline.is_default, x."is_default"), "updated_at" = now()
-      where x."id" = save_pipeline.pipeline and x."tenant_id" = save_pipeline.tenant
-        and x."subject_type" = save_pipeline.subject_type;
-      if not found then
-        raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
-      end if;
-    end if;
-  exception when unique_violation then
-    raise exception 'another pipeline of this type has this key' using errcode = '23505', hint = 'PIPELINE_KEY_TAKEN';
-  end;
-  if v_created then
-    perform "better_supabase".emit_event('pipeline.created', jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key), 'pipelines/' || v_pipeline::text, (save_pipeline.tenant::text)::text, null, 'better-supabase/pipelines');
-  perform better_supabase.audit_event(
-    event_type => 'pipeline.created',
-    category => 'configuration',
-    target_type => 'pipeline',
-    record_id => v_pipeline::text,
-    summary => 'created pipeline ' || save_pipeline.name,
-    tenant => (save_pipeline.tenant::text)::uuid,
-    metadata => jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key)
-  );
-  else
-    perform "better_supabase".emit_event('pipeline.updated', jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key), 'pipelines/' || v_pipeline::text, (save_pipeline.tenant::text)::text, null, 'better-supabase/pipelines');
-  perform better_supabase.audit_event(
-    event_type => 'pipeline.updated',
-    category => 'configuration',
-    target_type => 'pipeline',
-    record_id => v_pipeline::text,
-    summary => 'updated pipeline ' || save_pipeline.name,
-    tenant => (save_pipeline.tenant::text)::uuid,
-    metadata => jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key)
-  );
-  end if;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."after_pipeline_save"(uuid, boolean)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::boolean)', v_hook::oid::regproc)
-        using v_pipeline, v_created;
-    end if;
-  end;
-  return (select to_jsonb(x) from "better_supabase"."pipelines" x where x."id" = v_pipeline);
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.save_pipeline_stage (
-  pipeline           uuid,
-  stage              uuid,
-  key                text,
-  name               text,
-  category           text,
-  probability        integer,
-  rotting_after_days integer,
-  wip_limit          integer,
-  color              text
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_tenant uuid;
-  v_subject_type text;
-  v_outcome text;
-  v_stage uuid := save_pipeline_stage.stage;
-  v_pipeline uuid := save_pipeline_stage.pipeline;
-  v_used boolean;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select x."tenant_id", x."subject_type" into v_tenant, v_subject_type
-  from "better_supabase"."pipelines" x where x."id" = save_pipeline_stage.pipeline and x."archived_at" is null;
-  if v_tenant is null then
-    raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
-  end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
-    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
-  end if;
-  case v_subject_type
-    when 'deal' then
-      v_outcome := case save_pipeline_stage.category
-      when 'open' then 'open'
-      when 'won' then 'success'
-      when 'lost' then 'failure'
-    end;
-    when 'task' then
-      v_outcome := case save_pipeline_stage.category
-      when 'triage' then 'open'
-      when 'backlog' then 'open'
-      when 'unstarted' then 'open'
-      when 'started' then 'open'
-      when 'completed' then 'success'
-      when 'canceled' then 'failure'
-    end;
-    when 'maintenance_request' then
-      v_outcome := case save_pipeline_stage.category
-      when 'triage' then 'open'
-      when 'backlog' then 'open'
-      when 'unstarted' then 'open'
-      when 'started' then 'open'
-      when 'completed' then 'success'
-      when 'canceled' then 'failure'
-    end;
-    when 'application' then
-      v_outcome := case save_pipeline_stage.category
-      when 'active' then 'open'
-      when 'hired' then 'success'
-      when 'rejected' then 'failure'
-      when 'withdrawn' then 'failure'
-    end;
-    else
-      raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
-  end case;
-  if v_outcome is null then
-    raise exception 'this subject type has no such category' using errcode = '22023', hint = 'PIPELINE_CATEGORY_UNKNOWN';
-  end if;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."before_pipeline_stage_save"(uuid, uuid, text, text)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline_stage.pipeline, save_pipeline_stage.stage, save_pipeline_stage.key, save_pipeline_stage.category;
-    end if;
-  end;
-  begin
-    if v_stage is null then
-      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color,
-        case
-    when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
-  end)
-      returning "id" into v_stage;
-    else
-      -- A stage holding records keeps its outcome, so won stays won.
-      if exists (select 1 from "better_supabase"."pipeline_stages" x where x."id" = v_stage and x."outcome" <> v_outcome) then
-        case v_subject_type
-    when 'deal' then
-      perform 1 from "better_supabase"."deals" r where r."stage_id" = v_stage limit 1;
-      v_used := found;
-    when 'task' then
-      perform 1 from "better_supabase"."work_items" r where r."stage_id" = v_stage limit 1;
-      v_used := found;
-    when 'maintenance_request' then
-      perform 1 from "better_supabase"."maintenance_requests" r where r."stage_id" = v_stage limit 1;
-      v_used := found;
-    when 'application' then
-      perform 1 from "better_supabase"."applications" r where r."stage_id" = v_stage limit 1;
-      v_used := found;
-    else
-      v_used := false;
-  end case;
-        if v_used then
-          raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
-        end if;
-      end if;
-      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "updated_at" = now()
-      where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
-      if not found then
-        raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
-      end if;
-    end if;
-  exception when unique_violation then
-    raise exception 'another stage of this pipeline has this key' using errcode = '23505', hint = 'PIPELINE_STAGE_KEY_TAKEN';
-  end;
-  perform "better_supabase".emit_event('pipeline_stage.saved', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
-  perform better_supabase.audit_event(
-    event_type => 'pipeline_stage.saved',
-    category => 'configuration',
-    target_type => 'pipeline',
-    record_id => v_pipeline::text,
-    summary => 'saved stage ' || save_pipeline_stage.name,
-    tenant => (v_tenant::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category)
-  );
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."after_pipeline_stage_save"(uuid)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using v_stage;
-    end if;
-  end;
-  return (select to_jsonb(x) from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
-end;
-$function$;
-
 CREATE OR REPLACE FUNCTION better_supabase.save_project (
   tenant  uuid,
   project uuid,
@@ -14530,7 +12864,7 @@ begin
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
   if not (auth.role() = 'service_role')
-    and save_reminder.subject_type in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'activity', 'quote', 'task', 'employee', 'invoice', 'ledger_account', 'product', 'product_variant', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'compliance_policy', 'qualification_type', 'risk', 'incident', 'content_entry', 'form', 'document', 'customer', 'drive_node', 'application', 'change_request', 'project')
+    and save_reminder.subject_type in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'activity', 'quote', 'work_item', 'employee', 'invoice', 'ledger_account', 'product', 'product_variant', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'compliance_policy', 'qualification_type', 'risk', 'incident', 'content_entry', 'form', 'document', 'customer', 'drive_node', 'application', 'change_request', 'project', 'task')
     and not (case save_reminder.subject_type
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'messages.read'), false)
     when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'messages.read'), false)
@@ -14542,7 +12876,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'ledger.read'), false)
@@ -14573,6 +12907,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (save_reminder.subject_id)::uuid and s."organization_id" = save_reminder.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (save_reminder.subject_id)::uuid and s."organization_id" = save_reminder.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (save_reminder.subject_id)::uuid and s."organization_id" = save_reminder.tenant)
     else false
   end) then
     raise exception 'the record was not found in this organization' using errcode = 'P0002', hint = 'REMINDER_SUBJECT_NOT_FOUND';
@@ -14775,7 +13110,7 @@ begin
     end if;
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
-  if v_type is null or v_type not in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'activity', 'quote', 'task', 'employee', 'invoice', 'ledger_account', 'product', 'product_variant', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'compliance_policy', 'qualification_type', 'risk', 'incident', 'content_entry', 'form', 'document', 'customer', 'drive_node', 'application', 'change_request', 'project') then
+  if v_type is null or v_type not in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'activity', 'quote', 'work_item', 'employee', 'invoice', 'ledger_account', 'product', 'product_variant', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'compliance_policy', 'qualification_type', 'risk', 'incident', 'content_entry', 'form', 'document', 'customer', 'drive_node', 'application', 'change_request', 'project', 'task') then
     raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
@@ -14825,7 +13160,7 @@ exception when unique_violation then
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.save_task_checklist_item (
+CREATE OR REPLACE FUNCTION better_supabase.save_work_item_checklist_item (
   work_item      uuid,
   checklist_item uuid,
   attrs          jsonb
@@ -14837,14 +13172,14 @@ CREATE OR REPLACE FUNCTION better_supabase.save_task_checklist_item (
   AS $function$
 declare
   v_row "better_supabase"."work_items";
-  v_id uuid := save_task_checklist_item.checklist_item;
+  v_id uuid := save_work_item_checklist_item.checklist_item;
   v_last text;
-  v_done boolean := (save_task_checklist_item.attrs ->> 'done')::boolean;
+  v_done boolean := (save_work_item_checklist_item.attrs ->> 'done')::boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."work_items" x where x."id" = save_work_item_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -14852,9 +13187,9 @@ begin
     if v_id is null then
       select max(y."rank") into v_last from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = v_row."id";
       insert into "better_supabase"."work_item_checklist_items" ("tenant_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
-      values (v_row."tenant_id", v_row."id", trim(save_task_checklist_item.attrs ->> 'title'), coalesce(v_done, false),
+      values (v_row."tenant_id", v_row."id", trim(save_work_item_checklist_item.attrs ->> 'title'), coalesce(v_done, false),
         case when v_done then now() end, case when v_done then auth.uid() end,
-        coalesce(save_task_checklist_item.attrs ->> 'rank', case
+        coalesce(save_work_item_checklist_item.attrs ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -14862,8 +13197,8 @@ begin
       returning "id" into v_id;
     else
       update "better_supabase"."work_item_checklist_items" y set
-        "title" = coalesce(trim(save_task_checklist_item.attrs ->> 'title'), y."title"),
-        "rank" = coalesce(save_task_checklist_item.attrs ->> 'rank', y."rank"),
+        "title" = coalesce(trim(save_work_item_checklist_item.attrs ->> 'title'), y."title"),
+        "rank" = coalesce(save_work_item_checklist_item.attrs ->> 'rank', y."rank"),
         "done" = coalesce(v_done, y."done"),
         "done_at" = case when v_done is null then y."done_at" when v_done then coalesce(y."done_at", now()) end,
         "done_by" = case when v_done is null then y."done_by" when v_done then coalesce(y."done_by", auth.uid()) end
@@ -14875,7 +13210,7 @@ begin
   exception when check_violation or not_null_violation or invalid_text_representation then
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
-  perform "better_supabase".emit_event('work_item.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  perform "better_supabase".emit_event('work_item.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."work_item_checklist_items" y where y."id" = v_id);
 end;
 $function$;
@@ -14957,7 +13292,7 @@ begin
         from "better_supabase"."engagements" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
-    when 'task' then
+    when 'work_item' then
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."identifier"::text, s."body"::text), ''), '/work'
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."work_items" s
@@ -15128,9 +13463,9 @@ begin
       end if;
     end loop;
   end if;
-  if search_reindex.subject_type is null or search_reindex.subject_type = 'task' then
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'work_item' then
     for v_id in select s."id"::text from "better_supabase"."work_items" s loop
-      if "better_supabase"."search_refresh"('task', v_id) then
+      if "better_supabase"."search_refresh"('work_item', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;
@@ -15228,7 +13563,7 @@ CREATE OR REPLACE FUNCTION better_supabase.segments_of (
     when 'post' then coalesce(better_supabase.can('tenant', x."tenant_id", 'posts.read'), false)
     when 'activity' then coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
-    when 'task' then coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'invoice' then coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
@@ -15392,7 +13727,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -15423,6 +13758,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
       else false
     end and "better_supabase"."can_subject"(coalesce(v_item ->> 'type', 'person'), (v_item ->> 'id'), 'read')) then
       raise exception 'a contact is unknown or not readable in this organization' using errcode = '42501', hint = 'DEAL_CONTACT_FORBIDDEN';
@@ -15438,44 +13774,6 @@ begin
   on conflict do nothing;
   get diagnostics v_count = row_count;
   return v_count;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.set_lifecycle_flag (
-  subject_type text,
-  subject_id   text,
-  flag         text,
-  enabled      boolean
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SET search_path TO ''
-  AS $function$
-declare
-  v_found boolean;
-  v_changed boolean;
-begin
-  perform set_config('better_supabase.lifecycle_changed', '', true);
-  perform set_config('better_supabase.lifecycle_op', (jsonb_build_object('machine', set_lifecycle_flag.subject_type, 'id', set_lifecycle_flag.subject_id, 'op', 'flag', 'flag', set_lifecycle_flag.flag, 'enabled', coalesce(set_lifecycle_flag.enabled, false)))::text, true);
-  case set_lifecycle_flag.subject_type
-    when 'task' then
-      raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
-    when 'change_request' then
-      update "public"."change_requests" s set "status" = s."status"
-      where s."id" = (set_lifecycle_flag.subject_id)::uuid;
-    when 'drive_node' then
-      raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
-    else
-      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
-  end case;
-  v_found := found;
-  v_changed := current_setting('better_supabase.lifecycle_changed', true) = '1';
-  perform set_config('better_supabase.lifecycle_op', '', true);
-  perform set_config('better_supabase.lifecycle_changed', '', true);
-  if not v_found then
-    raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
-  end if;
-  return v_changed;
 end;
 $function$;
 
@@ -15637,108 +13935,6 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.set_task_assignees (
-  work_item uuid,
-  users     uuid[]
-)
-  RETURNS integer
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_row "better_supabase"."work_items";
-  v_users uuid[] := array(select distinct x from unnest(coalesce(set_task_assignees.users, '{}')) x where x is not null);
-  v_added uuid[];
-  v_new uuid[];
-  v_claims text;
-  v_user uuid;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
-  if v_row."id" is null then
-    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
-  end if;
-  v_new := array(select x from unnest(v_users) x where x is distinct from auth.uid() and not exists (
-    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
-  v_added := array(select x from unnest(v_users) x where not exists (
-    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
-  delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
-  insert into "better_supabase"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
-  select v_row."tenant_id", v_row."id", x from unnest(v_users) x
-  on conflict do nothing;
-  foreach v_user in array v_users loop
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
-    values (v_row."tenant_id", v_user, 'task', v_row."id"::text, 'participating')
-    on conflict do nothing;
-  end loop;
-  if cardinality(v_new) > 0 then
-    v_claims := current_setting('request.jwt.claims', true);
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform "better_supabase"."notify"(jsonb_build_object(
-      'type', 'work_item.assigned',
-      'tenant', v_row."tenant_id",
-      'actor', auth.uid(),
-      'subject_type', 'task',
-      'subject_id', v_row."id"::text,
-      'subject_label', v_row."title",
-      'summary', v_row."title",
-      'action_path', null,
-      'recipients', to_jsonb(v_new),
-      'watchers', false,
-      'key', 'work_item.assigned:' || v_row."id"::text || ':' || md5(array_to_string(v_new, ',')),
-      'data', jsonb_build_object('workItemId', v_row."id")
-    ));
-    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
-  end if;
-  if cardinality(v_added) > 0 then
-    perform "better_supabase".emit_event('work_item.assigned', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'assigneeIds', to_jsonb(v_users), 'addedIds', to_jsonb(v_added)), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  end if;
-  return cardinality(v_users);
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.set_task_recurrence (
-  work_item uuid,
-  rrule     text,
-  tzid      text DEFAULT 'UTC'::text
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_row "better_supabase"."work_items";
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = set_task_recurrence.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
-  if v_row."id" is null then
-    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
-  end if;
-  if set_task_recurrence.rrule is null then
-    delete from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = v_row."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = v_row."id"::text;
-  else
-    if set_task_recurrence.rrule !~ '^(RRULE:)?FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;[A-Z]+=[-+,0-9A-Z]+)*$' then
-      raise exception 'rrule must be an RRULE such as FREQ=WEEKLY;BYDAY=MO' using errcode = '22023', hint = 'TASK_RECURRENCE_INVALID';
-    end if;
-    if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = coalesce(set_task_recurrence.tzid, 'UTC')) then
-      raise exception 'tzid must be an IANA time zone' using errcode = '22023', hint = 'TASK_RECURRENCE_INVALID';
-    end if;
-    insert into "better_supabase"."recurrence_rules" ("tenant_id", "subject_type", "subject_id", "dtstart", "tzid", "rrule")
-    values (v_row."tenant_id", 'task', v_row."id"::text, coalesce(v_row."due_at", now()), coalesce(set_task_recurrence.tzid, 'UTC'), regexp_replace(set_task_recurrence.rrule, '^RRULE:', ''))
-    on conflict ("tenant_id", "subject_type", "subject_id")
-    do update set "dtstart" = excluded."dtstart", "tzid" = excluded."tzid", "rrule" = excluded."rrule";
-  end if;
-  perform "better_supabase".emit_event('work_item.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('recurrence')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) -> 'recurrence' from "better_supabase"."work_items" x where x."id" = v_row."id");
-end;
-$function$;
-
 CREATE OR REPLACE FUNCTION better_supabase.set_time_rate (
   tenant         uuid,
   rate           bigint,
@@ -15783,7 +13979,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (set_time_rate.subject_id)::uuid and s."tenant_id"::text = set_time_rate.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (set_time_rate.subject_id)::uuid and s."tenant_id"::text = set_time_rate.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (set_time_rate.subject_id)::uuid and s."tenant_id"::text = set_time_rate.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (set_time_rate.subject_id)::uuid and s."tenant_id"::text = set_time_rate.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (set_time_rate.subject_id)::uuid and s."tenant_id"::text = set_time_rate.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (set_time_rate.subject_id)::uuid and s."tenant_id"::text = set_time_rate.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (set_time_rate.subject_id)::uuid and s."tenant_id"::text = set_time_rate.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (set_time_rate.subject_id)::uuid and s."tenant_id"::text = set_time_rate.tenant::text)
@@ -15814,6 +14010,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (set_time_rate.subject_id)::uuid and s."tenant_id"::text = set_time_rate.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (set_time_rate.subject_id)::uuid and s."organization_id"::text = set_time_rate.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (set_time_rate.subject_id)::uuid and s."organization_id"::text = set_time_rate.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (set_time_rate.subject_id)::uuid and s."organization_id"::text = set_time_rate.tenant::text)
       else false
     end and "better_supabase"."can_subject"(set_time_rate.subject_type, set_time_rate.subject_id, 'read')) then
     raise exception 'the record is unknown or not in this organization' using errcode = '22023', hint = 'TIME_RATE_SUBJECT_INVALID';
@@ -15834,6 +14031,108 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION better_supabase.set_work_item_assignees (
+  work_item uuid,
+  users     uuid[]
+)
+  RETURNS integer
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare
+  v_row "better_supabase"."work_items";
+  v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);
+  v_added uuid[];
+  v_new uuid[];
+  v_claims text;
+  v_user uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."work_items" x where x."id" = set_work_item_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
+  if v_row."id" is null then
+    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  v_new := array(select x from unnest(v_users) x where x is distinct from auth.uid() and not exists (
+    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
+  v_added := array(select x from unnest(v_users) x where not exists (
+    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
+  delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
+  insert into "better_supabase"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
+  select v_row."tenant_id", v_row."id", x from unnest(v_users) x
+  on conflict do nothing;
+  foreach v_user in array v_users loop
+    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    values (v_row."tenant_id", v_user, 'work_item', v_row."id"::text, 'participating')
+    on conflict do nothing;
+  end loop;
+  if cardinality(v_new) > 0 then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
+      'type', 'work_item.assigned',
+      'tenant', v_row."tenant_id",
+      'actor', auth.uid(),
+      'subject_type', 'work_item',
+      'subject_id', v_row."id"::text,
+      'subject_label', v_row."title",
+      'summary', v_row."title",
+      'action_path', null,
+      'recipients', to_jsonb(v_new),
+      'watchers', false,
+      'key', 'work_item.assigned:' || v_row."id"::text || ':' || md5(array_to_string(v_new, ',')),
+      'data', jsonb_build_object('workItemId', v_row."id")
+    ));
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
+  if cardinality(v_added) > 0 then
+    perform "better_supabase".emit_event('work_item.assigned', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'assigneeIds', to_jsonb(v_users), 'addedIds', to_jsonb(v_added)), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  end if;
+  return cardinality(v_users);
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.set_work_item_recurrence (
+  work_item uuid,
+  rrule     text,
+  tzid      text DEFAULT 'UTC'::text
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare
+  v_row "better_supabase"."work_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."work_items" x where x."id" = set_work_item_recurrence.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  if v_row."id" is null then
+    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  if set_work_item_recurrence.rrule is null then
+    delete from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = v_row."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = v_row."id"::text;
+  else
+    if set_work_item_recurrence.rrule !~ '^(RRULE:)?FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;[A-Z]+=[-+,0-9A-Z]+)*$' then
+      raise exception 'rrule must be an RRULE such as FREQ=WEEKLY;BYDAY=MO' using errcode = '22023', hint = 'TASK_RECURRENCE_INVALID';
+    end if;
+    if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = coalesce(set_work_item_recurrence.tzid, 'UTC')) then
+      raise exception 'tzid must be an IANA time zone' using errcode = '22023', hint = 'TASK_RECURRENCE_INVALID';
+    end if;
+    insert into "better_supabase"."recurrence_rules" ("tenant_id", "subject_type", "subject_id", "dtstart", "tzid", "rrule")
+    values (v_row."tenant_id", 'work_item', v_row."id"::text, coalesce(v_row."due_at", now()), coalesce(set_work_item_recurrence.tzid, 'UTC'), regexp_replace(set_work_item_recurrence.rrule, '^RRULE:', ''))
+    on conflict ("tenant_id", "subject_type", "subject_id")
+    do update set "dtstart" = excluded."dtstart", "tzid" = excluded."tzid", "rrule" = excluded."rrule";
+  end if;
+  perform "better_supabase".emit_event('work_item.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('recurrence')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) -> 'recurrence' from "better_supabase"."work_items" x where x."id" = v_row."id");
+end;
+$function$;
+
 CREATE OR REPLACE FUNCTION better_supabase.shipments_subject_merge (
   subject_table text,
   keep          text,
@@ -15849,7 +14148,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     update "better_supabase"."shipments" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
   end loop;
 end;
@@ -15878,7 +14177,7 @@ declare
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (start_sla_clocks.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (start_sla_clocks.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (start_sla_clocks.subject_id)::uuid)
@@ -15909,6 +14208,7 @@ declare
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (start_sla_clocks.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       else null::text
     end);
   v_policy "better_supabase"."sla_policies";
@@ -15932,7 +14232,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
@@ -15963,6 +14263,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."organization_id"::text = v_tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."organization_id"::text = v_tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."organization_id"::text = v_tenant::text)
       else false
     end and "better_supabase"."can_subject"(start_sla_clocks.subject_type, start_sla_clocks.subject_id, 'read'))) then
     raise exception 'not allowed to start clocks on this record' using errcode = '42501', hint = 'SLA_FORBIDDEN';
@@ -16036,7 +14337,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (start_timer.subject_id)::uuid and s."tenant_id" = start_timer.tenant) and coalesce(better_supabase.can('tenant', start_timer.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (start_timer.subject_id)::uuid and s."tenant_id" = start_timer.tenant) and coalesce(better_supabase.can('tenant', start_timer.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (start_timer.subject_id)::uuid and s."tenant_id" = start_timer.tenant) and coalesce(better_supabase.can('tenant', start_timer.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (start_timer.subject_id)::uuid and s."tenant_id" = start_timer.tenant) and coalesce(better_supabase.can('tenant', start_timer.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (start_timer.subject_id)::uuid and s."tenant_id" = start_timer.tenant) and coalesce(better_supabase.can('tenant', start_timer.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (start_timer.subject_id)::uuid and s."tenant_id" = start_timer.tenant) and coalesce(better_supabase.can('tenant', start_timer.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (start_timer.subject_id)::uuid and s."tenant_id" = start_timer.tenant) and coalesce(better_supabase.can('tenant', start_timer.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (start_timer.subject_id)::uuid and s."tenant_id" = start_timer.tenant) and coalesce(better_supabase.can('tenant', start_timer.tenant, 'ledger.read'), false)
@@ -16067,6 +14368,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (start_timer.subject_id)::uuid and s."tenant_id" = start_timer.tenant) and coalesce(better_supabase.can('tenant', start_timer.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (start_timer.subject_id)::uuid and s."organization_id" = start_timer.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (start_timer.subject_id)::uuid and s."organization_id" = start_timer.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (start_timer.subject_id)::uuid and s."organization_id" = start_timer.tenant)
     else false
   end) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
@@ -16126,72 +14428,6 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.status_state (
-  subject_type text,
-  subject_id   text
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  STABLE
-  SET search_path TO ''
-  AS $function$
-declare
-  v_status text;
-  v_tenant text;
-  v_step integer;
-  v_paused boolean := false;
-  v_life "better_supabase"."subject_lifecycles"%rowtype;
-  v_order text[];
-begin
-  case status_state.subject_type
-    when 'task' then
-      select s."state"::text, s."tenant_id"::text into v_status, v_tenant
-      from "better_supabase"."work_items" s where s."id" = (status_state.subject_id)::uuid;
-      if not found then
-        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
-      end if;
-
-      v_step := array_position('{triage,backlog,unstarted,started,completed}'::text[], v_status);
-      return jsonb_build_object(
-        'organizationId', v_tenant, 'subjectType', 'task', 'subjectId', status_state.subject_id,
-        'status', v_status, 'order', to_jsonb('{triage,backlog,unstarted,started,completed}'::text[]), 'step', v_step, 'steps', 5, 'progress', case when v_step is null then null when 5 = 1 then 1 else round((v_step - 1)::numeric / 4, 4) end,
-        'version', null, 'flags', '[]'::jsonb, 'paused', false, 'pausedAt', null, 'pausedUntil', null, 'pauseReason', null);
-    when 'change_request' then
-      select s."status"::text, s."organization_id"::text into v_status, v_tenant
-      from "public"."change_requests" s where s."id" = (status_state.subject_id)::uuid;
-      if not found then
-        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
-      end if;
-      select * into v_life from "better_supabase"."subject_lifecycles" x
-      where x."subject_type" = 'change_request' and x."subject_id" = status_state.subject_id;
-      v_paused := v_life."paused_at" is not null and (v_life."paused_until" is null or v_life."paused_until" > now());
-      v_order := coalesce(array(select jsonb_array_elements_text("better_supabase"."lifecycle_graph"(v_life."workflow_version_id") -> 'order')), '{}'::text[]);
-      v_step := array_position(v_order, v_status);
-      return jsonb_build_object(
-        'organizationId', v_tenant, 'subjectType', 'change_request', 'subjectId', status_state.subject_id,
-        'status', v_status, 'order', to_jsonb(v_order), 'step', v_step, 'steps', nullif(cardinality(v_order), 0), 'progress', case when v_step is null then null when cardinality(v_order) = 1 then 1 else round((v_step - 1)::numeric / (cardinality(v_order) - 1), 4) end,
-        'version', v_life."version", 'flags', to_jsonb(coalesce(v_life."flags", '{}')),
-        'paused', v_paused, 'pausedAt', case when v_paused then v_life."paused_at" end,
-        'pausedUntil', case when v_paused then v_life."paused_until" end,
-        'pauseReason', case when v_paused then v_life."pause_reason" end, 'workflow', 'change-requests', 'workflowVersionId', v_life."workflow_version_id");
-    when 'drive_node' then
-      select s."document_status"::text, s."tenant_id"::text into v_status, v_tenant
-      from "better_supabase"."drive_nodes" s where s."id" = (status_state.subject_id)::uuid;
-      if not found then
-        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
-      end if;
-
-      v_step := array_position(null::text[], v_status);
-      return jsonb_build_object(
-        'organizationId', v_tenant, 'subjectType', 'drive_node', 'subjectId', status_state.subject_id,
-        'status', v_status, 'order', to_jsonb(null::text[]), 'step', v_step, 'steps', null, 'progress', null,
-        'version', null, 'flags', '[]'::jsonb, 'paused', false, 'pausedAt', null, 'pausedUntil', null, 'pauseReason', null);
-    else
-      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
-  end case;
-end;
-$function$;
-
 CREATE OR REPLACE FUNCTION better_supabase.subject_tags (
   tenant       uuid,
   subject_type text,
@@ -16220,7 +14456,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (subject_tags.subject_id)::uuid and s."tenant_id" = subject_tags.tenant) and coalesce(better_supabase.can('tenant', subject_tags.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (subject_tags.subject_id)::uuid and s."tenant_id" = subject_tags.tenant) and coalesce(better_supabase.can('tenant', subject_tags.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (subject_tags.subject_id)::uuid and s."tenant_id" = subject_tags.tenant) and coalesce(better_supabase.can('tenant', subject_tags.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (subject_tags.subject_id)::uuid and s."tenant_id" = subject_tags.tenant) and coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (subject_tags.subject_id)::uuid and s."tenant_id" = subject_tags.tenant) and coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (subject_tags.subject_id)::uuid and s."tenant_id" = subject_tags.tenant) and coalesce(better_supabase.can('tenant', subject_tags.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (subject_tags.subject_id)::uuid and s."tenant_id" = subject_tags.tenant) and coalesce(better_supabase.can('tenant', subject_tags.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (subject_tags.subject_id)::uuid and s."tenant_id" = subject_tags.tenant) and coalesce(better_supabase.can('tenant', subject_tags.tenant, 'ledger.read'), false)
@@ -16251,6 +14487,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (subject_tags.subject_id)::uuid and s."tenant_id" = subject_tags.tenant) and coalesce(better_supabase.can('tenant', subject_tags.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (subject_tags.subject_id)::uuid and s."organization_id" = subject_tags.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (subject_tags.subject_id)::uuid and s."organization_id" = subject_tags.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (subject_tags.subject_id)::uuid and s."organization_id" = subject_tags.tenant)
     else false
   end end)) then
     raise exception 'not allowed to read this record''s tags' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
@@ -16299,7 +14536,7 @@ begin
       return (select s."title"::text from "better_supabase"."engagements" s where s."id" = (subject_title.subject_id)::uuid);
     when 'quote' then
       return (select s."title"::text from "better_supabase"."quotes" s where s."id" = (subject_title.subject_id)::uuid);
-    when 'task', 'work_item' then
+    when 'work_item' then
       return (select s."title"::text from "better_supabase"."work_items" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'employee' then
       return (select s."name"::text from "better_supabase"."employees" s where s."id" = (subject_title.subject_id)::uuid);
@@ -16359,6 +14596,8 @@ begin
       return (select s."title"::text from "public"."change_requests" s where s."id" = (subject_title.subject_id)::uuid);
     when 'project' then
       return (select s."name"::text from "public"."projects" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
+    when 'task' then
+      return (select s."title"::text from "public"."tasks" s where s."id" = (subject_title.subject_id)::uuid);
     else
       return null;
   end case;
@@ -16447,10 +14686,10 @@ begin
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'quote')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
-      'type', 'task', 'id', s."id"::text,
+      'type', 'work_item', 'id', s."id"::text,
       'title', s."title"::text, 'url', '/work'))
     from "better_supabase"."work_items" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'task')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'work_item')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'employee', 'id', s."id"::text,
@@ -16631,6 +14870,12 @@ begin
       'title', s."name"::text, 'url', '/projects/' || s."id"::text))
     from "public"."projects" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'project')::uuid[]) and s."deleted_at" is null), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'task', 'id', s."id"::text,
+      'title', s."title"::text, 'url', '/projects/' || s."project_id"::text))
+    from "public"."tasks" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'task')::uuid[])), '[]'::jsonb);
   return found;
 exception
   when invalid_text_representation then
@@ -16645,45 +14890,7 @@ CREATE OR REPLACE FUNCTION better_supabase.subject_types()
   IMMUTABLE
   SET search_path TO ''
   AS $function$
-  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,task,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project}'::text[]
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.subject_url (
-  subject_type text,
-  subject_id   text
-)
-  RETURNS text
-  LANGUAGE plpgsql
-  STABLE
-  SET search_path TO ''
-  AS $function$
-begin
-  case subject_url.subject_type
-    when 'company' then
-      return (select '/crm/contacts/' || s."id"::text from "better_supabase"."companies" s where s."id" = (subject_url.subject_id)::uuid);
-    when 'person' then
-      return (select '/crm/contacts/' || s."id"::text from "better_supabase"."people" s where s."id" = (subject_url.subject_id)::uuid);
-    when 'deal' then
-      return (select '/crm/deals' from "better_supabase"."deals" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
-    when 'task', 'work_item' then
-      return (select '/work' from "better_supabase"."work_items" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
-    when 'employee' then
-      return (select '/people' from "better_supabase"."employees" s where s."id" = (subject_url.subject_id)::uuid);
-    when 'product' then
-      return (select '/shop' from "better_supabase"."products" s where s."id" = (subject_url.subject_id)::uuid);
-    when 'customer' then
-      return (select '/customers/' || s."id"::text from "public"."customers" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
-    when 'application' then
-      return (select '/people/hiring' from "better_supabase"."applications" s where s."id" = (subject_url.subject_id)::uuid);
-    when 'change_request' then
-      return (select '/change-requests/' || s."id"::text from "public"."change_requests" s where s."id" = (subject_url.subject_id)::uuid);
-    when 'project' then
-      return (select '/projects/' || s."id"::text from "public"."projects" s where s."id" = (subject_url.subject_id)::uuid and s."deleted_at" is null);
-    else
-      return null;
-  end case;
-  return null;
-end;
+  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[]
 $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.submit_form (
@@ -16723,7 +14930,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'ledger.read'), false)
@@ -16754,6 +14961,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (submit_form.subject_id)::uuid and s."organization_id" = v_tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (submit_form.subject_id)::uuid and s."organization_id" = v_tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (submit_form.subject_id)::uuid and s."organization_id" = v_tenant)
     else false
   end) then
     raise exception 'not allowed to link this record' using errcode = '42501', hint = 'FORM_FORBIDDEN';
@@ -16794,7 +15002,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -16825,6 +15033,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end)) then
     raise exception 'document not found' using errcode = 'P0002', hint = 'DOCUMENT_NOT_FOUND';
@@ -16840,7 +15049,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -16871,6 +15080,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end and case v_doc."subject_type"
     when 'message' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'messages.send'), false)
@@ -16883,7 +15093,7 @@ begin
     when 'post' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.write'), false)
     when 'activity' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.write'), false)
     when 'quote' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.write'), false)
-    when 'task' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.write'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.write'), false)
     when 'invoice' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.write'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.manage'), false)
@@ -16924,7 +15134,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ledger.read'), false)
@@ -16955,6 +15165,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_doc."subject_id")::uuid and s."tenant_id" = v_doc."tenant_id") and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_doc."subject_id")::uuid and s."organization_id" = v_doc."tenant_id")
     else false
   end) and coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'documents.suggest'), false)))) then
     raise exception 'not allowed to suggest changes to this document' using errcode = '42501', hint = 'DOCUMENT_FORBIDDEN';
@@ -17054,7 +15265,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (tag.subject_id)::uuid and s."tenant_id" = tag.tenant) and coalesce(better_supabase.can('tenant', tag.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (tag.subject_id)::uuid and s."tenant_id" = tag.tenant) and coalesce(better_supabase.can('tenant', tag.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (tag.subject_id)::uuid and s."tenant_id" = tag.tenant) and coalesce(better_supabase.can('tenant', tag.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (tag.subject_id)::uuid and s."tenant_id" = tag.tenant) and coalesce(better_supabase.can('tenant', tag.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (tag.subject_id)::uuid and s."tenant_id" = tag.tenant) and coalesce(better_supabase.can('tenant', tag.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (tag.subject_id)::uuid and s."tenant_id" = tag.tenant) and coalesce(better_supabase.can('tenant', tag.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (tag.subject_id)::uuid and s."tenant_id" = tag.tenant) and coalesce(better_supabase.can('tenant', tag.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (tag.subject_id)::uuid and s."tenant_id" = tag.tenant) and coalesce(better_supabase.can('tenant', tag.tenant, 'ledger.read'), false)
@@ -17085,6 +15296,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (tag.subject_id)::uuid and s."tenant_id" = tag.tenant) and coalesce(better_supabase.can('tenant', tag.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (tag.subject_id)::uuid and s."organization_id" = tag.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (tag.subject_id)::uuid and s."organization_id" = tag.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (tag.subject_id)::uuid and s."organization_id" = tag.tenant)
     else false
   end end)) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
@@ -17104,7 +15316,7 @@ begin
     when 'post' then true
     when 'activity' then true
     when 'quote' then true
-    when 'task' then true
+    when 'work_item' then true
     when 'employee' then true
     when 'invoice' then true
     when 'ledger_account' then true
@@ -17135,6 +15347,7 @@ begin
     when 'application' then true
     when 'change_request' then true
     when 'project' then true
+    when 'task' then true
     else true
   end) then
     raise exception 'tag kind is not allowed on this subject' using errcode = '22023', hint = 'TAG_KIND_MISMATCH';
@@ -17182,375 +15395,10 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     delete from "better_supabase"."taggings" x where x."subject_type" = v_type and x."subject_id" = v_drop and exists (select 1 from "better_supabase"."taggings" y where y."subject_type" = v_type and y."subject_id" = v_keep and y."tag_id" is not distinct from x."tag_id");
     update "better_supabase"."taggings" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
   end loop;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.task_tree (
-  root uuid
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  STABLE
-  SET search_path TO ''
-  AS $function$
-  with recursive tree as (
-    select x.*, 0 as depth from "better_supabase"."work_items" x where x."id" = task_tree.root
-    union all
-    select y.*, tree.depth + 1 from "better_supabase"."work_items" y join tree on y."parent_id" = tree."id"
-    where tree.depth < 100 and y."archived_at" is null
-  )
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'id', tree."id", 'parentId', tree."parent_id", 'identifier', tree."identifier", 'title', tree."title",
-    'state', tree."state", 'startAt', tree."start_at", 'endAt', tree."end_at", 'dueAt', tree."due_at",
-    'locked', tree."locked", 'depth', tree.depth,
-    'progress', coalesce(tree."progress", (
-      select case when count(*) filter (where ch."state" <> 'canceled') = 0 then
-          case tree."state" when 'completed' then 100 else 0 end
-        else round(100.0 * count(*) filter (where ch."state" = 'completed') / count(*) filter (where ch."state" <> 'canceled'))::integer end
-      from "better_supabase"."work_items" ch where ch."parent_id" = tree."id" and ch."archived_at" is null))
-  ) order by tree.depth, tree."rank" collate "C", tree."id"), '[]'::jsonb)
-  from tree
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.transition (
-  subject_type text,
-  subject_id   text,
-  to_status    text,
-  reason       text  DEFAULT NULL::text,
-  actor        jsonb DEFAULT NULL::jsonb
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SET search_path TO ''
-  AS $function$
-declare
-  v_found boolean;
-begin
-  perform set_config('better_supabase.transition_reason', coalesce(transition.reason, ''), true);
-  if transition.actor is not null then
-    if jsonb_typeof(transition.actor) <> 'object' then
-      raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'STATE_ACTOR_INVALID';
-    end if;
-    begin
-      perform nullif(transition.actor ->> 'ip', '')::inet, nullif(transition.actor ->> 'id', '')::uuid;
-    exception when invalid_text_representation then
-      raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'STATE_ACTOR_INVALID';
-    end;
-  end if;
-  perform set_config('better_supabase.transition_actor', coalesce(transition.actor::text, ''), true);
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."before_status_transition"(text, text, text)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::text, $2::text, $3::text)', v_hook::oid::regproc)
-        using transition.subject_type, transition.subject_id, transition.to_status;
-    end if;
-  end;
-  case transition.subject_type
-    when 'task' then
-      update "better_supabase"."work_items" s set "state" = better_supabase.as_column_type(transition.to_status, (null::"better_supabase"."work_items")."state")
-      where s."id" = (transition.subject_id)::uuid;
-    when 'change_request' then
-      update "public"."change_requests" s set "status" = better_supabase.as_column_type(transition.to_status, (null::"public"."change_requests")."status")
-      where s."id" = (transition.subject_id)::uuid;
-    when 'drive_node' then
-      update "better_supabase"."drive_nodes" s set "document_status" = better_supabase.as_column_type(transition.to_status, (null::"better_supabase"."drive_nodes")."document_status")
-      where s."id" = (transition.subject_id)::uuid;
-    else
-      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
-  end case;
-  v_found := found;
-  perform set_config('better_supabase.transition_reason', '', true);
-  perform set_config('better_supabase.transition_actor', '', true);
-  if not v_found then
-    raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
-  end if;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."after_status_transition"(text, text)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::text, $2::text)', v_hook::oid::regproc)
-        using transition.subject_type, transition.to_status;
-    end if;
-  end;
-  return true;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.trash (
-  tenant       uuid,
-  subject_type text,
-  subject_id   text
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_batch uuid := gen_random_uuid();
-  v_count integer;
-  v_id uuid;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', trash.tenant, 'trash.create'), false) and case trash.subject_type
-    when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'messages.read'), false)
-    when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'messages.read'), false)
-    when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'deals.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'tasks.read'), false)
-    when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'risks.read'), false)
-    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (trash.subject_id)::uuid and s."organization_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'customers.read'), false)
-    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant and (coalesce(better_supabase.can('tenant', trash.tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
-    when 'project' then exists (select 1 from "public"."projects" s where s."id" = (trash.subject_id)::uuid and s."organization_id" = trash.tenant)
-    else false
-  end and case trash.subject_type
-    when 'message' then coalesce(better_supabase.can('tenant', trash.tenant, 'messages.send'), false)
-    when 'conversation' then coalesce(better_supabase.can('tenant', trash.tenant, 'messages.send'), false)
-    when 'deal' then coalesce(better_supabase.can('tenant', trash.tenant, 'deals.write'), false)
-    when 'task' then coalesce(better_supabase.can('tenant', trash.tenant, 'tasks.write'), false)
-    when 'risk' then coalesce(better_supabase.can('tenant', trash.tenant, 'risks.write'), false)
-    when 'customer' then coalesce(better_supabase.can('tenant', trash.tenant, 'customers.write'), false)
-    when 'drive_node' then coalesce(better_supabase.can('tenant', trash.tenant, 'drive.manage'), false)
-    else true
-  end)) then
-    raise exception 'not allowed to trash this record' using errcode = '42501', hint = 'TRASH_FORBIDDEN';
-  end if;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."before_trash"(uuid, text, text)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
-        using trash.tenant, trash.subject_type, trash.subject_id;
-    end if;
-  end;
-  v_count := "better_supabase"."trash_cascade"(trash.tenant, trash.subject_type, trash.subject_id, v_batch, 0, auth.uid());
-  if v_count = 0 then
-    raise exception 'no live record to trash' using errcode = 'P0002', hint = 'TRASH_NOT_FOUND';
-  end if;
-  select i."id" into v_id from "better_supabase"."trash_items" i
-    where i."subject_type" = trash.subject_type and i."subject_id" = trash.subject_id;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."after_trash"(uuid, uuid)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::uuid)', v_hook::oid::regproc)
-        using v_id, v_batch;
-    end if;
-  end;
-  return jsonb_build_object('id', v_id, 'batchId', v_batch, 'count', v_count);
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.trash_cascade (
-  tenant       uuid,
-  subject_type text,
-  subject_id   text,
-  batch        uuid,
-  depth        integer,
-  actor        uuid
-)
-  RETURNS integer
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_title text;
-  v_count integer := 1;
-  v_child text;
-  v_item "better_supabase"."trash_items"%rowtype;
-begin
-  case trash_cascade.subject_type
-    when 'message' then
-      update "better_supabase"."messages" s set "deleted_at" = now()
-        where s."id" = (trash_cascade.subject_id)::uuid
-          and s."tenant_id" = trash_cascade.tenant
-          and s."deleted_at" is null
-        returning s."body"::text into v_title;
-    when 'conversation' then
-      update "better_supabase"."conversations" s set "archived_at" = now()
-        where s."id" = (trash_cascade.subject_id)::uuid
-          and s."tenant_id" = trash_cascade.tenant
-          and s."archived_at" is null
-        returning s."title"::text into v_title;
-    when 'deal' then
-      update "better_supabase"."deals" s set "archived_at" = now()
-        where s."id" = (trash_cascade.subject_id)::uuid
-          and s."tenant_id" = trash_cascade.tenant
-          and s."archived_at" is null
-        returning s."name"::text into v_title;
-    when 'task' then
-      update "better_supabase"."work_items" s set "archived_at" = now()
-        where s."id" = (trash_cascade.subject_id)::uuid
-          and s."tenant_id" = trash_cascade.tenant
-          and s."archived_at" is null
-        returning s."title"::text into v_title;
-    when 'risk' then
-      update "better_supabase"."risks" s set "archived_at" = now()
-        where s."id" = (trash_cascade.subject_id)::uuid
-          and s."tenant_id" = trash_cascade.tenant
-          and s."archived_at" is null
-        returning s."title"::text into v_title;
-    when 'customer' then
-      update "public"."customers" s set "archived_at" = now()
-        where s."id" = (trash_cascade.subject_id)::uuid
-          and s."organization_id" = trash_cascade.tenant
-          and s."archived_at" is null
-        returning s."name"::text into v_title;
-    when 'drive_node' then
-      update "better_supabase"."drive_nodes" s set "deleted_at" = now()
-        where s."id" = (trash_cascade.subject_id)::uuid
-          and s."tenant_id" = trash_cascade.tenant
-          and s."deleted_at" is null
-        returning s."name"::text into v_title;
-    when 'project' then
-      update "public"."projects" s set "deleted_at" = now()
-        where s."id" = (trash_cascade.subject_id)::uuid
-          and s."organization_id" = trash_cascade.tenant
-          and s."deleted_at" is null
-        returning s."name"::text into v_title;
-    else
-      raise exception 'this subject type has no deletedAt column' using errcode = '22023', hint = 'TRASH_UNSUPPORTED';
-  end case;
-  if not found then
-    return 0;
-  end if;
-  delete from "better_supabase"."trash_items" i
-    where i."subject_type" = trash_cascade.subject_type and i."subject_id" = trash_cascade.subject_id;
-  insert into "better_supabase"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_after")
-  values (trash_cascade.tenant, trash_cascade.subject_type, trash_cascade.subject_id, v_title, trash_cascade.batch, trash_cascade.depth, trash_cascade.actor, now(), now() + make_interval(days => 30))
-  returning * into v_item;
-  perform "better_supabase".emit_event('subject.trashed', jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id"), 'trash-items/' || v_item."id"::text, (v_item."tenant_id")::text, null, 'better-supabase/trash');
-  perform better_supabase.audit_event(
-    event_type => 'subject.trashed',
-    category => 'data',
-    target_type => 'trash_item',
-    record_id => v_item."id"::text,
-    summary => 'trashed' || ' ' || v_item."subject_type" || ' ' || v_item."subject_id",
-    tenant => (v_item."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id")
-  );
-  
-  return v_count;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.trash_purge_batch (
-  batch uuid
-)
-  RETURNS integer
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_item "better_supabase"."trash_items"%rowtype;
-  v_count integer := 0;
-begin
-  for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_purge_batch.batch order by "depth" desc loop
-    if (false) then
-      raise exception 'a record in this batch is under a legal hold' using errcode = '42501', hint = 'TRASH_HELD';
-    end if;
-    case v_item.subject_type
-    when 'message' then
-      delete from "better_supabase"."messages" s
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'conversation' then
-      delete from "better_supabase"."conversations" s
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'deal' then
-      delete from "better_supabase"."deals" s
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'task' then
-      delete from "better_supabase"."work_items" s
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'risk' then
-      delete from "better_supabase"."risks" s
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'customer' then
-      delete from "public"."customers" s
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'drive_node' then
-      delete from "better_supabase"."drive_nodes" s
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'project' then
-      delete from "public"."projects" s
-        where s."id" = (v_item.subject_id)::uuid;
-    else null;
-  end case;
-    perform "better_supabase".emit_event('subject.purged', jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id"), 'trash-items/' || v_item."id"::text, (v_item."tenant_id")::text, null, 'better-supabase/trash');
-  perform better_supabase.audit_event(
-    event_type => 'subject.purged',
-    category => 'data',
-    target_type => 'trash_item',
-    record_id => v_item."id"::text,
-    summary => 'purged' || ' ' || v_item."subject_type" || ' ' || v_item."subject_id",
-    tenant => (v_item."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id")
-  );
-    v_count := v_count + 1;
-  end loop;
-  delete from "better_supabase"."trash_items" where "batch_id" = trash_purge_batch.batch;
-  return v_count;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.trash_restore_batch (
-  batch uuid
-)
-  RETURNS integer
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_item "better_supabase"."trash_items"%rowtype;
-  v_count integer := 0;
-begin
-  for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_restore_batch.batch order by "depth" loop
-    case v_item.subject_type
-    when 'message' then
-      update "better_supabase"."messages" s set "deleted_at" = null
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'conversation' then
-      update "better_supabase"."conversations" s set "archived_at" = null
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'deal' then
-      update "better_supabase"."deals" s set "archived_at" = null
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'task' then
-      update "better_supabase"."work_items" s set "archived_at" = null
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'risk' then
-      update "better_supabase"."risks" s set "archived_at" = null
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'customer' then
-      update "public"."customers" s set "archived_at" = null
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'drive_node' then
-      update "better_supabase"."drive_nodes" s set "deleted_at" = null
-        where s."id" = (v_item.subject_id)::uuid;
-    when 'project' then
-      update "public"."projects" s set "deleted_at" = null
-        where s."id" = (v_item.subject_id)::uuid;
-    else null;
-  end case;
-    perform "better_supabase".emit_event('subject.restored', jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id"), 'trash-items/' || v_item."id"::text, (v_item."tenant_id")::text, null, 'better-supabase/trash');
-  perform better_supabase.audit_event(
-    event_type => 'subject.restored',
-    category => 'data',
-    target_type => 'trash_item',
-    record_id => v_item."id"::text,
-    summary => 'restored' || ' ' || v_item."subject_type" || ' ' || v_item."subject_id",
-    tenant => (v_item."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id")
-  );
-    v_count := v_count + 1;
-  end loop;
-  return v_count;
 end;
 $function$;
 
@@ -17573,7 +15421,7 @@ begin
     raise exception 'acknowledgement assignment not found' using errcode = 'P0002', hint = 'ACKNOWLEDGEMENT_ASSIGNMENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'acknowledgements.manage'), false) and case v_row."subject_type"
-    when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id")
+    when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id" and (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end)) then
@@ -17655,7 +15503,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (unlink.source_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (unlink.source_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (unlink.source_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (unlink.source_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (unlink.source_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (unlink.source_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (unlink.source_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (unlink.source_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'ledger.read'), false)
@@ -17686,6 +15534,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (unlink.source_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (unlink.source_id)::uuid and s."organization_id" = unlink.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (unlink.source_id)::uuid and s."organization_id" = unlink.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (unlink.source_id)::uuid and s."organization_id" = unlink.tenant)
     else false
   end)
      or not (case unlink.target_type
@@ -17699,7 +15548,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (unlink.target_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (unlink.target_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (unlink.target_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (unlink.target_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (unlink.target_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (unlink.target_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (unlink.target_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (unlink.target_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'ledger.read'), false)
@@ -17730,6 +15579,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (unlink.target_id)::uuid and s."tenant_id" = unlink.tenant) and coalesce(better_supabase.can('tenant', unlink.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (unlink.target_id)::uuid and s."organization_id" = unlink.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (unlink.target_id)::uuid and s."organization_id" = unlink.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (unlink.target_id)::uuid and s."organization_id" = unlink.tenant)
     else false
   end) then
     raise exception 'not allowed to unlink these records' using errcode = '42501', hint = 'RELATION_SUBJECT_FORBIDDEN';
@@ -17776,7 +15626,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (untag.subject_id)::uuid and s."tenant_id" = untag.tenant) and coalesce(better_supabase.can('tenant', untag.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (untag.subject_id)::uuid and s."tenant_id" = untag.tenant) and coalesce(better_supabase.can('tenant', untag.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (untag.subject_id)::uuid and s."tenant_id" = untag.tenant) and coalesce(better_supabase.can('tenant', untag.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (untag.subject_id)::uuid and s."tenant_id" = untag.tenant) and coalesce(better_supabase.can('tenant', untag.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (untag.subject_id)::uuid and s."tenant_id" = untag.tenant) and coalesce(better_supabase.can('tenant', untag.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (untag.subject_id)::uuid and s."tenant_id" = untag.tenant) and coalesce(better_supabase.can('tenant', untag.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (untag.subject_id)::uuid and s."tenant_id" = untag.tenant) and coalesce(better_supabase.can('tenant', untag.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (untag.subject_id)::uuid and s."tenant_id" = untag.tenant) and coalesce(better_supabase.can('tenant', untag.tenant, 'ledger.read'), false)
@@ -17807,6 +15657,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (untag.subject_id)::uuid and s."tenant_id" = untag.tenant) and coalesce(better_supabase.can('tenant', untag.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (untag.subject_id)::uuid and s."organization_id" = untag.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (untag.subject_id)::uuid and s."organization_id" = untag.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (untag.subject_id)::uuid and s."organization_id" = untag.tenant)
     else false
   end end)) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
@@ -17884,7 +15735,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -17915,6 +15766,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
       else false
     end and "better_supabase"."can_subject"((v_item ->> 'type'), (v_item ->> 'id'), 'read')) then
       raise exception 'a subject is unknown or not readable in this organization' using errcode = '42501', hint = 'ACTIVITY_SUBJECT_FORBIDDEN';
@@ -18016,7 +15868,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -18047,6 +15899,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_row."counterparty_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_row."counterparty_id")::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_row."counterparty_id")::uuid and s."organization_id"::text = v_row."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_row."counterparty_id")::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(v_row."counterparty_type", v_row."counterparty_id", 'read')) then
     raise exception 'the counterparty is unknown or not in this organization' using errcode = '22023', hint = 'CONTRACT_INVALID';
@@ -18131,7 +15984,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = ((v_change -> 'value' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = ((v_change -> 'value' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = ((v_change -> 'value' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_change -> 'value' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_change -> 'value' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = ((v_change -> 'value' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = ((v_change -> 'value' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = ((v_change -> 'value' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -18162,6 +16015,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = ((v_change -> 'value' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ((v_change -> 'value' ->> 'id'))::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = ((v_change -> 'value' ->> 'id'))::uuid and s."organization_id"::text = v_row."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ((v_change -> 'value' ->> 'id'))::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"((v_change -> 'value' ->> 'type'), (v_change -> 'value' ->> 'id'), 'read')) then
     raise exception 'the company is unknown or not readable in this organization' using errcode = '42501', hint = 'DEAL_COMPANY_FORBIDDEN';
@@ -18300,7 +16154,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -18331,6 +16185,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_company_id)::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_company_id)::uuid and s."organization_id"::text = v_row."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_company_id)::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(v_company_type, v_company_id, 'read')) then
     raise exception 'the company is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_COMPANY_FORBIDDEN';
@@ -18346,7 +16201,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -18377,6 +16232,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_contact_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_contact_id)::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_contact_id)::uuid and s."organization_id"::text = v_row."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_contact_id)::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(v_contact_type, v_contact_id, 'read')) then
     raise exception 'the contact is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_CONTACT_FORBIDDEN';
@@ -18565,7 +16421,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = ((update_quote.attrs -> 'company' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = ((update_quote.attrs -> 'company' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = ((update_quote.attrs -> 'company' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((update_quote.attrs -> 'company' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((update_quote.attrs -> 'company' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = ((update_quote.attrs -> 'company' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = ((update_quote.attrs -> 'company' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = ((update_quote.attrs -> 'company' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -18596,6 +16452,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = ((update_quote.attrs -> 'company' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ((update_quote.attrs -> 'company' ->> 'id'))::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = ((update_quote.attrs -> 'company' ->> 'id'))::uuid and s."organization_id"::text = v_row."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ((update_quote.attrs -> 'company' ->> 'id'))::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(coalesce(update_quote.attrs -> 'company' ->> 'type', 'company'), (update_quote.attrs -> 'company' ->> 'id'), 'read')) then
     raise exception 'the company is unknown or not readable in this organization' using errcode = '42501', hint = 'QUOTE_COMPANY_FORBIDDEN';
@@ -18611,7 +16468,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = ((update_quote.attrs -> 'contact' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = ((update_quote.attrs -> 'contact' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = ((update_quote.attrs -> 'contact' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((update_quote.attrs -> 'contact' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((update_quote.attrs -> 'contact' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = ((update_quote.attrs -> 'contact' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = ((update_quote.attrs -> 'contact' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = ((update_quote.attrs -> 'contact' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -18642,6 +16499,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = ((update_quote.attrs -> 'contact' ->> 'id'))::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ((update_quote.attrs -> 'contact' ->> 'id'))::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = ((update_quote.attrs -> 'contact' ->> 'id'))::uuid and s."organization_id"::text = v_row."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ((update_quote.attrs -> 'contact' ->> 'id'))::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(coalesce(update_quote.attrs -> 'contact' ->> 'type', 'person'), (update_quote.attrs -> 'contact' ->> 'id'), 'read')) then
     raise exception 'the contact is unknown or not readable in this organization' using errcode = '42501', hint = 'QUOTE_CONTACT_FORBIDDEN';
@@ -18677,117 +16535,6 @@ begin
   select * into v_row from "better_supabase"."quotes" x where x."id" = v_row."id";
   perform "better_supabase".emit_event('quote.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'quoteId', v_row."id", 'subjectType', 'quote', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'quotes/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/quotes');
   return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.update_tasks (
-  changes jsonb
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  v_change jsonb;
-  v_item uuid;
-  v_field text;
-  v_row "better_supabase"."work_items";
-  v_accepted jsonb := '[]';
-  v_rejected jsonb := '[]';
-  v_hint text;
-  v_reason text;
-  v_touched uuid[] := '{}';
-  v_linked integer;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if jsonb_typeof(coalesce(update_tasks.changes, '[]')) <> 'array' then
-    raise exception 'changes must be a list of { workItemId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
-  end if;
-  for v_change in select value from jsonb_array_elements(update_tasks.changes) loop
-    v_field := v_change ->> 'field';
-    begin
-      v_item := (v_change ->> 'workItemId')::uuid;
-      if not exists (select 1 from "better_supabase"."work_items" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
-        raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
-      end if;
-      declare
-    v_hook regprocedure := to_regprocedure('"public"."before_task_update"(uuid, text, jsonb)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::text, $3::jsonb)', v_hook::oid::regproc)
-        using v_item, v_field, v_change -> 'value';
-    end if;
-  end;
-      case v_field
-      when 'title' then
-        update "better_supabase"."work_items" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
-      when 'body' then
-        update "better_supabase"."work_items" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
-      when 'parentId' then
-        update "better_supabase"."work_items" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
-      when 'teamId' then
-        update "better_supabase"."work_items" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
-      when 'projectId' then
-        update "better_supabase"."work_items" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
-      when 'iterationId' then
-        update "better_supabase"."work_items" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
-      when 'priority' then
-        update "better_supabase"."work_items" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
-      when 'estimate' then
-        update "better_supabase"."work_items" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
-      when 'progress' then
-        update "better_supabase"."work_items" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
-      when 'startAt' then
-        update "better_supabase"."work_items" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
-      when 'endAt' then
-        update "better_supabase"."work_items" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
-      when 'dueAt' then
-        update "better_supabase"."work_items" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
-      when 'stageId' then
-        update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
-      when 'closeReason' then
-        update "better_supabase"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
-      when 'attachments' then
-        select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
-        if jsonb_typeof(coalesce((v_change -> 'value'), '[]'::jsonb)) <> 'array' then
-      raise exception 'attachments must be a list of attachment ids' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
-    end if;
-    if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
-      update "better_supabase"."attachments" f set "subject_type" = 'task', "subject_id" = v_row."id"::text
-      where f."id" = any (array(select jsonb_array_elements_text((v_change -> 'value'))::uuid))
-        and f."organization_id" = v_row."tenant_id"
-        and (f."subject_type" is null or (f."subject_type" = 'task' and f."subject_id" = v_row."id"::text))
-        and ((auth.role() = 'service_role') or f."uploaded_by" = auth.uid());
-      get diagnostics v_linked = row_count;
-      if v_linked <> (select count(distinct x) from jsonb_array_elements_text((v_change -> 'value')) x) then
-        raise exception 'attach only your own files in this organization that aren''t on another subject' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
-      end if;
-    end if;
-      else
-        raise exception 'that field can''t be written' using errcode = '22023', hint = 'TASK_FIELD_UNKNOWN';
-      end case;
-      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('workItemId', v_item, 'field', v_field));
-      v_touched := array_append(v_touched, v_item);
-      declare
-    v_hook regprocedure := to_regprocedure('"public"."after_task_update"(uuid, text)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
-        using v_item, v_field;
-    end if;
-  end;
-    exception when others then
-      get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
-      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
-    end;
-  end loop;
-  for v_row in select * from "better_supabase"."work_items" x where x."id" = any (v_touched) loop
-    perform "better_supabase".emit_event('work_item.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'workItemId')::uuid = v_row."id")), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  end loop;
-  return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $function$;
 
@@ -18846,7 +16593,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false)
@@ -18877,6 +16624,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_row."subject_id")::uuid and s."organization_id" = v_row."tenant_id")
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_row."subject_id")::uuid and s."organization_id" = v_row."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_row."subject_id")::uuid and s."organization_id" = v_row."tenant_id")
     else false
   end) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
@@ -18938,6 +16686,117 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION better_supabase.update_work_items (
+  changes jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare
+  v_change jsonb;
+  v_item uuid;
+  v_field text;
+  v_row "better_supabase"."work_items";
+  v_accepted jsonb := '[]';
+  v_rejected jsonb := '[]';
+  v_hint text;
+  v_reason text;
+  v_touched uuid[] := '{}';
+  v_linked integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(coalesce(update_work_items.changes, '[]')) <> 'array' then
+    raise exception 'changes must be a list of { workItemId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
+  end if;
+  for v_change in select value from jsonb_array_elements(update_work_items.changes) loop
+    v_field := v_change ->> 'field';
+    begin
+      v_item := (v_change ->> 'workItemId')::uuid;
+      if not exists (select 1 from "better_supabase"."work_items" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
+        raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+      end if;
+      declare
+    v_hook regprocedure := to_regprocedure('"public"."before_work_item_update"(uuid, text, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::jsonb)', v_hook::oid::regproc)
+        using v_item, v_field, v_change -> 'value';
+    end if;
+  end;
+      case v_field
+      when 'title' then
+        update "better_supabase"."work_items" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
+      when 'body' then
+        update "better_supabase"."work_items" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+      when 'parentId' then
+        update "better_supabase"."work_items" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+      when 'teamId' then
+        update "better_supabase"."work_items" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+      when 'projectId' then
+        update "better_supabase"."work_items" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+      when 'iterationId' then
+        update "better_supabase"."work_items" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+      when 'priority' then
+        update "better_supabase"."work_items" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+      when 'estimate' then
+        update "better_supabase"."work_items" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
+      when 'progress' then
+        update "better_supabase"."work_items" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+      when 'startAt' then
+        update "better_supabase"."work_items" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+      when 'endAt' then
+        update "better_supabase"."work_items" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+      when 'dueAt' then
+        update "better_supabase"."work_items" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+      when 'stageId' then
+        update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+      when 'closeReason' then
+        update "better_supabase"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+      when 'attachments' then
+        select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
+        if jsonb_typeof(coalesce((v_change -> 'value'), '[]'::jsonb)) <> 'array' then
+      raise exception 'attachments must be a list of attachment ids' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
+    end if;
+    if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
+      update "better_supabase"."attachments" f set "subject_type" = 'work_item', "subject_id" = v_row."id"::text
+      where f."id" = any (array(select jsonb_array_elements_text((v_change -> 'value'))::uuid))
+        and f."organization_id" = v_row."tenant_id"
+        and (f."subject_type" is null or (f."subject_type" = 'work_item' and f."subject_id" = v_row."id"::text))
+        and ((auth.role() = 'service_role') or f."uploaded_by" = auth.uid());
+      get diagnostics v_linked = row_count;
+      if v_linked <> (select count(distinct x) from jsonb_array_elements_text((v_change -> 'value')) x) then
+        raise exception 'attach only your own files in this organization that aren''t on another subject' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
+      end if;
+    end if;
+      else
+        raise exception 'that field can''t be written' using errcode = '22023', hint = 'TASK_FIELD_UNKNOWN';
+      end case;
+      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('workItemId', v_item, 'field', v_field));
+      v_touched := array_append(v_touched, v_item);
+      declare
+    v_hook regprocedure := to_regprocedure('"public"."after_work_item_update"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_item, v_field;
+    end if;
+  end;
+    exception when others then
+      get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
+      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
+    end;
+  end loop;
+  for v_row in select * from "better_supabase"."work_items" x where x."id" = any (v_touched) loop
+    perform "better_supabase".emit_event('work_item.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'workItemId')::uuid = v_row."id")), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  end loop;
+  return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
+end;
+$function$;
+
 CREATE OR REPLACE FUNCTION better_supabase.watch_maintenance_request (
   work_item uuid,
   level     text
@@ -18959,7 +16818,7 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.watch_task (
+CREATE OR REPLACE FUNCTION better_supabase.watch_work_item (
   work_item uuid,
   level     text
 )
@@ -18971,12 +16830,12 @@ CREATE OR REPLACE FUNCTION better_supabase.watch_task (
 declare
   v_row "better_supabase"."work_items";
 begin
-  select * into v_row from "better_supabase"."work_items" x where x."id" = watch_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false));
+  select * into v_row from "better_supabase"."work_items" x where x."id" = watch_work_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can read' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
-  perform "better_supabase"."set_notification_subscription"('task', v_row."id"::text, watch_task.level, v_row."tenant_id");
-  return watch_task.level is not null;
+  perform "better_supabase"."set_notification_subscription"('work_item', v_row."id"::text, watch_work_item.level, v_row."tenant_id");
+  return watch_work_item.level is not null;
 end;
 $function$;
 
@@ -18985,33 +16844,13 @@ CREATE TRIGGER bsb_search_activity_index
   FOR EACH ROW
   EXECUTE FUNCTION better_supabase.search_index_row('activity', 'id');
 
-CREATE TRIGGER bsb_pipeline_status_task
-  AFTER INSERT OR UPDATE OF stage_id ON better_supabase.work_items
-  FOR EACH ROW
-  EXECUTE FUNCTION better_supabase.bsb_pipeline_status_task();
-
-CREATE TRIGGER bsb_pipeline_task
-  BEFORE INSERT OR UPDATE OF stage_id, pipeline_id ON better_supabase.work_items
-  FOR EACH ROW
-  EXECUTE FUNCTION better_supabase.bsb_pipeline_task();
-
-CREATE TRIGGER bsb_search_task_index
-  AFTER INSERT OR DELETE OR UPDATE OF id, tenant_id, title, identifier, body, archived_at ON better_supabase.work_items
-  FOR EACH ROW
-  EXECUTE FUNCTION better_supabase.search_index_row('task', 'id');
-
-CREATE TRIGGER bsb_transition_task
-  BEFORE INSERT OR UPDATE OF state ON better_supabase.work_items
-  FOR EACH ROW
-  EXECUTE FUNCTION better_supabase.bsb_transition_task();
-
 CREATE POLICY "activity_entries_read" ON "better_supabase"."activity_entries"
   FOR SELECT
   TO "authenticated"
   USING
     (((organization_id IN ( SELECT better_supabase.tenant_ids_with('timeline.read'::text) AS tenant_ids_with)) AND ((subject_type IS NULL) OR (subject_id IS NULL) OR (NOT
     (subject_type = ANY
-    ('{message,conversation,channel,company,person,deal,course,post,activity,quote,task,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project}'::text[]))) OR better_supabase.activity_subject_readable(subject_type, subject_id))));
+    ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[]))) OR better_supabase.activity_subject_readable(subject_type, subject_id))));
 
 CREATE POLICY "bsb_tenant_scope_select" ON "better_supabase"."activity_entries"
   AS RESTRICTIVE
@@ -19021,112 +16860,7 @@ CREATE POLICY "bsb_tenant_scope_select" ON "better_supabase"."activity_entries"
     (((organization_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)) OR ((organization_id IN ( SELECT
     better_supabase.tenant_ids_with('timeline.read'::text) AS tenant_ids_with)) AND
     ((subject_type IS NULL) OR (subject_id IS NULL) OR (NOT (subject_type = ANY
-    ('{message,conversation,channel,company,person,deal,course,post,activity,quote,task,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project}'::text[]))) OR better_supabase.activity_subject_readable(subject_type, subject_id)))));
-
-CREATE POLICY "bsb_tenant_scope_select" ON "better_supabase"."status_history"
-  AS RESTRICTIVE
-  FOR SELECT
-  TO PUBLIC
-  USING (((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)) OR
-CASE subject_type
-    WHEN 'task'::text THEN (EXISTS ( SELECT 1
-       FROM better_supabase.work_items s
-      WHERE (s.id = (status_history.subject_id)::uuid)))
-    WHEN 'change_request'::text THEN (EXISTS ( SELECT 1
-       FROM public.change_requests s
-      WHERE (s.id = (status_history.subject_id)::uuid)))
-    WHEN 'drive_node'::text THEN (EXISTS ( SELECT 1
-       FROM better_supabase.drive_nodes s
-      WHERE (s.id = (status_history.subject_id)::uuid)))
-    ELSE false
-END));
-
-CREATE POLICY "status_history_read" ON "better_supabase"."status_history"
-  FOR SELECT
-  TO "authenticated"
-  USING (
-CASE subject_type
-    WHEN 'task'::text THEN (EXISTS ( SELECT 1
-       FROM better_supabase.work_items s
-      WHERE (s.id = (status_history.subject_id)::uuid)))
-    WHEN 'change_request'::text THEN (EXISTS ( SELECT 1
-       FROM public.change_requests s
-      WHERE (s.id = (status_history.subject_id)::uuid)))
-    WHEN 'drive_node'::text THEN (EXISTS ( SELECT 1
-       FROM better_supabase.drive_nodes s
-      WHERE (s.id = (status_history.subject_id)::uuid)))
-    ELSE false
-END);
-
-CREATE POLICY "bsb_tenant_scope_select" ON "better_supabase"."status_stages"
-  AS RESTRICTIVE
-  FOR SELECT
-  TO PUBLIC
-  USING (((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)) OR
-CASE subject_type
-    WHEN 'task'::text THEN (EXISTS ( SELECT 1
-       FROM better_supabase.work_items s
-      WHERE (s.id = (status_stages.subject_id)::uuid)))
-    WHEN 'change_request'::text THEN (EXISTS ( SELECT 1
-       FROM public.change_requests s
-      WHERE (s.id = (status_stages.subject_id)::uuid)))
-    WHEN 'drive_node'::text THEN (EXISTS ( SELECT 1
-       FROM better_supabase.drive_nodes s
-      WHERE (s.id = (status_stages.subject_id)::uuid)))
-    ELSE false
-END));
-
-CREATE POLICY "status_stages_read" ON "better_supabase"."status_stages"
-  FOR SELECT
-  TO "authenticated"
-  USING (
-CASE subject_type
-    WHEN 'task'::text THEN (EXISTS ( SELECT 1
-       FROM better_supabase.work_items s
-      WHERE (s.id = (status_stages.subject_id)::uuid)))
-    WHEN 'change_request'::text THEN (EXISTS ( SELECT 1
-       FROM public.change_requests s
-      WHERE (s.id = (status_stages.subject_id)::uuid)))
-    WHEN 'drive_node'::text THEN (EXISTS ( SELECT 1
-       FROM better_supabase.drive_nodes s
-      WHERE (s.id = (status_stages.subject_id)::uuid)))
-    ELSE false
-END);
-
-CREATE POLICY "bsb_tenant_scope_select" ON "better_supabase"."subject_lifecycles"
-  AS RESTRICTIVE
-  FOR SELECT
-  TO PUBLIC
-  USING (((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)) OR
-CASE subject_type
-    WHEN 'task'::text THEN (EXISTS ( SELECT 1
-       FROM better_supabase.work_items s
-      WHERE (s.id = (subject_lifecycles.subject_id)::uuid)))
-    WHEN 'change_request'::text THEN (EXISTS ( SELECT 1
-       FROM public.change_requests s
-      WHERE (s.id = (subject_lifecycles.subject_id)::uuid)))
-    WHEN 'drive_node'::text THEN (EXISTS ( SELECT 1
-       FROM better_supabase.drive_nodes s
-      WHERE (s.id = (subject_lifecycles.subject_id)::uuid)))
-    ELSE false
-END));
-
-CREATE POLICY "subject_lifecycles_read" ON "better_supabase"."subject_lifecycles"
-  FOR SELECT
-  TO "authenticated"
-  USING (
-CASE subject_type
-    WHEN 'task'::text THEN (EXISTS ( SELECT 1
-       FROM better_supabase.work_items s
-      WHERE (s.id = (subject_lifecycles.subject_id)::uuid)))
-    WHEN 'change_request'::text THEN (EXISTS ( SELECT 1
-       FROM public.change_requests s
-      WHERE (s.id = (subject_lifecycles.subject_id)::uuid)))
-    WHEN 'drive_node'::text THEN (EXISTS ( SELECT 1
-       FROM better_supabase.drive_nodes s
-      WHERE (s.id = (subject_lifecycles.subject_id)::uuid)))
-    ELSE false
-END);
+    ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[]))) OR better_supabase.activity_subject_readable(subject_type, subject_id)))));
 
 REVOKE ALL ON FUNCTION "api"."acknowledge_compliance_policy"(uuid) FROM PUBLIC;
 
@@ -19156,10 +16890,6 @@ REVOKE ALL ON FUNCTION "api"."archive_compliance_policy"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."archive_compliance_policy"(uuid) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "api"."archive_task"(uuid, boolean) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."archive_task"(uuid, boolean) TO "authenticated", "service_role";
-
 REVOKE ALL ON FUNCTION "api"."attach_activity_recording"(uuid, uuid, text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."attach_activity_recording"(uuid, uuid, text) TO "authenticated", "service_role";
@@ -19172,10 +16902,6 @@ REVOKE ALL ON FUNCTION "api"."compliance_policy_acknowledgements"(uuid) FROM PUB
 
 GRANT EXECUTE ON FUNCTION "api"."compliance_policy_acknowledgements"(uuid) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "api"."create_task"(uuid, jsonb, uuid[]) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."create_task"(uuid, jsonb, uuid[]) TO "authenticated", "service_role";
-
 REVOKE ALL ON FUNCTION "api"."delete_activity"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."delete_activity"(uuid) TO "authenticated", "service_role";
@@ -19184,14 +16910,6 @@ REVOKE ALL ON FUNCTION "api"."delete_contract_obligation"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."delete_contract_obligation"(uuid) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "api"."delete_task"(uuid) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."delete_task"(uuid) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "api"."delete_task_checklist_item"(uuid) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."delete_task_checklist_item"(uuid) TO "authenticated", "service_role";
-
 REVOKE ALL ON FUNCTION "api"."fail_activity_recording"(uuid, text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."fail_activity_recording"(uuid, text) TO "service_role";
@@ -19199,10 +16917,6 @@ GRANT EXECUTE ON FUNCTION "api"."fail_activity_recording"(uuid, text) TO "servic
 REVOKE ALL ON FUNCTION "api"."get_activity_recording"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."get_activity_recording"(uuid) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "api"."get_task"(uuid) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."get_task"(uuid) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "api"."goal_progress"(uuid, date, uuid) FROM PUBLIC;
 
@@ -19215,18 +16929,6 @@ GRANT EXECUTE ON FUNCTION "api"."list_compliance_policies"(uuid, boolean, boolea
 REVOKE ALL ON FUNCTION "api"."list_contract_obligations"(uuid, uuid, uuid, boolean, date, integer) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."list_contract_obligations"(uuid, uuid, uuid, boolean, date, integer) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "api"."list_task_checklist"(uuid) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."list_task_checklist"(uuid) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "api"."list_task_watchers"(uuid) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."list_task_watchers"(uuid) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "api"."list_tasks"(uuid, jsonb, text, uuid, integer) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."list_tasks"(uuid, jsonb, text, uuid, integer) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "api"."log_activity"(uuid, jsonb, jsonb) FROM PUBLIC;
 
@@ -19252,10 +16954,6 @@ REVOKE ALL ON FUNCTION "api"."publish_incident_postmortem"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."publish_incident_postmortem"(uuid) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "api"."repeat_task"(uuid, timestamp WITH time zone) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."repeat_task"(uuid, timestamp WITH time zone) TO "service_role";
-
 REVOKE ALL ON FUNCTION "api"."save_activity_notes"(uuid, jsonb) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."save_activity_notes"(uuid, jsonb) TO "authenticated", "service_role";
@@ -19280,37 +16978,13 @@ REVOKE ALL ON FUNCTION "api"."save_incident_postmortem"(uuid, jsonb) FROM PUBLIC
 
 GRANT EXECUTE ON FUNCTION "api"."save_incident_postmortem"(uuid, jsonb) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "api"."save_task_checklist_item"(uuid, uuid, jsonb) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."save_task_checklist_item"(uuid, uuid, jsonb) TO "authenticated", "service_role";
-
 REVOKE ALL ON FUNCTION "api"."set_contract_obligation_status"(uuid, text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."set_contract_obligation_status"(uuid, text) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "api"."set_task_assignees"(uuid, uuid[]) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."set_task_assignees"(uuid, uuid[]) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "api"."set_task_recurrence"(uuid, text, text) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."set_task_recurrence"(uuid, text, text) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "api"."task_tree"(uuid) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."task_tree"(uuid) TO "authenticated", "service_role";
-
 REVOKE ALL ON FUNCTION "api"."update_activity"(uuid, jsonb, jsonb) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."update_activity"(uuid, jsonb, jsonb) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "api"."update_tasks"(jsonb) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."update_tasks"(jsonb) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "api"."watch_task"(uuid, text) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "api"."watch_task"(uuid, text) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."acknowledge_compliance_policy"(uuid) FROM PUBLIC;
 
@@ -19340,10 +17014,6 @@ REVOKE ALL ON FUNCTION "better_supabase"."archive_compliance_policy"(uuid) FROM 
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."archive_compliance_policy"(uuid) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."archive_task"(uuid, boolean) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."archive_task"(uuid, boolean) TO "authenticated", "service_role";
-
 REVOKE ALL ON FUNCTION "better_supabase"."attach_activity_recording"(uuid, uuid, text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."attach_activity_recording"(uuid, uuid, text) TO "authenticated", "service_role";
@@ -19356,10 +17026,6 @@ REVOKE ALL ON FUNCTION "better_supabase"."compliance_policy_acknowledgements"(uu
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."compliance_policy_acknowledgements"(uuid) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."create_task"(uuid, jsonb, uuid[]) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."create_task"(uuid, jsonb, uuid[]) TO "authenticated", "service_role";
-
 REVOKE ALL ON FUNCTION "better_supabase"."delete_activity"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."delete_activity"(uuid) TO "authenticated", "service_role";
@@ -19368,14 +17034,6 @@ REVOKE ALL ON FUNCTION "better_supabase"."delete_contract_obligation"(uuid) FROM
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."delete_contract_obligation"(uuid) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."delete_task"(uuid) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."delete_task"(uuid) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."delete_task_checklist_item"(uuid) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."delete_task_checklist_item"(uuid) TO "authenticated", "service_role";
-
 REVOKE ALL ON FUNCTION "better_supabase"."fail_activity_recording"(uuid, text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."fail_activity_recording"(uuid, text) TO "service_role";
@@ -19383,10 +17041,6 @@ GRANT EXECUTE ON FUNCTION "better_supabase"."fail_activity_recording"(uuid, text
 REVOKE ALL ON FUNCTION "better_supabase"."get_activity_recording"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."get_activity_recording"(uuid) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."get_task"(uuid) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."get_task"(uuid) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."goal_progress"(uuid, date, uuid) FROM PUBLIC;
 
@@ -19399,18 +17053,6 @@ GRANT EXECUTE ON FUNCTION "better_supabase"."list_compliance_policies"(uuid, boo
 REVOKE ALL ON FUNCTION "better_supabase"."list_contract_obligations"(uuid, uuid, uuid, boolean, date, integer) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."list_contract_obligations"(uuid, uuid, uuid, boolean, date, integer) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."list_task_checklist"(uuid) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."list_task_checklist"(uuid) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."list_task_watchers"(uuid) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."list_task_watchers"(uuid) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."list_tasks"(uuid, jsonb, text, uuid, integer) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."list_tasks"(uuid, jsonb, text, uuid, integer) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."log_activity"(uuid, jsonb, jsonb) FROM PUBLIC;
 
@@ -19436,10 +17078,6 @@ REVOKE ALL ON FUNCTION "better_supabase"."publish_incident_postmortem"(uuid) FRO
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."publish_incident_postmortem"(uuid) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."repeat_task"(uuid, timestamp WITH time zone) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."repeat_task"(uuid, timestamp WITH time zone) TO "service_role";
-
 REVOKE ALL ON FUNCTION "better_supabase"."save_activity_notes"(uuid, jsonb) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."save_activity_notes"(uuid, jsonb) TO "authenticated", "service_role";
@@ -19464,34 +17102,10 @@ REVOKE ALL ON FUNCTION "better_supabase"."save_incident_postmortem"(uuid, jsonb)
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."save_incident_postmortem"(uuid, jsonb) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."save_task_checklist_item"(uuid, uuid, jsonb) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."save_task_checklist_item"(uuid, uuid, jsonb) TO "authenticated", "service_role";
-
 REVOKE ALL ON FUNCTION "better_supabase"."set_contract_obligation_status"(uuid, text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."set_contract_obligation_status"(uuid, text) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."set_task_assignees"(uuid, uuid[]) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."set_task_assignees"(uuid, uuid[]) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."set_task_recurrence"(uuid, text, text) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."set_task_recurrence"(uuid, text, text) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."task_tree"(uuid) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."task_tree"(uuid) TO "authenticated", "service_role";
-
 REVOKE ALL ON FUNCTION "better_supabase"."update_activity"(uuid, jsonb, jsonb) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."update_activity"(uuid, jsonb, jsonb) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."update_tasks"(jsonb) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."update_tasks"(jsonb) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."watch_task"(uuid, text) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."watch_task"(uuid, text) TO "authenticated", "service_role";

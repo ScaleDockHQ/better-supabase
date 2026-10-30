@@ -915,6 +915,21 @@ export const blockConfig = {
     schema: "better_supabase",
     api: "api",
     options: {},
+    names: {
+      functions: {
+        archive_task: "archive_work_item",
+        create_task: "create_work_item",
+        delete_task: "delete_work_item",
+        delete_task_checklist_item: "delete_work_item_checklist_item",
+        get_task: "get_work_item",
+        list_task_checklist: "list_work_item_checklist",
+        list_tasks: "list_work_items",
+        save_task_checklist_item: "save_work_item_checklist_item",
+        set_task_assignees: "set_work_item_assignees",
+        task_tree: "work_item_tree",
+        update_tasks: "update_work_items",
+      },
+    },
   },
   maintenance: {
     schema: "better_supabase",
@@ -1167,9 +1182,9 @@ export const blocks = {
  * @public
  */
 export const appTableEvents = defineEvents({
-  "tasks.created": event<AppTableEventData>(),
-  "tasks.updated": event<AppTableEventData>(),
-  "tasks.deleted": event<AppTableEventData>(),
+  "task.created": event<AppTableEventData>(),
+  "task.updated": event<AppTableEventData>(),
+  "task.deleted": event<AppTableEventData>(),
 });
 
 /**
@@ -1177,9 +1192,9 @@ export const appTableEvents = defineEvents({
  * @public
  */
 export const appTableEventSchemas = {
-  "tasks.created": true,
-  "tasks.updated": true,
-  "tasks.deleted": true,
+  "task.created": true,
+  "task.updated": true,
+  "task.deleted": true,
 } as const;
 
 /**
@@ -1814,10 +1829,6 @@ export const permissions = {
     read: "tags.read",
     apply: "tags.apply",
   },
-  task: {
-    read: "tasks.read",
-    write: "tasks.write",
-  },
   tasks: {
     read: "tasks.read",
     write: "tasks.write",
@@ -1864,6 +1875,10 @@ export const permissions = {
   "webhooks-out": {
     manage: "webhooks.manage",
     view: "webhooks.read",
+  },
+  work_item: {
+    read: "tasks.read",
+    write: "tasks.write",
   },
   work_order: {
     read: "dispatch.read",
@@ -3037,11 +3052,12 @@ export const urls = {
   employee: () => "/people",
   company: (v: { readonly id: string | number }) => `/crm/contacts/${String(v.id)}`,
   person: (v: { readonly id: string | number }) => `/crm/contacts/${String(v.id)}`,
-  task: () => "/work",
+  workItem: () => "/work",
   customer: (v: { readonly id: string | number }) => `/customers/${String(v.id)}`,
   application: () => "/people/hiring",
   changeRequest: (v: { readonly id: string | number }) => `/change-requests/${String(v.id)}`,
   project: (v: { readonly id: string | number }) => `/projects/${String(v.id)}`,
+  task: (v: { readonly projectId: string | number }) => `/projects/${String(v.projectId)}`,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

@@ -292,6 +292,10 @@ export const permissions = {
     manage: "activities.manage",
     readRestricted: "activities.read_restricted",
   },
+  activity: {
+    read: "activities.read",
+    write: "activities.write",
+  },
   "api-keys": {
     manage: "api_keys.manage",
     own: "api_keys.own",
@@ -349,10 +353,6 @@ export const permissions = {
     read: "deals.read",
     write: "deals.write",
     manage: "deals.manage",
-  },
-  engagement: {
-    read: "activities.read",
-    write: "activities.write",
   },
   enrichment: {
     read: "enrichment.read",

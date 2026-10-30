@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@4 managed
--- @bsb-hash sha256:de89926c9624194a052b0d13fa6bbd294ed7b110ed63ab7481262ce6c4a5bcff
+-- @bsb-hash sha256:3c951aa6f93811860e6a7396a28c0610e658eabb73ef916bb05f265dd46bc283
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -463,7 +463,7 @@ begin
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'posts.read'), false)
     when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'quotes.read'), false)
-    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'tasks.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'ledger.read'), false)
@@ -494,6 +494,7 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."organization_id" = create_knowledge_document.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."organization_id" = create_knowledge_document.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."organization_id" = create_knowledge_document.tenant)
     else false
   end) then
     raise exception 'record %:% not found', create_knowledge_document.subject_type, create_knowledge_document.subject_id using errcode = 'P0002', hint = 'KNOWLEDGE_DOCUMENT_SUBJECT_NOT_FOUND';

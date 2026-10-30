@@ -41,6 +41,10 @@ const config: KnipConfig = {
     "packages/better-supabase/src/lint/index.ts": ["duplicates"],
     // WORKFLOW_TARGET_WORLD loads the default export; the named one is for imports.
     "packages/better-supabase/src/workflow-sdk/world/index.ts": ["duplicates"],
+    // workItemChecklistBinding is the 0.46 name, kept as an alias until 0.48.
+    "packages/better-supabase/src/blocks/tasks/record-binding.ts": [
+      "duplicates",
+    ],
   },
   workspaces: {
     ".": { entry: ["scripts/*.{ts,mjs}"] },

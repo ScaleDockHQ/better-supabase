@@ -1,6 +1,6 @@
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:6a45aaf806f588e4a07f1e294ec28f1729ca80607b45910794a95efc6d9a8d88
+-- @bsb-hash sha256:358a3d19d9b1eb6f96b4df901c3bbd32657920898536c15b85a00e4994dbec27
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -211,7 +211,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (invite_guest.party_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (invite_guest.party_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (invite_guest.party_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (invite_guest.party_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (invite_guest.party_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (invite_guest.party_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (invite_guest.party_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (invite_guest.party_id)::uuid)
@@ -242,6 +242,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (invite_guest.party_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (invite_guest.party_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (invite_guest.party_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (invite_guest.party_id)::uuid)
       else null::text
     end) is distinct from invite_guest.tenant::text then
     raise exception 'the party does not exist in this organization' using errcode = 'P0002', hint = 'GUEST_PARTY_NOT_FOUND';
@@ -454,7 +455,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (grant_guest_access.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (grant_guest_access.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (grant_guest_access.subject_id)::uuid)
@@ -485,6 +486,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (grant_guest_access.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (grant_guest_access.subject_id)::uuid)
       else null::text
     end)
     end) is distinct from v_guest."tenant_id"::text then
@@ -604,7 +606,7 @@ declare
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (list_guest_grants.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (list_guest_grants.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (list_guest_grants.subject_id)::uuid)
@@ -635,6 +637,7 @@ declare
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (list_guest_grants.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (list_guest_grants.subject_id)::uuid)
       else null::text
     end)
     end);
@@ -688,7 +691,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     delete from "better_supabase"."guest_grants" x where x."subject_type" = v_type and x."subject_id" = v_drop and exists (select 1 from "better_supabase"."guest_grants" y where y."subject_type" = v_type and y."subject_id" = v_keep and y."guest_id" is not distinct from x."guest_id");
     update "better_supabase"."guest_grants" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
   end loop;

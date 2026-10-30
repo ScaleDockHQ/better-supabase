@@ -210,7 +210,7 @@ describe.skipIf(!live)("engagements", () => {
         ])
         .orThrow();
 
-      const subject = { type: "engagement", id: task.id };
+      const subject = { type: "activity", id: task.id };
 
       const file = {
         name: "contract.pdf",

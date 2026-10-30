@@ -309,6 +309,10 @@ export const permissions = {
     read: "tags.read",
     apply: "tags.apply",
   },
+  task: {
+    read: "tasks.read",
+    write: "tasks.write",
+  },
   tasks: {
     read: "tasks.read",
     write: "tasks.write",
@@ -317,10 +321,6 @@ export const permissions = {
   teams: {
     manage: "teams.manage",
     read: "teams.read",
-  },
-  work_item: {
-    read: "tasks.read",
-    write: "tasks.write",
   },
 } as const;
 

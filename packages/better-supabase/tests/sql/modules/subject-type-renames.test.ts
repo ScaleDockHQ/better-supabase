@@ -42,14 +42,14 @@ describe("subject type renames", () => {
     );
   });
 
-  it("checks that a column some options add exists before moving it", () => {
+  it("moves a column only when it exists", () => {
     const sql = dataOf(["tasks", "calendar"], "tasks");
 
     expect(sql).toContain(
       `do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."calendar_attendees"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."calendar_attendees" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;`,
     );
     expect(sql).toContain(
-      `update "better_supabase"."calendar_events" set "subject_type" = 'task' where "subject_type" = 'work_item';`,
+      `to_regclass('"better_supabase"."calendar_events"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."calendar_events" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;`,
     );
   });
 
@@ -62,6 +62,18 @@ describe("subject type renames", () => {
       .join("\n");
 
     expect(sql).toContain("when 'task', 'work_item' then");
+  });
+
+  it("resolves no old type for an app's own subject of the new type", () => {
+    const sql = renderBlocks(["subjects"], {
+      subjects: { task: { table: "public.tasks" } },
+    })
+      .filter((file) => file.module === "subjects")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain("when 'task' then");
+    expect(sql).not.toContain("'work_item'");
   });
 
   it("keeps the type of an install that names the entity", () => {

@@ -1,6 +1,6 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:ddc401ac6a65b6585f4cba572450af3c87c3753b320d5aa7cba1e8df11813e3c
+-- @bsb-hash sha256:449b3bef7336c87f583e2cd3915d2f60a719567d1debf6c0b862cc06722f8199
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -76,7 +76,7 @@ drop policy if exists status_history_read on "better_supabase"."status_history";
 create policy status_history_read on "better_supabase"."status_history"
   for select to authenticated
   using (case "better_supabase"."status_history"."subject_type"
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
       when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
       else false
@@ -101,7 +101,7 @@ drop policy if exists status_stages_read on "better_supabase"."status_stages";
 create policy status_stages_read on "better_supabase"."status_stages"
   for select to authenticated
   using (case "better_supabase"."status_stages"."subject_type"
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
       when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
       else false
@@ -130,7 +130,7 @@ drop policy if exists subject_lifecycles_read on "better_supabase"."subject_life
 create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
   for select to authenticated
   using (case "better_supabase"."subject_lifecycles"."subject_type"
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
       when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
       else false
@@ -214,7 +214,7 @@ revoke execute on function "better_supabase"."lifecycle_graph"(uuid) from public
 grant execute on function "better_supabase"."lifecycle_graph"(uuid) to authenticated, service_role;
 
 
-create or replace function better_supabase.bsb_transition_task()
+create or replace function better_supabase.bsb_transition_work_item()
 returns trigger
 language plpgsql
 security definer
@@ -236,15 +236,15 @@ begin
     raise exception 'that status change is not allowed' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
   end if;
   insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_user_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
-        values (new."tenant_id", 'task', new."id"::text, old."state"::text, new."state"::text, coalesce(auth.uid(), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'id', '')::uuid), nullif(current_setting('better_supabase.transition_reason', true), ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'name', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'email', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet, nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'userAgent', ''));
+        values (new."tenant_id", 'work_item', new."id"::text, old."state"::text, new."state"::text, coalesce(auth.uid(), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'id', '')::uuid), nullif(current_setting('better_supabase.transition_reason', true), ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'name', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'email', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet, nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'userAgent', ''));
   
-  perform "better_supabase".emit_event('status.changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'task', 'subjectId', new."id"::text, 'from', old."state"::text, 'to', new."state"::text, 'reason', nullif(current_setting('better_supabase.transition_reason', true), '')), 'statuses/task/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/state-machine');
+  perform "better_supabase".emit_event('status.changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'work_item', 'subjectId', new."id"::text, 'from', old."state"::text, 'to', new."state"::text, 'reason', nullif(current_setting('better_supabase.transition_reason', true), '')), 'statuses/work_item/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/state-machine');
   return new;
 end;
 $$;
-drop trigger if exists bsb_transition_task on "better_supabase"."work_items";
-create trigger bsb_transition_task before insert or update of "state" on "better_supabase"."work_items"
-for each row execute function better_supabase.bsb_transition_task();
+drop trigger if exists bsb_transition_work_item on "better_supabase"."work_items";
+create trigger bsb_transition_work_item before insert or update of "state" on "better_supabase"."work_items"
+for each row execute function better_supabase.bsb_transition_work_item();
 
 create or replace function better_supabase.bsb_transition_change_request()
 returns trigger
@@ -464,7 +464,7 @@ begin
     end if;
   end;
   case transition.subject_type
-    when 'task' then
+    when 'work_item' then
       update "better_supabase"."work_items" s set "state" = better_supabase.as_column_type(transition.to_status, (null::"better_supabase"."work_items")."state")
       where s."id" = (transition.subject_id)::uuid;
     when 'change_request' then
@@ -511,7 +511,7 @@ begin
   perform set_config('better_supabase.lifecycle_changed', '', true);
   perform set_config('better_supabase.lifecycle_op', (jsonb_build_object('machine', pause_lifecycle.subject_type, 'id', pause_lifecycle.subject_id, 'op', 'pause', 'until', pause_lifecycle.until, 'reason', pause_lifecycle.reason))::text, true);
   case pause_lifecycle.subject_type
-    when 'task' then
+    when 'work_item' then
       raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
     when 'change_request' then
       update "public"."change_requests" s set "status" = s."status"
@@ -548,7 +548,7 @@ begin
   perform set_config('better_supabase.lifecycle_changed', '', true);
   perform set_config('better_supabase.lifecycle_op', (jsonb_build_object('machine', resume_lifecycle.subject_type, 'id', resume_lifecycle.subject_id, 'op', 'resume'))::text, true);
   case resume_lifecycle.subject_type
-    when 'task' then
+    when 'work_item' then
       raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
     when 'change_request' then
       update "public"."change_requests" s set "status" = s."status"
@@ -586,7 +586,7 @@ begin
   perform set_config('better_supabase.lifecycle_changed', '', true);
   perform set_config('better_supabase.lifecycle_op', (jsonb_build_object('machine', set_lifecycle_flag.subject_type, 'id', set_lifecycle_flag.subject_id, 'op', 'flag', 'flag', set_lifecycle_flag.flag, 'enabled', coalesce(set_lifecycle_flag.enabled, false)))::text, true);
   case set_lifecycle_flag.subject_type
-    when 'task' then
+    when 'work_item' then
       raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
     when 'change_request' then
       update "public"."change_requests" s set "status" = s."status"
@@ -628,7 +628,7 @@ declare
   v_order text[];
 begin
   case status_state.subject_type
-    when 'task' then
+    when 'work_item' then
       select s."state"::text, s."tenant_id"::text into v_status, v_tenant
       from "better_supabase"."work_items" s where s."id" = (status_state.subject_id)::uuid;
       if not found then
@@ -637,7 +637,7 @@ begin
 
       v_step := array_position('{triage,backlog,unstarted,started,completed}'::text[], v_status);
       return jsonb_build_object(
-        'organizationId', v_tenant, 'subjectType', 'task', 'subjectId', status_state.subject_id,
+        'organizationId', v_tenant, 'subjectType', 'work_item', 'subjectId', status_state.subject_id,
         'status', v_status, 'order', to_jsonb('{triage,backlog,unstarted,started,completed}'::text[]), 'step', v_step, 'steps', 5, 'progress', case when v_step is null then null when 5 = 1 then 1 else round((v_step - 1)::numeric / 4, 4) end,
         'version', null, 'flags', '[]'::jsonb, 'paused', false, 'pausedAt', null, 'pausedUntil', null, 'pauseReason', null);
     when 'change_request' then
@@ -688,7 +688,7 @@ set search_path = ''
 as $$
 begin
   case list_status_history.subject_type
-    when 'task' then
+    when 'work_item' then
       if not exists (select 1 from "better_supabase"."work_items" s where s."id" = (list_status_history.subject_id)::uuid) then
         raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
       end if;
@@ -700,7 +700,7 @@ begin
         from (select h."id"::text as id, h."from_status" as from_status, h."to_status" as to_status,
           h."actor_user_id"::text as actor, h."actor_name"::text as "actorName", h."actor_email"::text as "actorEmail", regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip", h."user_agent"::text as "userAgent", h."reason" as reason, h."created_at" as created_at
         from "better_supabase"."status_history" h
-        where h."subject_type" = 'task'
+        where h."subject_type" = 'work_item'
           and h."subject_id" = list_status_history.subject_id
           and (list_status_history.before is null or h."created_at" < list_status_history.before)
         order by h."created_at" desc, h."id" desc
@@ -761,7 +761,7 @@ set search_path = ''
 as $$
 begin
   case list_status_stages.subject_type
-    when 'task' then
+    when 'work_item' then
       if not exists (select 1 from "better_supabase"."work_items" s where s."id" = (list_status_stages.subject_id)::uuid) then
         raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
       end if;
@@ -806,7 +806,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."status_history" as r
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (case "better_supabase"."status_history"."subject_type"
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
       when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
       else false
@@ -832,7 +832,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."status_stages" as re
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (case "better_supabase"."status_stages"."subject_type"
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
       when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
       else false
@@ -858,7 +858,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."subject_lifecycles" 
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (case "better_supabase"."subject_lifecycles"."subject_type"
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
       when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
       else false

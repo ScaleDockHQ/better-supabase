@@ -173,6 +173,10 @@ export const permissions = {
     collect: "compliance.collect",
     acknowledge: "compliance.acknowledge",
   },
+  compliance_policy: {
+    read: "compliance.read",
+    write: "compliance.manage",
+  },
   control: {
     read: "compliance.read",
     write: "compliance.manage",
@@ -203,10 +207,6 @@ export const permissions = {
     suspendMember: "members.remove",
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
-  },
-  policy: {
-    read: "compliance.read",
-    write: "compliance.manage",
   },
   settings: {
     read: "settings.read",

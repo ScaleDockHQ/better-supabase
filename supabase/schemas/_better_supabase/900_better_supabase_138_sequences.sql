@@ -1,6 +1,6 @@
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:14960e80abe7c630883820667ccb982c05477cb328b12c201f35b56d4ef42ac8
+-- @bsb-hash sha256:2481989b149d3a0945aa1b372887ec8fbe1b36b7147e657b6a2208ae99b536b9
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -899,7 +899,7 @@ begin
         exit;
       end if;
       if v_step ->> 'kind' = 'task' then
-        perform "better_supabase"."create_task"(v_member."tenant_id", jsonb_build_object(
+        perform "better_supabase"."create_work_item"(v_member."tenant_id", jsonb_build_object(
           'title', trim(v_step ->> 'title'),
           'body', v_step ->> 'body',
           'dueAt', case when v_step ? 'dueInMinutes' then now() + make_interval(mins => (v_step ->> 'dueInMinutes')::integer) end),

@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:ffe467c00bc2fdd57a65ccb69faea3d197b62542247e46ec82f8100b30c9d7cd
+-- @bsb-hash sha256:f17a6c4023d48446b2f8e08e58b86888a82fb9f2c2ea00c85a0e7420265dd179
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1178,7 +1178,7 @@ begin
       v_name := 'better_supabase.quotes';
       v_reveal := 'quotes_reveal';
       v_reveal_schema := 'better_supabase';
-    when 'task' then
+    when 'work_item' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
       from "better_supabase"."work_items" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'better_supabase.work_items';
@@ -1363,6 +1363,12 @@ begin
       from "public"."projects" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'public.projects';
       v_reveal := 'projects_reveal';
+      v_reveal_schema := 'public';
+    when 'task' then
+      select to_jsonb(s.*), s."organization_id" into v_record, v_tenant
+      from "public"."tasks" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'public.tasks';
+      v_reveal := 'tasks_reveal';
       v_reveal_schema := 'public';
     else
       raise exception 'subject_type is not a record type in config.subjects' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';

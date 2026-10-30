@@ -10,7 +10,11 @@ import type {
   VectorDistance,
 } from "../../config/index.ts";
 
-import { APP_COLUMN_TYPES, APP_TABLE_EVENT_KINDS } from "../../config/index.ts";
+import {
+  APP_COLUMN_TYPES,
+  APP_TABLE_EVENT_KINDS,
+  blockSubjectTypes,
+} from "../../config/index.ts";
 import { parseBsbComment } from "../../sql/index.ts";
 import { subjectFromTag } from "../subject-tag.ts";
 
@@ -77,6 +81,15 @@ export function withTableTags(
   const appTables: Record<string, AppTableConfig> = { ...config.appTables };
   const fromTags = new Set<string>();
   const eventTables = new Set<string>();
+
+  const blockTypes = new Map(
+    config.blockNames.flatMap((module) =>
+      blockSubjectTypes(module, config.blocks).map(
+        (type) => [type, module] as const,
+      ),
+    ),
+  );
+
   let changed = false;
 
   for (const table of tables) {
@@ -97,6 +110,13 @@ export function withTableTags(
     for (const tag of tags) {
       if (tag.name === "subject") {
         const type = text(tag.args["type"]) ?? table.name;
+        const block = blockTypes.get(type);
+
+        if (block !== undefined) {
+          throw new TypeError(
+            `${qualified}: the @bsb subject tag declares "${type}", which the ${block} block registers itself; give the tag another type, or rename the block's entity in blocks.${block}.names`,
+          );
+        }
 
         if (subjects[type] === undefined) {
           subjects[type] = subjectFromTag(tag.args, short);

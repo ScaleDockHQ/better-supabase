@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:3f2b0f86adcb01d103dd42d0683173fd1129dfaacb8130cb89ed1dc790a6d369
+-- @bsb-hash sha256:0a7e46b8ec9d8d56fb2d0c5b7da7c37eb335663fcdd6b7a3939413f5beb3c6f3
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -620,7 +620,7 @@ begin
       when 'post' then (select s."title"::text from "better_supabase"."posts" s where s."id" = (v_application."candidate_id")::uuid)
       when 'activity' then (select s."title"::text from "better_supabase"."engagements" s where s."id" = (v_application."candidate_id")::uuid)
       when 'quote' then (select s."title"::text from "better_supabase"."quotes" s where s."id" = (v_application."candidate_id")::uuid)
-      when 'task' then (select s."title"::text from "better_supabase"."work_items" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'work_item' then (select s."title"::text from "better_supabase"."work_items" s where s."id" = (v_application."candidate_id")::uuid)
       when 'employee' then (select s."name"::text from "better_supabase"."employees" s where s."id" = (v_application."candidate_id")::uuid)
       when 'invoice' then (select s."title"::text from "better_supabase"."invoices" s where s."id" = (v_application."candidate_id")::uuid)
       when 'ledger_account' then (select s."name"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_application."candidate_id")::uuid)
@@ -650,6 +650,7 @@ begin
       when 'drive_node' then (select s."name"::text from "better_supabase"."drive_nodes" s where s."id" = (v_application."candidate_id")::uuid)
       when 'change_request' then (select s."title"::text from "public"."change_requests" s where s."id" = (v_application."candidate_id")::uuid)
       when 'project' then (select s."name"::text from "public"."projects" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'task' then (select s."title"::text from "public"."tasks" s where s."id" = (v_application."candidate_id")::uuid)
       else null::text
     end),
       'jobTitle', v_job."title",

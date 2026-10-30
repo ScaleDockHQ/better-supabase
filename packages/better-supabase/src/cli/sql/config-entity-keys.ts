@@ -37,7 +37,7 @@ function enclosingObject(code: string, index: number): number | undefined {
 }
 
 /** `source` with the old entity keys of every block entry renamed. */
-export function renameEntityKeysInSource(source: string): {
+function renameEntityKeysInSource(source: string): {
   readonly text: string;
   readonly review: readonly ReviewLine[];
 } {

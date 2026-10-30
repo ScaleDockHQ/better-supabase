@@ -40,6 +40,19 @@ const layout = (
   },
 });
 
+// The Next.js example keeps the block on the work_item noun, so the shared
+// stack's pipeline triggers on work_items check for work_item pipelines.
+async function install(
+  s: BlockSession,
+  modules: readonly string[],
+  sql: BlockSqlLayout,
+): Promise<void> {
+  await s.client.query(
+    "drop trigger if exists bsb_pipeline_work_item on better_supabase.work_items; drop trigger if exists bsb_pipeline_status_work_item on better_supabase.work_items",
+  );
+  await s.install(modules, sql);
+}
+
 const hint = (result: Result<unknown>): string =>
   result.ok ? "ok" : (result.error.hint ?? result.error.message);
 
@@ -55,7 +68,7 @@ describe.skipIf(!live)("work items", () => {
       const owner = await s.user("owner");
       const dev = await s.user("dev");
       const pm = await s.user("pm");
-      await s.install(MODULES, layout());
+      await install(s, MODULES, layout());
       const org = await s.organization(owner, { member: dev, member2: pm });
       const transport = sqlTransport(s.sql);
       const items = createTasks({ transport });
@@ -74,7 +87,7 @@ describe.skipIf(!live)("work items", () => {
         priority: 2,
         teamId: team,
       });
-      const [pipeline] = await pipelines.list(org, "work_item").orThrow();
+      const [pipeline] = await pipelines.list(org, "task").orThrow();
       expect(pipeline?.scopeId).toBe(team);
       expect(pipeline?.stages.map((stage) => stage.key)).toEqual([
         "triage",
@@ -180,8 +193,8 @@ describe.skipIf(!live)("work items", () => {
 
       const link = await createRelations({ transport, tenant: org })
         .link(
-          { type: "work_item", id: api.id },
-          { type: "work_item", id: ui.id },
+          { type: "task", id: api.id },
+          { type: "task", id: ui.id },
           { kind: "blocks" },
         )
         .orThrow();
@@ -197,7 +210,7 @@ describe.skipIf(!live)("work items", () => {
       expect(assigned).toBe(2);
       expect(
         await s.value<number>(
-          "(select count(*)::int from better_supabase.notification_subscriptions where subject_type = 'work_item' and user_id = $1)",
+          "(select count(*)::int from better_supabase.notification_subscriptions where subject_type = 'task' and user_id = $1)",
           [dev.id],
         ),
       ).toBe(2);
@@ -207,7 +220,7 @@ describe.skipIf(!live)("work items", () => {
         .orThrow();
 
       await createRank({ transport })
-        .move("work_item", second.id, { group: stage("todo") })
+        .move("task", second.id, { group: stage("todo") })
         .orThrow();
       expect(
         (await items.list(org, { search: "Docs" }).orThrow())[0],
@@ -223,7 +236,7 @@ describe.skipIf(!live)("work items", () => {
     try {
       const owner = await s.user("owner");
       const dev = await s.user("dev");
-      await s.install(MODULES, layout(0, { actionPath: "/tasks/{id}" }));
+      await install(s, MODULES, layout(0, { actionPath: "/tasks/{id}" }));
       const org = await s.organization(owner, { member: dev });
       const items = createTasks({ transport: sqlTransport(s.sql) });
 
@@ -239,7 +252,7 @@ describe.skipIf(!live)("work items", () => {
         { subject_label: "Ship it", action_path: `/tasks/${item.id}` },
       ]);
 
-      await s.install(["tasks"], layout(0, { notify: false }));
+      await install(s, ["tasks"], layout(0, { notify: false }));
       const quiet = await items.create(org, { title: "Quiet" }).orThrow();
       await items.assign(quiet.id, [dev.id]).orThrow();
 
@@ -260,7 +273,7 @@ describe.skipIf(!live)("work items", () => {
       const owner = await s.user("owner");
       const dev = await s.user("dev");
       const other = await s.user("other");
-      await s.install(MODULES, layout(1));
+      await install(s, MODULES, layout(1));
       const org = await s.organization(owner, { member: dev, member2: other });
       const items = createTasks({ transport: sqlTransport(s.sql) });
 
@@ -431,7 +444,7 @@ describe.skipIf(!live)("work items", () => {
       const owner = await s.user("owner");
       const dev = await s.user("dev");
       const other = await s.user("other");
-      await s.install([...MODULES, "attachments", "reminders"], layout());
+      await install(s, [...MODULES, "attachments", "reminders"], layout());
       const org = await s.organization(owner, { member: dev, member2: other });
       const items = createTasks({ transport: sqlTransport(s.sql) });
 
@@ -481,7 +494,7 @@ describe.skipIf(!live)("work items", () => {
           [id],
         );
 
-      expect(await subjectOf(mine)).toBe(`work_item:${item.id}`);
+      expect(await subjectOf(mine)).toBe(`task:${item.id}`);
 
       const linked = await items
         .update([
@@ -494,7 +507,7 @@ describe.skipIf(!live)("work items", () => {
       expect(linked.rejected.map((change) => change.hint)).toEqual([
         "TASK_ATTACHMENTS_INVALID",
       ]);
-      expect(await subjectOf(later)).toBe(`work_item:${item.id}`);
+      expect(await subjectOf(later)).toBe(`task:${item.id}`);
 
       const draft = await items
         .saveChecklistItem(item.id, { title: "Draft" })

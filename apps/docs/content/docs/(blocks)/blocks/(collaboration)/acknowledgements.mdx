@@ -54,7 +54,7 @@ version column registers it without an `on` entry.
 Server code calls the `acknowledgements` instance on `db`:
 
 ```ts
-const policy = { type: "compliance_policy", id: policyId };
+const policy = { type: "policy", id: policyId };
 
 await db.acknowledgements
   .assign(
@@ -161,7 +161,7 @@ const acknowledgements = createAcknowledgements({ transport });
 await acknowledgements
   .assign(
     organizationId,
-    { type: "compliance_policy", id: policyId },
+    { type: "policy", id: policyId },
     { type: "role", id: "member" },
   )
   .orThrow();

@@ -7,7 +7,7 @@ select plan(15);
 select has_table('better_supabase', 'work_item_checklist_items', 'the checklist table exists');
 select has_column('better_supabase', 'work_items', 'recurs_from', 'a repeated item points at the item it repeats');
 select ok(
-  not has_function_privilege('authenticated', 'api.repeat_task(uuid, timestamptz)', 'execute'),
+  not has_function_privilege('authenticated', 'api.repeat_work_item(uuid, timestamptz)', 'execute'),
   'only the service creates the next item of a repeat rule'
 );
 
@@ -21,54 +21,54 @@ set local role authenticated;
 
 select set_config(
   'test.item',
-  api.create_task('00000000-0000-4000-8000-000000000001', '{"title":"Monthly report","dueAt":"2026-11-02T09:00:00Z"}', null) ->> 'id',
+  api.create_work_item('00000000-0000-4000-8000-000000000001', '{"title":"Monthly report","dueAt":"2026-11-02T09:00:00Z"}', null) ->> 'id',
   true
 );
 
 select is(
-  api.save_task_checklist_item(current_setting('test.item')::uuid, null, '{"title":"Draft"}') ->> 'title',
+  api.save_work_item_checklist_item(current_setting('test.item')::uuid, null, '{"title":"Draft"}') ->> 'title',
   'Draft',
   'the owner adds a checklist item'
 );
 select is(
-  api.save_task_checklist_item(current_setting('test.item')::uuid, null, '{"title":"Send","done":true}') ->> 'done',
+  api.save_work_item_checklist_item(current_setting('test.item')::uuid, null, '{"title":"Send","done":true}') ->> 'done',
   'true',
   'and a checked one, after the first'
 );
 select is(
-  api.get_task(current_setting('test.item')::uuid) -> 'checklist',
+  api.get_work_item(current_setting('test.item')::uuid) -> 'checklist',
   '{"total": 2, "done": 1}'::jsonb,
   'the item counts its checklist'
 );
 select is(
-  (select jsonb_agg(entry ->> 'title') from jsonb_array_elements(api.list_task_checklist(current_setting('test.item')::uuid)) as entry),
+  (select jsonb_agg(entry ->> 'title') from jsonb_array_elements(api.list_work_item_checklist(current_setting('test.item')::uuid)) as entry),
   '["Draft", "Send"]'::jsonb,
   'the checklist lists in rank order'
 );
 select is(
-  api.set_task_recurrence(current_setting('test.item')::uuid, 'RRULE:FREQ=MONTHLY;BYMONTHDAY=2', 'Europe/Amsterdam') ->> 'rrule',
+  api.set_work_item_recurrence(current_setting('test.item')::uuid, 'RRULE:FREQ=MONTHLY;BYMONTHDAY=2', 'Europe/Amsterdam') ->> 'rrule',
   'FREQ=MONTHLY;BYMONTHDAY=2',
   'the owner sets a repeat rule'
 );
 select throws_ok(
-  format($$select api.set_task_recurrence(%L, 'every monday', 'UTC')$$, current_setting('test.item')),
+  format($$select api.set_work_item_recurrence(%L, 'every monday', 'UTC')$$, current_setting('test.item')),
   '22023',
   'rrule must be an RRULE such as FREQ=WEEKLY;BYDAY=MO',
   'a rule that is not an RRULE is rejected'
 );
 select ok(
-  api.watch_task(current_setting('test.item')::uuid, 'all'),
+  api.watch_work_item(current_setting('test.item')::uuid, 'all'),
   'the owner watches the item'
 );
 select is(
-  api.list_task_watchers(current_setting('test.item')::uuid),
+  api.list_work_item_watchers(current_setting('test.item')::uuid),
   '[{"userId": "00000000-0000-4000-8000-0000000000a1", "level": "all"}]'::jsonb,
   'and is its only watcher'
 );
 
-select api.set_task_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid]);
-select api.set_task_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid]);
-select api.set_task_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid, '00000000-0000-4000-8000-0000000000a2'::uuid]);
+select api.set_work_item_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid]);
+select api.set_work_item_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid]);
+select api.set_work_item_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid, '00000000-0000-4000-8000-0000000000a2'::uuid]);
 
 reset role;
 select is(
@@ -100,7 +100,7 @@ select is(
   'an outsider reads none of the checklist'
 );
 select throws_ok(
-  format($$select api.save_task_checklist_item(%L, null, '{"title":"Sneak"}')$$, current_setting('test.item')),
+  format($$select api.save_work_item_checklist_item(%L, null, '{"title":"Sneak"}')$$, current_setting('test.item')),
   'P0002',
   'no such work item you can edit',
   'nor adds to it'

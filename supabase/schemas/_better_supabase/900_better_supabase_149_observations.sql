@@ -1,6 +1,6 @@
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:cd2386c9ef9f3876b89b68541ae60abb4d19c3d1a96e9adcdef9483b1f7b9af0
+-- @bsb-hash sha256:90fd478c5a4e3684de6b472d0de738a94e25c5e5c2add7fa979158159d5350ab
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -671,7 +671,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (record_observation.subject_id)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (record_observation.subject_id)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (record_observation.subject_id)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (record_observation.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (record_observation.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (record_observation.subject_id)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (record_observation.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (record_observation.subject_id)::uuid)
@@ -702,6 +702,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (record_observation.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (record_observation.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (record_observation.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (record_observation.subject_id)::uuid)
       else null::text
     end) = record_observation.tenant::text, false) else (case record_observation.subject_type
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
@@ -714,7 +715,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
@@ -745,6 +746,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (record_observation.subject_id)::uuid and s."organization_id"::text = record_observation.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (record_observation.subject_id)::uuid and s."organization_id"::text = record_observation.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (record_observation.subject_id)::uuid and s."organization_id"::text = record_observation.tenant::text)
       else false
     end and "better_supabase"."can_subject"(record_observation.subject_type, record_observation.subject_id, 'read')) end) then
     raise exception 'the record isn''t in this organization, or you can''t read it' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
@@ -800,7 +802,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (v_item ->> 'subjectId')::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid)
@@ -831,6 +833,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (v_item ->> 'subjectId')::uuid)
       else null::text
     end) = record_observations.tenant::text, false) else (case v_item ->> 'subjectType'
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
@@ -843,7 +846,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
@@ -874,6 +877,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_item ->> 'subjectId')::uuid and s."organization_id"::text = record_observations.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_item ->> 'subjectId')::uuid and s."organization_id"::text = record_observations.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_item ->> 'subjectId')::uuid and s."organization_id"::text = record_observations.tenant::text)
       else false
     end and "better_supabase"."can_subject"(v_item ->> 'subjectType', v_item ->> 'subjectId', 'read')) end) then
       raise exception 'the record isn''t in this organization, or you can''t read it' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
@@ -941,7 +945,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (v_item ->> 'subjectId')::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid)
@@ -972,6 +976,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (v_item ->> 'subjectId')::uuid)
       else null::text
     end) = ingest_observations.tenant::text, false) else (case v_item ->> 'subjectType'
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
@@ -984,7 +989,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
@@ -1015,6 +1020,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_item ->> 'subjectId')::uuid and s."organization_id"::text = ingest_observations.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_item ->> 'subjectId')::uuid and s."organization_id"::text = ingest_observations.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_item ->> 'subjectId')::uuid and s."organization_id"::text = ingest_observations.tenant::text)
       else false
     end and "better_supabase"."can_subject"(v_item ->> 'subjectType', v_item ->> 'subjectId', 'read')) end) then
       raise exception 'the record isn''t in this organization' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
@@ -1068,7 +1074,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (v_old."subject_id")::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (v_old."subject_id")::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (v_old."subject_id")::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_old."subject_id")::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_old."subject_id")::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (v_old."subject_id")::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (v_old."subject_id")::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_old."subject_id")::uuid)
@@ -1099,6 +1105,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (v_old."subject_id")::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (v_old."subject_id")::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (v_old."subject_id")::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (v_old."subject_id")::uuid)
       else null::text
     end) = v_old."tenant_id"::text, false) else (case v_old."subject_type"
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
@@ -1111,7 +1118,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
@@ -1142,6 +1149,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_old."subject_id")::uuid and s."organization_id"::text = v_old."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_old."subject_id")::uuid and s."organization_id"::text = v_old."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_old."subject_id")::uuid and s."organization_id"::text = v_old."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(v_old."subject_type", v_old."subject_id", 'read')) end)) then
     raise exception 'not allowed to amend this observation' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
@@ -1236,7 +1244,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (v_row."subject_id")::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (v_row."subject_id")::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (v_row."subject_id")::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_row."subject_id")::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_row."subject_id")::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (v_row."subject_id")::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (v_row."subject_id")::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_row."subject_id")::uuid)
@@ -1267,6 +1275,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (v_row."subject_id")::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (v_row."subject_id")::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (v_row."subject_id")::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (v_row."subject_id")::uuid)
       else null::text
     end) = v_row."tenant_id"::text, false) else (case v_row."subject_type"
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -1279,7 +1288,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -1310,6 +1319,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_row."subject_id")::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_row."subject_id")::uuid and s."organization_id"::text = v_row."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_row."subject_id")::uuid and s."organization_id"::text = v_row."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read')) end)) then
     raise exception 'not allowed to correct this observation' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
@@ -1583,7 +1593,7 @@ begin
       when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'activity' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (v_sub."subject_id"::text)::uuid)
-      when 'task' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_sub."subject_id"::text)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_sub."subject_id"::text)::uuid)
@@ -1614,6 +1624,7 @@ begin
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (v_sub."subject_id"::text)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (v_sub."subject_id"::text)::uuid)
       else null::text
     end) = v_sub."tenant_id"::text, false) else (case v_sub."subject_type"::text
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
@@ -1626,7 +1637,7 @@ begin
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
-      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
@@ -1657,6 +1668,7 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_sub."subject_id"::text)::uuid and s."organization_id"::text = v_sub."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_sub."subject_id"::text)::uuid and s."organization_id"::text = v_sub."tenant_id"::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_sub."subject_id"::text)::uuid and s."organization_id"::text = v_sub."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(v_sub."subject_type"::text, v_sub."subject_id"::text, 'read')) end)) then
     if p_quiet then
