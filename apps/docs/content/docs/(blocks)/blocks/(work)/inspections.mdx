@@ -1,0 +1,212 @@
+---
+title: Audits and inspections
+description: Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
+---
+
+`inspections` plans and runs audits and inspections. A programme lists the
+inspections of a period, each inspection has a lead, a team and a checklist
+form, its findings record what the team saw, and a nonconformity gets a
+[case](/docs/blocks/cases) before the inspection closes.
+
+```bash
+better-supabase add inspections
+```
+
+```ts
+import { createInspections } from "better-supabase/blocks/inspections";
+```
+
+The module requires `tenant`, `permissions`, `subjects` and
+[forms](/docs/blocks/forms), which holds the checklist. With
+[cases](/docs/blocks/cases) a finding opens a case. With
+[compliance](/docs/blocks/compliance) a finding names the control it
+concerns, and with [relations](/docs/blocks/relations) the inspection
+`assesses` that control. With [numbering](/docs/blocks/numbering) the number
+comes from an `inspection` sequence (`AUD-{yyyy}-{n:3}`); without it the
+number is `AUD-` and the inspection's position in the organization. With `outbox` it
+records the events, and with `audit` every change is audited.
+
+## Tables
+
+| Table                 | Holds                                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `inspection_programs` | The programmes per organization: a name, a period, an owner and a status                      |
+| `inspections`         | An inspection with its kind, number, auditee, lead, planned dates, status, checklist, summary |
+| `inspection_members`  | The team of an inspection: each member's role of lead, auditor, observer or auditee           |
+| `inspection_findings` | The findings, numbered 1, 2, 3 per inspection, with a type, clause, control and case          |
+
+Members with `inspections.read` read every table. Everyone else reads only the
+inspections they are on the team of, with their team and findings. Writes go
+through the functions below. Inspections and findings are subjects of type
+`inspection` and `inspection_finding`, so comments, attachments, tags and the
+other subject blocks work on them.
+
+| Permission           | Allows                                                  | Default roles |
+| -------------------- | ------------------------------------------------------- | ------------- |
+| `inspections.read`   | reading every programme, inspection and finding         | owner, admin  |
+| `inspections.write`  | working on the inspections the member is on the team of | owner, admin  |
+| `inspections.manage` | programmes, scheduling, canceling and every inspection  | owner, admin  |
+
+A team role decides what a member with `inspections.write` may do:
+
+| Role       | May                                                                    |
+| ---------- | ---------------------------------------------------------------------- |
+| `lead`     | change the inspection and its team, start, complete and close it       |
+| `auditor`  | start it, fill in the checklist, record findings and raise their cases |
+| `observer` | read it                                                                |
+| `auditee`  | read it                                                                |
+
+`inspections.manage` acts as a lead on every inspection.
+
+## Programmes
+
+`saveProgram` creates a programme or, with `programId`, changes one; it needs
+`inspections.manage`. A programme goes from `draft` to `approved` with
+`approveProgram` and to `closed` with `closeProgram`.
+
+```ts
+const program = await db.inspections
+  .saveProgram({
+    name: "Audit programme 2026",
+    periodStart: Temporal.PlainDate.from("2026-01-01"),
+    periodEnd: Temporal.PlainDate.from("2026-12-31"),
+  })
+  .orThrow();
+
+await db.inspections.approveProgram(program.id).orThrow();
+```
+
+## Running an inspection
+
+`schedule` creates a `planned` inspection. The kind must be one of
+`options.kinds`, and the auditee is any subject, such as a supplier or a site.
+
+```ts
+const audit = await db.inspections
+  .schedule({
+    kind: "supplier_audit",
+    title: "Acme Metals annual audit",
+    programId: program.id,
+    auditee: { type: "contact", id: supplierId },
+    leadId,
+    plannedStart: Temporal.PlainDate.from("2026-03-10"),
+    checklistFormId,
+    members: [{ userId: auditorId, role: "auditor" }],
+  })
+  .orThrow();
+// audit.number is "AUD-2026-001"
+```
+
+The inspection then moves through these statuses:
+
+| Status        | Reached through | What happens                                            |
+| ------------- | --------------- | ------------------------------------------------------- |
+| `planned`     | `schedule`      | the lead plans the team, dates and checklist            |
+| `in_progress` | `start`         | the fieldwork runs; a draft of the checklist form opens |
+| `reporting`   | `complete`      | the checklist is submitted and the summary written      |
+| `closed`      | `close`         | every finding that needs a case has one                 |
+| `canceled`    | `cancel`        | the inspection stops before it closes                   |
+
+`saveChecklist` saves the answers to the checklist form, and
+`{ draft: false }` submits them. `complete` fails with
+`INSPECTION_CHECKLIST_INCOMPLETE` until the checklist is submitted.
+
+## Findings and cases
+
+Findings are recorded while the inspection is in progress or reporting. The
+type must be one of `options.findingTypes`.
+
+```ts
+const finding = await db.inspections
+  .addFinding(audit.id, {
+    type: "major_nonconformity",
+    title: "Unlabelled stock",
+    clause: "ISO 9001 7.5.3",
+    controlId,
+  })
+  .orThrow();
+// finding.needsCase is true
+
+await db.inspections.raiseCase(finding.id).orThrow();
+await db.inspections.close(audit.id).orThrow();
+```
+
+A finding of a type in `options.caseFindingTypes` needs a case, and `close`
+fails with `INSPECTION_FINDINGS_OPEN` until each such finding has one.
+`raiseCase` opens a case of the kind `finding`, or of the `kind` it is given, titled
+`AUD-2026-001: Unlabelled stock`, with the source `inspection` when the cases
+block's `options.sources` lists it and `internal` otherwise, and links the
+case to the finding as `created_from`. A finding with a case can't be deleted.
+
+## Methods
+
+| Method                                    | Returns                                                        |
+| ----------------------------------------- | -------------------------------------------------------------- |
+| `saveProgram(input)`                      | the programme                                                  |
+| `approveProgram(programId)`               | the approved programme                                         |
+| `closeProgram(programId)`                 | the closed programme                                           |
+| `programs()`                              | the programmes, the latest period first                        |
+| `schedule(input)`                         | the planned inspection                                         |
+| `update(inspectionId, change)`            | the inspection                                                 |
+| `setMembers(inspectionId, members)`       | the inspection with its new team                               |
+| `start(inspectionId)`                     | the started inspection                                         |
+| `saveChecklist(inspectionId, answers)`    | the checklist submission id                                    |
+| `complete(inspectionId, summary)`         | the inspection in `reporting`                                  |
+| `close(inspectionId)`                     | the closed inspection                                          |
+| `cancel(inspectionId, reason)`            | the canceled inspection                                        |
+| `get(inspectionId)`                       | the inspection with its team, findings, checklist and controls |
+| `list(options)`                           | the inspections, the latest planned first                      |
+| `addFinding(inspectionId, input)`         | the finding                                                    |
+| `updateFinding(findingId, change)`        | the finding                                                    |
+| `deleteFinding(findingId)`                | the deleted finding                                            |
+| `raiseCase(findingId, { kind, ownerId })` | the finding with its case id                                   |
+
+`list` filters by `programId`, `kind`, `status`, `leadId`, `from`, `to`,
+`auditee` and `search`, with `limit` and `offset`.
+
+## Options
+
+| Option             | Default                                         | Does                                   |
+| ------------------ | ----------------------------------------------- | -------------------------------------- |
+| `kinds`            | `internal_audit`, `supplier_audit` and 3 more   | The kinds an inspection takes          |
+| `findingTypes`     | `major_nonconformity`, `observation` and 3 more | The types a finding takes              |
+| `caseFindingTypes` | `major_nonconformity`, `minor_nonconformity`    | The finding types that need a case     |
+| `extraColumns`     | none                                            | Extra columns on the inspections table |
+
+## Errors
+
+| Hint                              | Cause                                                               |
+| --------------------------------- | ------------------------------------------------------------------- |
+| `INSPECTION_FORBIDDEN`            | the caller lacks the permission or the team role                    |
+| `INSPECTION_INVALID`              | a field is invalid, such as a period that ends before it starts     |
+| `INSPECTION_KIND_UNKNOWN`         | the kind isn't one of `options.kinds`                               |
+| `INSPECTION_FINDING_TYPE_UNKNOWN` | the type isn't one of `options.findingTypes`                        |
+| `INSPECTION_STATUS_INVALID`       | the call doesn't fit the status, such as a finding on a planned one |
+| `INSPECTION_CHECKLIST_INCOMPLETE` | `complete` before the checklist is submitted                        |
+| `INSPECTION_FINDINGS_OPEN`        | `close` while a finding that needs a case has none                  |
+| `INSPECTION_FINDING_HAS_CASE`     | deleting a finding that has a case                                  |
+| `INSPECTION_NOT_FOUND`            | no inspection with this id that the caller sees                     |
+| `INSPECTION_PROGRAM_NOT_FOUND`    | no programme with this id                                           |
+| `INSPECTION_FINDING_NOT_FOUND`    | no finding with this id that the caller sees                        |
+| `INSPECTION_CASES_NOT_INSTALLED`  | `raiseCase` without the cases block                                 |
+
+## Events
+
+`inspection_program.created`, `inspection_program.updated`,
+`inspection_program.approved`, `inspection_program.closed`,
+`inspection.scheduled`, `inspection.updated`, `inspection.started`,
+`inspection.completed`, `inspection.closed`, `inspection.cancelled`,
+`inspection_finding.created`, `inspection_finding.updated`,
+`inspection_finding.deleted` and `inspection_finding.case_raised`. The
+[events page](/docs/extending/events) lists their payloads.
+
+## Without the client
+
+`db.inspections` is this client. Code that does not go through `bsb.db()`
+builds it with a transport and an organization id:
+
+```ts
+const inspections = createInspections({ transport, tenant: organizationId });
+
+const audits = await inspections.list({ status: "in_progress" }).orThrow();
+```
