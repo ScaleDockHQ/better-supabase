@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:0e159b33bfbd71df0aa36e00019500c3e2316e0984b808f6812325f5ae829cb9
+-- @bsb-hash sha256:d77fcde78747c2a55f107a9ae89d6a02b44645c456683760732f3d634ead151d
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -852,6 +852,7 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then (coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false))
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.manage'), false)
+          when 'comment' then coalesce("better_supabase"."drive_can_comment"(s."id"), false)
           when 'fields' then coalesce("better_supabase"."drive_node_writable"(s."id"), false)
           else true
         end)
@@ -1343,6 +1344,7 @@ begin
           and case can_subject_for.action
           when 'read' then false
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'drive.manage'), false)
+          when 'comment' then false
           when 'fields' then false
           else false
         end

@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:dcbb5db79a42a58de3b9c60b6a3cf5f1178c07d0c0eaf4fd0b82a4a7c79ede59
+-- @bsb-hash sha256:3d8cbe7c7bb66e53f9b98ff25bedff5c77642b1c821ddfdbf605ffc3108801e9
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -171,7 +171,8 @@ create policy conversations_read on "better_supabase"."conversations"
   for select to authenticated
   using ((case when "better_supabase"."conversations"."kind" = 'inbox'
     then "better_supabase"."inbox_conversation_allowed"("better_supabase"."conversations"."id"::text)
-    else ("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
+    else (("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
+    or ("better_supabase"."conversations"."access" = 'subject' and "better_supabase"."conversations"."subject_type" in ('drive_node')))
     and case "better_supabase"."conversations"."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"("better_supabase"."conversations"."id")
@@ -383,7 +384,8 @@ as $$
   where y."id" = any ($1)
     and exists (select 1 from "better_supabase"."conversations" c where c."id" = y."conversation_id" and (case when c."kind" = 'inbox'
     then "better_supabase"."inbox_conversation_allowed"(c."id"::text)
-    else (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
+    else ((coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
+    or (c."access" = 'subject' and c."subject_type" in ('drive_node')))
     and case c."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
@@ -576,7 +578,8 @@ begin
   where c."id" = can_conversation.conversation
     and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when c."kind" = 'inbox'
     then "better_supabase"."inbox_conversation_allowed"(c."id"::text)
-    else (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
+    else ((coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
+    or (c."access" = 'subject' and c."subject_type" in ('drive_node')))
     and case c."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
@@ -597,6 +600,9 @@ begin
     when 'read' then
       return true;
     when 'send' then
+      if v_conv."access" = 'subject' and v_conv."subject_type" in ('drive_node') then
+        return v_conv."archived_at" is null and (v_conv."subject_type" in ('drive_node') and coalesce("better_supabase"."can_subject"(v_conv."subject_type", v_conv."subject_id", 'comment'), false));
+      end if;
       return v_conv."archived_at" is null
         and ((coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false)
         and (v_conv."access" <> 'members' or "better_supabase"."is_conversation_member"(v_conv."id")))
@@ -634,14 +640,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false) or v_guest) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false) or v_guest or (open_conversation.kind = 'subject' and ((open_conversation.attrs ->> 'subjectType') in ('drive_node') and coalesce("better_supabase"."can_subject"((open_conversation.attrs ->> 'subjectType'), (open_conversation.attrs ->> 'subjectId'), 'comment'), false)))) then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   v_users := array(
     select distinct x from unnest(coalesce(open_conversation.members, '{}') || case when auth.uid() is null then '{}'::uuid[] else array[auth.uid()] end) x
     where x is not null order by 1
   );
-  if not v_guest and exists (
+  if not v_guest and not (open_conversation.kind = 'subject' and (open_conversation.attrs ->> 'subjectType') in ('drive_node')) and exists (
     select 1 from unnest(v_users) x
     where not coalesce(better_supabase.can_user(x, 'tenant', open_conversation.tenant, 'messages.read'), false)
   ) then
@@ -1414,6 +1420,13 @@ begin
   if not found then
     raise exception 'no message of yours has this id' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
+  if exists (
+    select 1 from "better_supabase"."conversations" c
+    where c."id" = v_msg."conversation_id"
+      and c."access" = 'subject' and c."subject_type" in ('drive_node')
+  ) and not "better_supabase"."can_conversation"(v_msg."conversation_id", 'send') then
+    raise exception 'not allowed to comment on this record' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
+  end if;
   if v_msg."sent_at" is not null and not (true) then
     raise exception 'this message can no longer be edited' using errcode = '55000', hint = 'MESSAGING_EDIT_CLOSED';
   end if;
@@ -1942,7 +1955,8 @@ create policy bsb_tenant_scope_select on "better_supabase"."conversations" as re
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ((case when "better_supabase"."conversations"."kind" = 'inbox'
     then "better_supabase"."inbox_conversation_allowed"("better_supabase"."conversations"."id"::text)
-    else ("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
+    else (("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
+    or ("better_supabase"."conversations"."access" = 'subject' and "better_supabase"."conversations"."subject_type" in ('drive_node')))
     and case "better_supabase"."conversations"."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"("better_supabase"."conversations"."id")
