@@ -3658,7 +3658,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "relations",
         "catalog",
         "automations",
-        "orders"
+        "orders",
+        "inventory"
       ],
       "manifest": "quotes",
       "scopes": [

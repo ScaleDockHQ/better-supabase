@@ -33,6 +33,7 @@ import {
   quoteOrigin,
   quoteParty,
 } from "./quotes-functions.ts";
+import { quoteHolds } from "./quotes-holds.ts";
 import { versionLinesOn } from "./quotes-kit.ts";
 
 const QUOTE = [
@@ -99,6 +100,7 @@ const NAMES: BlockSqlNames = {
     "totals",
     "resend",
     "notifications",
+    "holds",
   ],
   tables: {
     quotes: {
@@ -540,6 +542,9 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...(ctx.installed("deals")
       ? [{ name: "quote_from_deal", args: ["uuid"], returns: "jsonb" }]
       : []),
+    ...(quoteHolds(ctx)
+      ? [{ name: "release_quote_holds", args: ["uuid"], returns: "integer" }]
+      : []),
   ];
 }
 
@@ -559,6 +564,7 @@ export const QUOTES: BlockSqlDefinition = {
     "catalog",
     "automations",
     "orders",
+    "inventory",
   ],
   target: "schema",
   modes: ["managed", "custom"],

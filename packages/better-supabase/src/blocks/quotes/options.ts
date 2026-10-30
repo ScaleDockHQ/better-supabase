@@ -52,6 +52,13 @@ export type QuotesSqlOptions = {
    * `true`.
    */
   readonly notifications?: boolean;
+  /**
+   * Sending a quote holds stock for its tracked catalog lines through the
+   * inventory block, keeping what isn't available on backorder. The holds end
+   * when the quote goes back to draft, is withdrawn, expires or is rejected,
+   * and when an order is made from it. Needs the inventory block.
+   */
+  readonly holds?: boolean;
 };
 
 export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
@@ -69,4 +76,5 @@ export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
     totals: option.string<"block" | "app">({ default: "block" }),
     resend: option.boolean({ default: false }),
     notifications: option.boolean({ default: true }),
+    holds: option.boolean({ default: false }),
   });
