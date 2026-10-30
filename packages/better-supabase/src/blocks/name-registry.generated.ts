@@ -32,7 +32,7 @@ export interface BlockNameRegistry {
       readonly "budgets": "id" | "tenant" | "name" | "fiscalYear" | "status" | "createdBy" | "createdAt" | "updatedAt";
       readonly "budgetLines": "id" | "tenant" | "budget" | "account" | "periodNumber" | "dimensions" | "amount";
     };
-    readonly functions: "accounting_balance_sheet" | "accounting_budget_vs_actual" | "accounting_entry_guard" | "accounting_entry_line_guard" | "accounting_fx_rate" | "accounting_general_ledger" | "accounting_period_close_blockers" | "accounting_post" | "accounting_post_source" | "accounting_profit_and_loss" | "accounting_reverse" | "accounting_reverse_source" | "accounting_tax_report" | "accounting_trial_balance" | "archive_accounting_account" | "close_accounting_period" | "close_fiscal_year" | "delete_accounting_entry" | "get_accounting_budget" | "get_accounting_entry" | "get_accounting_settings" | "list_accounting_accounts" | "list_accounting_budgets" | "list_accounting_dimensions" | "list_accounting_entries" | "list_accounting_journals" | "list_accounting_periods" | "list_accounting_tax_codes" | "open_fiscal_year" | "post_accounting_entry" | "post_accounting_source" | "reopen_accounting_period" | "reverse_accounting_entry" | "save_accounting_account" | "save_accounting_budget" | "save_accounting_dimension" | "save_accounting_dimension_value" | "save_accounting_entry" | "save_accounting_journal" | "save_accounting_tax_code" | "set_accounting_account_role" | "set_accounting_fx_rate" | "set_accounting_lock_date" | "setup_accounting";
+    readonly functions: "accounting_balance_sheet" | "accounting_budget_vs_actual" | "accounting_entry_guard" | "accounting_entry_line_guard" | "accounting_fx_rate" | "accounting_general_ledger" | "accounting_period_close_blockers" | "accounting_post" | "accounting_post_source" | "accounting_profit_and_loss" | "accounting_reverse" | "accounting_reverse_source" | "accounting_sync_dimension_value" | "accounting_tax_report" | "accounting_trial_balance" | "archive_accounting_account" | "close_accounting_period" | "close_fiscal_year" | "delete_accounting_entry" | "get_accounting_budget" | "get_accounting_entry" | "get_accounting_settings" | "list_accounting_accounts" | "list_accounting_budgets" | "list_accounting_dimensions" | "list_accounting_entries" | "list_accounting_journals" | "list_accounting_periods" | "list_accounting_tax_codes" | "open_fiscal_year" | "post_accounting_entry" | "post_accounting_source" | "reopen_accounting_period" | "reverse_accounting_entry" | "save_accounting_account" | "save_accounting_budget" | "save_accounting_dimension" | "save_accounting_dimension_value" | "save_accounting_entry" | "save_accounting_journal" | "save_accounting_tax_code" | "set_accounting_account_role" | "set_accounting_fx_rate" | "set_accounting_lock_date" | "setup_accounting";
     readonly actions: "read" | "write" | "post" | "close" | "manage";
     readonly hooks: "before_accounting_entry_post" | "after_accounting_entry_post" | "before_accounting_entry_reverse" | "after_accounting_entry_reverse";
     readonly entities: {
@@ -225,14 +225,15 @@ export interface BlockNameRegistry {
   readonly "assets": {
     readonly tables: {
       readonly "locations": "id" | "tenant" | "parent" | "kind" | "name" | "code" | "address" | "latitude" | "longitude" | "metadata" | "archivedAt" | "createdAt" | "updatedAt";
-      readonly "assets": "id" | "tenant" | "location" | "kind" | "name" | "tag" | "serial" | "status" | "assigneeType" | "assigneeId" | "latitude" | "longitude" | "metadata" | "retiredAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "assets": "id" | "tenant" | "location" | "kind" | "name" | "tag" | "serial" | "status" | "assigneeType" | "assigneeId" | "latitude" | "longitude" | "metadata" | "retiredAt" | "createdBy" | "createdAt" | "updatedAt" | "acquisitionCost" | "currency" | "acquiredOn" | "usefulLifeMonths" | "residualValue" | "depreciationMethod" | "depreciationRateBps" | "disposedOn" | "disposalAmount";
       readonly "assignments": "id" | "tenant" | "asset" | "assigneeType" | "assigneeId" | "note" | "assignedBy" | "assignedAt" | "releasedAt";
+      readonly "depreciations": "id" | "tenant" | "asset" | "periodStart" | "amount" | "entry" | "createdAt";
     };
-    readonly functions: "archive_asset_location" | "asset_assignment_history" | "asset_location_check_parent" | "asset_locations_at" | "assets_near" | "assign_asset" | "create_asset" | "create_asset_location" | "get_asset" | "get_asset_location" | "list_asset_locations" | "list_assets" | "release_asset" | "set_asset_link" | "update_asset" | "update_asset_location";
+    readonly functions: "archive_asset_location" | "asset_assignment_history" | "asset_depreciate" | "asset_location_check_parent" | "asset_locations_at" | "assets_near" | "assign_asset" | "create_asset" | "create_asset_location" | "dispose_asset" | "get_asset" | "get_asset_location" | "list_asset_depreciations" | "list_asset_locations" | "list_assets" | "release_asset" | "run_asset_depreciation" | "set_asset_link" | "update_asset" | "update_asset_location";
     readonly actions: "read" | "manage" | "assign";
     readonly hooks: "before_asset_assign" | "after_asset_assign";
     readonly entities: {
-      readonly "asset": "id" | "tenant_id" | "location_id" | "kind" | "name" | "tag" | "serial_number" | "status" | "assignee_type" | "assignee_id" | "latitude" | "longitude" | "metadata" | "retired_at" | "created_by" | "created_at" | "updated_at";
+      readonly "asset": "id" | "tenant_id" | "location_id" | "kind" | "name" | "tag" | "serial_number" | "status" | "assignee_type" | "assignee_id" | "latitude" | "longitude" | "metadata" | "retired_at" | "created_by" | "created_at" | "updated_at" | "acquisition_cost" | "currency" | "acquired_on" | "useful_life_months" | "residual_value" | "depreciation_method" | "depreciation_rate_bps" | "disposed_on" | "disposal_amount";
       readonly "asset_location": "id" | "tenant_id" | "parent_id" | "kind" | "name" | "code" | "address" | "latitude" | "longitude" | "metadata" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "asset";
@@ -301,14 +302,14 @@ export interface BlockNameRegistry {
   };
   readonly "billable-time": {
     readonly tables: {
-      readonly "rates": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "rate" | "currency" | "effectiveFrom" | "createdBy" | "createdAt";
+      readonly "rates": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "rate" | "currency" | "effectiveFrom" | "cost" | "createdBy" | "createdAt";
       readonly "billed": "entry" | "tenant" | "invoice" | "rate" | "currency" | "seconds" | "createdAt";
     };
     readonly functions: "billable_time_guard" | "billable_time_release" | "delete_time_rate" | "invoice_from_time" | "list_invoiced_time" | "list_time_rates" | "set_time_rate" | "time_rate" | "unbilled_time";
     readonly actions: "read" | "manage" | "invoice";
     readonly hooks: never;
     readonly entities: {
-      readonly "time_rate": "id" | "tenant_id" | "user_id" | "subject_type" | "subject_id" | "rate" | "currency" | "effective_from" | "created_by" | "created_at";
+      readonly "time_rate": "id" | "tenant_id" | "user_id" | "subject_type" | "subject_id" | "rate" | "currency" | "effective_from" | "cost_amount" | "created_by" | "created_at";
     };
     readonly primary: "time_rate";
     readonly formerKeys: never;
@@ -1992,7 +1993,7 @@ export interface BlockNameRegistry {
       readonly "items": "id" | "tenant" | "number" | "identifier" | "title" | "body" | "parent" | "team" | "project" | "iteration" | "priority" | "estimate" | "progress" | "startAt" | "endAt" | "dueAt" | "pipeline" | "stage" | "stageEnteredAt" | "state" | "closeReason" | "closedAt" | "locked" | "rank" | "archivedAt" | "recursFrom" | "createdBy" | "createdAt" | "updatedAt";
       readonly "checklist": "id" | "tenant" | "item" | "title" | "done" | "doneAt" | "doneBy" | "rank" | "createdBy" | "createdAt";
       readonly "assignees": "tenant" | "item" | "user" | "createdAt";
-      readonly "projects": "id" | "tenant" | "key" | "name" | "owner" | "status" | "startOn" | "targetOn" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "projects": "id" | "tenant" | "key" | "name" | "owner" | "status" | "startOn" | "targetOn" | "budgetAmount" | "budgetCurrency" | "budgetHours" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "iterations": "id" | "tenant" | "team" | "name" | "startsOn" | "endsOn" | "createdAt";
     };
     readonly functions: "archive_task" | "create_task" | "delete_task" | "delete_task_checklist_item" | "get_task" | "list_task_checklist" | "list_tasks" | "save_iteration" | "save_project" | "save_task_checklist_item" | "set_task_assignees" | "task_tree" | "update_tasks";
@@ -2000,7 +2001,7 @@ export interface BlockNameRegistry {
     readonly hooks: "before_task_create" | "after_task_create" | "before_task_update" | "after_task_update";
     readonly entities: {
       readonly "task": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "recurs_from" | "created_by" | "created_at" | "updated_at";
-      readonly "project": "id" | "tenant_id" | "key" | "name" | "owner_user_id" | "status" | "start_on" | "target_on" | "archived_at" | "created_at" | "updated_at";
+      readonly "project": "id" | "tenant_id" | "key" | "name" | "owner_user_id" | "status" | "start_on" | "target_on" | "budget_amount" | "budget_currency" | "budget_hours" | "archived_at" | "created_at" | "updated_at";
       readonly "iteration": "id" | "tenant_id" | "team_id" | "name" | "starts_on" | "ends_on" | "created_at";
       readonly "checklist_item": "id" | "tenant_id" | "work_item_id" | "title" | "done" | "done_at" | "done_by" | "rank" | "created_by" | "created_at";
     };

@@ -247,7 +247,7 @@ describe.skipIf(!live)("fixed assets and project costing", () => {
         .create(tenant, { title: "Design", projectId: project.id })
         .orThrow();
 
-      const subject = { type: "work_item", id: item.id };
+      const subject = { type: "task", id: item.id };
 
       await time
         .log({

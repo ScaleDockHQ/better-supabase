@@ -9819,6 +9819,91 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION better_supabase.project_costs (
+  project_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  STABLE
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+#variable_conflict use_column
+declare
+  v_project "better_supabase"."work_projects"%rowtype;
+  v_result jsonb;
+begin
+  select * into v_project from "better_supabase"."work_projects" x where x."id" = project_costs.project_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_project."tenant_id", 'billable_time.read'), false)) then
+    raise exception 'project not found' using errcode = 'P0002', hint = 'TASK_PROJECT_NOT_FOUND';
+  end if;
+  with spent as (
+    select extract(epoch from x."ended_at" - x."started_at") as seconds, card.cost, card.currency,
+      d."rate" as billed_rate, d."currency"::text as billed_currency, d."seconds" as billed_seconds
+    from "better_supabase"."time_entries" x
+    left join lateral (
+      select c."cost_amount" as cost, c."currency"::text as currency
+      from "better_supabase"."time_rates" c
+      where c."tenant_id" = x."tenant_id"
+        and (c."user_id" is null or c."user_id" = x."user_id")
+        and (c."subject_type" is null or (c."subject_type" = x."subject_type" and c."subject_id" = x."subject_id"))
+        and c."effective_from" <= (x."started_at" at time zone 'UTC')::date
+      order by (c."subject_type" is not null) desc, (c."user_id" is not null) desc, c."effective_from" desc
+      limit 1
+    ) card on true
+    left join "better_supabase"."time_invoice_entries" d on d."entry_id" = x."id"
+    where x."tenant_id" = v_project."tenant_id"
+      and x."ended_at" is not null
+      and ((x."subject_type" = 'project' and x."subject_id" = v_project."id"::text) or (x."subject_type" = 'work_item' and x."subject_id" in (
+        select y."id"::text from "better_supabase"."work_items" y where y."project_id" = v_project."id"
+      )))
+  ),
+  totals as (
+    select u.currency, sum(u.time_cost)::bigint as time_cost, sum(u.billed)::bigint as billed,
+      sum(u.expenses)::bigint as expenses, sum(u.income)::bigint as income
+    from (
+      select s.currency, round(s.seconds / 3600.0 * s.cost)::bigint as time_cost, 0::bigint as billed, 0::bigint as expenses, 0::bigint as income
+      from spent s where s.cost is not null
+      union all
+      select s.billed_currency, 0, round(s.billed_seconds / 3600.0 * s.billed_rate)::bigint, 0, 0
+      from spent s where s.billed_rate is not null
+      union all
+      select q.currency, 0, 0, q.expenses, q.income from (select l."currency"::text as currency,
+        coalesce(sum(l."debit" - l."credit") filter (where a."type" = 'expense'), 0)::bigint as expenses,
+        coalesce(sum(l."credit" - l."debit") filter (where a."type" = 'income'), 0)::bigint as income
+      from "better_supabase"."accounting_entry_lines" l
+      join "better_supabase"."accounting_entries" n on n."id" = l."entry_id"
+      join "better_supabase"."accounting_accounts" a on a."id" = l."account_id"
+      where l."tenant_id" = v_project."tenant_id"
+        and n."status" in ('posted', 'reversed')
+        and l."dimensions" ->> 'project' = v_project."id"::text
+      group by l."currency") q
+    ) u
+    group by u.currency
+  )
+  select jsonb_build_object(
+    'projectId', v_project."id",
+    'organizationId', v_project."tenant_id",
+    'hours', (select round(coalesce(sum(s.seconds), 0) / 3600.0, 2) from spent s),
+    'uncostedHours', (select round(coalesce(sum(s.seconds) filter (where s.cost is null), 0) / 3600.0, 2) from spent s),
+    'budgetAmount', v_project."budget_amount"::text,
+    'budgetCurrency', v_project."budget_currency",
+    'budgetHours', v_project."budget_hours",
+    'totals', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+          'currency', t.currency,
+          'timeCost', t.time_cost::text,
+          'billed', t.billed::text,
+          'expenses', t.expenses::text,
+          'income', t.income::text,
+          'margin', (t.billed + t.income - t.time_cost - t.expenses)::text
+        ) order by t.currency), '[]'::jsonb)
+      from totals t))
+  into v_result;
+  return v_result;
+end;
+$function$;
+
 CREATE OR REPLACE FUNCTION better_supabase.publish_compliance_policy (
   policy_id uuid,
   content   jsonb,
@@ -13085,9 +13170,10 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."work_projects" ("tenant_id", "key", "name", "owner_user_id", "status", "start_on", "target_on")
+      insert into "better_supabase"."work_projects" ("tenant_id", "key", "name", "owner_user_id", "status", "start_on", "target_on", "budget_amount", "budget_currency", "budget_hours")
       values (save_project.tenant, upper(save_project.attrs ->> 'key'), save_project.attrs ->> 'name', (save_project.attrs ->> 'ownerId')::uuid,
-        coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date)
+        coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date,
+        (save_project.attrs ->> 'budgetAmount')::bigint, upper(save_project.attrs ->> 'budgetCurrency'), (save_project.attrs ->> 'budgetHours')::numeric)
       returning "id" into v_id;
     else
       update "better_supabase"."work_projects" x set
@@ -13097,6 +13183,9 @@ begin
         "status" = coalesce(save_project.attrs ->> 'status', x."status"),
         "start_on" = case when save_project.attrs ? 'startOn' then (save_project.attrs ->> 'startOn')::date else x."start_on" end,
         "target_on" = case when save_project.attrs ? 'targetOn' then (save_project.attrs ->> 'targetOn')::date else x."target_on" end,
+        "budget_amount" = case when save_project.attrs ? 'budgetAmount' then (save_project.attrs ->> 'budgetAmount')::bigint else x."budget_amount" end,
+        "budget_currency" = case when save_project.attrs ? 'budgetCurrency' then upper(save_project.attrs ->> 'budgetCurrency') else x."budget_currency" end,
+        "budget_hours" = case when save_project.attrs ? 'budgetHours' then (save_project.attrs ->> 'budgetHours')::numeric else x."budget_hours" end,
         "archived_at" = case when save_project.attrs ? 'archived' then (case when (save_project.attrs ->> 'archived')::boolean then coalesce(x."archived_at", now()) end) else x."archived_at" end,
         "updated_at" = now()
       where x."id" = v_id and x."tenant_id" = save_project.tenant;
@@ -13104,12 +13193,21 @@ begin
         raise exception 'project not found' using errcode = 'P0002', hint = 'TASK_PROJECT_NOT_FOUND';
       end if;
     end if;
+    if exists (
+      select 1 from "better_supabase"."work_projects" x
+      where x."id" = v_id and x."budget_amount" is not null and x."budget_currency" is null
+    ) then
+      raise exception 'a budget amount needs a currency' using errcode = '22023', hint = 'TASK_PROJECT_INVALID';
+    end if;
   exception when unique_violation then
     raise exception 'another project has this key' using errcode = '23505', hint = 'TASK_PROJECT_KEY_TAKEN';
   when check_violation or not_null_violation then
     raise exception 'a project needs a key of capitals and a name, and ends after it starts' using errcode = '22023', hint = 'TASK_PROJECT_INVALID';
   end;
-  return (select to_jsonb(x) || jsonb_build_object('progress', (
+
+  perform "better_supabase"."accounting_sync_dimension_value"(x."tenant_id", 'project', 'Project', x."id"::text, x."key" || ' ' || x."name", x."archived_at" is not null)
+  from "better_supabase"."work_projects" x where x."id" = v_id;
+  return (select to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
       from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
     )) from "better_supabase"."work_projects" x where x."id" = v_id);
@@ -14219,7 +14317,8 @@ CREATE OR REPLACE FUNCTION better_supabase.set_time_rate (
   user_id        uuid   DEFAULT NULL::uuid,
   subject_type   text   DEFAULT NULL::text,
   subject_id     text   DEFAULT NULL::text,
-  effective_from date   DEFAULT NULL::date
+  effective_from date   DEFAULT NULL::date,
+  cost_amount    bigint DEFAULT NULL::bigint
 )
   RETURNS jsonb
   LANGUAGE plpgsql
@@ -14241,6 +14340,9 @@ begin
   end if;
   if set_time_rate.currency is null or set_time_rate.currency !~ '^[A-Z]{3}$' then
     raise exception 'currency must be a three-letter currency code' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  end if;
+  if set_time_rate.cost_amount < 0 then
+    raise exception 'a cost is 0 or more minor units per hour' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
   if (set_time_rate.subject_type is null) <> (set_time_rate.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_RATE_INVALID';
@@ -14299,13 +14401,13 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'TIME_RATE_MEMBER_INVALID';
   end if;
-  insert into "better_supabase"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "created_by")
+  insert into "better_supabase"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "cost_amount", "created_by")
   values (set_time_rate.tenant, set_time_rate.user_id, set_time_rate.subject_type, set_time_rate.subject_id, set_time_rate.rate, set_time_rate.currency,
-    coalesce(set_time_rate.effective_from, current_date), auth.uid())
+    coalesce(set_time_rate.effective_from, current_date), set_time_rate.cost_amount, auth.uid())
   on conflict ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
-  do update set "rate" = excluded."rate", "currency" = excluded."currency", "created_by" = excluded."created_by"
+  do update set "rate" = excluded."rate", "currency" = excluded."currency", "cost_amount" = excluded."cost_amount", "created_by" = excluded."created_by"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $function$;
 
