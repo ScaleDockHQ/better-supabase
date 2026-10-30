@@ -9186,6 +9186,56 @@
       "RpcClient"
     ]
   },
+  "./blocks/observations": {
+    "values": [
+      "createObservations",
+      "dbTransport",
+      "extendBlock",
+      "observationDefinitionInputSchema",
+      "observationInputSchema",
+      "observationsBlock",
+      "observationsEvents",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Observation",
+      "ObservationAmendedEventData",
+      "ObservationBucket",
+      "ObservationBucketStats",
+      "ObservationChanges",
+      "ObservationComponent",
+      "ObservationCriticalEventData",
+      "ObservationDefinition",
+      "ObservationDefinitionInput",
+      "ObservationDefinitionSavedEventData",
+      "ObservationEventData",
+      "ObservationFlag",
+      "ObservationIngestItem",
+      "ObservationIngestResult",
+      "ObservationInput",
+      "ObservationListOptions",
+      "ObservationMarkedErrorEventData",
+      "ObservationPoint",
+      "ObservationRangeOptions",
+      "ObservationRanges",
+      "ObservationRecordedEventData",
+      "Observations",
+      "ObservationsEvents",
+      "ObservationsOptions",
+      "ObservationSource",
+      "ObservationStats",
+      "ObservationStatus",
+      "ObservationValue",
+      "ObservationValueType",
+      "RpcClient"
+    ]
+  },
   "./blocks/contracts": {
     "values": [
       "contractChangesSchema",
