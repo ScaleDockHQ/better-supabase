@@ -7,60 +7,29 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlIdent } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
+import { enrollmentStateColumns, enrollmentTables } from "./enrollments.ts";
 import { sequenceFunctions } from "./sequences-functions.ts";
 import { sequenceRunner } from "./sequences-runner.ts";
-import { sequenceSql } from "./sequences-sql.ts";
+import {
+  sequenceEnrollments,
+  sequenceRunColumns,
+  sequenceSql,
+} from "./sequences-sql.ts";
 
 const SEQUENCE_PAYLOAD = ["organizationId", "id", "key", "status"] as const;
-
-const MEMBER_PAYLOAD = [
-  "organizationId",
-  "id",
-  "sequenceId",
-  "subjectType",
-  "subjectId",
-  "status",
-  "step",
-  "reason",
-] as const;
 
 const EVENTS: BlockSqlEvents<SequencesEvents> = {
   "sequence.created": { subject: "sequences", payload: SEQUENCE_PAYLOAD },
   "sequence.updated": { subject: "sequences", payload: SEQUENCE_PAYLOAD },
   "sequence.deleted": { subject: "sequences", payload: SEQUENCE_PAYLOAD },
-  "sequence_enrollment.created": {
-    subject: "sequence-enrollments",
-    payload: MEMBER_PAYLOAD,
-  },
-  "sequence_enrollment.step_completed": {
-    subject: "sequence-enrollments",
-    payload: MEMBER_PAYLOAD,
-  },
-  "sequence_enrollment.paused": {
-    subject: "sequence-enrollments",
-    payload: MEMBER_PAYLOAD,
-  },
-  "sequence_enrollment.resumed": {
-    subject: "sequence-enrollments",
-    payload: MEMBER_PAYLOAD,
-  },
-  "sequence_enrollment.exited": {
-    subject: "sequence-enrollments",
-    payload: MEMBER_PAYLOAD,
-  },
-  "sequence_enrollment.completed": {
-    subject: "sequence-enrollments",
-    payload: MEMBER_PAYLOAD,
-  },
 };
 
 const NAMES: BlockSqlNames = {
   entities: {
     sequence: { table: "sequences", singular: "sequence", primary: true },
-    sequence_enrollment: { table: "members", singular: "sequence_enrollment" },
   },
   events: EVENTS,
   options: ["maxAttempts", "retryMinutes"],
@@ -87,42 +56,13 @@ const NAMES: BlockSqlNames = {
       optional: ["description"],
       typed: ["status"],
     },
-    members: {
-      name: "sequence_enrollments",
-      app: {},
-      lifecycle: { tenant: "tenant", user: "enrolledBy", export: true },
-      columns: {
-        enrollment: "enrollment_id",
-        tenant: "tenant_id",
-        sequence: "sequence_id",
-        subjectType: "subject_type",
-        subjectId: "subject_id",
-        address: "address",
-        name: "name",
-        account: "mail_account_id",
-        thread: "mail_thread_id",
-        step: "step",
-        nextRunAt: "next_run_at",
-        status: "status",
-        exitReason: "exit_reason",
-        attempts: "attempts",
-        lastError: "last_error",
-        variables: "variables",
-        enrolledBy: "enrolled_by",
-        createdAt: "created_at",
-        updatedAt: "updated_at",
-      },
-      optional: ["lastError"],
-      typed: ["status", "exitReason"],
-    },
   },
 };
 
 function sequenceTables(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
-  const { s, r, mail } = q;
+  const { s, mail } = q;
   const sequences = q.sequences;
-  const members = q.members;
 
   const name = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
@@ -131,11 +71,6 @@ function sequenceTables(ctx: BlockSqlContext): string {
     mail === undefined
       ? ""
       : ` references ${mail.table("accounts")} (${mail.col("accounts", "id")}) on delete set null`;
-
-  const thread =
-    mail === undefined
-      ? ""
-      : ` references ${mail.table("threads")} (${mail.col("threads", "id")}) on delete set null`;
 
   return `create table if not exists ${sequences} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -159,50 +94,57 @@ ${q.has("sequences", "description") ? `  ${s("description")} text check (${s("de
 );
 create index if not exists ${name("sequences", "account_idx")} on ${sequences} (${s("account")}) where ${s("account")} is not null;
 
--- Where a recipient is in a sequence. The enrollment holds the completed
--- steps; this holds the next step, when it runs and who it goes to.
-create table if not exists ${members} (
-  ${r("enrollment")} uuid primary key references ${q.enrollments} (${q.e("id")}) on delete cascade,
-  ${r("tenant")} ${ctx.idType} not null,
-  ${r("sequence")} uuid not null references ${sequences} (${s("id")}) on delete cascade,
-  ${r("subjectType")} text not null check (${r("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  ${r("subjectId")} text not null check (length(${r("subjectId")}) between 1 and 200),
-  ${r("address")} text check (${r("address")} is null or (length(${r("address")}) <= 320 and ${r("address")} ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
-  ${r("name")} text check (${r("name")} is null or length(${r("name")}) <= 200),
-  ${r("account")} uuid${mailbox},
-  -- The thread the first email started; later emails reply on it.
-  ${r("thread")} uuid${thread},
-  -- The step that runs next, null once every step is done.
-  ${r("step")} text,
-  ${r("nextRunAt")} timestamptz,
-  ${r("status")} text not null default 'active' check (${r("status")} in ('active', 'paused', 'completed', 'exited')),
-  ${r("exitReason")} text check (${r("exitReason")} is null or ${r("exitReason")} in ('replied', 'manual', 'failed', 'archived')),
-  ${r("attempts")} integer not null default 0 check (${r("attempts")} >= 0),
-${q.has("members", "lastError") ? `  ${r("lastError")} text check (${r("lastError")} is null or length(${r("lastError")}) <= 2000),\n` : ""}  -- Values for the {{key}} placeholders of the email steps.
-  ${r("variables")} jsonb not null default '{}' check (jsonb_typeof(${r("variables")}) = 'object'),
-  ${r("enrolledBy")} uuid,
-  ${r("createdAt")} timestamptz not null default now(),
-  ${r("updatedAt")} timestamptz not null default now(),
-  check ((${r("status")} = 'exited') = (${r("exitReason")} is not null))
-);${
-    ctx.owns("members")
-      ? ""
-      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("members").name}_enrollment_key`)} on ${members} (${r("enrollment")});`
-  }
-create index if not exists ${name("members", "parent_idx")} on ${members} (${r("sequence")}, ${r("status")});
-create index if not exists ${name("members", "due_idx")} on ${members} (${r("nextRunAt")}) where ${r("status")} = 'active';
-create index if not exists ${name("members", "subject_idx")} on ${members} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")});
-create index if not exists ${name("members", "address_idx")} on ${members} (${r("tenant")}, lower(${r("address")})) where ${r("status")} in ('active', 'paused');
-create index if not exists ${name("members", "account_idx")} on ${members} (${r("account")}) where ${r("account")} is not null;
-create index if not exists ${name("members", "thread_idx")} on ${members} (${r("thread")}) where ${r("thread")} is not null;
+${sequenceRunColumns(ctx)}
 
 ${lockTable(sequences, { read: true })}
 drop policy if exists ${name("sequences", "read")} on ${sequences};
 ${renderPolicy(makePolicy({ table: sequences, name: name("sequences", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(s("tenant"), q.read) }), { target: sequences })}
-${lockTable(members, { read: true })}
-drop policy if exists ${name("members", "read")} on ${members};
-${renderPolicy(makePolicy({ table: members, name: name("members", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(r("tenant"), q.read) }), { target: members })}
 `;
+}
+
+/**
+ * Version 1 kept each run in sequence_enrollments. Version 2 keeps it on the
+ * enrollment: the run columns take the recipient and the sending state, a
+ * paused run sets paused_at, an exited one keeps its exit reason in
+ * cancel_reason, and the step that runs next becomes the open step row, due at
+ * the run's next_run_at. Then sequence_enrollments is dropped.
+ */
+function enrollmentsUpgrade(ctx: BlockSqlContext): string {
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
+  const q = sequenceSql(ctx);
+  const enrolled = sequenceEnrollments(ctx);
+  const { e, d, r } = q;
+  const old = `${ctx.schema}.sequence_enrollments`;
+  const field = (column: string): string => `(to_jsonb(m) ->> '${column}')`;
+
+  return `${enrollmentTables(enrolled)}
+${enrollmentStateColumns(enrolled)}
+${sequenceRunColumns(ctx)}
+do $upgrade$
+begin
+  if to_regclass(${sqlString(`${ctx.schemaName}.sequence_enrollments`)}) is null then
+    return;
+  end if;
+  update ${q.enrollments} x
+  set ${r("sequence")} = m.sequence_id, ${r("address")} = m.address, ${r("name")} = m.name,
+    ${r("account")} = m.mail_account_id, ${r("thread")} = m.mail_thread_id, ${r("attempts")} = m.attempts,
+    ${r("lastError")} = ${field("last_error")}, ${r("variables")} = m.variables,
+    ${e("pausedAt")} = case when m.status::text = 'paused' and x.${e("status")} = 'active' then m.updated_at end,
+    ${e("cancelReason")} = case when x.${e("status")} = 'cancelled' then m.exit_reason::text end
+  from ${old} m
+  where x.${e("id")} = m.enrollment_id;
+  insert into ${q.done} (${d("enrollment")}, ${d("tenant")}, ${d("step")}, ${d("dueAt")}, ${d("completedBy")}, ${d("completedAt")})
+  select m.enrollment_id, m.tenant_id, m.step, m.next_run_at, null, null
+  from ${old} m
+  join ${q.enrollments} x on x.${e("id")} = m.enrollment_id
+  where m.step is not null and m.status::text in ('active', 'paused') and x.${e("status")} = 'active'
+  on conflict do nothing;
+  drop table ${old};
+end;
+$upgrade$;`;
 }
 
 function build(ctx: BlockSqlContext): string {
@@ -273,6 +215,15 @@ export const SEQUENCES: BlockSqlDefinition = {
   integrates: ["mail-sync", "contacts", "tasks", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Sequence runs live on enrollments: each sequence_enrollments row moves onto its enrollment in the program sequence:<id>, its next step becomes the open step row, and sequence_enrollments is dropped.",
+      sql: enrollmentsUpgrade,
+    },
+  ],
   names: NAMES,
   contract,
   build,

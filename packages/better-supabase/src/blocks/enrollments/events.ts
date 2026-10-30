@@ -15,15 +15,19 @@ export interface EnrollmentProgramEventData {
 }
 
 /**
- * `enrollment.created`, `enrollment.step_completed`, `enrollment.completed` and
- * `enrollment.cancelled`. Only enrollments in an organization emit them, so a
- * user's own onboarding checklist doesn't.
+ * `enrollment.created`, `enrollment.step_completed`, `enrollment.paused`,
+ * `enrollment.resumed`, `enrollment.completed` and `enrollment.cancelled`. Only
+ * enrollments in an organization emit them, so a user's own onboarding
+ * checklist doesn't.
  */
 export interface EnrollmentEventData {
   readonly organizationId: string;
   /** The enrollment. */
   readonly id: string;
-  /** The program key; `onboarding:<checklist>` for an onboarding checklist. */
+  /**
+   * The program key: `onboarding:<checklist>` for an onboarding checklist,
+   * `course:<id>` for a course and `sequence:<id>` for a sequence.
+   */
   readonly program: string;
   readonly subjectType: string;
   readonly subjectId: string;
@@ -32,6 +36,11 @@ export interface EnrollmentEventData {
   readonly step: string | null;
   readonly completedSteps: number;
   readonly totalSteps: number;
+  /**
+   * Why a module ended the enrollment, on `enrollment.cancelled`: a sequence's
+   * exit reason (`replied`, `manual`, `failed` or `archived`).
+   */
+  readonly reason?: string | null;
 }
 
 /** The events of the `enrollments` block: type to data. */
@@ -41,6 +50,8 @@ export type EnrollmentsEvents = {
   readonly "enrollment_program.deleted": EnrollmentProgramEventData;
   readonly "enrollment.created": EnrollmentEventData;
   readonly "enrollment.step_completed": EnrollmentEventData;
+  readonly "enrollment.paused": EnrollmentEventData;
+  readonly "enrollment.resumed": EnrollmentEventData;
   readonly "enrollment.completed": EnrollmentEventData;
   readonly "enrollment.cancelled": EnrollmentEventData;
 };
@@ -52,6 +63,8 @@ export const enrollmentsEvents: Events<EnrollmentsEvents> = defineEvents({
   "enrollment_program.deleted": event<EnrollmentProgramEventData>(),
   "enrollment.created": event<EnrollmentEventData>(),
   "enrollment.step_completed": event<EnrollmentEventData>(),
+  "enrollment.paused": event<EnrollmentEventData>(),
+  "enrollment.resumed": event<EnrollmentEventData>(),
   "enrollment.completed": event<EnrollmentEventData>(),
   "enrollment.cancelled": event<EnrollmentEventData>(),
 });

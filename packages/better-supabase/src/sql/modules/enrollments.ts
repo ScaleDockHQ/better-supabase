@@ -28,6 +28,8 @@ const ENROLLMENT_PAYLOAD = [
   "totalSteps",
 ] as const;
 
+const CANCEL_PAYLOAD = [...ENROLLMENT_PAYLOAD, "reason"] as const;
+
 const EVENTS: BlockSqlEvents<EnrollmentsEvents> = {
   "enrollment_program.created": {
     subject: "enrollment-programs",
@@ -46,14 +48,13 @@ const EVENTS: BlockSqlEvents<EnrollmentsEvents> = {
     subject: "enrollments",
     payload: ENROLLMENT_PAYLOAD,
   },
+  "enrollment.paused": { subject: "enrollments", payload: ENROLLMENT_PAYLOAD },
+  "enrollment.resumed": { subject: "enrollments", payload: ENROLLMENT_PAYLOAD },
   "enrollment.completed": {
     subject: "enrollments",
     payload: ENROLLMENT_PAYLOAD,
   },
-  "enrollment.cancelled": {
-    subject: "enrollments",
-    payload: ENROLLMENT_PAYLOAD,
-  },
+  "enrollment.cancelled": { subject: "enrollments", payload: CANCEL_PAYLOAD },
 };
 
 const NAMES: BlockSqlNames = {
@@ -92,7 +93,13 @@ const NAMES: BlockSqlNames = {
       name: "enrollments",
       app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
-      optional: ["programVersion", "startsAt", "endsAt"],
+      optional: [
+        "programVersion",
+        "startsAt",
+        "endsAt",
+        "pausedAt",
+        "cancelReason",
+      ],
       typed: ["status"],
       columns: {
         id: "id",
@@ -111,6 +118,8 @@ const NAMES: BlockSqlNames = {
         endsAt: "ends_at",
         completedAt: "completed_at",
         cancelledAt: "cancelled_at",
+        pausedAt: "paused_at",
+        cancelReason: "cancel_reason",
         updatedAt: "updated_at",
       },
     },
@@ -147,6 +156,34 @@ function scheduleIndexes(
   return `
 create index if not exists ${name("steps", "assignee_idx")} on ${steps} (${s("assigneeUser")}, ${s("dueAt")});
 create index if not exists ${name("steps", "due_idx")} on ${steps} (${s("tenant")}, ${s("dueAt")}) where ${s("completedAt")} is null;`;
+}
+
+/**
+ * The columns a module that drives its own programs keeps run state in: when it
+ * paused the enrollment, and why it ended it.
+ */
+const STATE_COLUMNS: readonly (readonly [string, (ident: string) => string])[] =
+  [
+    ["pausedAt", (c) => `${c} timestamptz`],
+    [
+      "cancelReason",
+      (c) => `${c} text check (${c} is null or length(${c}) between 1 and 200)`,
+    ],
+  ];
+
+/**
+ * Adds the run state columns to an enrollments table created before they
+ * existed, so an upgrade can write them before this module renders.
+ */
+export function enrollmentStateColumns(ctx: BlockSqlContext): string {
+  const enrollments = ctx.table("enrollments");
+
+  return STATE_COLUMNS.filter(([column]) => ctx.has("enrollments", column))
+    .map(
+      ([column, definition]) =>
+        `alter table ${enrollments} add column if not exists ${definition(ctx.col("enrollments", column))};`,
+    )
+    .join("\n");
 }
 
 /**
@@ -212,7 +249,7 @@ create table if not exists ${enrollments} (
   ${e("enrolledBy")} uuid,
   ${e("enrolledAt")} timestamptz not null default now(),${optional("enrollments", "startsAt", (c) => `${c} timestamptz`)}${optional("enrollments", "endsAt", (c) => `${c} timestamptz`)}
   ${e("completedAt")} timestamptz,
-  ${e("cancelledAt")} timestamptz,
+  ${e("cancelledAt")} timestamptz,${STATE_COLUMNS.map(([column, definition]) => optional("enrollments", column, definition)).join("")}
   ${e("updatedAt")} timestamptz not null default now(),
   check ((${e("subjectType")} = 'user') = (${e("user")} is not null)),
   check (${e("user")} is null or ${e("subjectId")} = ${e("user")}::text),
@@ -282,6 +319,9 @@ export const ENROLLMENTS: BlockSqlDefinition = {
   internal: [
     "enrollment_ensure",
     "enrollment_mark",
+    "enrollment_pause",
+    "enrollment_cancel",
+    "enrollment_restart",
     "enrollment_json",
     "enrollment_step",
     "enrollment_schedule",

@@ -315,7 +315,7 @@ export function outboxCloudEvent(
   const legacy =
     // oxlint-disable-next-line typescript/no-deprecated -- read until the option goes.
     options.legacyEventTypes === true
-      ? legacyEventType(event.type)
+      ? legacyEventType(event.type, event.payload)
       : event.type;
 
   return {

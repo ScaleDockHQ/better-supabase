@@ -174,6 +174,10 @@ export interface Enrollment {
   readonly endsAt?: Temporal.Instant;
   readonly completedAt?: Temporal.Instant;
   readonly cancelledAt?: Temporal.Instant;
+  /** When a module, such as a sequence, paused it; unset while it runs. */
+  readonly pausedAt?: Temporal.Instant;
+  /** Why a module ended it, such as a sequence's exit reason. */
+  readonly cancelReason?: string;
   readonly updatedAt: Temporal.Instant;
 }
 
@@ -384,6 +388,8 @@ function enrollmentOf(value: unknown, fn: string): Enrollment {
     ...optional("enrolledBy", optionalText(row["enrolledBy"])),
     ...optional("completedAt", optionalInstant(row["completedAt"])),
     ...optional("cancelledAt", optionalInstant(row["cancelledAt"])),
+    ...optional("pausedAt", optionalInstant(row["pausedAt"])),
+    ...optional("cancelReason", optionalText(row["cancelReason"])),
   };
 }
 

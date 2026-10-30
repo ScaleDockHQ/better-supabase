@@ -178,7 +178,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:bdeeff274088237a937407908b9bca2166cd0f961749298ea2a0671967579388
+-- @bsb-hash sha256:4a6d9aa3c3763dbdf82747912ac12780447406b9e890869b44b0aba2212c04ab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -251,6 +251,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),
@@ -465,7 +471,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:bdeeff274088237a937407908b9bca2166cd0f961749298ea2a0671967579388
+-- @bsb-hash sha256:4a6d9aa3c3763dbdf82747912ac12780447406b9e890869b44b0aba2212c04ab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -538,6 +544,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),
@@ -757,7 +769,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:3fec7e1460695a3d32bd080a3d9ecea6c0aee8dfdec94bf21b2b25fac5a77758
+-- @bsb-hash sha256:c0a101afaff0f25ccdc83eccbda5dab34f67d8d8aeecbac4e5062c4b44b57915
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -830,6 +842,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),
@@ -1066,7 +1084,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:bdeeff274088237a937407908b9bca2166cd0f961749298ea2a0671967579388
+-- @bsb-hash sha256:4a6d9aa3c3763dbdf82747912ac12780447406b9e890869b44b0aba2212c04ab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1139,6 +1157,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),
@@ -1352,7 +1376,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:bdeeff274088237a937407908b9bca2166cd0f961749298ea2a0671967579388
+-- @bsb-hash sha256:4a6d9aa3c3763dbdf82747912ac12780447406b9e890869b44b0aba2212c04ab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1425,6 +1449,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),
@@ -1639,7 +1669,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:bdeeff274088237a937407908b9bca2166cd0f961749298ea2a0671967579388
+-- @bsb-hash sha256:4a6d9aa3c3763dbdf82747912ac12780447406b9e890869b44b0aba2212c04ab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1712,6 +1742,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),

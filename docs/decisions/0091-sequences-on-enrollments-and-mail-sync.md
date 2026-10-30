@@ -1,6 +1,6 @@
 # 0091: Sequences run on enrollments and send through a mailer port
 
-- Status: accepted
+- Status: accepted; the `sequence_enrollments` table is superseded by 0131
 - Date: 2026-10-22
 
 ## Context
@@ -57,3 +57,13 @@ thread or from their address, with the reason `replied`.
   the app's cron route calls it.
 - A/B variants per step and send windows (business hours, time zones) are
   follow-ups.
+
+## Since 0.47
+
+ADR 0131 drops `sequence_enrollments`. The per-recipient columns move onto
+`enrollments` as `sequence_*` columns that the sequences block adds, the
+next run time is the `due_at` of the run's open `enrollment_steps` row, and
+the enrollments block gains `paused_at` and `cancel_reason` for pausing and
+the exit reason. Runs write only the `enrollment.*` events, with `program`
+in the payload, and the schedules and `open_enrollment_steps` of the
+enrollments block skip `sequence:` programs.

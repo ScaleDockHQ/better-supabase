@@ -1,7 +1,13 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { createdOrUpdated } from "../event-verbs.ts";
-import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
+import {
+  fail,
+  NOTHING,
+  pageSize,
+  SERVICE_CALLER,
+  userGrant,
+} from "../shared.ts";
 import {
   assigneeJson,
   scheduleFunctions,
@@ -130,20 +136,65 @@ export function enrollmentsFunctions(ctx: BlockSqlContext): string {
       },
     });
 
-  const emit = (type: string, row: string, step = "null::text"): string => {
-    const statement = ctx.emit({
-      type,
-      payload: `jsonb_build_object('organizationId', ${row}.${e("tenant")}, 'id', ${row}.${e("id")}, 'program', ${row}.${e("program")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'status', ${row}.${e("status")}, 'step', ${step}, 'completedSteps', ${row}.${e("completedSteps")}, 'totalSteps', cardinality(${row}.${e("steps")}))`,
-      subject: `'enrollments/' || ${row}.${e("id")}::text`,
-      tenant: `${row}.${e("tenant")}`,
-    });
+  const event = (
+    type: string,
+    row: string,
+    step: string,
+    reason: string | undefined,
+  ) => ({
+    type,
+    payload: `jsonb_build_object('organizationId', ${row}.${e("tenant")}, 'id', ${row}.${e("id")}, 'program', ${row}.${e("program")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'status', ${row}.${e("status")}, 'step', ${step}, 'completedSteps', ${row}.${e("completedSteps")}, 'totalSteps', cardinality(${row}.${e("steps")})${reason === undefined ? "" : `, 'reason', ${reason}`})`,
+    subject: `'enrollments/' || ${row}.${e("id")}::text`,
+    tenant: `${row}.${e("tenant")}`,
+  });
 
-    return statement === ""
+  const inTenant = (row: string, statement: string): string =>
+    statement === ""
       ? ""
       : `
   if ${row}.${e("tenant")} is not null then
     ${statement}
   end if;`;
+
+  const emit = (
+    type: string,
+    row: string,
+    step = "null::text",
+    reason?: string,
+  ): string => inTenant(row, ctx.emit(event(type, row, step, reason)));
+
+  // A module's change the caller made goes to the audit log as well; what
+  // its runner does (no actor) only emits.
+  const emitOrAudit = (
+    type: string,
+    row: string,
+    actor: string,
+    summary: string,
+    reason?: string,
+  ): string => {
+    const plain = ctx.emit(event(type, row, "null::text", reason));
+
+    const audited = ctx.audit({
+      ...event(type, row, "null::text", reason),
+      audit: {
+        category: "data",
+        targetType: "enrollment",
+        recordId: `${row}.${e("id")}::text`,
+        targetLabel: `${row}.${e("program")}`,
+        summary: `'${summary}'`,
+        actor,
+      },
+    });
+
+    const audit =
+      audited === NOTHING
+        ? ""
+        : `
+  if ${actor} is not null and ${row}.${e("tenant")} is not null then
+    ${audited}
+  end if;`;
+
+    return `${inTenant(row, plain)}${audit}`;
   };
 
   const done = (count: string): string =>
@@ -164,6 +215,104 @@ export function enrollmentsFunctions(ctx: BlockSqlContext): string {
   const stepIds = (json: string): string =>
     `array(select t.value ->> 'id' from jsonb_array_elements(${json}) with ordinality as t(value, ord) order by t.ord)`;
 
+  const hasPause = ctx.has("enrollments", "pausedAt");
+  const hasReason = ctx.has("enrollments", "cancelReason");
+
+  const stateInternals = (): string => `
+-- Pauses or resumes an active enrollment of a program a module drives, such
+-- as a sequence; false when it already was. actor, when set, is audited.
+create or replace function ${fn("enrollment_pause")}(enrollment_id uuid, paused boolean, actor uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${enrollments};
+begin
+  select * into v_row from ${enrollments} x where x.${e("id")} = enrollment_pause.enrollment_id for update;
+  if v_row.${e("id")} is null then
+    ${enrollmentMissing}
+  end if;${
+    hasPause
+      ? `
+  if v_row.${e("status")} <> 'active' or (v_row.${e("pausedAt")} is not null) = enrollment_pause.paused then
+    return false;
+  end if;
+  update ${enrollments} x
+  set ${e("pausedAt")} = case when enrollment_pause.paused then now() end, ${e("updatedAt")} = now()
+  where x.${e("id")} = v_row.${e("id")}
+  returning * into v_row;
+  if enrollment_pause.paused then${emitOrAudit("enrollment.paused", "v_row", "enrollment_pause.actor", "paused an enrollment")}
+  else${emitOrAudit("enrollment.resumed", "v_row", "enrollment_pause.actor", "resumed an enrollment")}
+  end if;
+  return true;`
+      : `
+  ${invalid("this enrollments table has no paused_at column")}`
+  }
+end;
+$$;
+revoke execute on function ${fn("enrollment_pause")}(uuid, boolean, uuid) from public, anon, authenticated;
+
+-- Cancels an active enrollment of a program a module drives with why it
+-- ended; false when it wasn't active. Its completed steps stay and its open
+-- steps go. actor, when set, is audited.
+create or replace function ${fn("enrollment_cancel")}(enrollment_id uuid, reason text, actor uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${enrollments};
+begin
+  select * into v_row from ${enrollments} x where x.${e("id")} = enrollment_cancel.enrollment_id for update;
+  if v_row.${e("id")} is null then
+    ${enrollmentMissing}
+  end if;
+  if v_row.${e("status")} <> 'active' then
+    return false;
+  end if;
+  delete from ${steps} y where y.${s("enrollment")} = v_row.${e("id")} and y.${s("completedAt")} is null;
+  update ${enrollments} x
+  set ${e("status")} = 'cancelled', ${e("cancelledAt")} = now(),${hasPause ? ` ${e("pausedAt")} = null,` : ""}${hasReason ? ` ${e("cancelReason")} = enrollment_cancel.reason,` : ""} ${e("updatedAt")} = now()
+  where x.${e("id")} = v_row.${e("id")}
+  returning * into v_row;${emitOrAudit("enrollment.cancelled", "v_row", "enrollment_cancel.actor", "cancelled an enrollment", "enrollment_cancel.reason")}
+  return true;
+end;
+$$;
+revoke execute on function ${fn("enrollment_cancel")}(uuid, text, uuid) from public, anon, authenticated;
+
+-- Starts an enrollment of a program a module drives over: active, with steps
+-- and none of them done. Emits enrollment.created again.
+create or replace function ${fn("enrollment_restart")}(enrollment_id uuid, program_version integer, steps text[], actor uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${enrollments};
+begin
+  select * into v_row from ${enrollments} x where x.${e("id")} = enrollment_restart.enrollment_id for update;
+  if v_row.${e("id")} is null then
+    ${enrollmentMissing}
+  end if;
+  delete from ${steps} y where y.${s("enrollment")} = v_row.${e("id")};
+  update ${enrollments} x
+  set ${e("status")} = 'active', ${e("steps")} = enrollment_restart.steps,${hasVersion ? ` ${e("programVersion")} = enrollment_restart.program_version,` : ""} ${e("completedSteps")} = 0,
+    ${e("completedAt")} = null, ${e("cancelledAt")} = null,${hasPause ? ` ${e("pausedAt")} = null,` : ""}${hasReason ? ` ${e("cancelReason")} = null,` : ""}
+    ${e("enrolledBy")} = enrollment_restart.actor, ${e("enrolledAt")} = now(), ${e("updatedAt")} = now()
+  where x.${e("id")} = v_row.${e("id")}
+  returning * into v_row;${emit("enrollment.created", "v_row")}
+end;
+$$;
+revoke execute on function ${fn("enrollment_restart")}(uuid, integer, text[], uuid) from public, anon, authenticated;
+`;
+
   return `-- An enrollment with its steps and the completed ones, oldest first.
 create or replace function ${fn("enrollment_json")}(enrollment_id uuid)
 returns jsonb
@@ -177,7 +326,8 @@ as $$
     'subjectType', x.${e("subjectType")}, 'subjectId', x.${e("subjectId")}, 'status', x.${e("status")},
     'steps', to_jsonb(x.${e("steps")}), 'completedSteps', x.${e("completedSteps")}, 'totalSteps', cardinality(x.${e("steps")}),
     'enrolledBy', x.${e("enrolledBy")}, 'enrolledAt', x.${e("enrolledAt")}, 'completedAt', x.${e("completedAt")},
-    'cancelledAt', x.${e("cancelledAt")}, 'updatedAt', x.${e("updatedAt")},
+    'cancelledAt', x.${e("cancelledAt")}, 'pausedAt', ${field("enrollments", "x", "pausedAt")}, 'cancelReason', ${field("enrollments", "x", "cancelReason")},
+    'updatedAt', x.${e("updatedAt")},
     'progress', coalesce((
       select jsonb_agg(jsonb_build_object('step', y.${s("step")}, 'completedAt', y.${s("completedAt")}, 'completedBy', y.${s("completedBy")}) order by y.${s("completedAt")}, array_position(x.${e("steps")}, y.${s("step")}), y.${s("step")})
       from ${steps} y where y.${s("enrollment")} = x.${e("id")} and y.${s("completedAt")} is not null
@@ -304,7 +454,7 @@ begin
 end;
 $$;
 revoke execute on function ${fn("enrollment_mark")}(uuid, text, boolean, uuid) from public, anon, authenticated;
-
+${stateInternals()}
 -- Creates or changes a program. program is { id?, version?, key, name,
 -- description, subjectTypes, steps, enabled }; keys left out keep their value.
 -- Changing the steps raises the version. version, when given, must be the
@@ -667,7 +817,7 @@ begin
     update ${enrollments} x
     set ${e("status")} = 'cancelled', ${e("cancelledAt")} = now(), ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
-    returning * into v_row;${emit("enrollment.cancelled", "v_row")}
+    returning * into v_row;${emit("enrollment.cancelled", "v_row", "null::text", "null::text")}
   end if;
   return ${fn("enrollment_json")}(v_row.${e("id")});
 end;

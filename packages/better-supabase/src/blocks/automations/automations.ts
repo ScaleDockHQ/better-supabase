@@ -775,7 +775,7 @@ export function createRuleSink(
         continue;
       }
 
-      const legacy = legacyEventType(event.type);
+      const legacy = legacyEventType(event.type, event.payload);
       const matches: RuleMatch[] = [];
 
       for (const trigger of legacy === event.type

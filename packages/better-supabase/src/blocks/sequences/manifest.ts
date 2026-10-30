@@ -4,7 +4,7 @@ import type { SequencesEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { sequencesEvents } from "./events.ts";
 import { sequencesSqlOptions } from "./options.ts";
-import { sequenceEnrollInputSchema, sequenceInputSchema } from "./schemas.ts";
+import { sequenceInputSchema } from "./schemas.ts";
 import { createSequences } from "./sequences.ts";
 
 /** The `sequences` block's manifest (ADR 0029). */
@@ -28,10 +28,7 @@ export const sequencesBlock: BlockOf<
   options: { sequences: sequencesSqlOptions },
   events: sequencesEvents,
   consumes: { mailer: "optional" },
-  schemas: {
-    sequence: { input: sequenceInputSchema },
-    sequence_enrollment: { input: sequenceEnrollInputSchema },
-  },
+  schemas: { sequence: { input: sequenceInputSchema } },
   create: createSequences,
   category: "crm",
   recipes: ["sequence-builder"],

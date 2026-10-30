@@ -13,7 +13,7 @@ const LEASE_MINUTES = 10;
 
 function runner(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
-  const { fn, s, r, tasks } = q;
+  const { fn, s, r, e, d, tasks } = q;
   const maxAttempts = ctx.number("maxAttempts", 3);
   const retryMinutes = ctx.number("retryMinutes", 15);
 
@@ -38,14 +38,29 @@ function runner(ctx: BlockSqlContext): string {
       ? ""
       : `
       if v_step ->> 'kind' = 'task' then
-        perform ${tasks.fn("create_task")}(v_member.${r("tenant")}, jsonb_build_object(
+        perform ${tasks.fn("create_task")}(v_row.${e("tenant")}, jsonb_build_object(
           'title', trim(v_step ->> 'title'),
           'body', v_step ->> 'body',
           'dueAt', case when v_step ? 'dueInMinutes' then now() + make_interval(mins => (v_step ->> 'dueInMinutes')::integer) end),
-          case when v_member.${r("enrolledBy")} is null then '{}'::uuid[] else array[v_member.${r("enrolledBy")}] end);
+          case when v_row.${e("enrolledBy")} is null then '{}'::uuid[] else array[v_row.${e("enrolledBy")}] end);
       end if;`;
 
   const forbidden = q.forbidden("only the service role runs sequences");
+
+  // Loads the run into v_row; a stale result, for a run that moved on or
+  // stopped, returns it unchanged.
+  const claimed = (
+    name: string,
+  ): string => `select * into v_row from ${q.enrollments} x
+  where x.${e("id")} = ${name}.enrollment_id and x.${r("sequence")} is not null
+  for update;
+  if v_row.${e("id")} is null then
+    ${q.memberMissing}
+  end if;
+  ${q.openStep(`v_row.${e("id")}`, "v_current, v_next_run")}
+  if v_row.${e("status")} <> 'active' or v_row.${e("pausedAt")} is not null or v_current is distinct from ${name}.step then
+    return ${fn("sequence_member_json")}(v_row.${e("id")});
+  end if;`;
 
   return `-- Runs the steps that are due, oldest first: wait steps finish, task steps
 -- create a work item for whoever enrolled the recipient, and email steps
@@ -61,9 +76,11 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_due ${q.members};
-  v_member ${q.members};
+  v_due uuid;
+  v_row ${q.enrollments};
   v_sequence ${q.sequences};
+  v_current text;
+  v_next_run timestamptz;
   v_step jsonb;
   v_emails jsonb := '[]'::jsonb;
   v_ran integer := 0;
@@ -73,10 +90,11 @@ begin
     ${forbidden}
   end if;
   for v_due in
-    select x.* from ${q.members} x
+    select x.${e("id")} from ${q.enrollments} x
+    join ${q.done} o on o.${d("enrollment")} = x.${e("id")} and o.${d("completedAt")} is null
     join ${q.sequences} y on y.${s("id")} = x.${r("sequence")}
-    where x.${r("status")} = 'active' and x.${r("nextRunAt")} <= now() and y.${s("status")} = 'active'
-    order by x.${r("nextRunAt")}, x.${r("enrollment")}
+    where o.${d("dueAt")} <= now() and x.${e("status")} = 'active' and x.${e("pausedAt")} is null and y.${s("status")} = 'active'
+    order by o.${d("dueAt")}, x.${e("id")}
     limit ${pageSize("run_due_sequences.max_count", 50, 500)}
     for update of x skip locked
   loop
@@ -84,28 +102,34 @@ begin
     loop
       v_turns := v_turns + 1;
       exit when v_turns > 60;
-      select * into v_member from ${q.members} x where x.${r("enrollment")} = v_due.${r("enrollment")};
-      exit when v_member.${r("status")} <> 'active' or v_member.${r("step")} is null or v_member.${r("nextRunAt")} > now();
-      select * into v_sequence from ${q.sequences} x where x.${s("id")} = v_member.${r("sequence")};
-      v_step := (select t.value from jsonb_array_elements(v_sequence.${s("steps")}) t where t.value ->> 'id' = v_member.${r("step")});
+      select * into v_row from ${q.enrollments} x where x.${e("id")} = v_due;
+      v_current := null;
+      v_next_run := null;
+      ${q.openStep("v_due", "v_current, v_next_run")}
+      exit when v_row.${e("status")} <> 'active' or v_row.${e("pausedAt")} is not null or v_current is null or v_next_run > now();
+      select * into v_sequence from ${q.sequences} x where x.${s("id")} = v_row.${r("sequence")};
+      v_step := (select t.value from jsonb_array_elements(v_sequence.${s("steps")}) t where t.value ->> 'id' = v_current);
       if v_step is null then
-        perform ${fn("sequence_place")}(v_member.${r("enrollment")});
+        delete from ${q.done} y where y.${d("enrollment")} = v_due and y.${d("completedAt")} is null;
+        perform ${fn("sequence_place")}(v_due);
         continue;
       end if;
       if v_step ->> 'kind' = 'email' then
-        update ${q.members} x
-        set ${r("attempts")} = x.${r("attempts")} + 1, ${r("nextRunAt")} = now() + interval '${String(LEASE_MINUTES)} minutes', ${r("updatedAt")} = now()
-        where x.${r("enrollment")} = v_member.${r("enrollment")}
-        returning * into v_member;
+        update ${q.done} y set ${d("dueAt")} = now() + interval '${String(LEASE_MINUTES)} minutes'
+        where y.${d("enrollment")} = v_due and y.${d("completedAt")} is null;
+        update ${q.enrollments} x
+        set ${r("attempts")} = x.${r("attempts")} + 1, ${e("updatedAt")} = now()
+        where x.${e("id")} = v_due
+        returning * into v_row;
         v_emails := v_emails || jsonb_build_array(jsonb_build_object(
-          'enrollmentId', v_member.${r("enrollment")}, 'sequenceId', v_member.${r("sequence")}, 'organizationId', v_member.${r("tenant")},
-          'accountId', coalesce(v_member.${r("account")}, v_sequence.${s("account")}), 'threadId', v_member.${r("thread")},
-          'to', jsonb_build_object('address', v_member.${r("address")}, 'name', v_member.${r("name")}),
-          'step', v_step, 'variables', v_member.${r("variables")}, 'attempt', v_member.${r("attempts")},
-          'subjectType', v_member.${r("subjectType")}, 'subjectId', v_member.${r("subjectId")}));
+          'enrollmentId', v_row.${e("id")}, 'sequenceId', v_row.${r("sequence")}, 'organizationId', v_row.${e("tenant")},
+          'accountId', coalesce(v_row.${r("account")}, v_sequence.${s("account")}), 'threadId', v_row.${r("thread")},
+          'to', jsonb_build_object('address', v_row.${r("address")}, 'name', v_row.${r("name")}),
+          'step', v_step, 'variables', v_row.${r("variables")}, 'attempt', v_row.${r("attempts")},
+          'subjectType', v_row.${e("subjectType")}, 'subjectId', v_row.${e("subjectId")}));
         exit;
       end if;${task}
-      perform ${fn("sequence_step_done")}(v_member.${r("enrollment")}, v_member.${r("step")});
+      perform ${fn("sequence_step_done")}(v_due, v_current);
       v_ran := v_ran + 1;
     end loop;
   end loop;
@@ -125,20 +149,16 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member ${q.members};
+  v_row ${q.enrollments};
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (${SERVICE_CALLER}) then
     ${forbidden}
   end if;
-  select * into v_member from ${q.members} x where x.${r("enrollment")} = sequence_step_sent.enrollment_id for update;
-  if v_member.${r("enrollment")} is null then
-    ${q.memberMissing}
-  end if;
-  if v_member.${r("status")} <> 'active' or v_member.${r("step")} is distinct from sequence_step_sent.step then
-    return ${fn("sequence_member_json")}(v_member.${r("enrollment")});
-  end if;${threadOf(ctx)}
-  perform ${fn("sequence_step_done")}(v_member.${r("enrollment")}, sequence_step_sent.step);
-  return ${fn("sequence_member_json")}(v_member.${r("enrollment")});
+  ${claimed("sequence_step_sent")}${threadOf(ctx)}
+  perform ${fn("sequence_step_done")}(v_row.${e("id")}, sequence_step_sent.step);
+  return ${fn("sequence_member_json")}(v_row.${e("id")});
 end;
 $$;
 ${serviceGrant(`${fn("sequence_step_sent")}(uuid, text, uuid)`)}
@@ -154,27 +174,25 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member ${q.members};
+  v_row ${q.enrollments};
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (${SERVICE_CALLER}) then
     ${forbidden}
   end if;
-  select * into v_member from ${q.members} x where x.${r("enrollment")} = sequence_step_failed.enrollment_id for update;
-  if v_member.${r("enrollment")} is null then
-    ${q.memberMissing}
+  ${claimed("sequence_step_failed")}
+  update ${q.enrollments} x
+  set ${r("lastError")} = left(coalesce(sequence_step_failed.error, 'send failed'), 2000), ${e("updatedAt")} = now()
+  where x.${e("id")} = v_row.${e("id")}
+  returning * into v_row;
+  update ${q.done} y
+  set ${d("dueAt")} = now() + make_interval(mins => ${String(retryMinutes)} * greatest(v_row.${r("attempts")}, 1))
+  where y.${d("enrollment")} = v_row.${e("id")} and y.${d("completedAt")} is null;
+  if v_row.${r("attempts")} >= ${String(maxAttempts)} then
+    perform ${fn("sequence_exit")}(v_row.${e("id")}, 'failed');
   end if;
-  if v_member.${r("status")} <> 'active' or v_member.${r("step")} is distinct from sequence_step_failed.step then
-    return ${fn("sequence_member_json")}(v_member.${r("enrollment")});
-  end if;
-  update ${q.members} x
-  set ${q.has("members", "lastError") ? `${r("lastError")} = left(coalesce(sequence_step_failed.error, 'send failed'), 2000),\n    ` : ""}${r("nextRunAt")} = now() + make_interval(mins => ${String(retryMinutes)} * greatest(x.${r("attempts")}, 1)),
-    ${r("updatedAt")} = now()
-  where x.${r("enrollment")} = v_member.${r("enrollment")}
-  returning * into v_member;
-  if v_member.${r("attempts")} >= ${String(maxAttempts)} then
-    perform ${fn("sequence_exit")}(v_member.${r("enrollment")}, 'failed');
-  end if;
-  return ${fn("sequence_member_json")}(v_member.${r("enrollment")});
+  return ${fn("sequence_member_json")}(v_row.${e("id")});
 end;
 $$;
 ${serviceGrant(`${fn("sequence_step_failed")}(uuid, text, text)`)}
@@ -183,7 +201,7 @@ ${serviceGrant(`${fn("sequence_step_failed")}(uuid, text, text)`)}
 
 function threadOf(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
-  const { r, mail } = q;
+  const { r, e, mail } = q;
 
   if (mail === undefined) {
     return "";
@@ -193,16 +211,16 @@ function threadOf(ctx: BlockSqlContext): string {
 
   return `
   if sequence_step_sent.message_id is not null then
-    update ${q.members} x
-    set ${r("thread")} = coalesce(x.${r("thread")}, y.${m("thread")}), ${r("account")} = coalesce(x.${r("account")}, y.${m("account")}), ${r("updatedAt")} = now()
+    update ${q.enrollments} x
+    set ${r("thread")} = coalesce(x.${r("thread")}, y.${m("thread")}), ${r("account")} = coalesce(x.${r("account")}, y.${m("account")}), ${e("updatedAt")} = now()
     from ${mail.table("messages")} y
-    where x.${r("enrollment")} = v_member.${r("enrollment")} and y.${m("id")} = sequence_step_sent.message_id and y.${m("tenant")} = v_member.${r("tenant")};
+    where x.${e("id")} = v_row.${e("id")} and y.${m("id")} = sequence_step_sent.message_id and y.${m("tenant")} = v_row.${e("tenant")};
   end if;`;
 }
 
 function replies(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
-  const { fn, s, r, mail } = q;
+  const { fn, s, r, e, mail } = q;
 
   if (mail === undefined) {
     return "";
@@ -221,17 +239,17 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_member ${q.members};
+  v_run uuid;
 begin
-  for v_member in
-    select x.* from ${q.members} x
+  for v_run in
+    select x.${e("id")} from ${q.enrollments} x
     join ${q.sequences} y on y.${s("id")} = x.${r("sequence")}
-    where x.${r("tenant")} = new.${m("tenant")} and x.${r("status")} in ('active', 'paused') and y.${s("exitOnReply")}
+    where x.${e("tenant")} = new.${m("tenant")} and x.${e("status")} = 'active' and y.${s("exitOnReply")}
       and ((new.${m("thread")} is not null and x.${r("thread")} = new.${m("thread")})
         or (new.${m("fromAddress")} is not null and lower(x.${r("address")}) = lower(new.${m("fromAddress")})))
     for update of x
   loop
-    perform ${fn("sequence_exit")}(v_member.${r("enrollment")}, 'replied');
+    perform ${fn("sequence_exit")}(v_run, 'replied');
   end loop;
   return null;
 end;

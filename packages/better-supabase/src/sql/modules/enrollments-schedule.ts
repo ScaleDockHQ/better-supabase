@@ -100,7 +100,8 @@ export function scheduleInternals(ctx: BlockSqlContext): string {
 -- the enrollment's start (or enrolled_at) or its end. A due date from the end
 -- stays null until the enrollment has one. Completed rows keep their
 -- completion; open rows of steps without a schedule go. Module programs
--- (keys with a colon) are not in the programs table and render nothing.
+-- (keys with a colon) are not in the programs table, so their module keeps
+-- their open rows.
 create or replace function ${fn("enrollment_schedule")}(target uuid)
 returns void
 language plpgsql
@@ -114,7 +115,7 @@ declare
   v_plan jsonb;
 begin
   select * into v_row from ${enrollments} x where x.${e("id")} = enrollment_schedule.target;
-  if v_row.${e("id")} is null or v_row.${e("tenant")} is null then
+  if v_row.${e("id")} is null or v_row.${e("tenant")} is null or position(':' in v_row.${e("program")}) > 0 then
     return;
   end if;
   select * into v_program from ${programs} x
@@ -265,6 +266,8 @@ begin
       join ${enrollments} x on x.${e("id")} = y.${s("enrollment")}
       where y.${s("tenant")} = open_enrollment_steps.tenant and x.${e("tenant")} = open_enrollment_steps.tenant
         and y.${s("completedAt")} is null and x.${e("status")} = ${ctx.cast("enrollments", "status", "'active'")}
+        -- A sequence's open step is its next run, which its runner takes.
+        and x.${e("program")} not like 'sequence:%'
         and (v_read or y.${s("assigneeUser")} = auth.uid())
         and (open_enrollment_steps.assignee_role is null or y.${s("assigneeRole")} = open_enrollment_steps.assignee_role)
         and (open_enrollment_steps.assignee_user is null or y.${s("assigneeUser")} = open_enrollment_steps.assignee_user)

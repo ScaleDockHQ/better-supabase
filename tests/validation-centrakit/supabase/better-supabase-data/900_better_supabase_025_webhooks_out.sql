@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:e3cb483da126fe920cb5d06ac9248487cbeca40a7b52cbf7cafa99add1daddff
+-- @bsb-hash sha256:bc888ddd874aee81075a3e283925e26fd56993ca31d2cad1e719249c7f4111d1
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -107,6 +107,13 @@ with m(old_type, next_types) as (values
   ('segment.removed', array['segment.deleted']::text[]),
   ('segment.saved', array['segment.created', 'segment.updated']::text[]),
   ('sequence.saved', array['sequence.created', 'sequence.updated']::text[]),
+  ('sequence_enrollment.*', array['enrollment.*']::text[]),
+  ('sequence_enrollment.completed', array['enrollment.completed']::text[]),
+  ('sequence_enrollment.created', array['enrollment.created']::text[]),
+  ('sequence_enrollment.exited', array['enrollment.cancelled']::text[]),
+  ('sequence_enrollment.paused', array['enrollment.paused']::text[]),
+  ('sequence_enrollment.resumed', array['enrollment.resumed']::text[]),
+  ('sequence_enrollment.step_completed', array['enrollment.step_completed']::text[]),
   ('signature.*', array['signature_request.*']::text[]),
   ('signature.cancelled', array['signature_request.cancelled']::text[]),
   ('signature.completed', array['signature_request.completed']::text[]),

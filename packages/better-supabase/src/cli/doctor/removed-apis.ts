@@ -33,6 +33,11 @@ const REMOVED_NAMES: readonly { pattern: RegExp; replacement: string }[] = [
     replacement: "`credits(passId)` on the ledger",
   },
   {
+    pattern: /\bsequence_enrollments\b/,
+    replacement:
+      "the `enrollments` rows whose `program` is `sequence:<sequence id>`, with the run in their `sequence_*` columns and `paused_at`",
+  },
+  {
     pattern: /\.blockRouter\(/,
     replacement:
       "`bsb.router(defineApi(betterSupabase, options))`, which routes every block instance and table",

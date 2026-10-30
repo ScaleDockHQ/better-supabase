@@ -1,6 +1,6 @@
 ---
 title: From 0.46 to 0.47
-description: What to check when upgrading from better-supabase 0.46 to 0.47, where block entity keys equal the entity's singular, three subject types and the hint codes take the new nouns, block functions are renamed, every event type names its entity and a past verb, policy acknowledgements move onto the acknowledgements block, and doctor adds BS423 and BS424. AI document versions move onto the versions block, and with the tasks block postmortem action items become tasks.
+description: What to check when upgrading from better-supabase 0.46 to 0.47, where block entity keys equal the entity's singular, three subject types and the hint codes take the new nouns, block functions are renamed, every event type names its entity and a past verb, policy acknowledgements move onto the acknowledgements block, sequence runs move onto enrollments, and doctor adds BS423 and BS424. AI document versions move onto the versions block, and with the tasks block postmortem action items become tasks.
 ---
 
 0.47.0 finishes the naming convention (ADR 0130): the key of every entity in
@@ -11,8 +11,9 @@ lists for review. Old entity keys and the old subject types keep working until
 0.48, with a warning. The outbox stores the new event types, so subscribers to
 an old type miss its events until you rename them; receivers outside the app
 can keep the old names for one minor with the outbox `legacyEventTypes`
-option. AI document versions move onto the versions block, and with the
-tasks block postmortem action items become tasks.
+option. AI document versions move onto the versions block, with the tasks
+block postmortem action items become tasks, and sequence runs move onto
+enrollments.
 
 | Section                                             | Needs code                                          |
 | --------------------------------------------------- | --------------------------------------------------- |
@@ -24,6 +25,7 @@ tasks block postmortem action items become tasks.
 | [AI document versions](#ai-document-versions)       | Run `upgrade`; copy a renamed table by hand         |
 | [Postmortem action items](#postmortem-action-items) | With `tasks`, use `addPostmortemAction`             |
 | [Policy acknowledgements](#policy-acknowledgements) | Call the acknowledgements block                     |
+| [Sequence runs](#sequence-runs)                     | Rename SQL that reads `sequence_enrollments`        |
 | [The SQL modules](#the-sql-modules)                 | Run `upgrade` and generate a migration              |
 
 ## Entity keys
@@ -312,6 +314,58 @@ acknowledgements functions; they are deprecated and go in 0.48. Move to
 `compliance.acknowledge` grants `acknowledgements.acknowledge`
 (`PERMISSION_KEY_RENAMES`), and `EVENT_TYPE_RENAMES` maps the old event. The
 codemod lists the old calls, the table, the hint and the event for review.
+
+## Sequence runs
+
+A sequence run is now an [enrollment](/docs/blocks/enrollments) in the
+program `sequence:<sequence id>` (ADR 0131), and the `sequence_enrollments`
+table is gone. The sequences client doesn't change: `enroll`, `pause`,
+`resume`, `exit` and `enrollments` take and return the same runs. SQL that
+reads the table reads `enrollments` instead:
+
+```sql
+-- 0.46
+select address, status, step, next_run_at
+from better_supabase.sequence_enrollments
+where sequence_id = $1;
+
+-- 0.47
+select x.sequence_address, x.status, x.paused_at, x.cancel_reason, s.step, s.due_at
+from better_supabase.enrollments x
+left join better_supabase.enrollment_steps s
+  on s.enrollment_id = x.id and s.completed_at is null
+where x.sequence_id = $1;
+```
+
+The run's columns move onto `enrollments` with a `sequence_` prefix
+(`address` is `sequence_address`, `mail_thread_id` is
+`sequence_mail_thread_id`, and so on), the next step is the open
+`enrollment_steps` row with `due_at`, a paused run has `paused_at`, and an
+exited run is `cancelled` with the reason in `cancel_reason`. `upgrade`
+renders a data step that copies each `sequence_enrollments` row onto its
+enrollment and its next step, then drops the table. A `members` table you
+adopted for sequences in 0.46 isn't moved; copy its rows the same way before
+you drop it. Doctor reports `sequence_enrollments` in your code.
+
+The run events move too: a run writes the enrollment events with `program`
+set to `sequence:<sequence id>`.
+
+| 0.46                                                   | 0.47                                                     |
+| ------------------------------------------------------ | -------------------------------------------------------- |
+| `sequence_enrollment.created`, `.step_completed`       | `enrollment.created`, `.step_completed`                  |
+| `sequence_enrollment.paused`, `.resumed`, `.completed` | `enrollment.paused`, `.resumed`, `.completed`            |
+| `sequence_enrollment.exited`                           | `enrollment.cancelled`, with the exit reason in `reason` |
+
+Other programs, such as onboarding checklists and courses, emit the same
+events, so the codemod lists these types for review instead of renaming
+them: subscribe to the new type and check `data.program`. The data step
+renames the stored types and adds the new ones to the type lists of outbox
+consumers and webhook endpoints, which then also receive the other programs'
+events. Until 0.48, `legacyEventTypes` relays a run event under its old name,
+and `legacyEventType(type, data)` returns it for a payload whose `program`
+starts with `sequence:`. `SequenceEnrollmentEventData` is a deprecated alias
+of `EnrollmentEventData` until then. `PROGRAM_EVENT_MOVES` (`better-supabase`)
+lists the moves.
 
 ## The SQL modules
 

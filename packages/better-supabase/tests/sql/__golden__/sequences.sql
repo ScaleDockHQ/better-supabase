@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
--- @bsb-block sequences@1 managed
--- @bsb-hash sha256:b76e04366aa68516e9a56befcd9c06bb306cff119e6da6cd1f2be1de49135bb4
+-- @bsb-block sequences@2 managed
+-- @bsb-hash sha256:33365968bf1c41a52185a6cf1ce100c344e2a5720f204774a62cfbfc345ff881
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -52,14 +52,6 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
   exception when undefined_table or invalid_schema_name then null;
   end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -90,39 +82,22 @@ create table if not exists "better_supabase"."sequences" (
 );
 create index if not exists "sequences_account_idx" on "better_supabase"."sequences" ("mail_account_id") where "mail_account_id" is not null;
 
--- Where a recipient is in a sequence. The enrollment holds the completed
--- steps; this holds the next step, when it runs and who it goes to.
-create table if not exists "better_supabase"."sequence_enrollments" (
-  "enrollment_id" uuid primary key references "better_supabase"."enrollments" ("id") on delete cascade,
-  "tenant_id" uuid not null,
-  "sequence_id" uuid not null references "better_supabase"."sequences" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "address" text check ("address" is null or (length("address") <= 320 and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
-  "name" text check ("name" is null or length("name") <= 200),
-  "mail_account_id" uuid,
-  -- The thread the first email started; later emails reply on it.
-  "mail_thread_id" uuid,
-  -- The step that runs next, null once every step is done.
-  "step" text,
-  "next_run_at" timestamptz,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'completed', 'exited')),
-  "exit_reason" text check ("exit_reason" is null or "exit_reason" in ('replied', 'manual', 'failed', 'archived')),
-  "attempts" integer not null default 0 check ("attempts" >= 0),
-  "last_error" text check ("last_error" is null or length("last_error") <= 2000),
-  -- Values for the {{key}} placeholders of the email steps.
-  "variables" jsonb not null default '{}' check (jsonb_typeof("variables") = 'object'),
-  "enrolled_by" uuid,
-  "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now(),
-  check (("status" = 'exited') = ("exit_reason" is not null))
-);
-create index if not exists "sequence_enrollments_parent_idx" on "better_supabase"."sequence_enrollments" ("sequence_id", "status");
-create index if not exists "sequence_enrollments_due_idx" on "better_supabase"."sequence_enrollments" ("next_run_at") where "status" = 'active';
-create index if not exists "sequence_enrollments_subject_idx" on "better_supabase"."sequence_enrollments" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "sequence_enrollments_address_idx" on "better_supabase"."sequence_enrollments" ("tenant_id", lower("address")) where "status" in ('active', 'paused');
-create index if not exists "sequence_enrollments_account_idx" on "better_supabase"."sequence_enrollments" ("mail_account_id") where "mail_account_id" is not null;
-create index if not exists "sequence_enrollments_thread_idx" on "better_supabase"."sequence_enrollments" ("mail_thread_id") where "mail_thread_id" is not null;
+-- A recipient's run is their enrollment in the program sequence:<id>: these
+-- columns say who it goes to and how sending went, and the open step row is
+-- the step that runs next, due when it runs.
+alter table "better_supabase"."enrollments" add column if not exists "sequence_id" uuid references "better_supabase"."sequences" ("id") on delete cascade;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_address" text check ("sequence_address" is null or (length("sequence_address") <= 320 and "sequence_address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'));
+alter table "better_supabase"."enrollments" add column if not exists "sequence_name" text check ("sequence_name" is null or length("sequence_name") <= 200);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_account_id" uuid;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_thread_id" uuid;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_attempts" integer not null default 0 check ("sequence_attempts" >= 0);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_last_error" text check ("sequence_last_error" is null or length("sequence_last_error") <= 2000);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_variables" jsonb not null default '{}' check (jsonb_typeof("sequence_variables") = 'object');
+create index if not exists "enrollments_sequence_idx" on "better_supabase"."enrollments" ("sequence_id", "status") where "sequence_id" is not null;
+create index if not exists "enrollments_sequence_address_idx" on "better_supabase"."enrollments" ("tenant_id", lower("sequence_address")) where "sequence_id" is not null and "status" = 'active';
+create index if not exists "enrollments_sequence_account_idx" on "better_supabase"."enrollments" ("sequence_mail_account_id") where "sequence_mail_account_id" is not null;
+create index if not exists "enrollments_sequence_thread_idx" on "better_supabase"."enrollments" ("sequence_mail_thread_id") where "sequence_mail_thread_id" is not null;
+create index if not exists "enrollment_steps_open_due_idx" on "better_supabase"."enrollment_steps" ("due_at") where "completed_at" is null;
 
 alter table "better_supabase"."sequences" enable row level security;
 revoke all on "better_supabase"."sequences" from public, anon, authenticated;
@@ -130,14 +105,6 @@ grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
 drop policy if exists "sequences_read" on "better_supabase"."sequences";
 create policy sequences_read on "better_supabase"."sequences"
-  for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
-alter table "better_supabase"."sequence_enrollments" enable row level security;
-revoke all on "better_supabase"."sequence_enrollments" from public, anon, authenticated;
-grant select on "better_supabase"."sequence_enrollments" to authenticated;
-grant all on "better_supabase"."sequence_enrollments" to service_role;
-drop policy if exists "sequence_enrollments_read" on "better_supabase"."sequence_enrollments";
-create policy sequence_enrollments_read on "better_supabase"."sequence_enrollments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
@@ -227,20 +194,24 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."enrollment_id", 'organizationId', x."tenant_id", 'sequenceId', x."sequence_id",
-    'subjectType', x."subject_type", 'subjectId', x."subject_id", 'address', x."address", 'name', x."name",
-    'accountId', x."mail_account_id", 'threadId', x."mail_thread_id", 'step', x."step", 'nextRunAt', x."next_run_at",
-    'status', x."status", 'exitReason', x."exit_reason", 'attempts', x."attempts", 'lastError', x."last_error",
-    'variables', x."variables", 'enrolledBy', x."enrolled_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at",
-    'completedSteps', coalesce((select jsonb_agg(y."step" order by y."completed_at", y."step") from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."enrollment_id"), '[]'::jsonb))
-  from "better_supabase"."sequence_enrollments" x
-  where x."enrollment_id" = sequence_member_json.enrollment_id;
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sequenceId', x."sequence_id",
+    'subjectType', x."subject_type", 'subjectId', x."subject_id", 'address', x."sequence_address", 'name', x."sequence_name",
+    'accountId', x."sequence_mail_account_id", 'threadId', x."sequence_mail_thread_id", 'step', o."step", 'nextRunAt', o."due_at",
+    'status', (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end), 'exitReason', case when x."status" = 'cancelled' then x."cancel_reason" end,
+    'attempts', x."sequence_attempts", 'lastError', x."sequence_last_error",
+    'variables', x."sequence_variables", 'enrolledBy', x."enrolled_by", 'createdAt', x."enrolled_at", 'updatedAt', x."updated_at",
+    'completedSteps', coalesce((select jsonb_agg(y."step" order by y."completed_at", y."step") from "better_supabase"."enrollment_steps" y
+      where y."enrollment_id" = x."id" and y."completed_at" is not null), '[]'::jsonb))
+  from "better_supabase"."enrollments" x
+  left join "better_supabase"."enrollment_steps" o on o."enrollment_id" = x."id" and o."completed_at" is null
+  where x."id" = sequence_member_json.enrollment_id and x."sequence_id" is not null;
 $$;
 revoke execute on function "better_supabase"."sequence_member_json"(uuid) from public, anon, authenticated;
 
--- Moves a recipient to their first step not done: a wait step runs once its
--- minutes pass, the others right away. With every step done the run
--- completes. A recipient already on that step keeps their schedule.
+-- Moves a recipient to their first step not done: its open step row is due
+-- once a wait step's minutes pass, the others right away. A recipient already
+-- on that step keeps their schedule. A run that ended, or has every step
+-- done, keeps no open step.
 create or replace function "better_supabase"."sequence_place"(enrollment_id uuid)
 returns void
 language plpgsql
@@ -249,67 +220,60 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
   v_steps jsonb;
   v_next jsonb;
+  v_current text;
+  v_due timestamptz;
 begin
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_place.enrollment_id for update;
-  if v_member."enrollment_id" is null or v_member."status" in ('completed', 'exited') then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_place.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     return;
   end if;
-  select y."steps" into v_steps from "better_supabase"."sequences" y where y."id" = v_member."sequence_id";
+  if v_row."status" <> 'active' then
+    delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+    return;
+  end if;
+  select y."steps" into v_steps from "better_supabase"."sequences" y where y."id" = v_row."sequence_id";
   select t.value into v_next
   from jsonb_array_elements(coalesce(v_steps, '[]'::jsonb)) with ordinality as t(value, ord)
-  where not exists (select 1 from "better_supabase"."enrollment_steps" z where z."enrollment_id" = v_member."enrollment_id" and z."step" = t.value ->> 'id')
+  where not exists (
+    select 1 from "better_supabase"."enrollment_steps" z
+    where z."enrollment_id" = v_row."id" and z."step" = t.value ->> 'id' and z."completed_at" is not null
+  )
   order by t.ord
   limit 1;
-  if v_next is null then
-    update "better_supabase"."sequence_enrollments" x
-    set "status" = 'completed', "step" = null, "next_run_at" = null, "attempts" = 0, "last_error" = null, "updated_at" = now()
-    where x."enrollment_id" = v_member."enrollment_id"
-    returning * into v_member;
-    null;
+  select o."step", o."due_at" into v_current, v_due from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_next is not null and (v_next ->> 'id') is not distinct from v_current then
     return;
   end if;
-  if (v_next ->> 'id') is not distinct from v_member."step" then
-    return;
+  delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+  if v_next is not null then
+    insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "due_at", "completed_by", "completed_at")
+    values (v_row."id", v_row."tenant_id", v_next ->> 'id',
+      case when v_next ->> 'kind' = 'wait' then now() + make_interval(mins => (v_next ->> 'minutes')::integer) else now() end, null, null);
   end if;
-  update "better_supabase"."sequence_enrollments" x
-  set "step" = v_next ->> 'id',
-    "next_run_at" = case when v_next ->> 'kind' = 'wait' then now() + make_interval(mins => (v_next ->> 'minutes')::integer) else now() end,
-    "attempts" = 0, "last_error" = null, "updated_at" = now()
-  where x."enrollment_id" = v_member."enrollment_id";
+  update "better_supabase"."enrollments" x
+  set "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
+  where x."id" = v_row."id";
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_place"(uuid) from public, anon, authenticated;
 
--- Ends a recipient's run (reason: replied, manual, failed or archived) and
--- cancels their enrollment; the completed steps stay.
+-- Ends a recipient's run (reason: replied, manual, failed or archived) by
+-- cancelling their enrollment; the completed steps stay. A manual exit is
+-- audited.
 create or replace function "better_supabase"."sequence_exit"(enrollment_id uuid, reason text)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
-declare
-  v_member "better_supabase"."sequence_enrollments";
 begin
-  update "better_supabase"."sequence_enrollments" x
-  set "status" = 'exited', "exit_reason" = sequence_exit.reason, "next_run_at" = null, "updated_at" = now()
-  where x."enrollment_id" = sequence_exit.enrollment_id and x."status" in ('active', 'paused')
-  returning * into v_member;
-  if v_member."enrollment_id" is null then
-    return;
-  end if;
-  update "better_supabase"."enrollments" x
-  set "status" = 'cancelled', "cancelled_at" = now(), "updated_at" = now()
-  where x."id" = v_member."enrollment_id" and x."status" <> 'cancelled';
-  if sequence_exit.reason = 'manual' then
-    null;
-  else
-    null;
-  end if;
+  perform "better_supabase"."enrollment_cancel"(sequence_exit.enrollment_id, sequence_exit.reason,
+    case when sequence_exit.reason = 'manual' then auth.uid() end);
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_exit"(uuid, text) from public, anon, authenticated;
@@ -321,13 +285,8 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
-declare
-  v_member "better_supabase"."sequence_enrollments";
 begin
   perform "better_supabase"."enrollment_mark"(sequence_step_done.enrollment_id, sequence_step_done.step, true, null);
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_done.enrollment_id;
-  null;
   perform "better_supabase"."sequence_place"(sequence_step_done.enrollment_id);
 end;
 $$;
@@ -344,17 +303,17 @@ as $$
 #variable_conflict use_variable
 declare
   v_sequence "better_supabase"."sequences";
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
 begin
   select * into v_sequence from "better_supabase"."sequences" x where x."id" = sequence_resync.sequence_id;
-  for v_member in
-    select * from "better_supabase"."sequence_enrollments" x
-    where x."sequence_id" = sequence_resync.sequence_id and x."status" in ('active', 'paused')
+  for v_row in
+    select * from "better_supabase"."enrollments" x
+    where x."sequence_id" = sequence_resync.sequence_id and x."status" = 'active'
     for update
   loop
     perform "better_supabase"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
-      v_member."subject_type", v_member."subject_id", null);
-    perform "better_supabase"."sequence_place"(v_member."enrollment_id");
+      v_row."subject_type", v_row."subject_id", null);
+    perform "better_supabase"."sequence_place"(v_row."id");
   end loop;
 end;
 $$;
@@ -382,7 +341,7 @@ declare
   v_exit boolean;
   v_account uuid;
   v_steps jsonb;
-  v_member "better_supabase"."sequence_enrollments";
+  v_run uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -454,11 +413,11 @@ begin
       perform "better_supabase"."sequence_resync"(v_row."id");
     end if;
     if v_row."status" = 'archived' and v_old."status" <> 'archived' then
-      for v_member in
-        select * from "better_supabase"."sequence_enrollments" x
-        where x."sequence_id" = v_row."id" and x."status" in ('active', 'paused')
+      for v_run in
+        select x."id" from "better_supabase"."enrollments" x
+        where x."sequence_id" = v_row."id" and x."status" = 'active'
       loop
-        perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'archived');
+        perform "better_supabase"."sequence_exit"(v_run, 'archived');
       end loop;
     end if;
   end if;
@@ -467,10 +426,10 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."save_sequence"(uuid, jsonb) from public, anon;
@@ -491,10 +450,10 @@ begin
     raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'status', x."status", 'exitOnReply', x."exit_on_reply", 'accountId', x."mail_account_id", 'steps', x."steps", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = x."id")) order by x."name", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'status', x."status", 'exitOnReply', x."exit_on_reply", 'accountId', x."mail_account_id", 'steps', x."steps", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = x."id")) order by x."name", x."id")
     from "better_supabase"."sequences" x
     where x."tenant_id" = list_sequences.tenant
       and (case when list_sequences.status is null then x."status" <> 'archived' else x."status"::text = list_sequences.status end)
@@ -520,10 +479,10 @@ begin
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) then
     raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."get_sequence"(uuid) from public, anon;
@@ -573,7 +532,6 @@ as $$
 declare
   v_sequence "better_supabase"."sequences";
   v_row "better_supabase"."enrollments";
-  v_member "better_supabase"."sequence_enrollments";
   v_attrs jsonb := coalesce(enroll_in_sequence.attrs, '{}'::jsonb);
   v_address text;
   v_name text;
@@ -630,33 +588,22 @@ begin
   where x."tenant_id" = v_sequence."tenant_id" and x."program" = ('sequence:' || v_sequence."id"::text)
     and x."subject_type" = enroll_in_sequence.subject_type and x."subject_id" = enroll_in_sequence.subject_id
   for update;
-  if v_row."id" is not null then
-    select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_row."id" for update;
-    if v_member."status" in ('active', 'paused') then
-      return "better_supabase"."sequence_member_json"(v_row."id");
-    end if;
-    -- Starting over: clearing the steps makes enrollment_ensure take the
-    -- current ones, with none done.
-    delete from "better_supabase"."enrollment_steps" x where x."enrollment_id" = v_row."id";
-    update "better_supabase"."enrollments" x
-    set "status" = 'active', "cancelled_at" = null, "completed_at" = null, "enrolled_by" = auth.uid(),
-      "enrolled_at" = now(), "steps" = '{}'
-    where x."id" = v_row."id";
+  if v_row."id" is not null and v_row."status" = 'active' then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  v_id := "better_supabase"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
-    enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
-  insert into "better_supabase"."sequence_enrollments" ("enrollment_id", "tenant_id", "sequence_id", "subject_type", "subject_id", "address", "name",
-    "mail_account_id", "variables", "status", "enrolled_by")
-  values (v_id, v_sequence."tenant_id", v_sequence."id", enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, v_address, v_name,
-    v_account, v_variables, 'active', auth.uid())
-  on conflict ("enrollment_id") do update
-  set "address" = excluded."address", "name" = excluded."name", "mail_account_id" = excluded."mail_account_id",
-    "variables" = excluded."variables", "enrolled_by" = excluded."enrolled_by", "status" = 'active',
-    "exit_reason" = null, "step" = null, "next_run_at" = null, "mail_thread_id" = null, "attempts" = 0,
-    "last_error" = null, "updated_at" = now();
+  if v_row."id" is not null then
+    -- Starting over: the run begins again with none of the steps done.
+    perform "better_supabase"."enrollment_restart"(v_row."id", v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord), auth.uid());
+    v_id := v_row."id";
+  else
+    v_id := "better_supabase"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
+      enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
+  end if;
+  update "better_supabase"."enrollments" x
+  set "sequence_id" = v_sequence."id", "sequence_address" = v_address, "sequence_name" = v_name, "sequence_mail_account_id" = v_account,
+    "sequence_mail_thread_id" = null, "sequence_variables" = v_variables, "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
+  where x."id" = v_id;
   perform "better_supabase"."sequence_place"(v_id);
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_id;
-  null;
   return "better_supabase"."sequence_member_json"(v_id);
 end;
 $$;
@@ -672,44 +619,39 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_status text;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = change_sequence_enrollment.enrollment_id for update;
-  if v_member."enrollment_id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false)))) then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = change_sequence_enrollment.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false)))) then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false))) then
     raise exception 'not allowed to change sequence enrollments' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
+  v_status := (case when v_row."status" = 'cancelled' then 'exited' when v_row."status" = 'completed' then 'completed' when v_row."paused_at" is not null then 'paused' else 'active' end);
   case change_sequence_enrollment.action
     when 'pause' then
-      if v_member."status" <> 'active' then
+      if v_status <> 'active' then
         raise exception 'only an active run can be paused' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      update "better_supabase"."sequence_enrollments" x set "status" = 'paused', "updated_at" = now()
-      where x."enrollment_id" = v_member."enrollment_id"
-      returning * into v_member;
-      null;
+      perform "better_supabase"."enrollment_pause"(v_row."id", true, auth.uid());
     when 'resume' then
-      if v_member."status" <> 'paused' then
+      if v_status <> 'paused' then
         raise exception 'only a paused run can be resumed' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      update "better_supabase"."sequence_enrollments" x set "status" = 'active', "updated_at" = now()
-      where x."enrollment_id" = v_member."enrollment_id"
-      returning * into v_member;
-      null;
+      perform "better_supabase"."enrollment_pause"(v_row."id", false, auth.uid());
     when 'exit' then
-      if v_member."status" not in ('active', 'paused') then
+      if v_status not in ('active', 'paused') then
         raise exception 'only an active or paused run can be exited' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'manual');
+      perform "better_supabase"."sequence_exit"(v_row."id", 'manual');
     else
       raise exception 'action must be pause, resume or exit' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end case;
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."change_sequence_enrollment"(uuid, text) from public, anon;
@@ -717,7 +659,7 @@ grant execute on function "better_supabase"."change_sequence_enrollment"(uuid, t
 
 -- An organization's sequence recipients, newest first. filter is
 -- { sequence, subjectType, subjectId, status, limit, before }: before is a
--- createdAt from the previous page.
+-- createdAt (when the run started) from the previous page.
 create or replace function "better_supabase"."list_sequence_enrollments"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -737,17 +679,17 @@ begin
     raise exception 'filter must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   return coalesce((
-    select jsonb_agg("better_supabase"."sequence_member_json"(y."enrollment_id") order by y."created_at" desc, y."enrollment_id" desc)
+    select jsonb_agg("better_supabase"."sequence_member_json"(y."id") order by y."enrolled_at" desc, y."id" desc)
     from (
-      select x."enrollment_id", x."created_at"
-      from "better_supabase"."sequence_enrollments" x
-      where x."tenant_id" = list_sequence_enrollments.tenant
+      select x."id", x."enrolled_at"
+      from "better_supabase"."enrollments" x
+      where x."tenant_id" = list_sequence_enrollments.tenant and x."sequence_id" is not null
         and (v_parent is null or x."sequence_id" = v_parent)
         and (v_filter ->> 'subjectType' is null or x."subject_type" = v_filter ->> 'subjectType')
         and (v_filter ->> 'subjectId' is null or x."subject_id" = v_filter ->> 'subjectId')
-        and (v_filter ->> 'status' is null or x."status"::text = v_filter ->> 'status')
-        and (v_filter ->> 'before' is null or x."created_at" < (v_filter ->> 'before')::timestamptz)
-      order by x."created_at" desc, x."enrollment_id" desc
+        and (v_filter ->> 'status' is null or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = v_filter ->> 'status')
+        and (v_filter ->> 'before' is null or x."enrolled_at" < (v_filter ->> 'before')::timestamptz)
+      order by x."enrolled_at" desc, x."id" desc
       limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)
     ) y
   ), '[]'::jsonb);
@@ -770,9 +712,11 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_due "better_supabase"."sequence_enrollments";
-  v_member "better_supabase"."sequence_enrollments";
+  v_due uuid;
+  v_row "better_supabase"."enrollments";
   v_sequence "better_supabase"."sequences";
+  v_current text;
+  v_next_run timestamptz;
   v_step jsonb;
   v_emails jsonb := '[]'::jsonb;
   v_ran integer := 0;
@@ -782,10 +726,11 @@ begin
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   for v_due in
-    select x.* from "better_supabase"."sequence_enrollments" x
+    select x."id" from "better_supabase"."enrollments" x
+    join "better_supabase"."enrollment_steps" o on o."enrollment_id" = x."id" and o."completed_at" is null
     join "better_supabase"."sequences" y on y."id" = x."sequence_id"
-    where x."status" = 'active' and x."next_run_at" <= now() and y."status" = 'active'
-    order by x."next_run_at", x."enrollment_id"
+    where o."due_at" <= now() and x."status" = 'active' and x."paused_at" is null and y."status" = 'active'
+    order by o."due_at", x."id"
     limit least(greatest(coalesce(run_due_sequences.max_count, 50), 1), 500)
     for update of x skip locked
   loop
@@ -793,28 +738,34 @@ begin
     loop
       v_turns := v_turns + 1;
       exit when v_turns > 60;
-      select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_due."enrollment_id";
-      exit when v_member."status" <> 'active' or v_member."step" is null or v_member."next_run_at" > now();
-      select * into v_sequence from "better_supabase"."sequences" x where x."id" = v_member."sequence_id";
-      v_step := (select t.value from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'id' = v_member."step");
+      select * into v_row from "better_supabase"."enrollments" x where x."id" = v_due;
+      v_current := null;
+      v_next_run := null;
+      select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_due and o."completed_at" is null limit 1;
+      exit when v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is null or v_next_run > now();
+      select * into v_sequence from "better_supabase"."sequences" x where x."id" = v_row."sequence_id";
+      v_step := (select t.value from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'id' = v_current);
       if v_step is null then
-        perform "better_supabase"."sequence_place"(v_member."enrollment_id");
+        delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_due and y."completed_at" is null;
+        perform "better_supabase"."sequence_place"(v_due);
         continue;
       end if;
       if v_step ->> 'kind' = 'email' then
-        update "better_supabase"."sequence_enrollments" x
-        set "attempts" = x."attempts" + 1, "next_run_at" = now() + interval '10 minutes', "updated_at" = now()
-        where x."enrollment_id" = v_member."enrollment_id"
-        returning * into v_member;
+        update "better_supabase"."enrollment_steps" y set "due_at" = now() + interval '10 minutes'
+        where y."enrollment_id" = v_due and y."completed_at" is null;
+        update "better_supabase"."enrollments" x
+        set "sequence_attempts" = x."sequence_attempts" + 1, "updated_at" = now()
+        where x."id" = v_due
+        returning * into v_row;
         v_emails := v_emails || jsonb_build_array(jsonb_build_object(
-          'enrollmentId', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'organizationId', v_member."tenant_id",
-          'accountId', coalesce(v_member."mail_account_id", v_sequence."mail_account_id"), 'threadId', v_member."mail_thread_id",
-          'to', jsonb_build_object('address', v_member."address", 'name', v_member."name"),
-          'step', v_step, 'variables', v_member."variables", 'attempt', v_member."attempts",
-          'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id"));
+          'enrollmentId', v_row."id", 'sequenceId', v_row."sequence_id", 'organizationId', v_row."tenant_id",
+          'accountId', coalesce(v_row."sequence_mail_account_id", v_sequence."mail_account_id"), 'threadId', v_row."sequence_mail_thread_id",
+          'to', jsonb_build_object('address', v_row."sequence_address", 'name', v_row."sequence_name"),
+          'step', v_step, 'variables', v_row."sequence_variables", 'attempt', v_row."sequence_attempts",
+          'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"));
         exit;
       end if;
-      perform "better_supabase"."sequence_step_done"(v_member."enrollment_id", v_member."step");
+      perform "better_supabase"."sequence_step_done"(v_due, v_current);
       v_ran := v_ran + 1;
     end loop;
   end loop;
@@ -835,20 +786,25 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_sent.enrollment_id for update;
-  if v_member."enrollment_id" is null then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_step_sent.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if v_member."status" <> 'active' or v_member."step" is distinct from sequence_step_sent.step then
-    return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is distinct from sequence_step_sent.step then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  perform "better_supabase"."sequence_step_done"(v_member."enrollment_id", sequence_step_sent.step);
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  perform "better_supabase"."sequence_step_done"(v_row."id", sequence_step_sent.step);
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_step_sent"(uuid, text, uuid) from public, anon, authenticated;
@@ -865,28 +821,34 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_failed.enrollment_id for update;
-  if v_member."enrollment_id" is null then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_step_failed.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if v_member."status" <> 'active' or v_member."step" is distinct from sequence_step_failed.step then
-    return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is distinct from sequence_step_failed.step then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  update "better_supabase"."sequence_enrollments" x
-  set "last_error" = left(coalesce(sequence_step_failed.error, 'send failed'), 2000),
-    "next_run_at" = now() + make_interval(mins => 15 * greatest(x."attempts", 1)),
-    "updated_at" = now()
-  where x."enrollment_id" = v_member."enrollment_id"
-  returning * into v_member;
-  if v_member."attempts" >= 3 then
-    perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'failed');
+  update "better_supabase"."enrollments" x
+  set "sequence_last_error" = left(coalesce(sequence_step_failed.error, 'send failed'), 2000), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  update "better_supabase"."enrollment_steps" y
+  set "due_at" = now() + make_interval(mins => 15 * greatest(v_row."sequence_attempts", 1))
+  where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+  if v_row."sequence_attempts" >= 3 then
+    perform "better_supabase"."sequence_exit"(v_row."id", 'failed');
   end if;
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_step_failed"(uuid, text, text) from public, anon, authenticated;
@@ -928,27 +890,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
 create policy bsb_tenant_scope_delete on "better_supabase"."sequences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."sequence_enrollments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_select on "better_supabase"."sequence_enrollments" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_update on "better_supabase"."sequence_enrollments" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()))
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -966,21 +907,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block-data sequences
--- @bsb-hash sha256:fe62775dbd286939b1e0c564d816fd08a8089ab466afd777958e59dc6b732381
+-- @bsb-hash sha256:882f94cc0c9f6809311120cc5646344d881689fd649d666011977bb8ccc9624a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('sequences', 1, 'managed')
+values ('sequences', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
--- @bsb-block sequences@1 managed
--- @bsb-hash sha256:d8cf7ed1d8419e55518ad63a37a0b448e70d61fa73b79e443337c3c791b3e28c
+-- @bsb-block sequences@2 managed
+-- @bsb-hash sha256:a946c1c404ffc8a560a6b0b27c4dd62e4000485849568b6f38c304cb754f6c7f
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1031,14 +972,6 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
   exception when undefined_table or invalid_schema_name then null;
   end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -1069,39 +1002,22 @@ create table if not exists "better_supabase"."sequences" (
 );
 create index if not exists "sequences_account_idx" on "better_supabase"."sequences" ("mail_account_id") where "mail_account_id" is not null;
 
--- Where a recipient is in a sequence. The enrollment holds the completed
--- steps; this holds the next step, when it runs and who it goes to.
-create table if not exists "better_supabase"."sequence_enrollments" (
-  "enrollment_id" uuid primary key references "better_supabase"."enrollments" ("id") on delete cascade,
-  "tenant_id" uuid not null,
-  "sequence_id" uuid not null references "better_supabase"."sequences" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "address" text check ("address" is null or (length("address") <= 320 and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
-  "name" text check ("name" is null or length("name") <= 200),
-  "mail_account_id" uuid references "better_supabase"."mail_accounts" ("id") on delete set null,
-  -- The thread the first email started; later emails reply on it.
-  "mail_thread_id" uuid references "better_supabase"."mail_threads" ("id") on delete set null,
-  -- The step that runs next, null once every step is done.
-  "step" text,
-  "next_run_at" timestamptz,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'completed', 'exited')),
-  "exit_reason" text check ("exit_reason" is null or "exit_reason" in ('replied', 'manual', 'failed', 'archived')),
-  "attempts" integer not null default 0 check ("attempts" >= 0),
-  "last_error" text check ("last_error" is null or length("last_error") <= 2000),
-  -- Values for the {{key}} placeholders of the email steps.
-  "variables" jsonb not null default '{}' check (jsonb_typeof("variables") = 'object'),
-  "enrolled_by" uuid,
-  "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now(),
-  check (("status" = 'exited') = ("exit_reason" is not null))
-);
-create index if not exists "sequence_enrollments_parent_idx" on "better_supabase"."sequence_enrollments" ("sequence_id", "status");
-create index if not exists "sequence_enrollments_due_idx" on "better_supabase"."sequence_enrollments" ("next_run_at") where "status" = 'active';
-create index if not exists "sequence_enrollments_subject_idx" on "better_supabase"."sequence_enrollments" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "sequence_enrollments_address_idx" on "better_supabase"."sequence_enrollments" ("tenant_id", lower("address")) where "status" in ('active', 'paused');
-create index if not exists "sequence_enrollments_account_idx" on "better_supabase"."sequence_enrollments" ("mail_account_id") where "mail_account_id" is not null;
-create index if not exists "sequence_enrollments_thread_idx" on "better_supabase"."sequence_enrollments" ("mail_thread_id") where "mail_thread_id" is not null;
+-- A recipient's run is their enrollment in the program sequence:<id>: these
+-- columns say who it goes to and how sending went, and the open step row is
+-- the step that runs next, due when it runs.
+alter table "better_supabase"."enrollments" add column if not exists "sequence_id" uuid references "better_supabase"."sequences" ("id") on delete cascade;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_address" text check ("sequence_address" is null or (length("sequence_address") <= 320 and "sequence_address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'));
+alter table "better_supabase"."enrollments" add column if not exists "sequence_name" text check ("sequence_name" is null or length("sequence_name") <= 200);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_account_id" uuid references "better_supabase"."mail_accounts" ("id") on delete set null;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_thread_id" uuid references "better_supabase"."mail_threads" ("id") on delete set null;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_attempts" integer not null default 0 check ("sequence_attempts" >= 0);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_last_error" text check ("sequence_last_error" is null or length("sequence_last_error") <= 2000);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_variables" jsonb not null default '{}' check (jsonb_typeof("sequence_variables") = 'object');
+create index if not exists "enrollments_sequence_idx" on "better_supabase"."enrollments" ("sequence_id", "status") where "sequence_id" is not null;
+create index if not exists "enrollments_sequence_address_idx" on "better_supabase"."enrollments" ("tenant_id", lower("sequence_address")) where "sequence_id" is not null and "status" = 'active';
+create index if not exists "enrollments_sequence_account_idx" on "better_supabase"."enrollments" ("sequence_mail_account_id") where "sequence_mail_account_id" is not null;
+create index if not exists "enrollments_sequence_thread_idx" on "better_supabase"."enrollments" ("sequence_mail_thread_id") where "sequence_mail_thread_id" is not null;
+create index if not exists "enrollment_steps_open_due_idx" on "better_supabase"."enrollment_steps" ("due_at") where "completed_at" is null;
 
 alter table "better_supabase"."sequences" enable row level security;
 revoke all on "better_supabase"."sequences" from public, anon, authenticated;
@@ -1109,14 +1025,6 @@ grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
 drop policy if exists "sequences_read" on "better_supabase"."sequences";
 create policy sequences_read on "better_supabase"."sequences"
-  for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
-alter table "better_supabase"."sequence_enrollments" enable row level security;
-revoke all on "better_supabase"."sequence_enrollments" from public, anon, authenticated;
-grant select on "better_supabase"."sequence_enrollments" to authenticated;
-grant all on "better_supabase"."sequence_enrollments" to service_role;
-drop policy if exists "sequence_enrollments_read" on "better_supabase"."sequence_enrollments";
-create policy sequence_enrollments_read on "better_supabase"."sequence_enrollments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
@@ -1206,20 +1114,24 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."enrollment_id", 'organizationId', x."tenant_id", 'sequenceId', x."sequence_id",
-    'subjectType', x."subject_type", 'subjectId', x."subject_id", 'address', x."address", 'name', x."name",
-    'accountId', x."mail_account_id", 'threadId', x."mail_thread_id", 'step', x."step", 'nextRunAt', x."next_run_at",
-    'status', x."status", 'exitReason', x."exit_reason", 'attempts', x."attempts", 'lastError', x."last_error",
-    'variables', x."variables", 'enrolledBy', x."enrolled_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at",
-    'completedSteps', coalesce((select jsonb_agg(y."step" order by y."completed_at", y."step") from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."enrollment_id"), '[]'::jsonb))
-  from "better_supabase"."sequence_enrollments" x
-  where x."enrollment_id" = sequence_member_json.enrollment_id;
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sequenceId', x."sequence_id",
+    'subjectType', x."subject_type", 'subjectId', x."subject_id", 'address', x."sequence_address", 'name', x."sequence_name",
+    'accountId', x."sequence_mail_account_id", 'threadId', x."sequence_mail_thread_id", 'step', o."step", 'nextRunAt', o."due_at",
+    'status', (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end), 'exitReason', case when x."status" = 'cancelled' then x."cancel_reason" end,
+    'attempts', x."sequence_attempts", 'lastError', x."sequence_last_error",
+    'variables', x."sequence_variables", 'enrolledBy', x."enrolled_by", 'createdAt', x."enrolled_at", 'updatedAt', x."updated_at",
+    'completedSteps', coalesce((select jsonb_agg(y."step" order by y."completed_at", y."step") from "better_supabase"."enrollment_steps" y
+      where y."enrollment_id" = x."id" and y."completed_at" is not null), '[]'::jsonb))
+  from "better_supabase"."enrollments" x
+  left join "better_supabase"."enrollment_steps" o on o."enrollment_id" = x."id" and o."completed_at" is null
+  where x."id" = sequence_member_json.enrollment_id and x."sequence_id" is not null;
 $$;
 revoke execute on function "better_supabase"."sequence_member_json"(uuid) from public, anon, authenticated;
 
--- Moves a recipient to their first step not done: a wait step runs once its
--- minutes pass, the others right away. With every step done the run
--- completes. A recipient already on that step keeps their schedule.
+-- Moves a recipient to their first step not done: its open step row is due
+-- once a wait step's minutes pass, the others right away. A recipient already
+-- on that step keeps their schedule. A run that ended, or has every step
+-- done, keeps no open step.
 create or replace function "better_supabase"."sequence_place"(enrollment_id uuid)
 returns void
 language plpgsql
@@ -1228,77 +1140,60 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
   v_steps jsonb;
   v_next jsonb;
+  v_current text;
+  v_due timestamptz;
 begin
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_place.enrollment_id for update;
-  if v_member."enrollment_id" is null or v_member."status" in ('completed', 'exited') then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_place.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     return;
   end if;
-  select y."steps" into v_steps from "better_supabase"."sequences" y where y."id" = v_member."sequence_id";
+  if v_row."status" <> 'active' then
+    delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+    return;
+  end if;
+  select y."steps" into v_steps from "better_supabase"."sequences" y where y."id" = v_row."sequence_id";
   select t.value into v_next
   from jsonb_array_elements(coalesce(v_steps, '[]'::jsonb)) with ordinality as t(value, ord)
-  where not exists (select 1 from "better_supabase"."enrollment_steps" z where z."enrollment_id" = v_member."enrollment_id" and z."step" = t.value ->> 'id')
+  where not exists (
+    select 1 from "better_supabase"."enrollment_steps" z
+    where z."enrollment_id" = v_row."id" and z."step" = t.value ->> 'id' and z."completed_at" is not null
+  )
   order by t.ord
   limit 1;
-  if v_next is null then
-    update "better_supabase"."sequence_enrollments" x
-    set "status" = 'completed', "step" = null, "next_run_at" = null, "attempts" = 0, "last_error" = null, "updated_at" = now()
-    where x."enrollment_id" = v_member."enrollment_id"
-    returning * into v_member;
-    perform "better_supabase".emit_event('sequence_enrollment.completed', jsonb_build_object('organizationId', v_member."tenant_id", 'id', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id", 'status', v_member."status", 'step', null::text, 'reason', null::text), 'sequence-enrollments/' || v_member."enrollment_id"::text, (v_member."tenant_id")::text, null, 'better-supabase/sequences');
+  select o."step", o."due_at" into v_current, v_due from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_next is not null and (v_next ->> 'id') is not distinct from v_current then
     return;
   end if;
-  if (v_next ->> 'id') is not distinct from v_member."step" then
-    return;
+  delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+  if v_next is not null then
+    insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "due_at", "completed_by", "completed_at")
+    values (v_row."id", v_row."tenant_id", v_next ->> 'id',
+      case when v_next ->> 'kind' = 'wait' then now() + make_interval(mins => (v_next ->> 'minutes')::integer) else now() end, null, null);
   end if;
-  update "better_supabase"."sequence_enrollments" x
-  set "step" = v_next ->> 'id',
-    "next_run_at" = case when v_next ->> 'kind' = 'wait' then now() + make_interval(mins => (v_next ->> 'minutes')::integer) else now() end,
-    "attempts" = 0, "last_error" = null, "updated_at" = now()
-  where x."enrollment_id" = v_member."enrollment_id";
+  update "better_supabase"."enrollments" x
+  set "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
+  where x."id" = v_row."id";
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_place"(uuid) from public, anon, authenticated;
 
--- Ends a recipient's run (reason: replied, manual, failed or archived) and
--- cancels their enrollment; the completed steps stay.
+-- Ends a recipient's run (reason: replied, manual, failed or archived) by
+-- cancelling their enrollment; the completed steps stay. A manual exit is
+-- audited.
 create or replace function "better_supabase"."sequence_exit"(enrollment_id uuid, reason text)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
-declare
-  v_member "better_supabase"."sequence_enrollments";
 begin
-  update "better_supabase"."sequence_enrollments" x
-  set "status" = 'exited', "exit_reason" = sequence_exit.reason, "next_run_at" = null, "updated_at" = now()
-  where x."enrollment_id" = sequence_exit.enrollment_id and x."status" in ('active', 'paused')
-  returning * into v_member;
-  if v_member."enrollment_id" is null then
-    return;
-  end if;
-  update "better_supabase"."enrollments" x
-  set "status" = 'cancelled', "cancelled_at" = now(), "updated_at" = now()
-  where x."id" = v_member."enrollment_id" and x."status" <> 'cancelled';
-  if sequence_exit.reason = 'manual' then
-    perform "better_supabase".emit_event('sequence_enrollment.exited', jsonb_build_object('organizationId', v_member."tenant_id", 'id', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id", 'status', v_member."status", 'step', null::text, 'reason', v_member."exit_reason"), 'sequence-enrollments/' || v_member."enrollment_id"::text, (v_member."tenant_id")::text, null, 'better-supabase/sequences');
-  perform better_supabase.audit_event(
-    event_type => 'sequence_enrollment.exited',
-    category => 'data',
-    target_type => 'sequence',
-    record_id => v_member."sequence_id"::text,
-    target_label => v_member."subject_type" || ':' || v_member."subject_id",
-    summary => 'removed from a sequence',
-    tenant => (v_member."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_member."tenant_id", 'id', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id", 'status', v_member."status", 'step', null::text, 'reason', v_member."exit_reason")
-  );
-  else
-    perform "better_supabase".emit_event('sequence_enrollment.exited', jsonb_build_object('organizationId', v_member."tenant_id", 'id', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id", 'status', v_member."status", 'step', null::text, 'reason', v_member."exit_reason"), 'sequence-enrollments/' || v_member."enrollment_id"::text, (v_member."tenant_id")::text, null, 'better-supabase/sequences');
-  end if;
+  perform "better_supabase"."enrollment_cancel"(sequence_exit.enrollment_id, sequence_exit.reason,
+    case when sequence_exit.reason = 'manual' then auth.uid() end);
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_exit"(uuid, text) from public, anon, authenticated;
@@ -1310,13 +1205,8 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
-declare
-  v_member "better_supabase"."sequence_enrollments";
 begin
   perform "better_supabase"."enrollment_mark"(sequence_step_done.enrollment_id, sequence_step_done.step, true, null);
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_done.enrollment_id;
-  perform "better_supabase".emit_event('sequence_enrollment.step_completed', jsonb_build_object('organizationId', v_member."tenant_id", 'id', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id", 'status', v_member."status", 'step', sequence_step_done.step, 'reason', null::text), 'sequence-enrollments/' || v_member."enrollment_id"::text, (v_member."tenant_id")::text, null, 'better-supabase/sequences');
   perform "better_supabase"."sequence_place"(sequence_step_done.enrollment_id);
 end;
 $$;
@@ -1333,17 +1223,17 @@ as $$
 #variable_conflict use_variable
 declare
   v_sequence "better_supabase"."sequences";
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
 begin
   select * into v_sequence from "better_supabase"."sequences" x where x."id" = sequence_resync.sequence_id;
-  for v_member in
-    select * from "better_supabase"."sequence_enrollments" x
-    where x."sequence_id" = sequence_resync.sequence_id and x."status" in ('active', 'paused')
+  for v_row in
+    select * from "better_supabase"."enrollments" x
+    where x."sequence_id" = sequence_resync.sequence_id and x."status" = 'active'
     for update
   loop
     perform "better_supabase"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
-      v_member."subject_type", v_member."subject_id", null);
-    perform "better_supabase"."sequence_place"(v_member."enrollment_id");
+      v_row."subject_type", v_row."subject_id", null);
+    perform "better_supabase"."sequence_place"(v_row."id");
   end loop;
 end;
 $$;
@@ -1371,7 +1261,7 @@ declare
   v_exit boolean;
   v_account uuid;
   v_steps jsonb;
-  v_member "better_supabase"."sequence_enrollments";
+  v_run uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1447,11 +1337,11 @@ begin
       perform "better_supabase"."sequence_resync"(v_row."id");
     end if;
     if v_row."status" = 'archived' and v_old."status" <> 'archived' then
-      for v_member in
-        select * from "better_supabase"."sequence_enrollments" x
-        where x."sequence_id" = v_row."id" and x."status" in ('active', 'paused')
+      for v_run in
+        select x."id" from "better_supabase"."enrollments" x
+        where x."sequence_id" = v_row."id" and x."status" = 'active'
       loop
-        perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'archived');
+        perform "better_supabase"."sequence_exit"(v_run, 'archived');
       end loop;
     end if;
   end if;
@@ -1480,10 +1370,10 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status")
   );
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."save_sequence"(uuid, jsonb) from public, anon;
@@ -1504,10 +1394,10 @@ begin
     raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'status', x."status", 'exitOnReply', x."exit_on_reply", 'accountId', x."mail_account_id", 'steps', x."steps", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = x."id")) order by x."name", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'status', x."status", 'exitOnReply', x."exit_on_reply", 'accountId', x."mail_account_id", 'steps', x."steps", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = x."id")) order by x."name", x."id")
     from "better_supabase"."sequences" x
     where x."tenant_id" = list_sequences.tenant
       and (case when list_sequences.status is null then x."status" <> 'archived' else x."status"::text = list_sequences.status end)
@@ -1533,10 +1423,10 @@ begin
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) then
     raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."get_sequence"(uuid) from public, anon;
@@ -1596,7 +1486,6 @@ as $$
 declare
   v_sequence "better_supabase"."sequences";
   v_row "better_supabase"."enrollments";
-  v_member "better_supabase"."sequence_enrollments";
   v_attrs jsonb := coalesce(enroll_in_sequence.attrs, '{}'::jsonb);
   v_address text;
   v_name text;
@@ -1678,43 +1567,22 @@ begin
   where x."tenant_id" = v_sequence."tenant_id" and x."program" = ('sequence:' || v_sequence."id"::text)
     and x."subject_type" = enroll_in_sequence.subject_type and x."subject_id" = enroll_in_sequence.subject_id
   for update;
-  if v_row."id" is not null then
-    select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_row."id" for update;
-    if v_member."status" in ('active', 'paused') then
-      return "better_supabase"."sequence_member_json"(v_row."id");
-    end if;
-    -- Starting over: clearing the steps makes enrollment_ensure take the
-    -- current ones, with none done.
-    delete from "better_supabase"."enrollment_steps" x where x."enrollment_id" = v_row."id";
-    update "better_supabase"."enrollments" x
-    set "status" = 'active', "cancelled_at" = null, "completed_at" = null, "enrolled_by" = auth.uid(),
-      "enrolled_at" = now(), "steps" = '{}'
-    where x."id" = v_row."id";
+  if v_row."id" is not null and v_row."status" = 'active' then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  v_id := "better_supabase"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
-    enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
-  insert into "better_supabase"."sequence_enrollments" ("enrollment_id", "tenant_id", "sequence_id", "subject_type", "subject_id", "address", "name",
-    "mail_account_id", "variables", "status", "enrolled_by")
-  values (v_id, v_sequence."tenant_id", v_sequence."id", enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, v_address, v_name,
-    v_account, v_variables, 'active', auth.uid())
-  on conflict ("enrollment_id") do update
-  set "address" = excluded."address", "name" = excluded."name", "mail_account_id" = excluded."mail_account_id",
-    "variables" = excluded."variables", "enrolled_by" = excluded."enrolled_by", "status" = 'active',
-    "exit_reason" = null, "step" = null, "next_run_at" = null, "mail_thread_id" = null, "attempts" = 0,
-    "last_error" = null, "updated_at" = now();
+  if v_row."id" is not null then
+    -- Starting over: the run begins again with none of the steps done.
+    perform "better_supabase"."enrollment_restart"(v_row."id", v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord), auth.uid());
+    v_id := v_row."id";
+  else
+    v_id := "better_supabase"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
+      enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
+  end if;
+  update "better_supabase"."enrollments" x
+  set "sequence_id" = v_sequence."id", "sequence_address" = v_address, "sequence_name" = v_name, "sequence_mail_account_id" = v_account,
+    "sequence_mail_thread_id" = null, "sequence_variables" = v_variables, "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
+  where x."id" = v_id;
   perform "better_supabase"."sequence_place"(v_id);
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_id;
-  perform "better_supabase".emit_event('sequence_enrollment.created', jsonb_build_object('organizationId', v_member."tenant_id", 'id', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id", 'status', v_member."status", 'step', null::text, 'reason', null::text), 'sequence-enrollments/' || v_member."enrollment_id"::text, (v_member."tenant_id")::text, null, 'better-supabase/sequences');
-  perform better_supabase.audit_event(
-    event_type => 'sequence_enrollment.created',
-    category => 'data',
-    target_type => 'sequence',
-    record_id => v_member."sequence_id"::text,
-    target_label => v_member."subject_type" || ':' || v_member."subject_id",
-    summary => 'enrolled in a sequence',
-    tenant => (v_member."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_member."tenant_id", 'id', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id", 'status', v_member."status", 'step', null::text, 'reason', null::text)
-  );
   return "better_supabase"."sequence_member_json"(v_id);
 end;
 $$;
@@ -1730,64 +1598,39 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_status text;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = change_sequence_enrollment.enrollment_id for update;
-  if v_member."enrollment_id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false)))) then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = change_sequence_enrollment.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false)))) then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false))) then
     raise exception 'not allowed to change sequence enrollments' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
+  v_status := (case when v_row."status" = 'cancelled' then 'exited' when v_row."status" = 'completed' then 'completed' when v_row."paused_at" is not null then 'paused' else 'active' end);
   case change_sequence_enrollment.action
     when 'pause' then
-      if v_member."status" <> 'active' then
+      if v_status <> 'active' then
         raise exception 'only an active run can be paused' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      update "better_supabase"."sequence_enrollments" x set "status" = 'paused', "updated_at" = now()
-      where x."enrollment_id" = v_member."enrollment_id"
-      returning * into v_member;
-      perform "better_supabase".emit_event('sequence_enrollment.paused', jsonb_build_object('organizationId', v_member."tenant_id", 'id', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id", 'status', v_member."status", 'step', null::text, 'reason', null::text), 'sequence-enrollments/' || v_member."enrollment_id"::text, (v_member."tenant_id")::text, null, 'better-supabase/sequences');
-  perform better_supabase.audit_event(
-    event_type => 'sequence_enrollment.paused',
-    category => 'data',
-    target_type => 'sequence',
-    record_id => v_member."sequence_id"::text,
-    target_label => v_member."subject_type" || ':' || v_member."subject_id",
-    summary => 'paused a sequence run',
-    tenant => (v_member."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_member."tenant_id", 'id', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id", 'status', v_member."status", 'step', null::text, 'reason', null::text)
-  );
+      perform "better_supabase"."enrollment_pause"(v_row."id", true, auth.uid());
     when 'resume' then
-      if v_member."status" <> 'paused' then
+      if v_status <> 'paused' then
         raise exception 'only a paused run can be resumed' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      update "better_supabase"."sequence_enrollments" x set "status" = 'active', "updated_at" = now()
-      where x."enrollment_id" = v_member."enrollment_id"
-      returning * into v_member;
-      perform "better_supabase".emit_event('sequence_enrollment.resumed', jsonb_build_object('organizationId', v_member."tenant_id", 'id', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id", 'status', v_member."status", 'step', null::text, 'reason', null::text), 'sequence-enrollments/' || v_member."enrollment_id"::text, (v_member."tenant_id")::text, null, 'better-supabase/sequences');
-  perform better_supabase.audit_event(
-    event_type => 'sequence_enrollment.resumed',
-    category => 'data',
-    target_type => 'sequence',
-    record_id => v_member."sequence_id"::text,
-    target_label => v_member."subject_type" || ':' || v_member."subject_id",
-    summary => 'resumed a sequence run',
-    tenant => (v_member."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_member."tenant_id", 'id', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id", 'status', v_member."status", 'step', null::text, 'reason', null::text)
-  );
+      perform "better_supabase"."enrollment_pause"(v_row."id", false, auth.uid());
     when 'exit' then
-      if v_member."status" not in ('active', 'paused') then
+      if v_status not in ('active', 'paused') then
         raise exception 'only an active or paused run can be exited' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'manual');
+      perform "better_supabase"."sequence_exit"(v_row."id", 'manual');
     else
       raise exception 'action must be pause, resume or exit' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end case;
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."change_sequence_enrollment"(uuid, text) from public, anon;
@@ -1795,7 +1638,7 @@ grant execute on function "better_supabase"."change_sequence_enrollment"(uuid, t
 
 -- An organization's sequence recipients, newest first. filter is
 -- { sequence, subjectType, subjectId, status, limit, before }: before is a
--- createdAt from the previous page.
+-- createdAt (when the run started) from the previous page.
 create or replace function "better_supabase"."list_sequence_enrollments"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1815,17 +1658,17 @@ begin
     raise exception 'filter must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   return coalesce((
-    select jsonb_agg("better_supabase"."sequence_member_json"(y."enrollment_id") order by y."created_at" desc, y."enrollment_id" desc)
+    select jsonb_agg("better_supabase"."sequence_member_json"(y."id") order by y."enrolled_at" desc, y."id" desc)
     from (
-      select x."enrollment_id", x."created_at"
-      from "better_supabase"."sequence_enrollments" x
-      where x."tenant_id" = list_sequence_enrollments.tenant
+      select x."id", x."enrolled_at"
+      from "better_supabase"."enrollments" x
+      where x."tenant_id" = list_sequence_enrollments.tenant and x."sequence_id" is not null
         and (v_parent is null or x."sequence_id" = v_parent)
         and (v_filter ->> 'subjectType' is null or x."subject_type" = v_filter ->> 'subjectType')
         and (v_filter ->> 'subjectId' is null or x."subject_id" = v_filter ->> 'subjectId')
-        and (v_filter ->> 'status' is null or x."status"::text = v_filter ->> 'status')
-        and (v_filter ->> 'before' is null or x."created_at" < (v_filter ->> 'before')::timestamptz)
-      order by x."created_at" desc, x."enrollment_id" desc
+        and (v_filter ->> 'status' is null or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = v_filter ->> 'status')
+        and (v_filter ->> 'before' is null or x."enrolled_at" < (v_filter ->> 'before')::timestamptz)
+      order by x."enrolled_at" desc, x."id" desc
       limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)
     ) y
   ), '[]'::jsonb);
@@ -1848,9 +1691,11 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_due "better_supabase"."sequence_enrollments";
-  v_member "better_supabase"."sequence_enrollments";
+  v_due uuid;
+  v_row "better_supabase"."enrollments";
   v_sequence "better_supabase"."sequences";
+  v_current text;
+  v_next_run timestamptz;
   v_step jsonb;
   v_emails jsonb := '[]'::jsonb;
   v_ran integer := 0;
@@ -1860,10 +1705,11 @@ begin
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   for v_due in
-    select x.* from "better_supabase"."sequence_enrollments" x
+    select x."id" from "better_supabase"."enrollments" x
+    join "better_supabase"."enrollment_steps" o on o."enrollment_id" = x."id" and o."completed_at" is null
     join "better_supabase"."sequences" y on y."id" = x."sequence_id"
-    where x."status" = 'active' and x."next_run_at" <= now() and y."status" = 'active'
-    order by x."next_run_at", x."enrollment_id"
+    where o."due_at" <= now() and x."status" = 'active' and x."paused_at" is null and y."status" = 'active'
+    order by o."due_at", x."id"
     limit least(greatest(coalesce(run_due_sequences.max_count, 50), 1), 500)
     for update of x skip locked
   loop
@@ -1871,35 +1717,41 @@ begin
     loop
       v_turns := v_turns + 1;
       exit when v_turns > 60;
-      select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_due."enrollment_id";
-      exit when v_member."status" <> 'active' or v_member."step" is null or v_member."next_run_at" > now();
-      select * into v_sequence from "better_supabase"."sequences" x where x."id" = v_member."sequence_id";
-      v_step := (select t.value from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'id' = v_member."step");
+      select * into v_row from "better_supabase"."enrollments" x where x."id" = v_due;
+      v_current := null;
+      v_next_run := null;
+      select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_due and o."completed_at" is null limit 1;
+      exit when v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is null or v_next_run > now();
+      select * into v_sequence from "better_supabase"."sequences" x where x."id" = v_row."sequence_id";
+      v_step := (select t.value from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'id' = v_current);
       if v_step is null then
-        perform "better_supabase"."sequence_place"(v_member."enrollment_id");
+        delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_due and y."completed_at" is null;
+        perform "better_supabase"."sequence_place"(v_due);
         continue;
       end if;
       if v_step ->> 'kind' = 'email' then
-        update "better_supabase"."sequence_enrollments" x
-        set "attempts" = x."attempts" + 1, "next_run_at" = now() + interval '10 minutes', "updated_at" = now()
-        where x."enrollment_id" = v_member."enrollment_id"
-        returning * into v_member;
+        update "better_supabase"."enrollment_steps" y set "due_at" = now() + interval '10 minutes'
+        where y."enrollment_id" = v_due and y."completed_at" is null;
+        update "better_supabase"."enrollments" x
+        set "sequence_attempts" = x."sequence_attempts" + 1, "updated_at" = now()
+        where x."id" = v_due
+        returning * into v_row;
         v_emails := v_emails || jsonb_build_array(jsonb_build_object(
-          'enrollmentId', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'organizationId', v_member."tenant_id",
-          'accountId', coalesce(v_member."mail_account_id", v_sequence."mail_account_id"), 'threadId', v_member."mail_thread_id",
-          'to', jsonb_build_object('address', v_member."address", 'name', v_member."name"),
-          'step', v_step, 'variables', v_member."variables", 'attempt', v_member."attempts",
-          'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id"));
+          'enrollmentId', v_row."id", 'sequenceId', v_row."sequence_id", 'organizationId', v_row."tenant_id",
+          'accountId', coalesce(v_row."sequence_mail_account_id", v_sequence."mail_account_id"), 'threadId', v_row."sequence_mail_thread_id",
+          'to', jsonb_build_object('address', v_row."sequence_address", 'name', v_row."sequence_name"),
+          'step', v_step, 'variables', v_row."sequence_variables", 'attempt', v_row."sequence_attempts",
+          'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"));
         exit;
       end if;
       if v_step ->> 'kind' = 'task' then
-        perform "better_supabase"."create_task"(v_member."tenant_id", jsonb_build_object(
+        perform "better_supabase"."create_task"(v_row."tenant_id", jsonb_build_object(
           'title', trim(v_step ->> 'title'),
           'body', v_step ->> 'body',
           'dueAt', case when v_step ? 'dueInMinutes' then now() + make_interval(mins => (v_step ->> 'dueInMinutes')::integer) end),
-          case when v_member."enrolled_by" is null then '{}'::uuid[] else array[v_member."enrolled_by"] end);
+          case when v_row."enrolled_by" is null then '{}'::uuid[] else array[v_row."enrolled_by"] end);
       end if;
-      perform "better_supabase"."sequence_step_done"(v_member."enrollment_id", v_member."step");
+      perform "better_supabase"."sequence_step_done"(v_due, v_current);
       v_ran := v_ran + 1;
     end loop;
   end loop;
@@ -1920,26 +1772,31 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_sent.enrollment_id for update;
-  if v_member."enrollment_id" is null then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_step_sent.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if v_member."status" <> 'active' or v_member."step" is distinct from sequence_step_sent.step then
-    return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is distinct from sequence_step_sent.step then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
   if sequence_step_sent.message_id is not null then
-    update "better_supabase"."sequence_enrollments" x
-    set "mail_thread_id" = coalesce(x."mail_thread_id", y."thread_id"), "mail_account_id" = coalesce(x."mail_account_id", y."account_id"), "updated_at" = now()
+    update "better_supabase"."enrollments" x
+    set "sequence_mail_thread_id" = coalesce(x."sequence_mail_thread_id", y."thread_id"), "sequence_mail_account_id" = coalesce(x."sequence_mail_account_id", y."account_id"), "updated_at" = now()
     from "better_supabase"."mail_messages" y
-    where x."enrollment_id" = v_member."enrollment_id" and y."id" = sequence_step_sent.message_id and y."tenant_id" = v_member."tenant_id";
+    where x."id" = v_row."id" and y."id" = sequence_step_sent.message_id and y."tenant_id" = v_row."tenant_id";
   end if;
-  perform "better_supabase"."sequence_step_done"(v_member."enrollment_id", sequence_step_sent.step);
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  perform "better_supabase"."sequence_step_done"(v_row."id", sequence_step_sent.step);
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_step_sent"(uuid, text, uuid) from public, anon, authenticated;
@@ -1956,28 +1813,34 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_failed.enrollment_id for update;
-  if v_member."enrollment_id" is null then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_step_failed.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if v_member."status" <> 'active' or v_member."step" is distinct from sequence_step_failed.step then
-    return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is distinct from sequence_step_failed.step then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  update "better_supabase"."sequence_enrollments" x
-  set "last_error" = left(coalesce(sequence_step_failed.error, 'send failed'), 2000),
-    "next_run_at" = now() + make_interval(mins => 15 * greatest(x."attempts", 1)),
-    "updated_at" = now()
-  where x."enrollment_id" = v_member."enrollment_id"
-  returning * into v_member;
-  if v_member."attempts" >= 3 then
-    perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'failed');
+  update "better_supabase"."enrollments" x
+  set "sequence_last_error" = left(coalesce(sequence_step_failed.error, 'send failed'), 2000), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  update "better_supabase"."enrollment_steps" y
+  set "due_at" = now() + make_interval(mins => 15 * greatest(v_row."sequence_attempts", 1))
+  where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+  if v_row."sequence_attempts" >= 3 then
+    perform "better_supabase"."sequence_exit"(v_row."id", 'failed');
   end if;
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_step_failed"(uuid, text, text) from public, anon, authenticated;
@@ -1992,17 +1855,17 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_run uuid;
 begin
-  for v_member in
-    select x.* from "better_supabase"."sequence_enrollments" x
+  for v_run in
+    select x."id" from "better_supabase"."enrollments" x
     join "better_supabase"."sequences" y on y."id" = x."sequence_id"
-    where x."tenant_id" = new."tenant_id" and x."status" in ('active', 'paused') and y."exit_on_reply"
-      and ((new."thread_id" is not null and x."mail_thread_id" = new."thread_id")
-        or (new."from_address" is not null and lower(x."address") = lower(new."from_address")))
+    where x."tenant_id" = new."tenant_id" and x."status" = 'active' and y."exit_on_reply"
+      and ((new."thread_id" is not null and x."sequence_mail_thread_id" = new."thread_id")
+        or (new."from_address" is not null and lower(x."sequence_address") = lower(new."from_address")))
     for update of x
   loop
-    perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'replied');
+    perform "better_supabase"."sequence_exit"(v_run, 'replied');
   end loop;
   return null;
 end;
@@ -2050,27 +1913,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
 create policy bsb_tenant_scope_delete on "better_supabase"."sequences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."sequence_enrollments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_select on "better_supabase"."sequence_enrollments" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_update on "better_supabase"."sequence_enrollments" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()))
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2088,21 +1930,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block-data sequences
--- @bsb-hash sha256:fe62775dbd286939b1e0c564d816fd08a8089ab466afd777958e59dc6b732381
+-- @bsb-hash sha256:882f94cc0c9f6809311120cc5646344d881689fd649d666011977bb8ccc9624a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('sequences', 1, 'managed')
+values ('sequences', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
--- @bsb-block sequences@1 managed
--- @bsb-hash sha256:43f402d8ca47bea357bb9313ab97447af6b915ee94dae038eb9bbe2aa3b4d78b
+-- @bsb-block sequences@2 managed
+-- @bsb-hash sha256:d04c765820aee48792c7dbe82b69b2565d22bd4d826787729b7f7311f5937a88
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2153,14 +1995,6 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "app_private"."sequences";
   exception when undefined_table or invalid_schema_name then null;
   end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."sequence_enrollments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -2196,39 +2030,22 @@ create table if not exists "app_private"."sequences" (
 );
 create index if not exists "sequences_account_idx" on "app_private"."sequences" ("mail_account_id") where "mail_account_id" is not null;
 
--- Where a recipient is in a sequence. The enrollment holds the completed
--- steps; this holds the next step, when it runs and who it goes to.
-create table if not exists "app_private"."sequence_enrollments" (
-  "enrollment_id" uuid primary key references "better_supabase"."enrollments" ("id") on delete cascade,
-  "tenant_id" uuid not null,
-  "sequence_id" uuid not null references "app_private"."sequences" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "address" text check ("address" is null or (length("address") <= 320 and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
-  "name" text check ("name" is null or length("name") <= 200),
-  "mail_account_id" uuid,
-  -- The thread the first email started; later emails reply on it.
-  "mail_thread_id" uuid,
-  -- The step that runs next, null once every step is done.
-  "step" text,
-  "next_run_at" timestamptz,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'completed', 'exited')),
-  "exit_reason" text check ("exit_reason" is null or "exit_reason" in ('replied', 'manual', 'failed', 'archived')),
-  "attempts" integer not null default 0 check ("attempts" >= 0),
-  "last_error" text check ("last_error" is null or length("last_error") <= 2000),
-  -- Values for the {{key}} placeholders of the email steps.
-  "variables" jsonb not null default '{}' check (jsonb_typeof("variables") = 'object'),
-  "enrolled_by" uuid,
-  "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now(),
-  check (("status" = 'exited') = ("exit_reason" is not null))
-);
-create index if not exists "sequence_enrollments_parent_idx" on "app_private"."sequence_enrollments" ("sequence_id", "status");
-create index if not exists "sequence_enrollments_due_idx" on "app_private"."sequence_enrollments" ("next_run_at") where "status" = 'active';
-create index if not exists "sequence_enrollments_subject_idx" on "app_private"."sequence_enrollments" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "sequence_enrollments_address_idx" on "app_private"."sequence_enrollments" ("tenant_id", lower("address")) where "status" in ('active', 'paused');
-create index if not exists "sequence_enrollments_account_idx" on "app_private"."sequence_enrollments" ("mail_account_id") where "mail_account_id" is not null;
-create index if not exists "sequence_enrollments_thread_idx" on "app_private"."sequence_enrollments" ("mail_thread_id") where "mail_thread_id" is not null;
+-- A recipient's run is their enrollment in the program sequence:<id>: these
+-- columns say who it goes to and how sending went, and the open step row is
+-- the step that runs next, due when it runs.
+alter table "better_supabase"."enrollments" add column if not exists "sequence_id" uuid references "app_private"."sequences" ("id") on delete cascade;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_address" text check ("sequence_address" is null or (length("sequence_address") <= 320 and "sequence_address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'));
+alter table "better_supabase"."enrollments" add column if not exists "sequence_name" text check ("sequence_name" is null or length("sequence_name") <= 200);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_account_id" uuid;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_thread_id" uuid;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_attempts" integer not null default 0 check ("sequence_attempts" >= 0);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_last_error" text check ("sequence_last_error" is null or length("sequence_last_error") <= 2000);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_variables" jsonb not null default '{}' check (jsonb_typeof("sequence_variables") = 'object');
+create index if not exists "enrollments_sequence_idx" on "better_supabase"."enrollments" ("sequence_id", "status") where "sequence_id" is not null;
+create index if not exists "enrollments_sequence_address_idx" on "better_supabase"."enrollments" ("tenant_id", lower("sequence_address")) where "sequence_id" is not null and "status" = 'active';
+create index if not exists "enrollments_sequence_account_idx" on "better_supabase"."enrollments" ("sequence_mail_account_id") where "sequence_mail_account_id" is not null;
+create index if not exists "enrollments_sequence_thread_idx" on "better_supabase"."enrollments" ("sequence_mail_thread_id") where "sequence_mail_thread_id" is not null;
+create index if not exists "enrollment_steps_open_due_idx" on "better_supabase"."enrollment_steps" ("due_at") where "completed_at" is null;
 
 alter table "app_private"."sequences" enable row level security;
 revoke all on "app_private"."sequences" from public, anon, authenticated;
@@ -2236,14 +2053,6 @@ grant select on "app_private"."sequences" to authenticated;
 grant all on "app_private"."sequences" to service_role;
 drop policy if exists "sequences_read" on "app_private"."sequences";
 create policy sequences_read on "app_private"."sequences"
-  for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
-alter table "app_private"."sequence_enrollments" enable row level security;
-revoke all on "app_private"."sequence_enrollments" from public, anon, authenticated;
-grant select on "app_private"."sequence_enrollments" to authenticated;
-grant all on "app_private"."sequence_enrollments" to service_role;
-drop policy if exists "sequence_enrollments_read" on "app_private"."sequence_enrollments";
-create policy sequence_enrollments_read on "app_private"."sequence_enrollments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
@@ -2333,20 +2142,24 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."enrollment_id", 'organizationId', x."tenant_id", 'sequenceId', x."sequence_id",
-    'subjectType', x."subject_type", 'subjectId', x."subject_id", 'address', x."address", 'name', x."name",
-    'accountId', x."mail_account_id", 'threadId', x."mail_thread_id", 'step', x."step", 'nextRunAt', x."next_run_at",
-    'status', x."status", 'exitReason', x."exit_reason", 'attempts', x."attempts", 'lastError', x."last_error",
-    'variables', x."variables", 'enrolledBy', x."enrolled_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at",
-    'completedSteps', coalesce((select jsonb_agg(y."step" order by y."completed_at", y."step") from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."enrollment_id"), '[]'::jsonb))
-  from "app_private"."sequence_enrollments" x
-  where x."enrollment_id" = sequence_member_json.enrollment_id;
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sequenceId', x."sequence_id",
+    'subjectType', x."subject_type", 'subjectId', x."subject_id", 'address', x."sequence_address", 'name', x."sequence_name",
+    'accountId', x."sequence_mail_account_id", 'threadId', x."sequence_mail_thread_id", 'step', o."step", 'nextRunAt', o."due_at",
+    'status', (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end), 'exitReason', case when x."status" = 'cancelled' then x."cancel_reason" end,
+    'attempts', x."sequence_attempts", 'lastError', x."sequence_last_error",
+    'variables', x."sequence_variables", 'enrolledBy', x."enrolled_by", 'createdAt', x."enrolled_at", 'updatedAt', x."updated_at",
+    'completedSteps', coalesce((select jsonb_agg(y."step" order by y."completed_at", y."step") from "better_supabase"."enrollment_steps" y
+      where y."enrollment_id" = x."id" and y."completed_at" is not null), '[]'::jsonb))
+  from "better_supabase"."enrollments" x
+  left join "better_supabase"."enrollment_steps" o on o."enrollment_id" = x."id" and o."completed_at" is null
+  where x."id" = sequence_member_json.enrollment_id and x."sequence_id" is not null;
 $$;
 revoke execute on function "app_private"."sequence_member_json"(uuid) from public, anon, authenticated;
 
--- Moves a recipient to their first step not done: a wait step runs once its
--- minutes pass, the others right away. With every step done the run
--- completes. A recipient already on that step keeps their schedule.
+-- Moves a recipient to their first step not done: its open step row is due
+-- once a wait step's minutes pass, the others right away. A recipient already
+-- on that step keeps their schedule. A run that ended, or has every step
+-- done, keeps no open step.
 create or replace function "app_private"."sequence_place"(enrollment_id uuid)
 returns void
 language plpgsql
@@ -2355,67 +2168,60 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "app_private"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
   v_steps jsonb;
   v_next jsonb;
+  v_current text;
+  v_due timestamptz;
 begin
-  select * into v_member from "app_private"."sequence_enrollments" x where x."enrollment_id" = sequence_place.enrollment_id for update;
-  if v_member."enrollment_id" is null or v_member."status" in ('completed', 'exited') then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_place.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     return;
   end if;
-  select y."steps" into v_steps from "app_private"."sequences" y where y."id" = v_member."sequence_id";
+  if v_row."status" <> 'active' then
+    delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+    return;
+  end if;
+  select y."steps" into v_steps from "app_private"."sequences" y where y."id" = v_row."sequence_id";
   select t.value into v_next
   from jsonb_array_elements(coalesce(v_steps, '[]'::jsonb)) with ordinality as t(value, ord)
-  where not exists (select 1 from "better_supabase"."enrollment_steps" z where z."enrollment_id" = v_member."enrollment_id" and z."step" = t.value ->> 'id')
+  where not exists (
+    select 1 from "better_supabase"."enrollment_steps" z
+    where z."enrollment_id" = v_row."id" and z."step" = t.value ->> 'id' and z."completed_at" is not null
+  )
   order by t.ord
   limit 1;
-  if v_next is null then
-    update "app_private"."sequence_enrollments" x
-    set "status" = 'completed', "step" = null, "next_run_at" = null, "attempts" = 0, "last_error" = null, "updated_at" = now()
-    where x."enrollment_id" = v_member."enrollment_id"
-    returning * into v_member;
-    null;
+  select o."step", o."due_at" into v_current, v_due from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_next is not null and (v_next ->> 'id') is not distinct from v_current then
     return;
   end if;
-  if (v_next ->> 'id') is not distinct from v_member."step" then
-    return;
+  delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+  if v_next is not null then
+    insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "due_at", "completed_by", "completed_at")
+    values (v_row."id", v_row."tenant_id", v_next ->> 'id',
+      case when v_next ->> 'kind' = 'wait' then now() + make_interval(mins => (v_next ->> 'minutes')::integer) else now() end, null, null);
   end if;
-  update "app_private"."sequence_enrollments" x
-  set "step" = v_next ->> 'id',
-    "next_run_at" = case when v_next ->> 'kind' = 'wait' then now() + make_interval(mins => (v_next ->> 'minutes')::integer) else now() end,
-    "attempts" = 0, "last_error" = null, "updated_at" = now()
-  where x."enrollment_id" = v_member."enrollment_id";
+  update "better_supabase"."enrollments" x
+  set "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
+  where x."id" = v_row."id";
 end;
 $$;
 revoke execute on function "app_private"."sequence_place"(uuid) from public, anon, authenticated;
 
--- Ends a recipient's run (reason: replied, manual, failed or archived) and
--- cancels their enrollment; the completed steps stay.
+-- Ends a recipient's run (reason: replied, manual, failed or archived) by
+-- cancelling their enrollment; the completed steps stay. A manual exit is
+-- audited.
 create or replace function "app_private"."sequence_exit"(enrollment_id uuid, reason text)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
-declare
-  v_member "app_private"."sequence_enrollments";
 begin
-  update "app_private"."sequence_enrollments" x
-  set "status" = 'exited', "exit_reason" = sequence_exit.reason, "next_run_at" = null, "updated_at" = now()
-  where x."enrollment_id" = sequence_exit.enrollment_id and x."status" in ('active', 'paused')
-  returning * into v_member;
-  if v_member."enrollment_id" is null then
-    return;
-  end if;
-  update "better_supabase"."enrollments" x
-  set "status" = 'cancelled', "cancelled_at" = now(), "updated_at" = now()
-  where x."id" = v_member."enrollment_id" and x."status" <> 'cancelled';
-  if sequence_exit.reason = 'manual' then
-    null;
-  else
-    null;
-  end if;
+  perform "app_private"."enrollment_cancel"(sequence_exit.enrollment_id, sequence_exit.reason,
+    case when sequence_exit.reason = 'manual' then auth.uid() end);
 end;
 $$;
 revoke execute on function "app_private"."sequence_exit"(uuid, text) from public, anon, authenticated;
@@ -2427,13 +2233,8 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
-declare
-  v_member "app_private"."sequence_enrollments";
 begin
   perform "app_private"."enrollment_mark"(sequence_step_done.enrollment_id, sequence_step_done.step, true, null);
-  select * into v_member from "app_private"."sequence_enrollments" x where x."enrollment_id" = sequence_step_done.enrollment_id;
-  null;
   perform "app_private"."sequence_place"(sequence_step_done.enrollment_id);
 end;
 $$;
@@ -2450,17 +2251,17 @@ as $$
 #variable_conflict use_variable
 declare
   v_sequence "app_private"."sequences";
-  v_member "app_private"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
 begin
   select * into v_sequence from "app_private"."sequences" x where x."id" = sequence_resync.sequence_id;
-  for v_member in
-    select * from "app_private"."sequence_enrollments" x
-    where x."sequence_id" = sequence_resync.sequence_id and x."status" in ('active', 'paused')
+  for v_row in
+    select * from "better_supabase"."enrollments" x
+    where x."sequence_id" = sequence_resync.sequence_id and x."status" = 'active'
     for update
   loop
     perform "app_private"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
-      v_member."subject_type", v_member."subject_id", null);
-    perform "app_private"."sequence_place"(v_member."enrollment_id");
+      v_row."subject_type", v_row."subject_id", null);
+    perform "app_private"."sequence_place"(v_row."id");
   end loop;
 end;
 $$;
@@ -2488,7 +2289,7 @@ declare
   v_exit boolean;
   v_account uuid;
   v_steps jsonb;
-  v_member "app_private"."sequence_enrollments";
+  v_run uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2560,11 +2361,11 @@ begin
       perform "app_private"."sequence_resync"(v_row."id");
     end if;
     if v_row."status" = 'archived' and v_old."status" <> 'archived' then
-      for v_member in
-        select * from "app_private"."sequence_enrollments" x
-        where x."sequence_id" = v_row."id" and x."status" in ('active', 'paused')
+      for v_run in
+        select x."id" from "better_supabase"."enrollments" x
+        where x."sequence_id" = v_row."id" and x."status" = 'active'
       loop
-        perform "app_private"."sequence_exit"(v_member."enrollment_id", 'archived');
+        perform "app_private"."sequence_exit"(v_run, 'archived');
       end loop;
     end if;
   end if;
@@ -2573,10 +2374,10 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "app_private"."sequence_enrollments" m where m."sequence_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "app_private"."save_sequence"(uuid, jsonb) from public, anon;
@@ -2597,10 +2398,10 @@ begin
     raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'status', x."status", 'exitOnReply', x."exit_on_reply", 'accountId', x."mail_account_id", 'steps', x."steps", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "app_private"."sequence_enrollments" m where m."sequence_id" = x."id")) order by x."name", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'status', x."status", 'exitOnReply', x."exit_on_reply", 'accountId', x."mail_account_id", 'steps', x."steps", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = x."id")) order by x."name", x."id")
     from "app_private"."sequences" x
     where x."tenant_id" = list_sequences.tenant
       and (case when list_sequences.status is null then x."status" <> 'archived' else x."status"::text = list_sequences.status end)
@@ -2626,10 +2427,10 @@ begin
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) then
     raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "app_private"."sequence_enrollments" m where m."sequence_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "app_private"."get_sequence"(uuid) from public, anon;
@@ -2679,7 +2480,6 @@ as $$
 declare
   v_sequence "app_private"."sequences";
   v_row "better_supabase"."enrollments";
-  v_member "app_private"."sequence_enrollments";
   v_attrs jsonb := coalesce(enroll_in_sequence.attrs, '{}'::jsonb);
   v_address text;
   v_name text;
@@ -2736,33 +2536,22 @@ begin
   where x."tenant_id" = v_sequence."tenant_id" and x."program" = ('sequence:' || v_sequence."id"::text)
     and x."subject_type" = enroll_in_sequence.subject_type and x."subject_id" = enroll_in_sequence.subject_id
   for update;
-  if v_row."id" is not null then
-    select * into v_member from "app_private"."sequence_enrollments" x where x."enrollment_id" = v_row."id" for update;
-    if v_member."status" in ('active', 'paused') then
-      return "app_private"."sequence_member_json"(v_row."id");
-    end if;
-    -- Starting over: clearing the steps makes enrollment_ensure take the
-    -- current ones, with none done.
-    delete from "better_supabase"."enrollment_steps" x where x."enrollment_id" = v_row."id";
-    update "better_supabase"."enrollments" x
-    set "status" = 'active', "cancelled_at" = null, "completed_at" = null, "enrolled_by" = auth.uid(),
-      "enrolled_at" = now(), "steps" = '{}'
-    where x."id" = v_row."id";
+  if v_row."id" is not null and v_row."status" = 'active' then
+    return "app_private"."sequence_member_json"(v_row."id");
   end if;
-  v_id := "app_private"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
-    enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
-  insert into "app_private"."sequence_enrollments" ("enrollment_id", "tenant_id", "sequence_id", "subject_type", "subject_id", "address", "name",
-    "mail_account_id", "variables", "status", "enrolled_by")
-  values (v_id, v_sequence."tenant_id", v_sequence."id", enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, v_address, v_name,
-    v_account, v_variables, 'active', auth.uid())
-  on conflict ("enrollment_id") do update
-  set "address" = excluded."address", "name" = excluded."name", "mail_account_id" = excluded."mail_account_id",
-    "variables" = excluded."variables", "enrolled_by" = excluded."enrolled_by", "status" = 'active',
-    "exit_reason" = null, "step" = null, "next_run_at" = null, "mail_thread_id" = null, "attempts" = 0,
-    "last_error" = null, "updated_at" = now();
+  if v_row."id" is not null then
+    -- Starting over: the run begins again with none of the steps done.
+    perform "app_private"."enrollment_restart"(v_row."id", v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord), auth.uid());
+    v_id := v_row."id";
+  else
+    v_id := "app_private"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
+      enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
+  end if;
+  update "better_supabase"."enrollments" x
+  set "sequence_id" = v_sequence."id", "sequence_address" = v_address, "sequence_name" = v_name, "sequence_mail_account_id" = v_account,
+    "sequence_mail_thread_id" = null, "sequence_variables" = v_variables, "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
+  where x."id" = v_id;
   perform "app_private"."sequence_place"(v_id);
-  select * into v_member from "app_private"."sequence_enrollments" x where x."enrollment_id" = v_id;
-  null;
   return "app_private"."sequence_member_json"(v_id);
 end;
 $$;
@@ -2778,44 +2567,39 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "app_private"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_status text;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_member from "app_private"."sequence_enrollments" x where x."enrollment_id" = change_sequence_enrollment.enrollment_id for update;
-  if v_member."enrollment_id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false)))) then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = change_sequence_enrollment.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false)))) then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false))) then
     raise exception 'not allowed to change sequence enrollments' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
+  v_status := (case when v_row."status" = 'cancelled' then 'exited' when v_row."status" = 'completed' then 'completed' when v_row."paused_at" is not null then 'paused' else 'active' end);
   case change_sequence_enrollment.action
     when 'pause' then
-      if v_member."status" <> 'active' then
+      if v_status <> 'active' then
         raise exception 'only an active run can be paused' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      update "app_private"."sequence_enrollments" x set "status" = 'paused', "updated_at" = now()
-      where x."enrollment_id" = v_member."enrollment_id"
-      returning * into v_member;
-      null;
+      perform "app_private"."enrollment_pause"(v_row."id", true, auth.uid());
     when 'resume' then
-      if v_member."status" <> 'paused' then
+      if v_status <> 'paused' then
         raise exception 'only a paused run can be resumed' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      update "app_private"."sequence_enrollments" x set "status" = 'active', "updated_at" = now()
-      where x."enrollment_id" = v_member."enrollment_id"
-      returning * into v_member;
-      null;
+      perform "app_private"."enrollment_pause"(v_row."id", false, auth.uid());
     when 'exit' then
-      if v_member."status" not in ('active', 'paused') then
+      if v_status not in ('active', 'paused') then
         raise exception 'only an active or paused run can be exited' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      perform "app_private"."sequence_exit"(v_member."enrollment_id", 'manual');
+      perform "app_private"."sequence_exit"(v_row."id", 'manual');
     else
       raise exception 'action must be pause, resume or exit' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end case;
-  return "app_private"."sequence_member_json"(v_member."enrollment_id");
+  return "app_private"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "app_private"."change_sequence_enrollment"(uuid, text) from public, anon;
@@ -2823,7 +2607,7 @@ grant execute on function "app_private"."change_sequence_enrollment"(uuid, text)
 
 -- An organization's sequence recipients, newest first. filter is
 -- { sequence, subjectType, subjectId, status, limit, before }: before is a
--- createdAt from the previous page.
+-- createdAt (when the run started) from the previous page.
 create or replace function "app_private"."list_sequence_enrollments"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2843,17 +2627,17 @@ begin
     raise exception 'filter must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   return coalesce((
-    select jsonb_agg("app_private"."sequence_member_json"(y."enrollment_id") order by y."created_at" desc, y."enrollment_id" desc)
+    select jsonb_agg("app_private"."sequence_member_json"(y."id") order by y."enrolled_at" desc, y."id" desc)
     from (
-      select x."enrollment_id", x."created_at"
-      from "app_private"."sequence_enrollments" x
-      where x."tenant_id" = list_sequence_enrollments.tenant
+      select x."id", x."enrolled_at"
+      from "better_supabase"."enrollments" x
+      where x."tenant_id" = list_sequence_enrollments.tenant and x."sequence_id" is not null
         and (v_parent is null or x."sequence_id" = v_parent)
         and (v_filter ->> 'subjectType' is null or x."subject_type" = v_filter ->> 'subjectType')
         and (v_filter ->> 'subjectId' is null or x."subject_id" = v_filter ->> 'subjectId')
-        and (v_filter ->> 'status' is null or x."status"::text = v_filter ->> 'status')
-        and (v_filter ->> 'before' is null or x."created_at" < (v_filter ->> 'before')::timestamptz)
-      order by x."created_at" desc, x."enrollment_id" desc
+        and (v_filter ->> 'status' is null or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = v_filter ->> 'status')
+        and (v_filter ->> 'before' is null or x."enrolled_at" < (v_filter ->> 'before')::timestamptz)
+      order by x."enrolled_at" desc, x."id" desc
       limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)
     ) y
   ), '[]'::jsonb);
@@ -2876,9 +2660,11 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_due "app_private"."sequence_enrollments";
-  v_member "app_private"."sequence_enrollments";
+  v_due uuid;
+  v_row "better_supabase"."enrollments";
   v_sequence "app_private"."sequences";
+  v_current text;
+  v_next_run timestamptz;
   v_step jsonb;
   v_emails jsonb := '[]'::jsonb;
   v_ran integer := 0;
@@ -2888,10 +2674,11 @@ begin
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   for v_due in
-    select x.* from "app_private"."sequence_enrollments" x
+    select x."id" from "better_supabase"."enrollments" x
+    join "better_supabase"."enrollment_steps" o on o."enrollment_id" = x."id" and o."completed_at" is null
     join "app_private"."sequences" y on y."id" = x."sequence_id"
-    where x."status" = 'active' and x."next_run_at" <= now() and y."status" = 'active'
-    order by x."next_run_at", x."enrollment_id"
+    where o."due_at" <= now() and x."status" = 'active' and x."paused_at" is null and y."status" = 'active'
+    order by o."due_at", x."id"
     limit least(greatest(coalesce(run_due_sequences.max_count, 50), 1), 500)
     for update of x skip locked
   loop
@@ -2899,28 +2686,34 @@ begin
     loop
       v_turns := v_turns + 1;
       exit when v_turns > 60;
-      select * into v_member from "app_private"."sequence_enrollments" x where x."enrollment_id" = v_due."enrollment_id";
-      exit when v_member."status" <> 'active' or v_member."step" is null or v_member."next_run_at" > now();
-      select * into v_sequence from "app_private"."sequences" x where x."id" = v_member."sequence_id";
-      v_step := (select t.value from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'id' = v_member."step");
+      select * into v_row from "better_supabase"."enrollments" x where x."id" = v_due;
+      v_current := null;
+      v_next_run := null;
+      select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_due and o."completed_at" is null limit 1;
+      exit when v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is null or v_next_run > now();
+      select * into v_sequence from "app_private"."sequences" x where x."id" = v_row."sequence_id";
+      v_step := (select t.value from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'id' = v_current);
       if v_step is null then
-        perform "app_private"."sequence_place"(v_member."enrollment_id");
+        delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_due and y."completed_at" is null;
+        perform "app_private"."sequence_place"(v_due);
         continue;
       end if;
       if v_step ->> 'kind' = 'email' then
-        update "app_private"."sequence_enrollments" x
-        set "attempts" = x."attempts" + 1, "next_run_at" = now() + interval '10 minutes', "updated_at" = now()
-        where x."enrollment_id" = v_member."enrollment_id"
-        returning * into v_member;
+        update "better_supabase"."enrollment_steps" y set "due_at" = now() + interval '10 minutes'
+        where y."enrollment_id" = v_due and y."completed_at" is null;
+        update "better_supabase"."enrollments" x
+        set "sequence_attempts" = x."sequence_attempts" + 1, "updated_at" = now()
+        where x."id" = v_due
+        returning * into v_row;
         v_emails := v_emails || jsonb_build_array(jsonb_build_object(
-          'enrollmentId', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'organizationId', v_member."tenant_id",
-          'accountId', coalesce(v_member."mail_account_id", v_sequence."mail_account_id"), 'threadId', v_member."mail_thread_id",
-          'to', jsonb_build_object('address', v_member."address", 'name', v_member."name"),
-          'step', v_step, 'variables', v_member."variables", 'attempt', v_member."attempts",
-          'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id"));
+          'enrollmentId', v_row."id", 'sequenceId', v_row."sequence_id", 'organizationId', v_row."tenant_id",
+          'accountId', coalesce(v_row."sequence_mail_account_id", v_sequence."mail_account_id"), 'threadId', v_row."sequence_mail_thread_id",
+          'to', jsonb_build_object('address', v_row."sequence_address", 'name', v_row."sequence_name"),
+          'step', v_step, 'variables', v_row."sequence_variables", 'attempt', v_row."sequence_attempts",
+          'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"));
         exit;
       end if;
-      perform "app_private"."sequence_step_done"(v_member."enrollment_id", v_member."step");
+      perform "app_private"."sequence_step_done"(v_due, v_current);
       v_ran := v_ran + 1;
     end loop;
   end loop;
@@ -2941,20 +2734,25 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "app_private"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  select * into v_member from "app_private"."sequence_enrollments" x where x."enrollment_id" = sequence_step_sent.enrollment_id for update;
-  if v_member."enrollment_id" is null then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_step_sent.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if v_member."status" <> 'active' or v_member."step" is distinct from sequence_step_sent.step then
-    return "app_private"."sequence_member_json"(v_member."enrollment_id");
+  select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is distinct from sequence_step_sent.step then
+    return "app_private"."sequence_member_json"(v_row."id");
   end if;
-  perform "app_private"."sequence_step_done"(v_member."enrollment_id", sequence_step_sent.step);
-  return "app_private"."sequence_member_json"(v_member."enrollment_id");
+  perform "app_private"."sequence_step_done"(v_row."id", sequence_step_sent.step);
+  return "app_private"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "app_private"."sequence_step_sent"(uuid, text, uuid) from public, anon, authenticated;
@@ -2971,28 +2769,34 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "app_private"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  select * into v_member from "app_private"."sequence_enrollments" x where x."enrollment_id" = sequence_step_failed.enrollment_id for update;
-  if v_member."enrollment_id" is null then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_step_failed.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if v_member."status" <> 'active' or v_member."step" is distinct from sequence_step_failed.step then
-    return "app_private"."sequence_member_json"(v_member."enrollment_id");
+  select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is distinct from sequence_step_failed.step then
+    return "app_private"."sequence_member_json"(v_row."id");
   end if;
-  update "app_private"."sequence_enrollments" x
-  set "last_error" = left(coalesce(sequence_step_failed.error, 'send failed'), 2000),
-    "next_run_at" = now() + make_interval(mins => 15 * greatest(x."attempts", 1)),
-    "updated_at" = now()
-  where x."enrollment_id" = v_member."enrollment_id"
-  returning * into v_member;
-  if v_member."attempts" >= 3 then
-    perform "app_private"."sequence_exit"(v_member."enrollment_id", 'failed');
+  update "better_supabase"."enrollments" x
+  set "sequence_last_error" = left(coalesce(sequence_step_failed.error, 'send failed'), 2000), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  update "better_supabase"."enrollment_steps" y
+  set "due_at" = now() + make_interval(mins => 15 * greatest(v_row."sequence_attempts", 1))
+  where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+  if v_row."sequence_attempts" >= 3 then
+    perform "app_private"."sequence_exit"(v_row."id", 'failed');
   end if;
-  return "app_private"."sequence_member_json"(v_member."enrollment_id");
+  return "app_private"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "app_private"."sequence_step_failed"(uuid, text, text) from public, anon, authenticated;
@@ -3034,27 +2838,6 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."sequences";
 create policy bsb_tenant_scope_delete on "app_private"."sequences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."sequence_enrollments";
-drop policy if exists bsb_tenant_scope_select on "app_private"."sequence_enrollments";
-create policy bsb_tenant_scope_select on "app_private"."sequence_enrollments" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."sequence_enrollments";
-create policy bsb_tenant_scope_insert on "app_private"."sequence_enrollments" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."sequence_enrollments";
-create policy bsb_tenant_scope_update on "app_private"."sequence_enrollments" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()))
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."sequence_enrollments";
-create policy bsb_tenant_scope_delete on "app_private"."sequence_enrollments" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3072,21 +2855,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block-data sequences
--- @bsb-hash sha256:fe62775dbd286939b1e0c564d816fd08a8089ab466afd777958e59dc6b732381
+-- @bsb-hash sha256:882f94cc0c9f6809311120cc5646344d881689fd649d666011977bb8ccc9624a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('sequences', 1, 'managed')
+values ('sequences', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
--- @bsb-block sequences@1 managed
--- @bsb-hash sha256:27662c034e9280b2c3524af7dc00593669fb3772cd7be5686e7c9125bff27d62
+-- @bsb-block sequences@2 managed
+-- @bsb-hash sha256:683bf973ce9c94d29e959007a74196f134fed015a212ab6ec5b02d81e428c23e
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3137,14 +2920,6 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
   exception when undefined_table or invalid_schema_name then null;
   end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -3175,39 +2950,22 @@ create table if not exists "better_supabase"."sequences" (
 );
 create index if not exists "sequences_account_idx" on "better_supabase"."sequences" ("mail_account_id") where "mail_account_id" is not null;
 
--- Where a recipient is in a sequence. The enrollment holds the completed
--- steps; this holds the next step, when it runs and who it goes to.
-create table if not exists "better_supabase"."sequence_enrollments" (
-  "enrollment_id" uuid primary key references "better_supabase"."enrollments" ("id") on delete cascade,
-  "tenant_id" uuid not null,
-  "sequence_id" uuid not null references "better_supabase"."sequences" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "address" text check ("address" is null or (length("address") <= 320 and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
-  "name" text check ("name" is null or length("name") <= 200),
-  "mail_account_id" uuid,
-  -- The thread the first email started; later emails reply on it.
-  "mail_thread_id" uuid,
-  -- The step that runs next, null once every step is done.
-  "step" text,
-  "next_run_at" timestamptz,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'completed', 'exited')),
-  "exit_reason" text check ("exit_reason" is null or "exit_reason" in ('replied', 'manual', 'failed', 'archived')),
-  "attempts" integer not null default 0 check ("attempts" >= 0),
-  "last_error" text check ("last_error" is null or length("last_error") <= 2000),
-  -- Values for the {{key}} placeholders of the email steps.
-  "variables" jsonb not null default '{}' check (jsonb_typeof("variables") = 'object'),
-  "enrolled_by" uuid,
-  "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now(),
-  check (("status" = 'exited') = ("exit_reason" is not null))
-);
-create index if not exists "sequence_enrollments_parent_idx" on "better_supabase"."sequence_enrollments" ("sequence_id", "status");
-create index if not exists "sequence_enrollments_due_idx" on "better_supabase"."sequence_enrollments" ("next_run_at") where "status" = 'active';
-create index if not exists "sequence_enrollments_subject_idx" on "better_supabase"."sequence_enrollments" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "sequence_enrollments_address_idx" on "better_supabase"."sequence_enrollments" ("tenant_id", lower("address")) where "status" in ('active', 'paused');
-create index if not exists "sequence_enrollments_account_idx" on "better_supabase"."sequence_enrollments" ("mail_account_id") where "mail_account_id" is not null;
-create index if not exists "sequence_enrollments_thread_idx" on "better_supabase"."sequence_enrollments" ("mail_thread_id") where "mail_thread_id" is not null;
+-- A recipient's run is their enrollment in the program sequence:<id>: these
+-- columns say who it goes to and how sending went, and the open step row is
+-- the step that runs next, due when it runs.
+alter table "better_supabase"."enrollments" add column if not exists "sequence_id" uuid references "better_supabase"."sequences" ("id") on delete cascade;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_address" text check ("sequence_address" is null or (length("sequence_address") <= 320 and "sequence_address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'));
+alter table "better_supabase"."enrollments" add column if not exists "sequence_name" text check ("sequence_name" is null or length("sequence_name") <= 200);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_account_id" uuid;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_thread_id" uuid;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_attempts" integer not null default 0 check ("sequence_attempts" >= 0);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_last_error" text check ("sequence_last_error" is null or length("sequence_last_error") <= 2000);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_variables" jsonb not null default '{}' check (jsonb_typeof("sequence_variables") = 'object');
+create index if not exists "enrollments_sequence_idx" on "better_supabase"."enrollments" ("sequence_id", "status") where "sequence_id" is not null;
+create index if not exists "enrollments_sequence_address_idx" on "better_supabase"."enrollments" ("tenant_id", lower("sequence_address")) where "sequence_id" is not null and "status" = 'active';
+create index if not exists "enrollments_sequence_account_idx" on "better_supabase"."enrollments" ("sequence_mail_account_id") where "sequence_mail_account_id" is not null;
+create index if not exists "enrollments_sequence_thread_idx" on "better_supabase"."enrollments" ("sequence_mail_thread_id") where "sequence_mail_thread_id" is not null;
+create index if not exists "enrollment_steps_open_due_idx" on "better_supabase"."enrollment_steps" ("due_at") where "completed_at" is null;
 
 alter table "better_supabase"."sequences" enable row level security;
 revoke all on "better_supabase"."sequences" from public, anon, authenticated;
@@ -3215,14 +2973,6 @@ grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
 drop policy if exists "sequences_read" on "better_supabase"."sequences";
 create policy sequences_read on "better_supabase"."sequences"
-  for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
-alter table "better_supabase"."sequence_enrollments" enable row level security;
-revoke all on "better_supabase"."sequence_enrollments" from public, anon, authenticated;
-grant select on "better_supabase"."sequence_enrollments" to authenticated;
-grant all on "better_supabase"."sequence_enrollments" to service_role;
-drop policy if exists "sequence_enrollments_read" on "better_supabase"."sequence_enrollments";
-create policy sequence_enrollments_read on "better_supabase"."sequence_enrollments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
@@ -3312,20 +3062,24 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."enrollment_id", 'organizationId', x."tenant_id", 'sequenceId', x."sequence_id",
-    'subjectType', x."subject_type", 'subjectId', x."subject_id", 'address', x."address", 'name', x."name",
-    'accountId', x."mail_account_id", 'threadId', x."mail_thread_id", 'step', x."step", 'nextRunAt', x."next_run_at",
-    'status', x."status", 'exitReason', x."exit_reason", 'attempts', x."attempts", 'lastError', x."last_error",
-    'variables', x."variables", 'enrolledBy', x."enrolled_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at",
-    'completedSteps', coalesce((select jsonb_agg(y."step" order by y."completed_at", y."step") from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."enrollment_id"), '[]'::jsonb))
-  from "better_supabase"."sequence_enrollments" x
-  where x."enrollment_id" = sequence_member_json.enrollment_id;
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sequenceId', x."sequence_id",
+    'subjectType', x."subject_type", 'subjectId', x."subject_id", 'address', x."sequence_address", 'name', x."sequence_name",
+    'accountId', x."sequence_mail_account_id", 'threadId', x."sequence_mail_thread_id", 'step', o."step", 'nextRunAt', o."due_at",
+    'status', (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end), 'exitReason', case when x."status" = 'cancelled' then x."cancel_reason" end,
+    'attempts', x."sequence_attempts", 'lastError', x."sequence_last_error",
+    'variables', x."sequence_variables", 'enrolledBy', x."enrolled_by", 'createdAt', x."enrolled_at", 'updatedAt', x."updated_at",
+    'completedSteps', coalesce((select jsonb_agg(y."step" order by y."completed_at", y."step") from "better_supabase"."enrollment_steps" y
+      where y."enrollment_id" = x."id" and y."completed_at" is not null), '[]'::jsonb))
+  from "better_supabase"."enrollments" x
+  left join "better_supabase"."enrollment_steps" o on o."enrollment_id" = x."id" and o."completed_at" is null
+  where x."id" = sequence_member_json.enrollment_id and x."sequence_id" is not null;
 $$;
 revoke execute on function "better_supabase"."sequence_member_json"(uuid) from public, anon, authenticated;
 
--- Moves a recipient to their first step not done: a wait step runs once its
--- minutes pass, the others right away. With every step done the run
--- completes. A recipient already on that step keeps their schedule.
+-- Moves a recipient to their first step not done: its open step row is due
+-- once a wait step's minutes pass, the others right away. A recipient already
+-- on that step keeps their schedule. A run that ended, or has every step
+-- done, keeps no open step.
 create or replace function "better_supabase"."sequence_place"(enrollment_id uuid)
 returns void
 language plpgsql
@@ -3334,67 +3088,60 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
   v_steps jsonb;
   v_next jsonb;
+  v_current text;
+  v_due timestamptz;
 begin
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_place.enrollment_id for update;
-  if v_member."enrollment_id" is null or v_member."status" in ('completed', 'exited') then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_place.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     return;
   end if;
-  select y."steps" into v_steps from "better_supabase"."sequences" y where y."id" = v_member."sequence_id";
+  if v_row."status" <> 'active' then
+    delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+    return;
+  end if;
+  select y."steps" into v_steps from "better_supabase"."sequences" y where y."id" = v_row."sequence_id";
   select t.value into v_next
   from jsonb_array_elements(coalesce(v_steps, '[]'::jsonb)) with ordinality as t(value, ord)
-  where not exists (select 1 from "better_supabase"."enrollment_steps" z where z."enrollment_id" = v_member."enrollment_id" and z."step" = t.value ->> 'id')
+  where not exists (
+    select 1 from "better_supabase"."enrollment_steps" z
+    where z."enrollment_id" = v_row."id" and z."step" = t.value ->> 'id' and z."completed_at" is not null
+  )
   order by t.ord
   limit 1;
-  if v_next is null then
-    update "better_supabase"."sequence_enrollments" x
-    set "status" = 'completed', "step" = null, "next_run_at" = null, "attempts" = 0, "last_error" = null, "updated_at" = now()
-    where x."enrollment_id" = v_member."enrollment_id"
-    returning * into v_member;
-    null;
+  select o."step", o."due_at" into v_current, v_due from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_next is not null and (v_next ->> 'id') is not distinct from v_current then
     return;
   end if;
-  if (v_next ->> 'id') is not distinct from v_member."step" then
-    return;
+  delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+  if v_next is not null then
+    insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "due_at", "completed_by", "completed_at")
+    values (v_row."id", v_row."tenant_id", v_next ->> 'id',
+      case when v_next ->> 'kind' = 'wait' then now() + make_interval(mins => (v_next ->> 'minutes')::integer) else now() end, null, null);
   end if;
-  update "better_supabase"."sequence_enrollments" x
-  set "step" = v_next ->> 'id',
-    "next_run_at" = case when v_next ->> 'kind' = 'wait' then now() + make_interval(mins => (v_next ->> 'minutes')::integer) else now() end,
-    "attempts" = 0, "last_error" = null, "updated_at" = now()
-  where x."enrollment_id" = v_member."enrollment_id";
+  update "better_supabase"."enrollments" x
+  set "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
+  where x."id" = v_row."id";
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_place"(uuid) from public, anon, authenticated;
 
--- Ends a recipient's run (reason: replied, manual, failed or archived) and
--- cancels their enrollment; the completed steps stay.
+-- Ends a recipient's run (reason: replied, manual, failed or archived) by
+-- cancelling their enrollment; the completed steps stay. A manual exit is
+-- audited.
 create or replace function "better_supabase"."sequence_exit"(enrollment_id uuid, reason text)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
-declare
-  v_member "better_supabase"."sequence_enrollments";
 begin
-  update "better_supabase"."sequence_enrollments" x
-  set "status" = 'exited', "exit_reason" = sequence_exit.reason, "next_run_at" = null, "updated_at" = now()
-  where x."enrollment_id" = sequence_exit.enrollment_id and x."status" in ('active', 'paused')
-  returning * into v_member;
-  if v_member."enrollment_id" is null then
-    return;
-  end if;
-  update "better_supabase"."enrollments" x
-  set "status" = 'cancelled', "cancelled_at" = now(), "updated_at" = now()
-  where x."id" = v_member."enrollment_id" and x."status" <> 'cancelled';
-  if sequence_exit.reason = 'manual' then
-    null;
-  else
-    null;
-  end if;
+  perform "better_supabase"."enrollment_cancel"(sequence_exit.enrollment_id, sequence_exit.reason,
+    case when sequence_exit.reason = 'manual' then auth.uid() end);
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_exit"(uuid, text) from public, anon, authenticated;
@@ -3406,13 +3153,8 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
-declare
-  v_member "better_supabase"."sequence_enrollments";
 begin
   perform "better_supabase"."enrollment_mark"(sequence_step_done.enrollment_id, sequence_step_done.step, true, null);
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_done.enrollment_id;
-  null;
   perform "better_supabase"."sequence_place"(sequence_step_done.enrollment_id);
 end;
 $$;
@@ -3429,17 +3171,17 @@ as $$
 #variable_conflict use_variable
 declare
   v_sequence "better_supabase"."sequences";
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
 begin
   select * into v_sequence from "better_supabase"."sequences" x where x."id" = sequence_resync.sequence_id;
-  for v_member in
-    select * from "better_supabase"."sequence_enrollments" x
-    where x."sequence_id" = sequence_resync.sequence_id and x."status" in ('active', 'paused')
+  for v_row in
+    select * from "better_supabase"."enrollments" x
+    where x."sequence_id" = sequence_resync.sequence_id and x."status" = 'active'
     for update
   loop
     perform "better_supabase"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
-      v_member."subject_type", v_member."subject_id", null);
-    perform "better_supabase"."sequence_place"(v_member."enrollment_id");
+      v_row."subject_type", v_row."subject_id", null);
+    perform "better_supabase"."sequence_place"(v_row."id");
   end loop;
 end;
 $$;
@@ -3467,7 +3209,7 @@ declare
   v_exit boolean;
   v_account uuid;
   v_steps jsonb;
-  v_member "better_supabase"."sequence_enrollments";
+  v_run uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3539,11 +3281,11 @@ begin
       perform "better_supabase"."sequence_resync"(v_row."id");
     end if;
     if v_row."status" = 'archived' and v_old."status" <> 'archived' then
-      for v_member in
-        select * from "better_supabase"."sequence_enrollments" x
-        where x."sequence_id" = v_row."id" and x."status" in ('active', 'paused')
+      for v_run in
+        select x."id" from "better_supabase"."enrollments" x
+        where x."sequence_id" = v_row."id" and x."status" = 'active'
       loop
-        perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'archived');
+        perform "better_supabase"."sequence_exit"(v_run, 'archived');
       end loop;
     end if;
   end if;
@@ -3552,10 +3294,10 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."save_sequence"(uuid, jsonb) from public, anon;
@@ -3576,10 +3318,10 @@ begin
     raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'status', x."status", 'exitOnReply', x."exit_on_reply", 'accountId', x."mail_account_id", 'steps', x."steps", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = x."id")) order by x."name", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'status', x."status", 'exitOnReply', x."exit_on_reply", 'accountId', x."mail_account_id", 'steps', x."steps", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = x."id")) order by x."name", x."id")
     from "better_supabase"."sequences" x
     where x."tenant_id" = list_sequences.tenant
       and (case when list_sequences.status is null then x."status" <> 'archived' else x."status"::text = list_sequences.status end)
@@ -3605,10 +3347,10 @@ begin
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) then
     raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."get_sequence"(uuid) from public, anon;
@@ -3658,7 +3400,6 @@ as $$
 declare
   v_sequence "better_supabase"."sequences";
   v_row "better_supabase"."enrollments";
-  v_member "better_supabase"."sequence_enrollments";
   v_attrs jsonb := coalesce(enroll_in_sequence.attrs, '{}'::jsonb);
   v_address text;
   v_name text;
@@ -3715,33 +3456,22 @@ begin
   where x."tenant_id" = v_sequence."tenant_id" and x."program" = ('sequence:' || v_sequence."id"::text)
     and x."subject_type" = enroll_in_sequence.subject_type and x."subject_id" = enroll_in_sequence.subject_id
   for update;
-  if v_row."id" is not null then
-    select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_row."id" for update;
-    if v_member."status" in ('active', 'paused') then
-      return "better_supabase"."sequence_member_json"(v_row."id");
-    end if;
-    -- Starting over: clearing the steps makes enrollment_ensure take the
-    -- current ones, with none done.
-    delete from "better_supabase"."enrollment_steps" x where x."enrollment_id" = v_row."id";
-    update "better_supabase"."enrollments" x
-    set "status" = 'active', "cancelled_at" = null, "completed_at" = null, "enrolled_by" = auth.uid(),
-      "enrolled_at" = now(), "steps" = '{}'
-    where x."id" = v_row."id";
+  if v_row."id" is not null and v_row."status" = 'active' then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  v_id := "better_supabase"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
-    enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
-  insert into "better_supabase"."sequence_enrollments" ("enrollment_id", "tenant_id", "sequence_id", "subject_type", "subject_id", "address", "name",
-    "mail_account_id", "variables", "status", "enrolled_by")
-  values (v_id, v_sequence."tenant_id", v_sequence."id", enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, v_address, v_name,
-    v_account, v_variables, 'active', auth.uid())
-  on conflict ("enrollment_id") do update
-  set "address" = excluded."address", "name" = excluded."name", "mail_account_id" = excluded."mail_account_id",
-    "variables" = excluded."variables", "enrolled_by" = excluded."enrolled_by", "status" = 'active',
-    "exit_reason" = null, "step" = null, "next_run_at" = null, "mail_thread_id" = null, "attempts" = 0,
-    "last_error" = null, "updated_at" = now();
+  if v_row."id" is not null then
+    -- Starting over: the run begins again with none of the steps done.
+    perform "better_supabase"."enrollment_restart"(v_row."id", v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord), auth.uid());
+    v_id := v_row."id";
+  else
+    v_id := "better_supabase"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
+      enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
+  end if;
+  update "better_supabase"."enrollments" x
+  set "sequence_id" = v_sequence."id", "sequence_address" = v_address, "sequence_name" = v_name, "sequence_mail_account_id" = v_account,
+    "sequence_mail_thread_id" = null, "sequence_variables" = v_variables, "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
+  where x."id" = v_id;
   perform "better_supabase"."sequence_place"(v_id);
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_id;
-  null;
   return "better_supabase"."sequence_member_json"(v_id);
 end;
 $$;
@@ -3757,44 +3487,39 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_status text;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = change_sequence_enrollment.enrollment_id for update;
-  if v_member."enrollment_id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false)))) then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = change_sequence_enrollment.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false)))) then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false))) then
     raise exception 'not allowed to change sequence enrollments' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
+  v_status := (case when v_row."status" = 'cancelled' then 'exited' when v_row."status" = 'completed' then 'completed' when v_row."paused_at" is not null then 'paused' else 'active' end);
   case change_sequence_enrollment.action
     when 'pause' then
-      if v_member."status" <> 'active' then
+      if v_status <> 'active' then
         raise exception 'only an active run can be paused' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      update "better_supabase"."sequence_enrollments" x set "status" = 'paused', "updated_at" = now()
-      where x."enrollment_id" = v_member."enrollment_id"
-      returning * into v_member;
-      null;
+      perform "better_supabase"."enrollment_pause"(v_row."id", true, auth.uid());
     when 'resume' then
-      if v_member."status" <> 'paused' then
+      if v_status <> 'paused' then
         raise exception 'only a paused run can be resumed' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      update "better_supabase"."sequence_enrollments" x set "status" = 'active', "updated_at" = now()
-      where x."enrollment_id" = v_member."enrollment_id"
-      returning * into v_member;
-      null;
+      perform "better_supabase"."enrollment_pause"(v_row."id", false, auth.uid());
     when 'exit' then
-      if v_member."status" not in ('active', 'paused') then
+      if v_status not in ('active', 'paused') then
         raise exception 'only an active or paused run can be exited' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'manual');
+      perform "better_supabase"."sequence_exit"(v_row."id", 'manual');
     else
       raise exception 'action must be pause, resume or exit' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end case;
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."change_sequence_enrollment"(uuid, text) from public, anon;
@@ -3802,7 +3527,7 @@ grant execute on function "better_supabase"."change_sequence_enrollment"(uuid, t
 
 -- An organization's sequence recipients, newest first. filter is
 -- { sequence, subjectType, subjectId, status, limit, before }: before is a
--- createdAt from the previous page.
+-- createdAt (when the run started) from the previous page.
 create or replace function "better_supabase"."list_sequence_enrollments"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -3822,17 +3547,17 @@ begin
     raise exception 'filter must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   return coalesce((
-    select jsonb_agg("better_supabase"."sequence_member_json"(y."enrollment_id") order by y."created_at" desc, y."enrollment_id" desc)
+    select jsonb_agg("better_supabase"."sequence_member_json"(y."id") order by y."enrolled_at" desc, y."id" desc)
     from (
-      select x."enrollment_id", x."created_at"
-      from "better_supabase"."sequence_enrollments" x
-      where x."tenant_id" = list_sequence_enrollments.tenant
+      select x."id", x."enrolled_at"
+      from "better_supabase"."enrollments" x
+      where x."tenant_id" = list_sequence_enrollments.tenant and x."sequence_id" is not null
         and (v_parent is null or x."sequence_id" = v_parent)
         and (v_filter ->> 'subjectType' is null or x."subject_type" = v_filter ->> 'subjectType')
         and (v_filter ->> 'subjectId' is null or x."subject_id" = v_filter ->> 'subjectId')
-        and (v_filter ->> 'status' is null or x."status"::text = v_filter ->> 'status')
-        and (v_filter ->> 'before' is null or x."created_at" < (v_filter ->> 'before')::timestamptz)
-      order by x."created_at" desc, x."enrollment_id" desc
+        and (v_filter ->> 'status' is null or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = v_filter ->> 'status')
+        and (v_filter ->> 'before' is null or x."enrolled_at" < (v_filter ->> 'before')::timestamptz)
+      order by x."enrolled_at" desc, x."id" desc
       limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)
     ) y
   ), '[]'::jsonb);
@@ -3855,9 +3580,11 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_due "better_supabase"."sequence_enrollments";
-  v_member "better_supabase"."sequence_enrollments";
+  v_due uuid;
+  v_row "better_supabase"."enrollments";
   v_sequence "better_supabase"."sequences";
+  v_current text;
+  v_next_run timestamptz;
   v_step jsonb;
   v_emails jsonb := '[]'::jsonb;
   v_ran integer := 0;
@@ -3867,10 +3594,11 @@ begin
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   for v_due in
-    select x.* from "better_supabase"."sequence_enrollments" x
+    select x."id" from "better_supabase"."enrollments" x
+    join "better_supabase"."enrollment_steps" o on o."enrollment_id" = x."id" and o."completed_at" is null
     join "better_supabase"."sequences" y on y."id" = x."sequence_id"
-    where x."status" = 'active' and x."next_run_at" <= now() and y."status" = 'active'
-    order by x."next_run_at", x."enrollment_id"
+    where o."due_at" <= now() and x."status" = 'active' and x."paused_at" is null and y."status" = 'active'
+    order by o."due_at", x."id"
     limit least(greatest(coalesce(run_due_sequences.max_count, 50), 1), 500)
     for update of x skip locked
   loop
@@ -3878,28 +3606,34 @@ begin
     loop
       v_turns := v_turns + 1;
       exit when v_turns > 60;
-      select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_due."enrollment_id";
-      exit when v_member."status" <> 'active' or v_member."step" is null or v_member."next_run_at" > now();
-      select * into v_sequence from "better_supabase"."sequences" x where x."id" = v_member."sequence_id";
-      v_step := (select t.value from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'id' = v_member."step");
+      select * into v_row from "better_supabase"."enrollments" x where x."id" = v_due;
+      v_current := null;
+      v_next_run := null;
+      select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_due and o."completed_at" is null limit 1;
+      exit when v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is null or v_next_run > now();
+      select * into v_sequence from "better_supabase"."sequences" x where x."id" = v_row."sequence_id";
+      v_step := (select t.value from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'id' = v_current);
       if v_step is null then
-        perform "better_supabase"."sequence_place"(v_member."enrollment_id");
+        delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_due and y."completed_at" is null;
+        perform "better_supabase"."sequence_place"(v_due);
         continue;
       end if;
       if v_step ->> 'kind' = 'email' then
-        update "better_supabase"."sequence_enrollments" x
-        set "attempts" = x."attempts" + 1, "next_run_at" = now() + interval '10 minutes', "updated_at" = now()
-        where x."enrollment_id" = v_member."enrollment_id"
-        returning * into v_member;
+        update "better_supabase"."enrollment_steps" y set "due_at" = now() + interval '10 minutes'
+        where y."enrollment_id" = v_due and y."completed_at" is null;
+        update "better_supabase"."enrollments" x
+        set "sequence_attempts" = x."sequence_attempts" + 1, "updated_at" = now()
+        where x."id" = v_due
+        returning * into v_row;
         v_emails := v_emails || jsonb_build_array(jsonb_build_object(
-          'enrollmentId', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'organizationId', v_member."tenant_id",
-          'accountId', coalesce(v_member."mail_account_id", v_sequence."mail_account_id"), 'threadId', v_member."mail_thread_id",
-          'to', jsonb_build_object('address', v_member."address", 'name', v_member."name"),
-          'step', v_step, 'variables', v_member."variables", 'attempt', v_member."attempts",
-          'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id"));
+          'enrollmentId', v_row."id", 'sequenceId', v_row."sequence_id", 'organizationId', v_row."tenant_id",
+          'accountId', coalesce(v_row."sequence_mail_account_id", v_sequence."mail_account_id"), 'threadId', v_row."sequence_mail_thread_id",
+          'to', jsonb_build_object('address', v_row."sequence_address", 'name', v_row."sequence_name"),
+          'step', v_step, 'variables', v_row."sequence_variables", 'attempt', v_row."sequence_attempts",
+          'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"));
         exit;
       end if;
-      perform "better_supabase"."sequence_step_done"(v_member."enrollment_id", v_member."step");
+      perform "better_supabase"."sequence_step_done"(v_due, v_current);
       v_ran := v_ran + 1;
     end loop;
   end loop;
@@ -3920,20 +3654,25 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_sent.enrollment_id for update;
-  if v_member."enrollment_id" is null then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_step_sent.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if v_member."status" <> 'active' or v_member."step" is distinct from sequence_step_sent.step then
-    return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is distinct from sequence_step_sent.step then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  perform "better_supabase"."sequence_step_done"(v_member."enrollment_id", sequence_step_sent.step);
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  perform "better_supabase"."sequence_step_done"(v_row."id", sequence_step_sent.step);
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_step_sent"(uuid, text, uuid) from public, anon, authenticated;
@@ -3950,28 +3689,34 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_failed.enrollment_id for update;
-  if v_member."enrollment_id" is null then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_step_failed.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if v_member."status" <> 'active' or v_member."step" is distinct from sequence_step_failed.step then
-    return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is distinct from sequence_step_failed.step then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  update "better_supabase"."sequence_enrollments" x
-  set "last_error" = left(coalesce(sequence_step_failed.error, 'send failed'), 2000),
-    "next_run_at" = now() + make_interval(mins => 15 * greatest(x."attempts", 1)),
-    "updated_at" = now()
-  where x."enrollment_id" = v_member."enrollment_id"
-  returning * into v_member;
-  if v_member."attempts" >= 3 then
-    perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'failed');
+  update "better_supabase"."enrollments" x
+  set "sequence_last_error" = left(coalesce(sequence_step_failed.error, 'send failed'), 2000), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  update "better_supabase"."enrollment_steps" y
+  set "due_at" = now() + make_interval(mins => 15 * greatest(v_row."sequence_attempts", 1))
+  where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+  if v_row."sequence_attempts" >= 3 then
+    perform "better_supabase"."sequence_exit"(v_row."id", 'failed');
   end if;
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_step_failed"(uuid, text, text) from public, anon, authenticated;
@@ -4011,27 +3756,6 @@ create policy bsb_tenant_scope_update on "better_supabase"."sequences" as restri
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
 create policy bsb_tenant_scope_delete on "better_supabase"."sequences" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."sequence_enrollments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_select on "better_supabase"."sequence_enrollments" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_update on "better_supabase"."sequence_enrollments" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()))
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -4163,21 +3887,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block-data sequences
--- @bsb-hash sha256:fe62775dbd286939b1e0c564d816fd08a8089ab466afd777958e59dc6b732381
+-- @bsb-hash sha256:882f94cc0c9f6809311120cc5646344d881689fd649d666011977bb8ccc9624a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('sequences', 1, 'managed')
+values ('sequences', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
--- @bsb-block sequences@1 managed
--- @bsb-hash sha256:9ee6d5e8f72d7f6d086718be5bd23d847569245e77c45a4da20eccd527c7781c
+-- @bsb-block sequences@2 managed
+-- @bsb-hash sha256:43d63161a10bb4f2cf6d9252e36b985363248b2ec4a4ca5b6ee2f69e88bf6393
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4244,14 +3968,6 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
   exception when undefined_table or invalid_schema_name then null;
   end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -4275,48 +3991,28 @@ alter table "better_supabase"."sequences" add column if not exists "created_at" 
 alter table "better_supabase"."sequences" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists "sequences_account_idx" on "better_supabase"."sequences" ("mail_account_id") where "mail_account_id" is not null;
 
--- Where a recipient is in a sequence. The enrollment holds the completed
--- steps; this holds the next step, when it runs and who it goes to.
--- better_supabase.sequence_enrollments is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."sequence_enrollments" add column if not exists "enrollment_id" uuid references "better_supabase"."enrollments" ("id") on delete cascade;
-alter table "better_supabase"."sequence_enrollments" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."sequence_enrollments" add column if not exists "sequence_id" uuid references "better_supabase"."sequences" ("id") on delete cascade;
-alter table "better_supabase"."sequence_enrollments" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."sequence_enrollments" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
-alter table "better_supabase"."sequence_enrollments" add column if not exists "address" text check ("address" is null or (length("address") <= 320 and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'));
-alter table "better_supabase"."sequence_enrollments" add column if not exists "name" text check ("name" is null or length("name") <= 200);
-alter table "better_supabase"."sequence_enrollments" add column if not exists "mail_account_id" uuid;
-alter table "better_supabase"."sequence_enrollments" add column if not exists "mail_thread_id" uuid;
-alter table "better_supabase"."sequence_enrollments" add column if not exists "step" text;
-alter table "better_supabase"."sequence_enrollments" add column if not exists "next_run_at" timestamptz;
-alter table "better_supabase"."sequence_enrollments" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'paused', 'completed', 'exited'));
-alter table "better_supabase"."sequence_enrollments" add column if not exists "exit_reason" text check ("exit_reason" is null or "exit_reason" in ('replied', 'manual', 'failed', 'archived'));
-alter table "better_supabase"."sequence_enrollments" add column if not exists "attempts" integer not null default 0 check ("attempts" >= 0);
-alter table "better_supabase"."sequence_enrollments" add column if not exists "last_error" text check ("last_error" is null or length("last_error") <= 2000);
-alter table "better_supabase"."sequence_enrollments" add column if not exists "variables" jsonb not null default '{}' check (jsonb_typeof("variables") = 'object');
-alter table "better_supabase"."sequence_enrollments" add column if not exists "enrolled_by" uuid;
-alter table "better_supabase"."sequence_enrollments" add column if not exists "created_at" timestamptz not null default now();
-alter table "better_supabase"."sequence_enrollments" add column if not exists "updated_at" timestamptz not null default now();
-create unique index if not exists "bsb_sequence_enrollments_enrollment_key" on "better_supabase"."sequence_enrollments" ("enrollment_id");
-create index if not exists "sequence_enrollments_parent_idx" on "better_supabase"."sequence_enrollments" ("sequence_id", "status");
-create index if not exists "sequence_enrollments_due_idx" on "better_supabase"."sequence_enrollments" ("next_run_at") where "status" = 'active';
-create index if not exists "sequence_enrollments_subject_idx" on "better_supabase"."sequence_enrollments" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "sequence_enrollments_address_idx" on "better_supabase"."sequence_enrollments" ("tenant_id", lower("address")) where "status" in ('active', 'paused');
-create index if not exists "sequence_enrollments_account_idx" on "better_supabase"."sequence_enrollments" ("mail_account_id") where "mail_account_id" is not null;
-create index if not exists "sequence_enrollments_thread_idx" on "better_supabase"."sequence_enrollments" ("mail_thread_id") where "mail_thread_id" is not null;
+-- A recipient's run is their enrollment in the program sequence:<id>: these
+-- columns say who it goes to and how sending went, and the open step row is
+-- the step that runs next, due when it runs.
+alter table "better_supabase"."enrollments" add column if not exists "sequence_id" uuid references "better_supabase"."sequences" ("id") on delete cascade;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_address" text check ("sequence_address" is null or (length("sequence_address") <= 320 and "sequence_address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'));
+alter table "better_supabase"."enrollments" add column if not exists "sequence_name" text check ("sequence_name" is null or length("sequence_name") <= 200);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_account_id" uuid;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_thread_id" uuid;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_attempts" integer not null default 0 check ("sequence_attempts" >= 0);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_last_error" text check ("sequence_last_error" is null or length("sequence_last_error") <= 2000);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_variables" jsonb not null default '{}' check (jsonb_typeof("sequence_variables") = 'object');
+create index if not exists "enrollments_sequence_idx" on "better_supabase"."enrollments" ("sequence_id", "status") where "sequence_id" is not null;
+create index if not exists "enrollments_sequence_address_idx" on "better_supabase"."enrollments" ("tenant_id", lower("sequence_address")) where "sequence_id" is not null and "status" = 'active';
+create index if not exists "enrollments_sequence_account_idx" on "better_supabase"."enrollments" ("sequence_mail_account_id") where "sequence_mail_account_id" is not null;
+create index if not exists "enrollments_sequence_thread_idx" on "better_supabase"."enrollments" ("sequence_mail_thread_id") where "sequence_mail_thread_id" is not null;
+create index if not exists "enrollment_steps_open_due_idx" on "better_supabase"."enrollment_steps" ("due_at") where "completed_at" is null;
 
 alter table "better_supabase"."sequences" enable row level security;
 grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
 drop policy if exists bsb_sequences_select on "better_supabase"."sequences";
 create policy bsb_sequences_select on "better_supabase"."sequences"
-  for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
-alter table "better_supabase"."sequence_enrollments" enable row level security;
-grant select on "better_supabase"."sequence_enrollments" to authenticated;
-grant all on "better_supabase"."sequence_enrollments" to service_role;
-drop policy if exists bsb_sequence_enrollments_select on "better_supabase"."sequence_enrollments";
-create policy bsb_sequence_enrollments_select on "better_supabase"."sequence_enrollments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
@@ -4406,20 +4102,24 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."enrollment_id", 'organizationId', x."tenant_id", 'sequenceId', x."sequence_id",
-    'subjectType', x."subject_type", 'subjectId', x."subject_id", 'address', x."address", 'name', x."name",
-    'accountId', x."mail_account_id", 'threadId', x."mail_thread_id", 'step', x."step", 'nextRunAt', x."next_run_at",
-    'status', x."status", 'exitReason', x."exit_reason", 'attempts', x."attempts", 'lastError', x."last_error",
-    'variables', x."variables", 'enrolledBy', x."enrolled_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at",
-    'completedSteps', coalesce((select jsonb_agg(y."step" order by y."completed_at", y."step") from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."enrollment_id"), '[]'::jsonb))
-  from "better_supabase"."sequence_enrollments" x
-  where x."enrollment_id" = sequence_member_json.enrollment_id;
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sequenceId', x."sequence_id",
+    'subjectType', x."subject_type", 'subjectId', x."subject_id", 'address', x."sequence_address", 'name', x."sequence_name",
+    'accountId', x."sequence_mail_account_id", 'threadId', x."sequence_mail_thread_id", 'step', o."step", 'nextRunAt', o."due_at",
+    'status', (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end), 'exitReason', case when x."status" = 'cancelled' then x."cancel_reason" end,
+    'attempts', x."sequence_attempts", 'lastError', x."sequence_last_error",
+    'variables', x."sequence_variables", 'enrolledBy', x."enrolled_by", 'createdAt', x."enrolled_at", 'updatedAt', x."updated_at",
+    'completedSteps', coalesce((select jsonb_agg(y."step" order by y."completed_at", y."step") from "better_supabase"."enrollment_steps" y
+      where y."enrollment_id" = x."id" and y."completed_at" is not null), '[]'::jsonb))
+  from "better_supabase"."enrollments" x
+  left join "better_supabase"."enrollment_steps" o on o."enrollment_id" = x."id" and o."completed_at" is null
+  where x."id" = sequence_member_json.enrollment_id and x."sequence_id" is not null;
 $$;
 revoke execute on function "better_supabase"."sequence_member_json"(uuid) from public, anon, authenticated;
 
--- Moves a recipient to their first step not done: a wait step runs once its
--- minutes pass, the others right away. With every step done the run
--- completes. A recipient already on that step keeps their schedule.
+-- Moves a recipient to their first step not done: its open step row is due
+-- once a wait step's minutes pass, the others right away. A recipient already
+-- on that step keeps their schedule. A run that ended, or has every step
+-- done, keeps no open step.
 create or replace function "better_supabase"."sequence_place"(enrollment_id uuid)
 returns void
 language plpgsql
@@ -4428,67 +4128,60 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
   v_steps jsonb;
   v_next jsonb;
+  v_current text;
+  v_due timestamptz;
 begin
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_place.enrollment_id for update;
-  if v_member."enrollment_id" is null or v_member."status" in ('completed', 'exited') then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_place.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     return;
   end if;
-  select y."steps" into v_steps from "better_supabase"."sequences" y where y."id" = v_member."sequence_id";
+  if v_row."status" <> 'active' then
+    delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+    return;
+  end if;
+  select y."steps" into v_steps from "better_supabase"."sequences" y where y."id" = v_row."sequence_id";
   select t.value into v_next
   from jsonb_array_elements(coalesce(v_steps, '[]'::jsonb)) with ordinality as t(value, ord)
-  where not exists (select 1 from "better_supabase"."enrollment_steps" z where z."enrollment_id" = v_member."enrollment_id" and z."step" = t.value ->> 'id')
+  where not exists (
+    select 1 from "better_supabase"."enrollment_steps" z
+    where z."enrollment_id" = v_row."id" and z."step" = t.value ->> 'id' and z."completed_at" is not null
+  )
   order by t.ord
   limit 1;
-  if v_next is null then
-    update "better_supabase"."sequence_enrollments" x
-    set "status" = 'completed', "step" = null, "next_run_at" = null, "attempts" = 0, "last_error" = null, "updated_at" = now()
-    where x."enrollment_id" = v_member."enrollment_id"
-    returning * into v_member;
-    null;
+  select o."step", o."due_at" into v_current, v_due from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_next is not null and (v_next ->> 'id') is not distinct from v_current then
     return;
   end if;
-  if (v_next ->> 'id') is not distinct from v_member."step" then
-    return;
+  delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+  if v_next is not null then
+    insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "due_at", "completed_by", "completed_at")
+    values (v_row."id", v_row."tenant_id", v_next ->> 'id',
+      case when v_next ->> 'kind' = 'wait' then now() + make_interval(mins => (v_next ->> 'minutes')::integer) else now() end, null, null);
   end if;
-  update "better_supabase"."sequence_enrollments" x
-  set "step" = v_next ->> 'id',
-    "next_run_at" = case when v_next ->> 'kind' = 'wait' then now() + make_interval(mins => (v_next ->> 'minutes')::integer) else now() end,
-    "attempts" = 0, "last_error" = null, "updated_at" = now()
-  where x."enrollment_id" = v_member."enrollment_id";
+  update "better_supabase"."enrollments" x
+  set "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
+  where x."id" = v_row."id";
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_place"(uuid) from public, anon, authenticated;
 
--- Ends a recipient's run (reason: replied, manual, failed or archived) and
--- cancels their enrollment; the completed steps stay.
+-- Ends a recipient's run (reason: replied, manual, failed or archived) by
+-- cancelling their enrollment; the completed steps stay. A manual exit is
+-- audited.
 create or replace function "better_supabase"."sequence_exit"(enrollment_id uuid, reason text)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
-declare
-  v_member "better_supabase"."sequence_enrollments";
 begin
-  update "better_supabase"."sequence_enrollments" x
-  set "status" = 'exited', "exit_reason" = better_supabase.as_column_type(sequence_exit.reason, (null::"better_supabase"."sequence_enrollments")."exit_reason"), "next_run_at" = null, "updated_at" = now()
-  where x."enrollment_id" = sequence_exit.enrollment_id and x."status" in ('active', 'paused')
-  returning * into v_member;
-  if v_member."enrollment_id" is null then
-    return;
-  end if;
-  update "better_supabase"."enrollments" x
-  set "status" = 'cancelled', "cancelled_at" = now(), "updated_at" = now()
-  where x."id" = v_member."enrollment_id" and x."status" <> 'cancelled';
-  if sequence_exit.reason = 'manual' then
-    null;
-  else
-    null;
-  end if;
+  perform "better_supabase"."enrollment_cancel"(sequence_exit.enrollment_id, sequence_exit.reason,
+    case when sequence_exit.reason = 'manual' then auth.uid() end);
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_exit"(uuid, text) from public, anon, authenticated;
@@ -4500,13 +4193,8 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
-declare
-  v_member "better_supabase"."sequence_enrollments";
 begin
   perform "better_supabase"."enrollment_mark"(sequence_step_done.enrollment_id, sequence_step_done.step, true, null);
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_done.enrollment_id;
-  null;
   perform "better_supabase"."sequence_place"(sequence_step_done.enrollment_id);
 end;
 $$;
@@ -4523,17 +4211,17 @@ as $$
 #variable_conflict use_variable
 declare
   v_sequence "better_supabase"."sequences";
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
 begin
   select * into v_sequence from "better_supabase"."sequences" x where x."id" = sequence_resync.sequence_id;
-  for v_member in
-    select * from "better_supabase"."sequence_enrollments" x
-    where x."sequence_id" = sequence_resync.sequence_id and x."status" in ('active', 'paused')
+  for v_row in
+    select * from "better_supabase"."enrollments" x
+    where x."sequence_id" = sequence_resync.sequence_id and x."status" = 'active'
     for update
   loop
     perform "better_supabase"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
-      v_member."subject_type", v_member."subject_id", null);
-    perform "better_supabase"."sequence_place"(v_member."enrollment_id");
+      v_row."subject_type", v_row."subject_id", null);
+    perform "better_supabase"."sequence_place"(v_row."id");
   end loop;
 end;
 $$;
@@ -4561,7 +4249,7 @@ declare
   v_exit boolean;
   v_account uuid;
   v_steps jsonb;
-  v_member "better_supabase"."sequence_enrollments";
+  v_run uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4633,11 +4321,11 @@ begin
       perform "better_supabase"."sequence_resync"(v_row."id");
     end if;
     if v_row."status" = 'archived' and v_old."status" <> 'archived' then
-      for v_member in
-        select * from "better_supabase"."sequence_enrollments" x
-        where x."sequence_id" = v_row."id" and x."status" in ('active', 'paused')
+      for v_run in
+        select x."id" from "better_supabase"."enrollments" x
+        where x."sequence_id" = v_row."id" and x."status" = 'active'
       loop
-        perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'archived');
+        perform "better_supabase"."sequence_exit"(v_run, 'archived');
       end loop;
     end if;
   end if;
@@ -4646,10 +4334,10 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."save_sequence"(uuid, jsonb) from public, anon;
@@ -4670,10 +4358,10 @@ begin
     raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'status', x."status", 'exitOnReply', x."exit_on_reply", 'accountId', x."mail_account_id", 'steps', x."steps", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = x."id")) order by x."name", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'status', x."status", 'exitOnReply', x."exit_on_reply", 'accountId', x."mail_account_id", 'steps', x."steps", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = x."id")) order by x."name", x."id")
     from "better_supabase"."sequences" x
     where x."tenant_id" = list_sequences.tenant
       and (case when list_sequences.status is null then x."status" <> 'archived' else x."status"::text = list_sequences.status end)
@@ -4699,10 +4387,10 @@ begin
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) then
     raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."get_sequence"(uuid) from public, anon;
@@ -4752,7 +4440,6 @@ as $$
 declare
   v_sequence "better_supabase"."sequences";
   v_row "better_supabase"."enrollments";
-  v_member "better_supabase"."sequence_enrollments";
   v_attrs jsonb := coalesce(enroll_in_sequence.attrs, '{}'::jsonb);
   v_address text;
   v_name text;
@@ -4809,33 +4496,22 @@ begin
   where x."tenant_id" = v_sequence."tenant_id" and x."program" = ('sequence:' || v_sequence."id"::text)
     and x."subject_type" = enroll_in_sequence.subject_type and x."subject_id" = enroll_in_sequence.subject_id
   for update;
-  if v_row."id" is not null then
-    select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_row."id" for update;
-    if v_member."status" in ('active', 'paused') then
-      return "better_supabase"."sequence_member_json"(v_row."id");
-    end if;
-    -- Starting over: clearing the steps makes enrollment_ensure take the
-    -- current ones, with none done.
-    delete from "better_supabase"."enrollment_steps" x where x."enrollment_id" = v_row."id";
-    update "better_supabase"."enrollments" x
-    set "status" = 'active', "cancelled_at" = null, "completed_at" = null, "enrolled_by" = auth.uid(),
-      "enrolled_at" = now(), "steps" = '{}'
-    where x."id" = v_row."id";
+  if v_row."id" is not null and v_row."status" = 'active' then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  v_id := "better_supabase"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
-    enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
-  insert into "better_supabase"."sequence_enrollments" ("enrollment_id", "tenant_id", "sequence_id", "subject_type", "subject_id", "address", "name",
-    "mail_account_id", "variables", "status", "enrolled_by")
-  values (v_id, v_sequence."tenant_id", v_sequence."id", enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, v_address, v_name,
-    v_account, v_variables, 'active', auth.uid())
-  on conflict ("enrollment_id") do update
-  set "address" = excluded."address", "name" = excluded."name", "mail_account_id" = excluded."mail_account_id",
-    "variables" = excluded."variables", "enrolled_by" = excluded."enrolled_by", "status" = 'active',
-    "exit_reason" = null, "step" = null, "next_run_at" = null, "mail_thread_id" = null, "attempts" = 0,
-    "last_error" = null, "updated_at" = now();
+  if v_row."id" is not null then
+    -- Starting over: the run begins again with none of the steps done.
+    perform "better_supabase"."enrollment_restart"(v_row."id", v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord), auth.uid());
+    v_id := v_row."id";
+  else
+    v_id := "better_supabase"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
+      enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
+  end if;
+  update "better_supabase"."enrollments" x
+  set "sequence_id" = v_sequence."id", "sequence_address" = v_address, "sequence_name" = v_name, "sequence_mail_account_id" = v_account,
+    "sequence_mail_thread_id" = null, "sequence_variables" = v_variables, "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
+  where x."id" = v_id;
   perform "better_supabase"."sequence_place"(v_id);
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_id;
-  null;
   return "better_supabase"."sequence_member_json"(v_id);
 end;
 $$;
@@ -4851,44 +4527,39 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_status text;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = change_sequence_enrollment.enrollment_id for update;
-  if v_member."enrollment_id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false)))) then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = change_sequence_enrollment.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false)))) then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false))) then
     raise exception 'not allowed to change sequence enrollments' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
+  v_status := (case when v_row."status" = 'cancelled' then 'exited' when v_row."status" = 'completed' then 'completed' when v_row."paused_at" is not null then 'paused' else 'active' end);
   case change_sequence_enrollment.action
     when 'pause' then
-      if v_member."status" <> 'active' then
+      if v_status <> 'active' then
         raise exception 'only an active run can be paused' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      update "better_supabase"."sequence_enrollments" x set "status" = 'paused', "updated_at" = now()
-      where x."enrollment_id" = v_member."enrollment_id"
-      returning * into v_member;
-      null;
+      perform "better_supabase"."enrollment_pause"(v_row."id", true, auth.uid());
     when 'resume' then
-      if v_member."status" <> 'paused' then
+      if v_status <> 'paused' then
         raise exception 'only a paused run can be resumed' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      update "better_supabase"."sequence_enrollments" x set "status" = 'active', "updated_at" = now()
-      where x."enrollment_id" = v_member."enrollment_id"
-      returning * into v_member;
-      null;
+      perform "better_supabase"."enrollment_pause"(v_row."id", false, auth.uid());
     when 'exit' then
-      if v_member."status" not in ('active', 'paused') then
+      if v_status not in ('active', 'paused') then
         raise exception 'only an active or paused run can be exited' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'manual');
+      perform "better_supabase"."sequence_exit"(v_row."id", 'manual');
     else
       raise exception 'action must be pause, resume or exit' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end case;
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."change_sequence_enrollment"(uuid, text) from public, anon;
@@ -4896,7 +4567,7 @@ grant execute on function "better_supabase"."change_sequence_enrollment"(uuid, t
 
 -- An organization's sequence recipients, newest first. filter is
 -- { sequence, subjectType, subjectId, status, limit, before }: before is a
--- createdAt from the previous page.
+-- createdAt (when the run started) from the previous page.
 create or replace function "better_supabase"."list_sequence_enrollments"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -4916,17 +4587,17 @@ begin
     raise exception 'filter must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   return coalesce((
-    select jsonb_agg("better_supabase"."sequence_member_json"(y."enrollment_id") order by y."created_at" desc, y."enrollment_id" desc)
+    select jsonb_agg("better_supabase"."sequence_member_json"(y."id") order by y."enrolled_at" desc, y."id" desc)
     from (
-      select x."enrollment_id", x."created_at"
-      from "better_supabase"."sequence_enrollments" x
-      where x."tenant_id" = list_sequence_enrollments.tenant
+      select x."id", x."enrolled_at"
+      from "better_supabase"."enrollments" x
+      where x."tenant_id" = list_sequence_enrollments.tenant and x."sequence_id" is not null
         and (v_parent is null or x."sequence_id" = v_parent)
         and (v_filter ->> 'subjectType' is null or x."subject_type" = v_filter ->> 'subjectType')
         and (v_filter ->> 'subjectId' is null or x."subject_id" = v_filter ->> 'subjectId')
-        and (v_filter ->> 'status' is null or x."status"::text = v_filter ->> 'status')
-        and (v_filter ->> 'before' is null or x."created_at" < (v_filter ->> 'before')::timestamptz)
-      order by x."created_at" desc, x."enrollment_id" desc
+        and (v_filter ->> 'status' is null or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = v_filter ->> 'status')
+        and (v_filter ->> 'before' is null or x."enrolled_at" < (v_filter ->> 'before')::timestamptz)
+      order by x."enrolled_at" desc, x."id" desc
       limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)
     ) y
   ), '[]'::jsonb);
@@ -4949,9 +4620,11 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_due "better_supabase"."sequence_enrollments";
-  v_member "better_supabase"."sequence_enrollments";
+  v_due uuid;
+  v_row "better_supabase"."enrollments";
   v_sequence "better_supabase"."sequences";
+  v_current text;
+  v_next_run timestamptz;
   v_step jsonb;
   v_emails jsonb := '[]'::jsonb;
   v_ran integer := 0;
@@ -4961,10 +4634,11 @@ begin
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   for v_due in
-    select x.* from "better_supabase"."sequence_enrollments" x
+    select x."id" from "better_supabase"."enrollments" x
+    join "better_supabase"."enrollment_steps" o on o."enrollment_id" = x."id" and o."completed_at" is null
     join "better_supabase"."sequences" y on y."id" = x."sequence_id"
-    where x."status" = 'active' and x."next_run_at" <= now() and y."status" = 'active'
-    order by x."next_run_at", x."enrollment_id"
+    where o."due_at" <= now() and x."status" = 'active' and x."paused_at" is null and y."status" = 'active'
+    order by o."due_at", x."id"
     limit least(greatest(coalesce(run_due_sequences.max_count, 50), 1), 500)
     for update of x skip locked
   loop
@@ -4972,28 +4646,34 @@ begin
     loop
       v_turns := v_turns + 1;
       exit when v_turns > 60;
-      select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_due."enrollment_id";
-      exit when v_member."status" <> 'active' or v_member."step" is null or v_member."next_run_at" > now();
-      select * into v_sequence from "better_supabase"."sequences" x where x."id" = v_member."sequence_id";
-      v_step := (select t.value from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'id' = v_member."step");
+      select * into v_row from "better_supabase"."enrollments" x where x."id" = v_due;
+      v_current := null;
+      v_next_run := null;
+      select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_due and o."completed_at" is null limit 1;
+      exit when v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is null or v_next_run > now();
+      select * into v_sequence from "better_supabase"."sequences" x where x."id" = v_row."sequence_id";
+      v_step := (select t.value from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'id' = v_current);
       if v_step is null then
-        perform "better_supabase"."sequence_place"(v_member."enrollment_id");
+        delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_due and y."completed_at" is null;
+        perform "better_supabase"."sequence_place"(v_due);
         continue;
       end if;
       if v_step ->> 'kind' = 'email' then
-        update "better_supabase"."sequence_enrollments" x
-        set "attempts" = x."attempts" + 1, "next_run_at" = now() + interval '10 minutes', "updated_at" = now()
-        where x."enrollment_id" = v_member."enrollment_id"
-        returning * into v_member;
+        update "better_supabase"."enrollment_steps" y set "due_at" = now() + interval '10 minutes'
+        where y."enrollment_id" = v_due and y."completed_at" is null;
+        update "better_supabase"."enrollments" x
+        set "sequence_attempts" = x."sequence_attempts" + 1, "updated_at" = now()
+        where x."id" = v_due
+        returning * into v_row;
         v_emails := v_emails || jsonb_build_array(jsonb_build_object(
-          'enrollmentId', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'organizationId', v_member."tenant_id",
-          'accountId', coalesce(v_member."mail_account_id", v_sequence."mail_account_id"), 'threadId', v_member."mail_thread_id",
-          'to', jsonb_build_object('address', v_member."address", 'name', v_member."name"),
-          'step', v_step, 'variables', v_member."variables", 'attempt', v_member."attempts",
-          'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id"));
+          'enrollmentId', v_row."id", 'sequenceId', v_row."sequence_id", 'organizationId', v_row."tenant_id",
+          'accountId', coalesce(v_row."sequence_mail_account_id", v_sequence."mail_account_id"), 'threadId', v_row."sequence_mail_thread_id",
+          'to', jsonb_build_object('address', v_row."sequence_address", 'name', v_row."sequence_name"),
+          'step', v_step, 'variables', v_row."sequence_variables", 'attempt', v_row."sequence_attempts",
+          'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"));
         exit;
       end if;
-      perform "better_supabase"."sequence_step_done"(v_member."enrollment_id", v_member."step");
+      perform "better_supabase"."sequence_step_done"(v_due, v_current);
       v_ran := v_ran + 1;
     end loop;
   end loop;
@@ -5014,20 +4694,25 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_sent.enrollment_id for update;
-  if v_member."enrollment_id" is null then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_step_sent.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if v_member."status" <> 'active' or v_member."step" is distinct from sequence_step_sent.step then
-    return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is distinct from sequence_step_sent.step then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  perform "better_supabase"."sequence_step_done"(v_member."enrollment_id", sequence_step_sent.step);
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  perform "better_supabase"."sequence_step_done"(v_row."id", sequence_step_sent.step);
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_step_sent"(uuid, text, uuid) from public, anon, authenticated;
@@ -5044,28 +4729,34 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_failed.enrollment_id for update;
-  if v_member."enrollment_id" is null then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_step_failed.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if v_member."status" <> 'active' or v_member."step" is distinct from sequence_step_failed.step then
-    return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is distinct from sequence_step_failed.step then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  update "better_supabase"."sequence_enrollments" x
-  set "last_error" = left(coalesce(sequence_step_failed.error, 'send failed'), 2000),
-    "next_run_at" = now() + make_interval(mins => 15 * greatest(x."attempts", 1)),
-    "updated_at" = now()
-  where x."enrollment_id" = v_member."enrollment_id"
-  returning * into v_member;
-  if v_member."attempts" >= 3 then
-    perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'failed');
+  update "better_supabase"."enrollments" x
+  set "sequence_last_error" = left(coalesce(sequence_step_failed.error, 'send failed'), 2000), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  update "better_supabase"."enrollment_steps" y
+  set "due_at" = now() + make_interval(mins => 15 * greatest(v_row."sequence_attempts", 1))
+  where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+  if v_row."sequence_attempts" >= 3 then
+    perform "better_supabase"."sequence_exit"(v_row."id", 'failed');
   end if;
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_step_failed"(uuid, text, text) from public, anon, authenticated;
@@ -5107,27 +4798,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
 create policy bsb_tenant_scope_delete on "better_supabase"."sequences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."sequence_enrollments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_select on "better_supabase"."sequence_enrollments" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_update on "better_supabase"."sequence_enrollments" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()))
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -5145,21 +4815,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block-data sequences
--- @bsb-hash sha256:fe62775dbd286939b1e0c564d816fd08a8089ab466afd777958e59dc6b732381
+-- @bsb-hash sha256:882f94cc0c9f6809311120cc5646344d881689fd649d666011977bb8ccc9624a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('sequences', 1, 'managed')
+values ('sequences', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
--- @bsb-block sequences@1 managed
--- @bsb-hash sha256:a4346b87a7263c3522716ffd16de3a71365934dd619c3eb5c5519f09f7230260
+-- @bsb-block sequences@2 managed
+-- @bsb-hash sha256:e02913429eb7e150e166495a3896b938eadf74e96f2e0cafa56f70a23944362f
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5210,14 +4880,6 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
   exception when undefined_table or invalid_schema_name then null;
   end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequence_enrollments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -5248,39 +4910,22 @@ create table if not exists "better_supabase"."sequences" (
 );
 create index if not exists "sequences_account_idx" on "better_supabase"."sequences" ("mail_account_id") where "mail_account_id" is not null;
 
--- Where a recipient is in a sequence. The enrollment holds the completed
--- steps; this holds the next step, when it runs and who it goes to.
-create table if not exists "better_supabase"."sequence_enrollments" (
-  "enrollment_id" uuid primary key references "better_supabase"."enrollments" ("id") on delete cascade,
-  "org_id" uuid not null,
-  "sequence_id" uuid not null references "better_supabase"."sequences" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "address" text check ("address" is null or (length("address") <= 320 and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
-  "name" text check ("name" is null or length("name") <= 200),
-  "mail_account_id" uuid,
-  -- The thread the first email started; later emails reply on it.
-  "mail_thread_id" uuid,
-  -- The step that runs next, null once every step is done.
-  "step" text,
-  "next_run_at" timestamptz,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'completed', 'exited')),
-  "exit_reason" text check ("exit_reason" is null or "exit_reason" in ('replied', 'manual', 'failed', 'archived')),
-  "attempts" integer not null default 0 check ("attempts" >= 0),
-  "last_error" text check ("last_error" is null or length("last_error") <= 2000),
-  -- Values for the {{key}} placeholders of the email steps.
-  "variables" jsonb not null default '{}' check (jsonb_typeof("variables") = 'object'),
-  "enrolled_by" uuid,
-  "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now(),
-  check (("status" = 'exited') = ("exit_reason" is not null))
-);
-create index if not exists "sequence_enrollments_parent_idx" on "better_supabase"."sequence_enrollments" ("sequence_id", "status");
-create index if not exists "sequence_enrollments_due_idx" on "better_supabase"."sequence_enrollments" ("next_run_at") where "status" = 'active';
-create index if not exists "sequence_enrollments_subject_idx" on "better_supabase"."sequence_enrollments" ("org_id", "subject_type", "subject_id");
-create index if not exists "sequence_enrollments_address_idx" on "better_supabase"."sequence_enrollments" ("org_id", lower("address")) where "status" in ('active', 'paused');
-create index if not exists "sequence_enrollments_account_idx" on "better_supabase"."sequence_enrollments" ("mail_account_id") where "mail_account_id" is not null;
-create index if not exists "sequence_enrollments_thread_idx" on "better_supabase"."sequence_enrollments" ("mail_thread_id") where "mail_thread_id" is not null;
+-- A recipient's run is their enrollment in the program sequence:<id>: these
+-- columns say who it goes to and how sending went, and the open step row is
+-- the step that runs next, due when it runs.
+alter table "better_supabase"."enrollments" add column if not exists "sequence_id" uuid references "better_supabase"."sequences" ("id") on delete cascade;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_address" text check ("sequence_address" is null or (length("sequence_address") <= 320 and "sequence_address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'));
+alter table "better_supabase"."enrollments" add column if not exists "sequence_name" text check ("sequence_name" is null or length("sequence_name") <= 200);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_account_id" uuid;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_thread_id" uuid;
+alter table "better_supabase"."enrollments" add column if not exists "sequence_attempts" integer not null default 0 check ("sequence_attempts" >= 0);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_last_error" text check ("sequence_last_error" is null or length("sequence_last_error") <= 2000);
+alter table "better_supabase"."enrollments" add column if not exists "sequence_variables" jsonb not null default '{}' check (jsonb_typeof("sequence_variables") = 'object');
+create index if not exists "enrollments_sequence_idx" on "better_supabase"."enrollments" ("sequence_id", "status") where "sequence_id" is not null;
+create index if not exists "enrollments_sequence_address_idx" on "better_supabase"."enrollments" ("org_id", lower("sequence_address")) where "sequence_id" is not null and "status" = 'active';
+create index if not exists "enrollments_sequence_account_idx" on "better_supabase"."enrollments" ("sequence_mail_account_id") where "sequence_mail_account_id" is not null;
+create index if not exists "enrollments_sequence_thread_idx" on "better_supabase"."enrollments" ("sequence_mail_thread_id") where "sequence_mail_thread_id" is not null;
+create index if not exists "enrollment_steps_open_due_idx" on "better_supabase"."enrollment_steps" ("due_at") where "completed_at" is null;
 
 alter table "better_supabase"."sequences" enable row level security;
 revoke all on "better_supabase"."sequences" from public, anon, authenticated;
@@ -5288,14 +4933,6 @@ grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
 drop policy if exists "sequences_read" on "better_supabase"."sequences";
 create policy sequences_read on "better_supabase"."sequences"
-  for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('sequences.read')));
-alter table "better_supabase"."sequence_enrollments" enable row level security;
-revoke all on "better_supabase"."sequence_enrollments" from public, anon, authenticated;
-grant select on "better_supabase"."sequence_enrollments" to authenticated;
-grant all on "better_supabase"."sequence_enrollments" to service_role;
-drop policy if exists "sequence_enrollments_read" on "better_supabase"."sequence_enrollments";
-create policy sequence_enrollments_read on "better_supabase"."sequence_enrollments"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
@@ -5385,20 +5022,24 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."enrollment_id", 'organizationId', x."org_id", 'sequenceId', x."sequence_id",
-    'subjectType', x."subject_type", 'subjectId', x."subject_id", 'address', x."address", 'name', x."name",
-    'accountId', x."mail_account_id", 'threadId', x."mail_thread_id", 'step', x."step", 'nextRunAt', x."next_run_at",
-    'status', x."status", 'exitReason', x."exit_reason", 'attempts', x."attempts", 'lastError', x."last_error",
-    'variables', x."variables", 'enrolledBy', x."enrolled_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at",
-    'completedSteps', coalesce((select jsonb_agg(y."step" order by y."completed_at", y."step") from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."enrollment_id"), '[]'::jsonb))
-  from "better_supabase"."sequence_enrollments" x
-  where x."enrollment_id" = sequence_member_json.enrollment_id;
+  select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'sequenceId', x."sequence_id",
+    'subjectType', x."subject_type", 'subjectId', x."subject_id", 'address', x."sequence_address", 'name', x."sequence_name",
+    'accountId', x."sequence_mail_account_id", 'threadId', x."sequence_mail_thread_id", 'step', o."step", 'nextRunAt', o."due_at",
+    'status', (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end), 'exitReason', case when x."status" = 'cancelled' then x."cancel_reason" end,
+    'attempts', x."sequence_attempts", 'lastError', x."sequence_last_error",
+    'variables', x."sequence_variables", 'enrolledBy', x."enrolled_by", 'createdAt', x."enrolled_at", 'updatedAt', x."updated_at",
+    'completedSteps', coalesce((select jsonb_agg(y."step" order by y."completed_at", y."step") from "better_supabase"."enrollment_steps" y
+      where y."enrollment_id" = x."id" and y."completed_at" is not null), '[]'::jsonb))
+  from "better_supabase"."enrollments" x
+  left join "better_supabase"."enrollment_steps" o on o."enrollment_id" = x."id" and o."completed_at" is null
+  where x."id" = sequence_member_json.enrollment_id and x."sequence_id" is not null;
 $$;
 revoke execute on function "better_supabase"."sequence_member_json"(uuid) from public, anon, authenticated;
 
--- Moves a recipient to their first step not done: a wait step runs once its
--- minutes pass, the others right away. With every step done the run
--- completes. A recipient already on that step keeps their schedule.
+-- Moves a recipient to their first step not done: its open step row is due
+-- once a wait step's minutes pass, the others right away. A recipient already
+-- on that step keeps their schedule. A run that ended, or has every step
+-- done, keeps no open step.
 create or replace function "better_supabase"."sequence_place"(enrollment_id uuid)
 returns void
 language plpgsql
@@ -5407,67 +5048,60 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
   v_steps jsonb;
   v_next jsonb;
+  v_current text;
+  v_due timestamptz;
 begin
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_place.enrollment_id for update;
-  if v_member."enrollment_id" is null or v_member."status" in ('completed', 'exited') then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_place.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     return;
   end if;
-  select y."steps" into v_steps from "better_supabase"."sequences" y where y."id" = v_member."sequence_id";
+  if v_row."status" <> 'active' then
+    delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+    return;
+  end if;
+  select y."steps" into v_steps from "better_supabase"."sequences" y where y."id" = v_row."sequence_id";
   select t.value into v_next
   from jsonb_array_elements(coalesce(v_steps, '[]'::jsonb)) with ordinality as t(value, ord)
-  where not exists (select 1 from "better_supabase"."enrollment_steps" z where z."enrollment_id" = v_member."enrollment_id" and z."step" = t.value ->> 'id')
+  where not exists (
+    select 1 from "better_supabase"."enrollment_steps" z
+    where z."enrollment_id" = v_row."id" and z."step" = t.value ->> 'id' and z."completed_at" is not null
+  )
   order by t.ord
   limit 1;
-  if v_next is null then
-    update "better_supabase"."sequence_enrollments" x
-    set "status" = 'completed', "step" = null, "next_run_at" = null, "attempts" = 0, "last_error" = null, "updated_at" = now()
-    where x."enrollment_id" = v_member."enrollment_id"
-    returning * into v_member;
-    null;
+  select o."step", o."due_at" into v_current, v_due from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_next is not null and (v_next ->> 'id') is not distinct from v_current then
     return;
   end if;
-  if (v_next ->> 'id') is not distinct from v_member."step" then
-    return;
+  delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+  if v_next is not null then
+    insert into "better_supabase"."enrollment_steps" ("enrollment_id", "org_id", "step", "due_at", "completed_by", "completed_at")
+    values (v_row."id", v_row."org_id", v_next ->> 'id',
+      case when v_next ->> 'kind' = 'wait' then now() + make_interval(mins => (v_next ->> 'minutes')::integer) else now() end, null, null);
   end if;
-  update "better_supabase"."sequence_enrollments" x
-  set "step" = v_next ->> 'id',
-    "next_run_at" = case when v_next ->> 'kind' = 'wait' then now() + make_interval(mins => (v_next ->> 'minutes')::integer) else now() end,
-    "attempts" = 0, "last_error" = null, "updated_at" = now()
-  where x."enrollment_id" = v_member."enrollment_id";
+  update "better_supabase"."enrollments" x
+  set "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
+  where x."id" = v_row."id";
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_place"(uuid) from public, anon, authenticated;
 
--- Ends a recipient's run (reason: replied, manual, failed or archived) and
--- cancels their enrollment; the completed steps stay.
+-- Ends a recipient's run (reason: replied, manual, failed or archived) by
+-- cancelling their enrollment; the completed steps stay. A manual exit is
+-- audited.
 create or replace function "better_supabase"."sequence_exit"(enrollment_id uuid, reason text)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
-declare
-  v_member "better_supabase"."sequence_enrollments";
 begin
-  update "better_supabase"."sequence_enrollments" x
-  set "status" = 'exited', "exit_reason" = sequence_exit.reason, "next_run_at" = null, "updated_at" = now()
-  where x."enrollment_id" = sequence_exit.enrollment_id and x."status" in ('active', 'paused')
-  returning * into v_member;
-  if v_member."enrollment_id" is null then
-    return;
-  end if;
-  update "better_supabase"."enrollments" x
-  set "status" = 'cancelled', "cancelled_at" = now(), "updated_at" = now()
-  where x."id" = v_member."enrollment_id" and x."status" <> 'cancelled';
-  if sequence_exit.reason = 'manual' then
-    null;
-  else
-    null;
-  end if;
+  perform "better_supabase"."enrollment_cancel"(sequence_exit.enrollment_id, sequence_exit.reason,
+    case when sequence_exit.reason = 'manual' then auth.uid() end);
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_exit"(uuid, text) from public, anon, authenticated;
@@ -5479,13 +5113,8 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
-declare
-  v_member "better_supabase"."sequence_enrollments";
 begin
   perform "better_supabase"."enrollment_mark"(sequence_step_done.enrollment_id, sequence_step_done.step, true, null);
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_done.enrollment_id;
-  null;
   perform "better_supabase"."sequence_place"(sequence_step_done.enrollment_id);
 end;
 $$;
@@ -5502,17 +5131,17 @@ as $$
 #variable_conflict use_variable
 declare
   v_sequence "better_supabase"."sequences";
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
 begin
   select * into v_sequence from "better_supabase"."sequences" x where x."id" = sequence_resync.sequence_id;
-  for v_member in
-    select * from "better_supabase"."sequence_enrollments" x
-    where x."sequence_id" = sequence_resync.sequence_id and x."status" in ('active', 'paused')
+  for v_row in
+    select * from "better_supabase"."enrollments" x
+    where x."sequence_id" = sequence_resync.sequence_id and x."status" = 'active'
     for update
   loop
     perform "better_supabase"."enrollment_ensure"(v_sequence."org_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
-      v_member."subject_type", v_member."subject_id", null);
-    perform "better_supabase"."sequence_place"(v_member."enrollment_id");
+      v_row."subject_type", v_row."subject_id", null);
+    perform "better_supabase"."sequence_place"(v_row."id");
   end loop;
 end;
 $$;
@@ -5540,7 +5169,7 @@ declare
   v_exit boolean;
   v_account uuid;
   v_steps jsonb;
-  v_member "better_supabase"."sequence_enrollments";
+  v_run uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5612,11 +5241,11 @@ begin
       perform "better_supabase"."sequence_resync"(v_row."id");
     end if;
     if v_row."status" = 'archived' and v_old."status" <> 'archived' then
-      for v_member in
-        select * from "better_supabase"."sequence_enrollments" x
-        where x."sequence_id" = v_row."id" and x."status" in ('active', 'paused')
+      for v_run in
+        select x."id" from "better_supabase"."enrollments" x
+        where x."sequence_id" = v_row."id" and x."status" = 'active'
       loop
-        perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'archived');
+        perform "better_supabase"."sequence_exit"(v_run, 'archived');
       end loop;
     end if;
   end if;
@@ -5625,10 +5254,10 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."save_sequence"(uuid, jsonb) from public, anon;
@@ -5649,10 +5278,10 @@ begin
     raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'name', x."name", 'description', x."description", 'status', x."status", 'exitOnReply', x."exit_on_reply", 'accountId', x."mail_account_id", 'steps', x."steps", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = x."id")) order by x."name", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'name', x."name", 'description', x."description", 'status', x."status", 'exitOnReply', x."exit_on_reply", 'accountId', x."mail_account_id", 'steps', x."steps", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = x."id")) order by x."name", x."id")
     from "better_supabase"."sequences" x
     where x."org_id" = list_sequences.tenant
       and (case when list_sequences.status is null then x."status" <> 'archived' else x."status"::text = list_sequences.status end)
@@ -5678,10 +5307,10 @@ begin
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'sequences.read'), false))) then
     raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
-      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
-      'replied', count(*) filter (where m."exit_reason" = 'replied'))
-    from "better_supabase"."sequence_enrollments" m where m."sequence_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
+      'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
+      'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
+    from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."get_sequence"(uuid) from public, anon;
@@ -5731,7 +5360,6 @@ as $$
 declare
   v_sequence "better_supabase"."sequences";
   v_row "better_supabase"."enrollments";
-  v_member "better_supabase"."sequence_enrollments";
   v_attrs jsonb := coalesce(enroll_in_sequence.attrs, '{}'::jsonb);
   v_address text;
   v_name text;
@@ -5788,33 +5416,22 @@ begin
   where x."org_id" = v_sequence."org_id" and x."program" = ('sequence:' || v_sequence."id"::text)
     and x."subject_type" = enroll_in_sequence.subject_type and x."subject_id" = enroll_in_sequence.subject_id
   for update;
-  if v_row."id" is not null then
-    select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_row."id" for update;
-    if v_member."status" in ('active', 'paused') then
-      return "better_supabase"."sequence_member_json"(v_row."id");
-    end if;
-    -- Starting over: clearing the steps makes enrollment_ensure take the
-    -- current ones, with none done.
-    delete from "better_supabase"."enrollment_steps" x where x."enrollment_id" = v_row."id";
-    update "better_supabase"."enrollments" x
-    set "status" = 'active', "cancelled_at" = null, "completed_at" = null, "enrolled_by" = auth.uid(),
-      "enrolled_at" = now(), "steps" = '{}'
-    where x."id" = v_row."id";
+  if v_row."id" is not null and v_row."status" = 'active' then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  v_id := "better_supabase"."enrollment_ensure"(v_sequence."org_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
-    enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
-  insert into "better_supabase"."sequence_enrollments" ("enrollment_id", "org_id", "sequence_id", "subject_type", "subject_id", "address", "name",
-    "mail_account_id", "variables", "status", "enrolled_by")
-  values (v_id, v_sequence."org_id", v_sequence."id", enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, v_address, v_name,
-    v_account, v_variables, 'active', auth.uid())
-  on conflict ("enrollment_id") do update
-  set "address" = excluded."address", "name" = excluded."name", "mail_account_id" = excluded."mail_account_id",
-    "variables" = excluded."variables", "enrolled_by" = excluded."enrolled_by", "status" = 'active',
-    "exit_reason" = null, "step" = null, "next_run_at" = null, "mail_thread_id" = null, "attempts" = 0,
-    "last_error" = null, "updated_at" = now();
+  if v_row."id" is not null then
+    -- Starting over: the run begins again with none of the steps done.
+    perform "better_supabase"."enrollment_restart"(v_row."id", v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord), auth.uid());
+    v_id := v_row."id";
+  else
+    v_id := "better_supabase"."enrollment_ensure"(v_sequence."org_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
+      enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
+  end if;
+  update "better_supabase"."enrollments" x
+  set "sequence_id" = v_sequence."id", "sequence_address" = v_address, "sequence_name" = v_name, "sequence_mail_account_id" = v_account,
+    "sequence_mail_thread_id" = null, "sequence_variables" = v_variables, "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
+  where x."id" = v_id;
   perform "better_supabase"."sequence_place"(v_id);
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_id;
-  null;
   return "better_supabase"."sequence_member_json"(v_id);
 end;
 $$;
@@ -5830,44 +5447,39 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_status text;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = change_sequence_enrollment.enrollment_id for update;
-  if v_member."enrollment_id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."org_id" is not null and coalesce(better_supabase.can('tenant', v_member."org_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."org_id" is not null and coalesce(better_supabase.can('tenant', v_member."org_id", 'sequences.enroll'), false)))) then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = change_sequence_enrollment.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'sequences.enroll'), false)))) then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."org_id" is not null and coalesce(better_supabase.can('tenant', v_member."org_id", 'sequences.enroll'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'sequences.enroll'), false))) then
     raise exception 'not allowed to change sequence enrollments' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
+  v_status := (case when v_row."status" = 'cancelled' then 'exited' when v_row."status" = 'completed' then 'completed' when v_row."paused_at" is not null then 'paused' else 'active' end);
   case change_sequence_enrollment.action
     when 'pause' then
-      if v_member."status" <> 'active' then
+      if v_status <> 'active' then
         raise exception 'only an active run can be paused' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      update "better_supabase"."sequence_enrollments" x set "status" = 'paused', "updated_at" = now()
-      where x."enrollment_id" = v_member."enrollment_id"
-      returning * into v_member;
-      null;
+      perform "better_supabase"."enrollment_pause"(v_row."id", true, auth.uid());
     when 'resume' then
-      if v_member."status" <> 'paused' then
+      if v_status <> 'paused' then
         raise exception 'only a paused run can be resumed' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      update "better_supabase"."sequence_enrollments" x set "status" = 'active', "updated_at" = now()
-      where x."enrollment_id" = v_member."enrollment_id"
-      returning * into v_member;
-      null;
+      perform "better_supabase"."enrollment_pause"(v_row."id", false, auth.uid());
     when 'exit' then
-      if v_member."status" not in ('active', 'paused') then
+      if v_status not in ('active', 'paused') then
         raise exception 'only an active or paused run can be exited' using errcode = '22023', hint = 'SEQUENCE_INVALID';
       end if;
-      perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'manual');
+      perform "better_supabase"."sequence_exit"(v_row."id", 'manual');
     else
       raise exception 'action must be pause, resume or exit' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end case;
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."change_sequence_enrollment"(uuid, text) from public, anon;
@@ -5875,7 +5487,7 @@ grant execute on function "better_supabase"."change_sequence_enrollment"(uuid, t
 
 -- An organization's sequence recipients, newest first. filter is
 -- { sequence, subjectType, subjectId, status, limit, before }: before is a
--- createdAt from the previous page.
+-- createdAt (when the run started) from the previous page.
 create or replace function "better_supabase"."list_sequence_enrollments"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -5895,17 +5507,17 @@ begin
     raise exception 'filter must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   return coalesce((
-    select jsonb_agg("better_supabase"."sequence_member_json"(y."enrollment_id") order by y."created_at" desc, y."enrollment_id" desc)
+    select jsonb_agg("better_supabase"."sequence_member_json"(y."id") order by y."enrolled_at" desc, y."id" desc)
     from (
-      select x."enrollment_id", x."created_at"
-      from "better_supabase"."sequence_enrollments" x
-      where x."org_id" = list_sequence_enrollments.tenant
+      select x."id", x."enrolled_at"
+      from "better_supabase"."enrollments" x
+      where x."org_id" = list_sequence_enrollments.tenant and x."sequence_id" is not null
         and (v_parent is null or x."sequence_id" = v_parent)
         and (v_filter ->> 'subjectType' is null or x."subject_type" = v_filter ->> 'subjectType')
         and (v_filter ->> 'subjectId' is null or x."subject_id" = v_filter ->> 'subjectId')
-        and (v_filter ->> 'status' is null or x."status"::text = v_filter ->> 'status')
-        and (v_filter ->> 'before' is null or x."created_at" < (v_filter ->> 'before')::timestamptz)
-      order by x."created_at" desc, x."enrollment_id" desc
+        and (v_filter ->> 'status' is null or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = v_filter ->> 'status')
+        and (v_filter ->> 'before' is null or x."enrolled_at" < (v_filter ->> 'before')::timestamptz)
+      order by x."enrolled_at" desc, x."id" desc
       limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)
     ) y
   ), '[]'::jsonb);
@@ -5928,9 +5540,11 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_due "better_supabase"."sequence_enrollments";
-  v_member "better_supabase"."sequence_enrollments";
+  v_due uuid;
+  v_row "better_supabase"."enrollments";
   v_sequence "better_supabase"."sequences";
+  v_current text;
+  v_next_run timestamptz;
   v_step jsonb;
   v_emails jsonb := '[]'::jsonb;
   v_ran integer := 0;
@@ -5940,10 +5554,11 @@ begin
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   for v_due in
-    select x.* from "better_supabase"."sequence_enrollments" x
+    select x."id" from "better_supabase"."enrollments" x
+    join "better_supabase"."enrollment_steps" o on o."enrollment_id" = x."id" and o."completed_at" is null
     join "better_supabase"."sequences" y on y."id" = x."sequence_id"
-    where x."status" = 'active' and x."next_run_at" <= now() and y."status" = 'active'
-    order by x."next_run_at", x."enrollment_id"
+    where o."due_at" <= now() and x."status" = 'active' and x."paused_at" is null and y."status" = 'active'
+    order by o."due_at", x."id"
     limit least(greatest(coalesce(run_due_sequences.max_count, 50), 1), 500)
     for update of x skip locked
   loop
@@ -5951,28 +5566,34 @@ begin
     loop
       v_turns := v_turns + 1;
       exit when v_turns > 60;
-      select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = v_due."enrollment_id";
-      exit when v_member."status" <> 'active' or v_member."step" is null or v_member."next_run_at" > now();
-      select * into v_sequence from "better_supabase"."sequences" x where x."id" = v_member."sequence_id";
-      v_step := (select t.value from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'id' = v_member."step");
+      select * into v_row from "better_supabase"."enrollments" x where x."id" = v_due;
+      v_current := null;
+      v_next_run := null;
+      select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_due and o."completed_at" is null limit 1;
+      exit when v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is null or v_next_run > now();
+      select * into v_sequence from "better_supabase"."sequences" x where x."id" = v_row."sequence_id";
+      v_step := (select t.value from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'id' = v_current);
       if v_step is null then
-        perform "better_supabase"."sequence_place"(v_member."enrollment_id");
+        delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_due and y."completed_at" is null;
+        perform "better_supabase"."sequence_place"(v_due);
         continue;
       end if;
       if v_step ->> 'kind' = 'email' then
-        update "better_supabase"."sequence_enrollments" x
-        set "attempts" = x."attempts" + 1, "next_run_at" = now() + interval '10 minutes', "updated_at" = now()
-        where x."enrollment_id" = v_member."enrollment_id"
-        returning * into v_member;
+        update "better_supabase"."enrollment_steps" y set "due_at" = now() + interval '10 minutes'
+        where y."enrollment_id" = v_due and y."completed_at" is null;
+        update "better_supabase"."enrollments" x
+        set "sequence_attempts" = x."sequence_attempts" + 1, "updated_at" = now()
+        where x."id" = v_due
+        returning * into v_row;
         v_emails := v_emails || jsonb_build_array(jsonb_build_object(
-          'enrollmentId', v_member."enrollment_id", 'sequenceId', v_member."sequence_id", 'organizationId', v_member."org_id",
-          'accountId', coalesce(v_member."mail_account_id", v_sequence."mail_account_id"), 'threadId', v_member."mail_thread_id",
-          'to', jsonb_build_object('address', v_member."address", 'name', v_member."name"),
-          'step', v_step, 'variables', v_member."variables", 'attempt', v_member."attempts",
-          'subjectType', v_member."subject_type", 'subjectId', v_member."subject_id"));
+          'enrollmentId', v_row."id", 'sequenceId', v_row."sequence_id", 'organizationId', v_row."org_id",
+          'accountId', coalesce(v_row."sequence_mail_account_id", v_sequence."mail_account_id"), 'threadId', v_row."sequence_mail_thread_id",
+          'to', jsonb_build_object('address', v_row."sequence_address", 'name', v_row."sequence_name"),
+          'step', v_step, 'variables', v_row."sequence_variables", 'attempt', v_row."sequence_attempts",
+          'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"));
         exit;
       end if;
-      perform "better_supabase"."sequence_step_done"(v_member."enrollment_id", v_member."step");
+      perform "better_supabase"."sequence_step_done"(v_due, v_current);
       v_ran := v_ran + 1;
     end loop;
   end loop;
@@ -5993,20 +5614,25 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_sent.enrollment_id for update;
-  if v_member."enrollment_id" is null then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_step_sent.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if v_member."status" <> 'active' or v_member."step" is distinct from sequence_step_sent.step then
-    return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is distinct from sequence_step_sent.step then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  perform "better_supabase"."sequence_step_done"(v_member."enrollment_id", sequence_step_sent.step);
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  perform "better_supabase"."sequence_step_done"(v_row."id", sequence_step_sent.step);
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_step_sent"(uuid, text, uuid) from public, anon, authenticated;
@@ -6023,28 +5649,34 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_member "better_supabase"."sequence_enrollments";
+  v_row "better_supabase"."enrollments";
+  v_current text;
+  v_next_run timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_failed.enrollment_id for update;
-  if v_member."enrollment_id" is null then
+  select * into v_row from "better_supabase"."enrollments" x
+  where x."id" = sequence_step_failed.enrollment_id and x."sequence_id" is not null
+  for update;
+  if v_row."id" is null then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if v_member."status" <> 'active' or v_member."step" is distinct from sequence_step_failed.step then
-    return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  select o."step", o."due_at" into v_current, v_next_run from "better_supabase"."enrollment_steps" o where o."enrollment_id" = v_row."id" and o."completed_at" is null limit 1;
+  if v_row."status" <> 'active' or v_row."paused_at" is not null or v_current is distinct from sequence_step_failed.step then
+    return "better_supabase"."sequence_member_json"(v_row."id");
   end if;
-  update "better_supabase"."sequence_enrollments" x
-  set "last_error" = left(coalesce(sequence_step_failed.error, 'send failed'), 2000),
-    "next_run_at" = now() + make_interval(mins => 15 * greatest(x."attempts", 1)),
-    "updated_at" = now()
-  where x."enrollment_id" = v_member."enrollment_id"
-  returning * into v_member;
-  if v_member."attempts" >= 3 then
-    perform "better_supabase"."sequence_exit"(v_member."enrollment_id", 'failed');
+  update "better_supabase"."enrollments" x
+  set "sequence_last_error" = left(coalesce(sequence_step_failed.error, 'send failed'), 2000), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  update "better_supabase"."enrollment_steps" y
+  set "due_at" = now() + make_interval(mins => 15 * greatest(v_row."sequence_attempts", 1))
+  where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+  if v_row."sequence_attempts" >= 3 then
+    perform "better_supabase"."sequence_exit"(v_row."id", 'failed');
   end if;
-  return "better_supabase"."sequence_member_json"(v_member."enrollment_id");
+  return "better_supabase"."sequence_member_json"(v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_step_failed"(uuid, text, text) from public, anon, authenticated;
@@ -6086,27 +5718,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
 create policy bsb_tenant_scope_delete on "better_supabase"."sequences" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."sequence_enrollments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_select on "better_supabase"."sequence_enrollments" as restrictive
-  for select to public
-  using (
-    "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('sequences.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments" as restrictive
-  for insert to public
-  with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_update on "better_supabase"."sequence_enrollments" as restrictive
-  for update to public
-  using ("org_id" in (select better_supabase.member_organization_ids()))
-  with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments" as restrictive
-  for delete to public
-  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -6124,13 +5735,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block-data sequences
--- @bsb-hash sha256:fe62775dbd286939b1e0c564d816fd08a8089ab466afd777958e59dc6b732381
+-- @bsb-hash sha256:882f94cc0c9f6809311120cc5646344d881689fd649d666011977bb8ccc9624a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('sequences', 1, 'managed')
+values ('sequences', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
