@@ -8874,6 +8874,48 @@
       "RpcClient"
     ]
   },
+  "./blocks/qualifications": {
+    "values": [
+      "createQualifications",
+      "dbTransport",
+      "extendBlock",
+      "qualificationGrantInputSchema",
+      "qualificationsBlock",
+      "qualificationsEvents",
+      "qualificationTypeInputSchema",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Qualification",
+      "QualificationExpiryEventData",
+      "QualificationGap",
+      "QualificationGapOptions",
+      "QualificationGapStatus",
+      "QualificationGrantedEventData",
+      "QualificationGrantInput",
+      "QualificationHolderType",
+      "QualificationRequirement",
+      "QualificationRevokedEventData",
+      "Qualifications",
+      "QualificationsEvents",
+      "QualificationsOptions",
+      "QualificationSource",
+      "QualificationStatus",
+      "QualificationTargetType",
+      "QualificationType",
+      "QualificationTypeArchivedEventData",
+      "QualificationTypeInput",
+      "QualificationTypeSavedEventData",
+      "QualifiedHoldersOptions",
+      "RpcClient"
+    ]
+  },
   "./blocks/contracts": {
     "values": [
       "contractChangesSchema",

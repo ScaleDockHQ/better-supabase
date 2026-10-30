@@ -7,6 +7,7 @@ import {
   ArrowRightFromLineIcon,
   ArrowRightToLineIcon,
   ArrowUpDownIcon,
+  AwardIcon,
   AtSignIcon,
   BadgeCheckIcon,
   BellIcon,
@@ -226,6 +227,7 @@ export const BLOCK_ICONS = {
   "vercel-marketplace": StoreIcon,
   hiring: UserPlusIcon,
   employees: IdCardIcon,
+  qualifications: AwardIcon,
   // Billing & commerce
   entitlements: BadgeCheckIcon,
   usage: GaugeIcon,

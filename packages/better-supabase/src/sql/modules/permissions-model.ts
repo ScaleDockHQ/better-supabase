@@ -99,6 +99,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "sequences.*",
     "posts.*",
     "content.*",
+    "qualifications.*",
   ],
   member: [
     "organization.read",
@@ -497,6 +498,9 @@ export const OPERATIONS = {
   "content.read": "content.read",
   "content.write": "content.write",
   "content.publish": "content.publish",
+  "qualifications.read": "qualifications.read",
+  "qualifications.grant": "qualifications.grant",
+  "qualifications.manage": "qualifications.manage",
   "messaging.read": "messages.read",
   "messaging.send": "messages.send",
   "messaging.moderate": "messages.moderate",
@@ -781,6 +785,7 @@ export const MODULE_PERMISSION_SCOPES: {
   forecasts: { read: "tenant", snapshot: "tenant" },
   "field-history": { read: "tenant" },
   content: { read: "tenant", write: "tenant", publish: "tenant" },
+  qualifications: { read: "tenant", grant: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: BlockSqlContext): AccessModel {

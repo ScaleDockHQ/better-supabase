@@ -62,3 +62,4 @@ incidents
 courses
 messaging
 posts
+qualifications

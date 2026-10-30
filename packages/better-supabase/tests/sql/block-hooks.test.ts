@@ -129,6 +129,14 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
   ],
   activities: ["before_engagement_log", "after_engagement_log"],
   content: ["before_content_entry_publish", "after_content_entry_publish"],
+  qualifications: [
+    "before_qualification_type_save",
+    "after_qualification_type_save",
+    "before_qualification_grant",
+    "after_qualification_grant",
+    "before_qualification_revoke",
+    "after_qualification_revoke",
+  ],
   collections: [
     "before_collection_create",
     "after_collection_create",

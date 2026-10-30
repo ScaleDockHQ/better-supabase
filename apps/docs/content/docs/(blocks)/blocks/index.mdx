@@ -327,6 +327,7 @@ expose the module schema itself.
 | [Moderation](/docs/blocks/moderation)                       | `better-supabase/blocks/moderation`                                              | `moderation`                                          |
 | [Enrollments](/docs/blocks/enrollments)                     | `better-supabase/blocks/enrollments`                                             | `enrollments`                                         |
 | [Courses](/docs/blocks/courses)                             | `better-supabase/blocks/courses`                                                 | `courses`                                             |
+| [Qualifications](/docs/blocks/qualifications)               | `better-supabase/blocks/qualifications`                                          | `qualifications`                                      |
 | [Leave](/docs/blocks/leave)                                 | `better-supabase/blocks/leave`                                                   | `leave`                                               |
 | [Automations](/docs/blocks/automations)                     | `better-supabase/blocks/automations`                                             | `automations`                                         |
 | [Scores](/docs/blocks/scores)                               | `better-supabase/blocks/scores`                                                  | `scores`                                              |
@@ -498,6 +499,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `posts`              | `memberships`, `permissions`, `subjects`, `messaging`, `comments`, `reactions`, `moderation` | `outbox`, `audit`                                                                                                      |
 | `field-encryption`   | none                                                                                         | none                                                                                                                   |
 | `content`            | `memberships`, `permissions`, `subjects`                                                     | `approvals`, `versions`, `attachments`, `outbox`, `audit`                                                              |
+| `qualifications`     | `memberships`, `permissions`, `subjects`                                                     | `courses`, `employees`, `teams`, `contacts`, `assets`, `segments`, `attachments`, `notifications`, `outbox`, `audit`   |
 | `rls-guard`          | none                                                                                         | none                                                                                                                   |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

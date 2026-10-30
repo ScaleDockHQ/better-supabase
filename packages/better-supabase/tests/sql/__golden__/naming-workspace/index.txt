@@ -106,3 +106,4 @@ sequences
 lead-scoring
 posts
 content
+qualifications
