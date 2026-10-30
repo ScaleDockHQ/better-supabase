@@ -16,6 +16,12 @@ auto_expose_new_tables = false
 [db]
 major_version = 17
 
+# The validation suites drop and reinstall every block schema in one
+# rolled-back transaction, which holds a lock per object; the default of 64
+# runs out of shared memory past about 440 fixture tables.
+[db.settings]
+max_locks_per_transaction = 256
+
 [db.seed]
 enabled = true
 sql_paths = ["./seed.sql"]
