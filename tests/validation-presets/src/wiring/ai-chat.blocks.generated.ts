@@ -14,6 +14,7 @@ import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
+import type { VersionsEvents } from "better-supabase/blocks/versions";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { aiChatBlock as aiChatBlockInstance } from "better-supabase/blocks/ai-chat";
 import { aiFilesBlock as aiFilesBlockInstance } from "better-supabase/blocks/ai-files";
@@ -34,6 +35,7 @@ import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/p
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 import { usageBlock as usageBlockInstance } from "better-supabase/blocks/usage";
+import { versionsBlock as versionsBlockInstance } from "better-supabase/blocks/versions";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -142,6 +144,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  versions: {
+    schema: "better_supabase",
+    options: {},
+  },
 } as const satisfies GeneratedBlocks;
 
 /**
@@ -171,6 +177,7 @@ export const blocks = {
   settings: settingsBlockInstance,
   teams: teamsBlockInstance,
   usage: usageBlockInstance,
+  versions: versionsBlockInstance,
 } as const;
 
 /**
@@ -257,6 +264,12 @@ export const permissions = {
     read: "usage.read",
     record: "usage.record",
   },
+  versions: {
+    read: "versions.read",
+    create: "versions.create",
+    restore: "versions.restore",
+    manage: "versions.manage",
+  },
 } as const;
 
 /**
@@ -264,13 +277,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "ai_chat.create" | "ai_chat.manage" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "ai_files.manage" | "ai_files.upload" | "ai_keys.manage" | "ai_keys.use" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "knowledge.manage" | "knowledge.read" | "knowledge.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "memory.manage" | "memory.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "usage.read" | "usage.record";
+export type PermissionKey = "ai_chat.create" | "ai_chat.manage" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "ai_files.manage" | "ai_files.upload" | "ai_keys.manage" | "ai_keys.use" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "knowledge.manage" | "knowledge.read" | "knowledge.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "memory.manage" | "memory.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AiChatEvents & AiKeysEvents & ApiKeysEvents & AuditEvents & BillingEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = AiChatEvents & AiKeysEvents & ApiKeysEvents & AuditEvents & BillingEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -343,6 +356,9 @@ export const blockEvents: Events<BlockEvents> = {
     "team.updated",
     "team_member.added",
     "team_member.removed",
+    "version.created",
+    "version.deleted",
+    "version.restored",
   ],
 };
 
@@ -415,6 +431,9 @@ export const blockEventSchemas = {
   "team.updated": true,
   "team_member.added": true,
   "team_member.removed": true,
+  "version.created": true,
+  "version.deleted": true,
+  "version.restored": true,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

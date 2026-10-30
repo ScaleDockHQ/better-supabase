@@ -21,6 +21,7 @@ import { outboxBlock } from "better-supabase/blocks/outbox";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { teamsBlock } from "better-supabase/blocks/teams";
+import { versionsBlock } from "better-supabase/blocks/versions";
 
 import { blockConfig } from "./spend.blocks.generated.ts";
 
@@ -44,6 +45,7 @@ export const blockSet = defineBlocks(blockConfig, {
   profiles: profilesBlock,
   settings: settingsBlock,
   teams: teamsBlock,
+  versions: versionsBlock,
 });
 
 /**
