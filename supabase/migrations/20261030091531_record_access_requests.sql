@@ -1315,6 +1315,9 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'connectors.manage' then 'connectors.manage'
     when 'connectors.read' then 'connectors.read'
     when 'connectors.use' then 'connectors.use'
+    when 'consents.manage' then 'consents.manage'
+    when 'consents.read' then 'consents.read'
+    when 'consents.record' then 'consents.record'
     when 'contacts.manage' then 'contacts.manage'
     when 'contacts.read' then 'contacts.read'
     when 'contacts.write' then 'contacts.write'
@@ -2345,6 +2348,11 @@ begin
   from "better_supabase"."acknowledgement_notices" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
   if jsonb_array_length(v_rows) > 0 then
     v_parts := v_parts || jsonb_build_object('better_supabase.acknowledgement_notices', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."consents" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.consents', v_rows);
   end if;
   insert into "better_supabase"."data_exports" ("subject", "organization_id", "subject_type", "subject_id", "format")
   values ('record', v_tenant, request_subject_export.subject_type, request_subject_export.subject_id, request_subject_export.format)
