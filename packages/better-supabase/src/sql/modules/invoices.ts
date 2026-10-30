@@ -9,6 +9,10 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { InvoiceNames } from "./invoices-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
+import {
+  accountingContributions,
+  accountingSourcesSql,
+} from "../accounting-sources-sql.ts";
 import { guestOr } from "../guest-sql.ts";
 import {
   lineExtraColumns,
@@ -18,6 +22,7 @@ import {
 } from "../line-items-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { invoiceAccountingSources } from "./invoices-accounting.ts";
 import {
   chargeExtraColumns,
   invoiceFunctions,
@@ -526,7 +531,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Invoices an organization sends its own customers: drafts with lines, a
 -- number on issue, payments, credit notes, void and write-off, and aging.
-${tables(ctx, n)}${invoiceFunctions(ctx, n)}`;
+${tables(ctx, n)}${invoiceFunctions(ctx, n)}${accountingSourcesSql(ctx, invoiceAccountingSources(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -624,6 +629,7 @@ export const INVOICES: BlockSqlDefinition = {
     "numbering",
     "quotes",
     "relations",
+    "accounting",
   ],
   target: "schema",
   modes: ["managed", "custom"],
@@ -637,6 +643,10 @@ export const INVOICES: BlockSqlDefinition = {
     },
   ],
   names: NAMES,
+  contributes: {
+    accounting: (own) =>
+      accountingContributions(own, invoiceAccountingSources(own)),
+  },
   contract,
   build,
 };

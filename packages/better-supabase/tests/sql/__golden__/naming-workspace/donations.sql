@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:4cfd142bd82a5dec5ed566f991d16a27cb11d47927d6b4c0f35f986dbd7afb55
+-- @bsb-hash sha256:fd87bcce464a4673042bb4ebe35c3eec42fa705c28c7aa184675a1fa304abed7
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -358,6 +358,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    
     null;
   elsif donation_settle.status = 'failed' and v_row."status" = 'pending' then
     update "better_supabase"."donations" x set "status" = 'failed', "updated_at" = now()
@@ -380,6 +381,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    
     null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id", 'pledgeId', v_row."pledge_id", 'periodStart', v_row."period_start", 'amount', v_row."amount"::text, 'currency', v_row."currency", 'receivedOn', v_row."received_on", 'method', v_row."method", 'status', v_row."status", 'provider', v_row."provider", 'paymentReference', v_row."payment_reference", 'transactionId', v_row."transaction_id", 'refundTransactionId', v_row."refund_transaction_id", 'receiptId', v_row."receipt_id", 'note', v_row."note", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");

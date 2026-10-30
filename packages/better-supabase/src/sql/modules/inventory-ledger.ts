@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { InventoryNames } from "./inventory-stock.ts";
 
+import { booksAccounting, bookSource } from "../accounting-sources-sql.ts";
 import { fail } from "../shared.ts";
 import { columns, strict, threshold } from "./inventory-stock.ts";
 
@@ -323,7 +324,14 @@ begin
     move_stock.reference_type, move_stock.reference_id, move_stock.note, null, null,
     jsonb_strip_nulls(jsonb_build_object('variantId', move_stock.variant, 'locationId', move_stock.location, 'reason', move_stock.reason,
       'quantity', move_stock.quantity::text, 'unit', nullif(v_unit, 'item'))));
-  if v_serials is not null then
+${
+  booksAccounting(ctx)
+    ? `  if v_value <> 0 then
+    ${bookSource(ctx, "stock_movement", "v_id")}
+  end if;
+`
+    : ""
+}  if v_serials is not null then
     update ${serials} x set ${s("movement")} = v_id
     where x.${s("variant")} = move_stock.variant and x.${s("serial")} = any (v_serials);
   end if;

@@ -8,10 +8,15 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import {
+  accountingContributions,
+  accountingSourcesSql,
+} from "../accounting-sources-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import { donationAccountingSources } from "./donations-accounting.ts";
 import { donationsFunctions, GIFT_RESERVED } from "./donations-functions.ts";
 import { sequencesTable } from "./numbering.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
@@ -368,7 +373,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Donations: gifts and pledges from donors (registered subjects) to funds
 -- and campaigns, each posted gift on the ledger, and numbered tax receipts.
-${tables(ctx)}${donationsFunctions(ctx)}${donorMerges(ctx)}`;
+${tables(ctx)}${donationsFunctions(ctx)}${donorMerges(ctx)}${accountingSourcesSql(ctx, donationAccountingSources(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -513,8 +518,10 @@ export const DONATIONS: BlockSqlDefinition = {
   description:
     "Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.",
   requires: ["memberships", "permissions", "subjects", "ledger", "numbering"],
-  integrates: ["outbox", "audit"],
+  integrates: ["outbox", "audit", "accounting"],
   contributes: {
+    accounting: (own) =>
+      accountingContributions(own, donationAccountingSources(own)),
     numbering: (own) => [
       {
         entity: receiptEntity(own),

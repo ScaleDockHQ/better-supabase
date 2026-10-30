@@ -2,7 +2,7 @@
 -- Acme (…0001) sets up the books, posts a balanced entry and closes a period,
 -- the member (…00a2) can't read or write them, and Globex (…0002) sees nothing.
 begin;
-select plan(14);
+select plan(20);
 
 select set_config(
   'request.jwt.claims',
@@ -88,12 +88,51 @@ select throws_ok(
   'a closed period takes no new entries'
 );
 
+select throws_ok(
+  $$select better_supabase.post_accounting_source('unknown_source', 'x')$$,
+  '22023',
+  'no installed block books this source type',
+  'a source type no block books is refused'
+);
+select is(
+  better_supabase.post_accounting_source('invoice', '00000000-0000-4000-8000-00000000ffff'),
+  null,
+  'a source with nothing to book books nothing'
+);
+
+select set_config('test.budget', better_supabase.save_accounting_budget(
+  '00000000-0000-4000-8000-000000000001', 'Plan 2026', 2026, null,
+  '[{"accountCode":"4000","periodNumber":3,"amount":"10000"}]'
+) ->> 'id', true);
+
+select is(
+  better_supabase.accounting_budget_vs_actual(current_setting('test.budget')::uuid, 3) #>> '{lines,0,variance}',
+  '2100',
+  'budget against actual sets the posted revenue against the plan'
+);
+select is(
+  jsonb_array_length(better_supabase.list_accounting_budgets('00000000-0000-4000-8000-000000000001', 2026)),
+  1,
+  'the budgets of a fiscal year are listed'
+);
+select is(
+  better_supabase.accounting_tax_report('00000000-0000-4000-8000-000000000001', '2026-01-01', '2026-12-31') ->> 'netTax',
+  '0',
+  'the tax report is empty without posted tax lines'
+);
+
 select set_config(
   'request.jwt.claims',
   '{"sub":"00000000-0000-4000-8000-0000000000a2","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000001"}}',
   true
 );
 
+select throws_ok(
+  $$select better_supabase.save_accounting_budget('00000000-0000-4000-8000-000000000001', 'Member plan', 2026)$$,
+  '42501',
+  null,
+  'a member without accounting.write can''t save budgets'
+);
 select is(
   (select count(*)::integer from better_supabase.accounting_entries),
   0,

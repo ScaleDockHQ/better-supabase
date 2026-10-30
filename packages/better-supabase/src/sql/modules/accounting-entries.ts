@@ -12,7 +12,7 @@ import { requireSettings } from "./accounting-setup.ts";
 import { accountingSql, ENTRY_RESERVED } from "./accounting-shared.ts";
 
 /** The JSON of an entry (`row`), with its lines when `withLines`. */
-function entryJson(
+export function entryJson(
   ctx: BlockSqlContext,
   row: string,
   withLines: boolean,
@@ -356,8 +356,9 @@ ${userGrant(`${fn("post_accounting_entry")}(uuid)`)}
 
 -- Reverses a posted entry with a new entry of opposite lines, dated
 -- entry_date (default the original's date), and marks the original reversed.
-create or replace function ${fn("reverse_accounting_entry")}(entry_id uuid, entry_date date default null)
-returns jsonb
+-- Called by reverse_accounting_entry and when a block undoes a document.
+create or replace function ${fn("accounting_reverse")}(entry_id uuid, entry_date date default null)
+returns ${entries}
 language plpgsql
 security definer
 set search_path = ''
@@ -367,12 +368,9 @@ declare
   v_row ${entries}%rowtype;
   v_reversal ${entries}%rowtype;
 begin
-  select * into v_row from ${entries} y where y.${e("id")} = reverse_accounting_entry.entry_id for update;
+  select * into v_row from ${entries} y where y.${e("id")} = accounting_reverse.entry_id for update;
   if not found then
     ${entryNotFound}
-  end if;
-  if not ${allowed(`v_row.${e("tenant")}`, sql.post)} then
-    ${sql.forbidden("ACCOUNTING_ENTRY", "not allowed to post accounting entries")}
   end if;
   if v_row.${e("status")} = 'reversed' then
     ${fail("ACCOUNTING_ENTRY_REVERSED", "the entry is already reversed", "55000")}
@@ -382,7 +380,7 @@ begin
   end if;
   ${ctx.hook("before_accounting_entry_reverse", [["uuid", `v_row.${e("id")}`]])}
   insert into ${entries} (${e("tenant")}, ${e("journal")}, ${e("entryDate")}, ${e("reference")}, ${e("reverses")}, ${e("memo")}, ${e("createdBy")})
-  values (v_row.${e("tenant")}, v_row.${e("journal")}, coalesce(reverse_accounting_entry.entry_date, v_row.${e("entryDate")}), v_row.${e("number")},
+  values (v_row.${e("tenant")}, v_row.${e("journal")}, coalesce(accounting_reverse.entry_date, v_row.${e("entryDate")}), v_row.${e("number")},
     v_row.${e("id")}, 'Reversal of ' || v_row.${e("number")}, auth.uid())
   returning * into v_reversal;
   insert into ${lines} (${l("tenant")}, ${l("entry")}, ${l("position")}, ${l("account")}, ${l("debit")}, ${l("credit")}, ${l("currency")},
@@ -407,7 +405,30 @@ begin
     },
   })}
   ${ctx.hook("after_accounting_entry_reverse", [["uuid", `v_row.${e("id")}`]])}
-  return ${entryJson(ctx, "v_reversal", true)};
+  return v_reversal;
+end;
+$$;
+revoke execute on function ${fn("accounting_reverse")}(uuid, date) from public, anon, authenticated;
+
+create or replace function ${fn("reverse_accounting_entry")}(entry_id uuid, entry_date date default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row ${entries}%rowtype;
+begin
+  select * into v_row from ${entries} y where y.${e("id")} = reverse_accounting_entry.entry_id;
+  if not found then
+    ${entryNotFound}
+  end if;
+  if not ${allowed(`v_row.${e("tenant")}`, sql.post)} then
+    ${sql.forbidden("ACCOUNTING_ENTRY", "not allowed to post accounting entries")}
+  end if;
+  v_row := ${fn("accounting_reverse")}(v_row.${e("id")}, reverse_accounting_entry.entry_date);
+  return ${entryJson(ctx, "v_row", true)};
 end;
 $$;
 ${userGrant(`${fn("reverse_accounting_entry")}(uuid, date)`)}

@@ -29,6 +29,7 @@ export const ACCOUNT_ROLES = [
   "fixed_asset",
   "accumulated_depreciation",
   "depreciation_expense",
+  "expense",
   "suspense",
 ] as const;
 
@@ -172,6 +173,7 @@ export const GENERIC_CHART: readonly ChartAccount[] = [
     name: "Operating expenses",
     type: "expense",
     subtype: "operating_expense",
+    role: "expense",
   },
   {
     code: "6800",

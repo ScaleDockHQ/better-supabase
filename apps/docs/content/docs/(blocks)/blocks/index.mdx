@@ -111,7 +111,8 @@ whose `uses` names none.
 
 ### Contributions
 
-Seven generic blocks take work from the blocks around them: `approvals`
+Eight generic blocks take work from the blocks around them: `accounting`
+(documents to book), `approvals`
 (subjects to approve), `bulk` (named actions), `numbering` (number
 sequences), `pipelines` (record types with stages), `relations` (kinds of
 link), `share-links` (subjects to share) and `subjects` (summary counts and
@@ -442,7 +443,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `access-requests`    | `memberships`, `permissions`, `approvals`                                                    | `outbox`, `audit`, `subjects`, `notifications`                                                                         |
 | `documents`          | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `queue`, `versions`                                                                                 |
 | `catalog`            | `memberships`, `permissions`                                                                 | `outbox`, `state-machine`, `inventory`, `attachments`                                                                  |
-| `inventory`          | `memberships`, `permissions`, `catalog`, `ledger`                                            | `outbox`, `assets`                                                                                                     |
+| `inventory`          | `memberships`, `permissions`, `catalog`, `ledger`                                            | `outbox`, `assets`, `accounting`                                                                                       |
 | `drive`              | `memberships`, `permissions`, `drive-files`                                                  | `outbox`, `audit`, `attachments`, `versions`, `trash`, `teams`, `share-links`                                          |
 | `drive-files`        | `attachments`                                                                                | `drive`, `outbox`, `audit`, `versions`, `trash`, `teams`, `share-links`, `tags`, `approvals`, `rate-limit`, `usage`    |
 | `orders`             | `memberships`, `permissions`, `catalog`                                                      | `outbox`, `inventory`, `promotions`, `numbering`, `state-machine`, `invoices`, `quotes`                                |
@@ -459,7 +460,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `deals`              | `memberships`, `permissions`, `subjects`, `pipelines`                                        | `outbox`, `notifications`, `numbering`, `activities`                                                                   |
 | `tasks`              | `memberships`, `permissions`, `subjects`, `pipelines`                                        | `outbox`, `notifications`, `numbering`, `attachments`, `reminders`                                                     |
 | `quotes`             | `memberships`, `permissions`, `subjects`                                                     | `outbox`, `notifications`, `numbering`, `deals`, `relations`, `catalog`, `automations`, `orders`                       |
-| `invoices`           | `memberships`, `permissions`, `subjects`, `ledger`                                           | `outbox`, `audit`, `notifications`, `numbering`, `quotes`, `relations`                                                 |
+| `invoices`           | `memberships`, `permissions`, `subjects`, `ledger`                                           | `outbox`, `audit`, `notifications`, `numbering`, `quotes`, `relations`, `accounting`                                   |
 | `sla`                | `memberships`, `permissions`, `subjects`                                                     | `outbox`, `notifications`, `tasks`                                                                                     |
 | `goals`              | `memberships`, `permissions`                                                                 | `deals`, `tasks`, `invoices`                                                                                           |
 | `hiring`             | `memberships`, `permissions`, `subjects`, `pipelines`                                        | `outbox`, `automations`, `employees`                                                                                   |
@@ -481,9 +482,9 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `guests`             | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `invoices`, `bookings`, `contacts`, `relations`                                                     |
 | `passes`             | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `bookings`, `signing-keys`, `ledger`                                                                |
 | `billable-time`      | `memberships`, `permissions`, `subjects`, `time-tracking`, `invoices`                        | `outbox`, `audit`                                                                                                      |
-| `leases`             | `memberships`, `permissions`, `subjects`, `assets`, `ledger`                                 | `outbox`, `audit`                                                                                                      |
-| `expenses`           | `memberships`, `permissions`, `approvals`, `ledger`                                          | `outbox`, `audit`, `attachments`, `employees`                                                                          |
-| `donations`          | `memberships`, `permissions`, `subjects`, `ledger`, `numbering`                              | `outbox`, `audit`                                                                                                      |
+| `leases`             | `memberships`, `permissions`, `subjects`, `assets`, `ledger`                                 | `outbox`, `audit`, `accounting`                                                                                        |
+| `expenses`           | `memberships`, `permissions`, `approvals`, `ledger`                                          | `outbox`, `audit`, `attachments`, `employees`, `accounting`                                                            |
+| `donations`          | `memberships`, `permissions`, `subjects`, `ledger`, `numbering`                              | `outbox`, `audit`, `accounting`                                                                                        |
 | `dispatch`           | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `assets`, `bookings`, `catalog`, `inventory`                                                        |
 | `shipments`          | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `assets`, `inventory`                                                                               |
 | `contracts`          | `memberships`, `permissions`, `subjects`, `versions`, `signatures`, `reminders`              | `outbox`, `audit`                                                                                                      |

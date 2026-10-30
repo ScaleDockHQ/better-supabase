@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { bookSource } from "../accounting-sources-sql.ts";
 import {
   extraFieldsArg,
   extraFieldsJson,
@@ -427,6 +428,7 @@ begin
         insert into ${charges} (${c("tenant")}, ${c("lease")}, ${c("periodStart")}, ${c("periodEnd")}, ${c("amount")}, ${c("currency")}, ${c("transaction")})
         values (v_row.${l("tenant")}, v_row.${l("id")}, v_start, v_end, v_row.${l("rent")}, v_row.${l("currency")}, v_tx)
         returning * into v_charge;
+        ${bookSource(ctx, "lease_rent", `v_charge.${c("id")}`)}
         ${ctx.record({
           type: "lease.charged",
           payload: `jsonb_build_object('organizationId', v_charge.${c("tenant")}, 'id', v_charge.${c("id")}, 'leaseId', v_charge.${c("lease")}, 'periodStart', v_charge.${c("periodStart")}, 'periodEnd', v_charge.${c("periodEnd")}, 'amount', v_charge.${c("amount")}::text, 'currency', v_charge.${c("currency")}, 'transactionId', v_charge.${c("transaction")})`,
@@ -480,6 +482,7 @@ begin${loadLease("record_rent_payment.lease_id", manage)}
         jsonb_build_object('account', ${cashAccount("v_row")}, 'amount', record_rent_payment.amount)),
       'leases', v_row.${l("id")}::text, 'Rent payment', v_key, record_rent_payment.paid_at,
       jsonb_strip_nulls(jsonb_build_object(${leaseKey}, v_row.${l("id")}, 'reference', nullif(trim(record_rent_payment.reference), ''))));
+    ${bookSource(ctx, "lease_payment", "v_tx")}
     ${ctx.record({
       type: "lease.paid",
       payload: `jsonb_build_object('organizationId', v_row.${l("tenant")}, 'id', v_row.${l("id")}, 'transactionId', v_tx, 'amount', record_rent_payment.amount::text, 'currency', v_row.${l("currency")})`,

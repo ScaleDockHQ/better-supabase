@@ -1,6 +1,6 @@
 ---
 title: Accounting
-description: Double-entry books in money. A chart of accounts with account roles, journals, fiscal years of periods, balanced entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, and the period and year-end close.
+description: Double-entry books in money. A chart of accounts with account roles, journals, fiscal years of periods, balanced entries numbered per journal and year, dimensions, exchange rates, tax codes, entries other blocks book in the same transaction, the trial balance, profit and loss, balance sheet, general ledger and tax report, budgets, and the period and year-end close.
 ---
 
 `accounting` keeps an organization's general ledger. Entries are drafts until
@@ -93,12 +93,13 @@ blocks: {
 },
 ```
 
-| Option                 | Default                  | What it does                                               |
-| ---------------------- | ------------------------ | ---------------------------------------------------------- |
-| `chart`                | `"generic"`              | `"generic"` seeds a chart with every role mapped; `"none"` |
-| `functionalCurrency`   | `"EUR"`                  | the default currency `setup` writes                        |
-| `fiscalYearStartMonth` | `1`                      | the default first month of the fiscal year                 |
-| `subtypes`             | bank, cash, receivable … | the account subtypes `saveAccount` accepts                 |
+| Option                 | Default                  | What it does                                                  |
+| ---------------------- | ------------------------ | ------------------------------------------------------------- |
+| `chart`                | `"generic"`              | `"generic"` seeds a chart with every role mapped; `"none"`    |
+| `functionalCurrency`   | `"EUR"`                  | the default currency `setup` writes                           |
+| `fiscalYearStartMonth` | `1`                      | the default first month of the fiscal year                    |
+| `subtypes`             | bank, cash, receivable … | the account subtypes `saveAccount` accepts                    |
+| `autoPost`             | `true`                   | whether entries other blocks book post at once or stay drafts |
 
 An account has a `code` that is unique in the organization, a `type`
 (`asset`, `liability`, `equity`, `income` or `expense`), a subtype, an
@@ -114,7 +115,7 @@ organization maps every role to one of its accounts with
 `setAccountRole(organizationId, role, accountId)`:
 
 `receivable`, `payable`, `bank`, `revenue`, `cogs`, `inventory`,
-`tax_payable`, `tax_receivable`, `retained_earnings`, `fx_gain`, `fx_loss`,
+`expense`, `tax_payable`, `tax_receivable`, `retained_earnings`, `fx_gain`, `fx_loss`,
 `fixed_asset`, `accumulated_depreciation`, `depreciation_expense` and
 `suspense`.
 
@@ -141,6 +142,39 @@ entry that isn't reversed (`ACCOUNTING_ENTRY_DUPLICATE`).
 The `before_accounting_entry_post`, `after_accounting_entry_post`,
 `before_accounting_entry_reverse` and `after_accounting_entry_reverse`
 [hooks](/docs/extending/blocks#hooks-in-sql) run inside the posting transaction.
+
+## Postings from other blocks
+
+When `accounting` is installed, these blocks book their documents in the same
+transaction as the write that changes them, in the journal of each type with
+the lowest code and against the account roles:
+
+| Block                               | Source type             | When                                | Entry                                                        |
+| ----------------------------------- | ----------------------- | ----------------------------------- | ------------------------------------------------------------ |
+| [invoices](/docs/blocks/invoices)   | `invoice`               | an invoice or credit note is issued | sales: receivable against revenue and tax per rate           |
+| [invoices](/docs/blocks/invoices)   | `invoice_payment`       | a payment or refund is recorded     | bank: bank against the receivable                            |
+| [expenses](/docs/blocks/expenses)   | `expense_report`        | a report is approved                | purchase: expense against payable to the member              |
+| [expenses](/docs/blocks/expenses)   | `expense_reimbursement` | a report is reimbursed              | bank: payable against bank                                   |
+| [inventory](/docs/blocks/inventory) | `stock_movement`        | a costed movement posts             | general: inventory against payable, cost of goods or expense |
+| [leases](/docs/blocks/leases)       | `lease_rent`            | a rent charge posts                 | sales: receivable against revenue                            |
+| [leases](/docs/blocks/leases)       | `lease_payment`         | a rent payment is recorded          | bank: bank against the receivable                            |
+| [donations](/docs/blocks/donations) | `gift`                  | a gift posts                        | bank: bank against revenue                                   |
+
+Each document books once: voiding an invoice, or refunding a gift, reverses
+its entry. A stock movement takes its value from weighted average cost, so
+transfers and items without costing book nothing. An entry posts at once when
+its date falls in an open period after the lock date, and stays a draft for
+an accountant otherwise, or always with `autoPost: false`. An organization
+that hasn't run `setup` books nothing. A line whose role has no account
+books to the `suspense` account, and a block write fails when that is unmapped
+too (`ACCOUNTING_ROLE_UNMAPPED`).
+
+`postSource(sourceType, sourceId)` books a document the block didn't book,
+such as an invoice issued before `accounting` was installed, and returns the
+existing entry when there is one. It needs `accounting.post`, and an unknown
+source type fails with `ACCOUNTING_SOURCE_INVALID`. A block contributes a
+source through the `accounting` [contribution](/docs/blocks#contributions)
+kind.
 
 ## Dimensions, tax codes and exchange rates
 
@@ -181,35 +215,101 @@ Every report takes `dimensions` to sum only lines with those values. Reports
 run with the caller's rights, so a caller without `accounting.read` gets
 empty reports. Amounts are `bigint` minor units of the functional currency.
 
+### Tax report
+
+`taxReport(organizationId, since, until)` sums the posted entries of a date
+range per tax code and per report box. A line with a tax code counts as tax
+when it is on the code's account and as base otherwise; sales count credits
+and purchases debits, so a credit note lowers both. The report carries
+`salesTax`, `purchaseTax` and `netTax`, what is owed when positive.
+
+No country format is bundled. A `TaxReportFormat` renders the report as a
+file, and `taxReportFormatOf` checks that a format targets this version of
+the contract:
+
+```ts
+import {
+  taxReportFormatOf,
+  type TaxReportFormat,
+} from "better-supabase/blocks/accounting";
+import { AsyncResult } from "better-supabase";
+
+const csv: TaxReportFormat = taxReportFormatOf({
+  apiVersion: 1,
+  name: "csv",
+  render: (report) =>
+    AsyncResult.ok({
+      contentType: "text/csv",
+      filename: `vat-${report.since}-${report.until}.csv`,
+      body: report.boxes
+        .map((box) => `${box.box},${box.base},${box.tax}`)
+        .join("\n"),
+    }),
+});
+
+const report = await db.accounting
+  .taxReport(organizationId, since, until)
+  .orThrow();
+const file = await csv.render(report).orThrow();
+```
+
+### Budgets
+
+`saveBudget(organizationId, { name, fiscalYear, status, lines })` creates a
+budget, or updates the one `budgetId` names. Each line has an account, a
+`periodNumber` from 1 to 12, an amount in the account's natural sign and
+optional `dimensions`; passing `lines` replaces them all. A budget is
+`draft`, `approved` or `archived`, and saving one needs `accounting.write`.
+
+```ts
+const budget = await db.accounting
+  .saveBudget(organizationId, {
+    name: "Operating 2026",
+    fiscalYear: 2026,
+    lines: [{ accountCode: "4000", periodNumber: 3, amount: 50_000n }],
+  })
+  .orThrow();
+
+const march = await db.accounting.budgetVsActual(budget.id, 3).orThrow();
+// march.lines[0].variance === actual - budget
+```
+
+`budget(id)` reads a budget with its lines, and `budgets(organizationId,
+fiscalYear?)` lists them without. `budgetVsActual(budgetId, periodNumber?)`
+compares each line with the posted amounts on its account and dimensions, for
+one period or the whole year.
+
 The [trial balance recipe](/docs/registry/ui-recipes/trial-balance) renders
-the balance sheet totals, net income and the trial balance on a page.
+the balance sheet totals, net income, net tax and the trial balance on a page.
 
 ## Errors
 
-| Hint                              | Cause                                                                   |
-| --------------------------------- | ----------------------------------------------------------------------- |
-| `ACCOUNTING_*_FORBIDDEN`          | the caller lacks the permission for this                                |
-| `ACCOUNTING_*_NOT_FOUND`          | no account, journal, entry, period, dimension or tax code with this id  |
-| `ACCOUNTING_*_INVALID`            | an input is out of range, such as a line with both a debit and a credit |
-| `ACCOUNTING_SETTING_NOT_FOUND`    | `setup` hasn't run for the organization                                 |
-| `ACCOUNTING_ACCOUNT_IN_USE`       | the account has posted lines, or a role, journal or tax code uses it    |
-| `ACCOUNTING_ACCOUNT_ROLE_MISSING` | no account is mapped to a role the operation needs                      |
-| `ACCOUNTING_ENTRY_UNBALANCED`     | the debits and credits differ in the functional currency                |
-| `ACCOUNTING_ENTRY_POSTED`         | the entry is posted and can't be changed or deleted                     |
-| `ACCOUNTING_ENTRY_REVERSED`       | the entry is already reversed                                           |
-| `ACCOUNTING_ENTRY_DUPLICATE`      | the source document already has an entry                                |
-| `ACCOUNTING_DIMENSION_INVALID`    | a line names a dimension or value that doesn't exist or is archived     |
-| `ACCOUNTING_FX_RATE_MISSING`      | no exchange rate on or before the entry date                            |
-| `ACCOUNTING_PERIOD_NOT_FOUND`     | no period covers the entry date; open its fiscal year first             |
-| `ACCOUNTING_PERIOD_CLOSED`        | the date is in a closed period or on or before the lock date            |
-| `ACCOUNTING_PERIOD_CLOSE_BLOCKED` | the period has blockers such as draft entries                           |
-| `FISCAL_YEAR_CLOSED`              | the fiscal year is already closed                                       |
+| Hint                              | Cause                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------ |
+| `ACCOUNTING_*_FORBIDDEN`          | the caller lacks the permission for this                                       |
+| `ACCOUNTING_*_NOT_FOUND`          | no account, journal, entry, period, dimension, tax code or budget with this id |
+| `ACCOUNTING_*_INVALID`            | an input is out of range, such as a line with both a debit and a credit        |
+| `ACCOUNTING_SETTING_NOT_FOUND`    | `setup` hasn't run for the organization                                        |
+| `ACCOUNTING_ACCOUNT_IN_USE`       | the account has posted lines, or a role, journal or tax code uses it           |
+| `ACCOUNTING_ACCOUNT_ROLE_MISSING` | no account is mapped to a role the operation needs                             |
+| `ACCOUNTING_ENTRY_UNBALANCED`     | the debits and credits differ in the functional currency                       |
+| `ACCOUNTING_ENTRY_POSTED`         | the entry is posted and can't be changed or deleted                            |
+| `ACCOUNTING_ENTRY_REVERSED`       | the entry is already reversed                                                  |
+| `ACCOUNTING_ENTRY_DUPLICATE`      | the source document already has an entry                                       |
+| `ACCOUNTING_SOURCE_INVALID`       | no installed block books this source type                                      |
+| `ACCOUNTING_DIMENSION_INVALID`    | a line names a dimension or value that doesn't exist or is archived            |
+| `ACCOUNTING_FX_RATE_MISSING`      | no exchange rate on or before the entry date                                   |
+| `ACCOUNTING_PERIOD_NOT_FOUND`     | no period covers the entry date; open its fiscal year first                    |
+| `ACCOUNTING_PERIOD_CLOSED`        | the date is in a closed period or on or before the lock date                   |
+| `ACCOUNTING_PERIOD_CLOSE_BLOCKED` | the period has blockers such as draft entries                                  |
+| `FISCAL_YEAR_CLOSED`              | the fiscal year is already closed                                              |
 
 ## Events
 
 `accounting_entry.posted`, `accounting_entry.reversed`,
-`accounting_period.closed`, `accounting_period.reopened` and
-`fiscal_year.closed`. The [events page](/docs/extending/events) lists their
+`accounting_period.closed`, `accounting_period.reopened`,
+`fiscal_year.closed`, `accounting_budget.created` and
+`accounting_budget.updated`. The [events page](/docs/extending/events) lists their
 payloads.
 
 ## Without the client

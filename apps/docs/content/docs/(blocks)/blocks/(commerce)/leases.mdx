@@ -131,6 +131,13 @@ with a `reference` returns the first payment when you record it again.
 A period that starts before the lease's end posts in full, even when the
 lease ends partway through it.
 
+## In the books
+
+With the [accounting](/docs/blocks/accounting#postings-from-other-blocks)
+block installed, each posted rent charge books in the sales journal (the
+receivable against revenue) and each rent payment in the bank journal, in
+the same transaction.
+
 ## Renew and terminate
 
 ```ts

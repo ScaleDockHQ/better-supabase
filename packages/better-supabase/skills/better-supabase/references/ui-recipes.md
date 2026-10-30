@@ -23342,7 +23342,7 @@ export async function TrialBalance() {
 
   return (
     <div className="flex flex-col gap-6" data-recipe="trial-balance">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader>
             <CardDescription>{t("Assets")}</CardDescription>
@@ -23366,6 +23366,12 @@ export async function TrialBalance() {
           <CardHeader>
             <CardDescription>{t("Net income this year")}</CardDescription>
             <CardTitle>{amount(books.netIncome)}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardDescription>{t("Net tax this year")}</CardDescription>
+            <CardTitle>{amount(books.netTax)}</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -23428,7 +23434,8 @@ export async function TrialBalance() {
 export function TrialBalanceSkeleton() {
   return (
     <div className="flex flex-col gap-6" aria-busy="true">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Skeleton className="h-28 rounded-xl" />
         <Skeleton className="h-28 rounded-xl" />
         <Skeleton className="h-28 rounded-xl" />
         <Skeleton className="h-28 rounded-xl" />

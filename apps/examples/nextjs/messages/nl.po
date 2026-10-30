@@ -1047,6 +1047,11 @@ msgid "Net income this year"
 msgstr "Nettoresultaat dit jaar"
 
 #: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.5pzTjB"
+msgid "Net tax this year"
+msgstr "Netto btw dit jaar"
+
+#: src/features/accounting/components/trial-balance.tsx
 msgctxt "accounting.EXhKBi"
 msgid "Trial balance"
 msgstr "Proef- en saldibalans"

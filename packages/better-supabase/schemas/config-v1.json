@@ -3564,6 +3564,10 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "autoPost": {
+                "type": "boolean",
+                "default": true
               }
             }
           }

@@ -1,6 +1,6 @@
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:e02848971850a42f4d2579d66f2dc1c29d7ef1bdd10444aba28d23231f675fcc
+-- @bsb-hash sha256:ebdc29407857658979086e9c43075d2c1fca46dccd8b4b240b7ae081d4cfa20d
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -616,6 +616,7 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   select * into v_approval from "better_supabase"."approval_requests" p where p."id" = v_row."approval_id";
+  perform "better_supabase"."accounting_post_source"('expense_report', v_row."id"::text);
   perform "better_supabase".emit_event('expense_report.approved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'status', (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)::text, 'currency', v_row."currency", 'transactionId', v_tx), 'expense-reports/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/expenses');
   perform better_supabase.audit_event(
     event_type => 'expense_report.approved',
@@ -668,6 +669,7 @@ begin
   update "better_supabase"."expense_reports" x set "reimbursed_at" = coalesce(reimburse_expense_report.paid_at, now()), "reimbursement_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
+  perform "better_supabase"."accounting_post_source"('expense_reimbursement', v_row."id"::text);
   perform "better_supabase".emit_event('expense_report.reimbursed', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'status', (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)::text, 'currency', v_row."currency", 'transactionId', v_tx), 'expense-reports/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/expenses');
   perform better_supabase.audit_event(
     event_type => 'expense_report.reimbursed',
@@ -803,6 +805,54 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_expense_reports"(uuid, uuid, text, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_expense_reports"(uuid, uuid, text, boolean, integer) to authenticated, service_role;
+
+-- The entry of an approved expense report for accounting: its total as an
+-- expense, owed to the member.
+create or replace function "better_supabase"."accounting_expense_report_lines"(source_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'organizationId', v."tenant_id",
+    'entryDate', (v."approved_at" at time zone 'UTC')::date,
+    'currency', v."currency",
+    'reference', left(v."id"::text, 8),
+    'memo', left('Expenses: ' || v."title", 500),
+    'lines', jsonb_build_array(
+      jsonb_build_object('role', 'expense', 'debit', (select coalesce(sum(y."amount"), 0) from "better_supabase"."expense_lines" y where y."report_id" = v."id")::text, 'description', v."title"),
+      jsonb_build_object('role', 'payable', 'credit', (select coalesce(sum(y."amount"), 0) from "better_supabase"."expense_lines" y where y."report_id" = v."id")::text, 'partyId', v."user_id"::text))
+  )
+  from "better_supabase"."expense_reports" v
+  where v."id"::text = source_id and v."cancelled_at" is null and v."approved_at" is not null
+$$;
+revoke execute on function "better_supabase"."accounting_expense_report_lines"(text) from public, anon, authenticated;
+
+-- The entry of a reimbursed expense report for accounting: the payable to the
+-- member settled from the bank.
+create or replace function "better_supabase"."accounting_expense_reimbursement_lines"(source_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'organizationId', v."tenant_id",
+    'entryDate', (v."reimbursed_at" at time zone 'UTC')::date,
+    'currency', v."currency",
+    'reference', left(v."id"::text, 8),
+    'memo', left('Reimbursed: ' || v."title", 500),
+    'lines', jsonb_build_array(
+      jsonb_build_object('role', 'payable', 'debit', (select coalesce(sum(y."amount"), 0) from "better_supabase"."expense_lines" y where y."report_id" = v."id")::text, 'partyId', v."user_id"::text),
+      jsonb_build_object('role', 'bank', 'credit', (select coalesce(sum(y."amount"), 0) from "better_supabase"."expense_lines" y where y."report_id" = v."id")::text))
+  )
+  from "better_supabase"."expense_reports" v
+  where v."id"::text = source_id and v."cancelled_at" is null and v."reimbursed_at" is not null
+$$;
+revoke execute on function "better_supabase"."accounting_expense_reimbursement_lines"(text) from public, anon, authenticated;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

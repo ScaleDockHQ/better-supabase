@@ -9,8 +9,13 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { InventoryNames } from "./inventory-stock.ts";
 
+import {
+  accountingContributions,
+  accountingSourcesSql,
+} from "../accounting-sources-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import { inventoryAccountingSources } from "./inventory-accounting.ts";
 import {
   ALLOCATION_TABLES,
   allocationFunctions,
@@ -518,7 +523,7 @@ function build(ctx: BlockSqlContext): string {
 -- posted to the ledger in base units, lots, serial numbers, expiry, bins,
 -- weighted average cost, reservations with expiry, allocations with
 -- backorders, transfers and purchase orders with receiving.
-${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${locationFunctions(ctx, names)}${stockFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}`;
+${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${locationFunctions(ctx, names)}${stockFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -665,7 +670,7 @@ export const INVENTORY: BlockSqlDefinition = {
     layout.modules?.["inventory"]?.tables?.["locations"] === null
       ? [...REQUIRES, "assets"]
       : [...REQUIRES],
-  integrates: ["outbox", "assets"],
+  integrates: ["outbox", "assets", "accounting"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 3,
@@ -684,6 +689,10 @@ export const INVENTORY: BlockSqlDefinition = {
     },
   ],
   names: NAMES,
+  contributes: {
+    accounting: (own) =>
+      accountingContributions(own, inventoryAccountingSources(own)),
+  },
   contract,
   build,
 };

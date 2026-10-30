@@ -8,6 +8,7 @@ import type { BlockSqlContext } from "./context.ts";
  */
 export interface BlockContributions {
   readonly "access-requests": AccessGrantContribution;
+  readonly accounting: AccountingContribution;
   readonly acknowledgements: AcknowledgementContribution;
   readonly approvals: ApprovalContribution;
   readonly bulk: BulkActionContribution;
@@ -25,6 +26,26 @@ export type BlockContributes = {
     target: BlockSqlContext,
   ) => readonly BlockContributions[K][];
 };
+
+/**
+ * A kind of document the contributing block books in the accounting block.
+ * `accounting_post_source` calls `lines` with the document's id and books what
+ * it returns once per document.
+ */
+export interface AccountingContribution {
+  /** The source type entries carry, such as `invoice`. */
+  readonly source: string;
+  /** The journal type the entry goes to unless the document names one. */
+  readonly journal: "sales" | "purchase" | "bank" | "cash" | "general";
+  /**
+   * The qualified function `(source_id text) returns jsonb` that describes the
+   * entry: `{ organizationId, entryDate, currency, reference, memo, journal?,
+   * lines: [{ role | accountCode, debit | credit, currency?, taxRateBps? |
+   * taxCode?, partyId?, dimensions?, description? }] }`, with amounts in the
+   * document's currency, or `null` when there is nothing to book.
+   */
+  readonly lines: string;
+}
 
 /**
  * A subject type of the contributing block whose current version is a column on

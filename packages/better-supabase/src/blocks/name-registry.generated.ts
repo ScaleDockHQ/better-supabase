@@ -28,8 +28,10 @@ export interface BlockNameRegistry {
       readonly "dimensionValues": "id" | "tenant" | "dimension" | "code" | "name" | "archivedAt";
       readonly "fxRates": "tenant" | "base" | "quote" | "onDate" | "rate" | "createdAt";
       readonly "taxCodes": "id" | "tenant" | "code" | "name" | "rateBps" | "kind" | "account" | "reportBoxes" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "budgets": "id" | "tenant" | "name" | "fiscalYear" | "status" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "budgetLines": "id" | "tenant" | "budget" | "account" | "periodNumber" | "dimensions" | "amount";
     };
-    readonly functions: "accounting_balance_sheet" | "accounting_entry_guard" | "accounting_entry_line_guard" | "accounting_fx_rate" | "accounting_general_ledger" | "accounting_period_close_blockers" | "accounting_post" | "accounting_profit_and_loss" | "accounting_trial_balance" | "archive_accounting_account" | "close_accounting_period" | "close_fiscal_year" | "delete_accounting_entry" | "get_accounting_entry" | "get_accounting_settings" | "list_accounting_accounts" | "list_accounting_dimensions" | "list_accounting_entries" | "list_accounting_journals" | "list_accounting_periods" | "list_accounting_tax_codes" | "open_fiscal_year" | "post_accounting_entry" | "reopen_accounting_period" | "reverse_accounting_entry" | "save_accounting_account" | "save_accounting_dimension" | "save_accounting_dimension_value" | "save_accounting_entry" | "save_accounting_journal" | "save_accounting_tax_code" | "set_accounting_account_role" | "set_accounting_fx_rate" | "set_accounting_lock_date" | "setup_accounting";
+    readonly functions: "accounting_balance_sheet" | "accounting_budget_vs_actual" | "accounting_entry_guard" | "accounting_entry_line_guard" | "accounting_fx_rate" | "accounting_general_ledger" | "accounting_period_close_blockers" | "accounting_post" | "accounting_post_source" | "accounting_profit_and_loss" | "accounting_reverse" | "accounting_reverse_source" | "accounting_tax_report" | "accounting_trial_balance" | "archive_accounting_account" | "close_accounting_period" | "close_fiscal_year" | "delete_accounting_entry" | "get_accounting_budget" | "get_accounting_entry" | "get_accounting_settings" | "list_accounting_accounts" | "list_accounting_budgets" | "list_accounting_dimensions" | "list_accounting_entries" | "list_accounting_journals" | "list_accounting_periods" | "list_accounting_tax_codes" | "open_fiscal_year" | "post_accounting_entry" | "post_accounting_source" | "reopen_accounting_period" | "reverse_accounting_entry" | "save_accounting_account" | "save_accounting_budget" | "save_accounting_dimension" | "save_accounting_dimension_value" | "save_accounting_entry" | "save_accounting_journal" | "save_accounting_tax_code" | "set_accounting_account_role" | "set_accounting_fx_rate" | "set_accounting_lock_date" | "setup_accounting";
     readonly actions: "read" | "write" | "post" | "close" | "manage";
     readonly hooks: "before_accounting_entry_post" | "after_accounting_entry_post" | "before_accounting_entry_reverse" | "after_accounting_entry_reverse";
     readonly entities: {
@@ -39,6 +41,7 @@ export interface BlockNameRegistry {
       readonly "accounting_entry": "id" | "tenant_id" | "journal_id" | "fiscal_year" | "sequence" | "number" | "entry_date" | "period_id" | "status" | "reference" | "source_type" | "source_id" | "reverses_id" | "memo" | "posted_at" | "posted_by" | "created_by" | "created_at" | "updated_at";
       readonly "accounting_dimension": "id" | "tenant_id" | "key" | "name" | "created_at";
       readonly "accounting_tax_code": "id" | "tenant_id" | "code" | "name" | "rate_bps" | "kind" | "account_id" | "report_boxes" | "archived_at" | "created_at" | "updated_at";
+      readonly "accounting_budget": "id" | "tenant_id" | "name" | "fiscal_year" | "status" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "accounting_account";
   };
