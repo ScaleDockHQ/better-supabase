@@ -70,7 +70,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   consents:
     "archive_consent_purpose consent_active expire_consents list_consent_purposes list_consents record_consent save_consent_purpose withdraw_consent",
   contacts:
-    "add_person_identity archive_company archive_person company_people_of find_person_by_identity list_companies list_people list_person_identities merge_companies merge_people remove_company_person remove_person_identity save_company save_person set_company_person",
+    "add_person_identity archive_company archive_person company_people_of find_person_by_identity list_companies list_people list_person_identities merge_companies merge_people remove_company_person remove_person_identity save_company save_person set_company_person set_party_roles set_supplier_status supplier_status_from_qualifications",
   content:
     "archive_content_entry create_content_entry get_content_entry list_content_entries public_content_entries public_content_entry publish_content_entry publish_due_content_entries schedule_content_entry update_content_entry",
   contracts:

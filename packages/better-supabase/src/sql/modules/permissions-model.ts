@@ -442,6 +442,7 @@ export const OPERATIONS = {
   "contacts.read": "contacts.read",
   "contacts.write": "contacts.write",
   "contacts.manage": "contacts.manage",
+  "contacts.approveSupplier": "contacts.approve_supplier",
   "activities.read": "activities.read",
   "activities.write": "activities.write",
   "activities.manage": "activities.manage",

@@ -1,7 +1,7 @@
 -- better-supabase module: contacts
 -- @bsb-block contacts@2 managed
--- @bsb-hash sha256:c9aefc8fd02fbadb46e7062ed906a4df655e742c93c9247bcdffc4e7db3652fe
--- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
+-- @bsb-hash sha256:f2be363a6d3cda0d1e08f28a0fedf73262435420adf8e7afd93bf31085c59824
+-- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms, credit limits and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -122,6 +122,11 @@ create table if not exists "better_supabase"."companies" (
   "lifecycle" text not null,
   "owner_user_id" uuid,
   "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object'),
+  "roles" text[] not null default '{}'::text[],
+  "payment_terms_days" integer check ("payment_terms_days" >= 0 and "payment_terms_days" <= 3650),
+  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
   "merged_into" uuid references "better_supabase"."companies" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -133,6 +138,8 @@ create unique index if not exists companies_domain_idx on "better_supabase"."com
   where "domain" is not null and "archived_at" is null;
 create index if not exists companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
 create index if not exists companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
+create index if not exists companies_roles_idx on "better_supabase"."companies" using gin ("roles");
+create index if not exists companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
 alter table "better_supabase"."companies" enable row level security;
 revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;
@@ -154,6 +161,11 @@ create table if not exists "better_supabase"."people" (
   "user_id" uuid,
   "avatar_url" text,
   "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "roles" text[] not null default '{}'::text[],
+  "payment_terms_days" integer check ("payment_terms_days" >= 0 and "payment_terms_days" <= 3650),
+  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -166,6 +178,8 @@ create unique index if not exists people_email_idx on "better_supabase"."people"
 create index if not exists people_owner_idx on "better_supabase"."people" ("owner_user_id");
 create index if not exists people_user_idx on "better_supabase"."people" ("user_id");
 create index if not exists people_merged_into_idx on "better_supabase"."people" ("merged_into");
+create index if not exists people_roles_idx on "better_supabase"."people" using gin ("roles");
+create index if not exists people_supplier_status_idx on "better_supabase"."people" ("tenant_id", "supplier_status") where "supplier_status" is not null;
 alter table "better_supabase"."people" enable row level security;
 revoke all on "better_supabase"."people" from public, anon, authenticated;
 grant select on "better_supabase"."people" to authenticated;
@@ -242,6 +256,21 @@ begin
   if save_company.attrs ? 'lifecycle' and not (save_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
+  if save_company.attrs ->> 'paymentTermsDays' is not null and (case when save_company.attrs ->> 'paymentTermsDays' ~ '^[0-9]{1,4}$' then (save_company.attrs ->> 'paymentTermsDays')::integer > 3650 else true end) then
+    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_company.attrs ->> 'creditLimit' is not null and save_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_company.attrs ->> 'creditCurrency' is not null and upper(trim(save_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_company.attrs ? 'creditLimit' <> save_company.attrs ? 'creditCurrency' then
+    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_company.attrs ? 'creditLimit' and (save_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_company.attrs ->> 'creditCurrency'), '') is null) then
+    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_company_save"(uuid, uuid, jsonb)');
   begin
@@ -255,8 +284,8 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "lifecycle", "owner_user_id", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, save_company.attrs -> 'address', auth.uid())
+      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "lifecycle", "owner_user_id", "payment_terms_days", "credit_limit", "credit_currency", "address", "created_by")
+      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(trim(save_company.attrs ->> 'paymentTermsDays'), '')::integer, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), save_company.attrs -> 'address', auth.uid())
       returning "id", "owner_user_id" into v_id, v_owner;
     else
       select x."owner_user_id" into v_previous_owner from "better_supabase"."companies" x
@@ -267,6 +296,9 @@ begin
         "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
         "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "payment_terms_days" = case when save_company.attrs ? 'paymentTermsDays' then nullif(trim(save_company.attrs ->> 'paymentTermsDays'), '')::integer else x."payment_terms_days" end,
+        "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when save_company.attrs ? 'creditCurrency' then upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
@@ -278,7 +310,7 @@ begin
   exception when unique_violation then
     raise exception 'another company has this domain' using errcode = '23505', hint = 'PARTY_DOMAIN_TAKEN';
   end;
-  select to_jsonb(x) into v_row from "better_supabase"."companies" x where x."id" = v_id;
+  select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status") into v_row from "better_supabase"."companies" x where x."id" = v_id;
   if v_created then
     perform "better_supabase".emit_event('company.created', jsonb_build_object('organizationId', save_company.tenant, 'companyId', v_id, 'name', v_row ->> 'name'), 'companies/' || v_id::text, (save_company.tenant::text)::text, null, 'better-supabase/contacts');
   else
@@ -330,6 +362,21 @@ begin
   if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
+  if save_person.attrs ->> 'paymentTermsDays' is not null and (case when save_person.attrs ->> 'paymentTermsDays' ~ '^[0-9]{1,4}$' then (save_person.attrs ->> 'paymentTermsDays')::integer > 3650 else true end) then
+    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_person.attrs ->> 'creditLimit' is not null and save_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_person.attrs ->> 'creditCurrency' is not null and upper(trim(save_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_person.attrs ? 'creditLimit' <> save_person.attrs ? 'creditCurrency' then
+    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_person.attrs ? 'creditLimit' and (save_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_person.attrs ->> 'creditCurrency'), '') is null) then
+    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_person_save"(uuid, uuid, jsonb)');
   begin
@@ -343,8 +390,8 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "lifecycle", "owner_user_id", "user_id", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, auth.uid())
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "lifecycle", "owner_user_id", "user_id", "payment_terms_days", "credit_limit", "credit_currency", "created_by")
+      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(trim(save_person.attrs ->> 'paymentTermsDays'), '')::integer, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), auth.uid())
       returning "id", "owner_user_id" into v_id, v_owner;
     else
       select x."owner_user_id" into v_previous_owner from "better_supabase"."people" x
@@ -356,6 +403,9 @@ begin
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
         "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
+        "payment_terms_days" = case when save_person.attrs ? 'paymentTermsDays' then nullif(trim(save_person.attrs ->> 'paymentTermsDays'), '')::integer else x."payment_terms_days" end,
+        "credit_limit" = case when save_person.attrs ? 'creditLimit' then nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when save_person.attrs ? 'creditCurrency' then upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
       returning x."owner_user_id" into v_owner;
@@ -366,7 +416,7 @@ begin
   exception when unique_violation then
     raise exception 'another person has this email' using errcode = '23505', hint = 'PARTY_EMAIL_TAKEN';
   end;
-  select to_jsonb(x) into v_row from "better_supabase"."people" x where x."id" = v_id;
+  select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status") into v_row from "better_supabase"."people" x where x."id" = v_id;
   if v_created then
     perform "better_supabase".emit_event('person.created', jsonb_build_object('organizationId', save_person.tenant, 'personId', v_id, 'name', v_row ->> 'name'), 'persons/' || v_id::text, (save_person.tenant::text)::text, null, 'better-supabase/contacts');
   else
@@ -563,13 +613,14 @@ begin
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "updated_at" = now()
+  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "payment_terms_days" = coalesce(x."payment_terms_days", v_drop."payment_terms_days"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", merge_companies.keep, l."person_id", l."role", false
   from "better_supabase"."company_people" l where l."company_id" = merge_companies.drop
   on conflict do nothing;
   delete from "better_supabase"."company_people" l where l."company_id" = merge_companies.drop;
+  update "better_supabase"."companies" x set "roles" = array(select distinct r from unnest(x."roles" || v_drop."roles") r order by 1) where x."id" = merge_companies.keep;
   perform better_supabase.merge_subject_refs('better_supabase.companies', merge_companies.keep::text, merge_companies.drop::text);
   perform "better_supabase".emit_event('company.merged', jsonb_build_object('organizationId', v_keep."tenant_id", 'companyId', merge_companies.keep, 'name', v_keep."name", 'mergedId', merge_companies.drop), 'companies/' || merge_companies.keep::text, (v_keep."tenant_id"::text)::text, null, 'better-supabase/contacts');
   perform better_supabase.audit_event(
@@ -582,7 +633,7 @@ begin
     tenant => (v_keep."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_keep."tenant_id", 'companyId', merge_companies.keep, 'name', v_keep."name", 'mergedId', merge_companies.drop)
   );
-  return (select to_jsonb(x) from "better_supabase"."companies" x where x."id" = merge_companies.keep);
+  return (select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status") from "better_supabase"."companies" x where x."id" = merge_companies.keep);
 end;
 $$;
 revoke execute on function "better_supabase"."merge_companies"(uuid, uuid) from public, anon;
@@ -618,13 +669,14 @@ begin
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "updated_at" = now()
+  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "payment_terms_days" = coalesce(x."payment_terms_days", v_drop."payment_terms_days"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", l."company_id", merge_people.keep, l."role", false
   from "better_supabase"."company_people" l where l."person_id" = merge_people.drop
   on conflict do nothing;
   delete from "better_supabase"."company_people" l where l."person_id" = merge_people.drop;
+  update "better_supabase"."people" x set "roles" = array(select distinct r from unnest(x."roles" || v_drop."roles") r order by 1) where x."id" = merge_people.keep;
   update "better_supabase"."person_identities" i set "person_id" = merge_people.keep where i."person_id" = merge_people.drop;
   update "better_supabase"."inbox_conversations" x set "contact_id" = merge_people.keep where x."contact_id" = merge_people.drop;
   perform better_supabase.merge_subject_refs('better_supabase.people', merge_people.keep::text, merge_people.drop::text);
@@ -639,7 +691,7 @@ begin
     tenant => (v_keep."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_keep."tenant_id", 'personId', merge_people.keep, 'name', v_keep."name", 'mergedId', merge_people.drop)
   );
-  return (select to_jsonb(x) from "better_supabase"."people" x where x."id" = merge_people.keep);
+  return (select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status") from "better_supabase"."people" x where x."id" = merge_people.keep);
 end;
 $$;
 revoke execute on function "better_supabase"."merge_people"(uuid, uuid) from public, anon;
@@ -647,8 +699,10 @@ grant execute on function "better_supabase"."merge_people"(uuid, uuid) to authen
 
 -- A page of the organization's active companies, by name. search matches
 -- the name and domain; after_name and after_id continue after the
--- last row of the previous page.
-create or replace function "better_supabase"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer)
+-- last row of the previous page. role keeps the ones with that role, and
+-- supplier_status the suppliers in that status.
+drop function if exists "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
+create or replace function "better_supabase"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
 stable
@@ -659,7 +713,7 @@ declare
   v_like text := '%' || replace(replace(replace(coalesce(list_companies.search, ''), '\', '\\'), '%', '\%'), '_', '\_') || '%';
 begin
   return coalesce((
-    select jsonb_agg(to_jsonb(p) order by lower(p."name"), p."id")
+    select jsonb_agg(to_jsonb(p) || jsonb_build_object('roles', p."roles", 'payment_terms_days', p."payment_terms_days", 'credit_currency', p."credit_currency", 'credit_limit', p."credit_limit"::text, 'supplier_status', p."supplier_status") order by lower(p."name"), p."id")
     from (
       select x.* from "better_supabase"."companies" x
       where x."tenant_id" = list_companies.tenant
@@ -667,6 +721,8 @@ begin
         and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
         and (list_companies.lifecycle is null or x."lifecycle" = list_companies.lifecycle)
         and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.role is null or list_companies.role = any (x."roles"))
+        and (list_companies.supplier_status is null or x."supplier_status" = list_companies.supplier_status)
         and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
       order by lower(x."name"), x."id"
       limit least(greatest(coalesce(list_companies.page_size, 50), 1), 200)
@@ -674,13 +730,15 @@ begin
   ), '[]'::jsonb);
 end;
 $$;
-revoke execute on function "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer) from public, anon;
-grant execute on function "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer, text, text) to authenticated, service_role;
 
 -- A page of the organization's active people, by name. search matches
 -- the name and email; after_name and after_id continue after the
--- last row of the previous page.
-create or replace function "better_supabase"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer)
+-- last row of the previous page. role keeps the ones with that role, and
+-- supplier_status the suppliers in that status.
+drop function if exists "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer);
+create or replace function "better_supabase"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
 stable
@@ -691,7 +749,7 @@ declare
   v_like text := '%' || replace(replace(replace(coalesce(list_people.search, ''), '\', '\\'), '%', '\%'), '_', '\_') || '%';
 begin
   return coalesce((
-    select jsonb_agg(to_jsonb(p) order by lower(p."name"), p."id")
+    select jsonb_agg(to_jsonb(p) || jsonb_build_object('roles', p."roles", 'payment_terms_days', p."payment_terms_days", 'credit_currency', p."credit_currency", 'credit_limit', p."credit_limit"::text, 'supplier_status', p."supplier_status") order by lower(p."name"), p."id")
     from (
       select x.* from "better_supabase"."people" x
       where x."tenant_id" = list_people.tenant
@@ -699,6 +757,8 @@ begin
         and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
         and (list_people.lifecycle is null or x."lifecycle" = list_people.lifecycle)
         and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.role is null or list_people.role = any (x."roles"))
+        and (list_people.supplier_status is null or x."supplier_status" = list_people.supplier_status)
         and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))
       order by lower(x."name"), x."id"
       limit least(greatest(coalesce(list_people.page_size, 50), 1), 200)
@@ -706,8 +766,8 @@ begin
   ), '[]'::jsonb);
 end;
 $$;
-revoke execute on function "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer) from public, anon;
-grant execute on function "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer, text, text) to authenticated, service_role;
 
 -- The people of a company with their role, primary contact first.
 create or replace function "better_supabase"."company_people_of"(company uuid)
@@ -717,13 +777,179 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(p) || jsonb_build_object('role', l."role", 'is_primary', l."is_primary")
+  select coalesce(jsonb_agg(to_jsonb(p) || jsonb_build_object('roles', p."roles", 'payment_terms_days', p."payment_terms_days", 'credit_currency', p."credit_currency", 'credit_limit', p."credit_limit"::text, 'supplier_status', p."supplier_status") || jsonb_build_object('role', l."role", 'is_primary', l."is_primary")
     order by l."is_primary" desc, lower(p."name"), p."id"), '[]'::jsonb)
   from "better_supabase"."company_people" l join "better_supabase"."people" p on p."id" = l."person_id"
   where l."company_id" = company_people_of.company and p."archived_at" is null
 $$;
 revoke execute on function "better_supabase"."company_people_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."company_people_of"(uuid) to authenticated, service_role;
+-- Sets the roles of a company or person (customer, supplier and so on),
+-- sorted and without duplicates. Returns { type, party }.
+create or replace function "better_supabase"."set_party_roles"(party uuid, roles text[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_kind text;
+  v_tenant uuid;
+  v_name text;
+  v_roles text[] := array(select distinct trim(r) from unnest(coalesce(set_party_roles.roles, '{}'::text[])) r where nullif(trim(r), '') is not null order by 1);
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select 'company', x."tenant_id", x."name" into v_kind, v_tenant, v_name
+  from "better_supabase"."companies" x where x."id" = set_party_roles.party and x."merged_into" is null;
+  if v_kind is null then
+    select 'person', x."tenant_id", x."name" into v_kind, v_tenant, v_name
+  from "better_supabase"."people" x where x."id" = set_party_roles.party and x."merged_into" is null;
+  end if;
+  if v_kind is null then
+    raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  if not (v_roles <@ '{customer,supplier,funder,partner}'::text[]) then
+    raise exception 'unknown party role' using errcode = '22023', hint = 'PARTY_ROLES_INVALID';
+  end if;
+  if v_kind = 'company' then
+    update "better_supabase"."companies" x set "roles" = v_roles, "updated_at" = now()
+    where x."id" = set_party_roles.party and x."roles" is distinct from v_roles;
+    if found then
+      perform "better_supabase".emit_event('company.updated', jsonb_build_object('organizationId', v_tenant, 'companyId', set_party_roles.party, 'name', v_name), 'companies/' || set_party_roles.party::text, (v_tenant::text)::text, null, 'better-supabase/contacts');
+    end if;
+  elsif v_kind = 'person' then
+    update "better_supabase"."people" x set "roles" = v_roles, "updated_at" = now()
+    where x."id" = set_party_roles.party and x."roles" is distinct from v_roles;
+    if found then
+      perform "better_supabase".emit_event('person.updated', jsonb_build_object('organizationId', v_tenant, 'personId', set_party_roles.party, 'name', v_name), 'persons/' || set_party_roles.party::text, (v_tenant::text)::text, null, 'better-supabase/contacts');
+    end if;
+  end if;
+  return case v_kind
+    when 'company' then (select jsonb_build_object('type', 'company', 'party', to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status")) from "better_supabase"."companies" x where x."id" = set_party_roles.party)
+    when 'person' then (select jsonb_build_object('type', 'person', 'party', to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status")) from "better_supabase"."people" x where x."id" = set_party_roles.party)
+  end;
+end;
+$$;
+revoke execute on function "better_supabase"."set_party_roles"(uuid, text[]) from public, anon;
+grant execute on function "better_supabase"."set_party_roles"(uuid, text[]) to authenticated, service_role;
+
+-- Sets where a supplier stands: approved, conditional, blocked, or null for
+-- not assessed. Needs contacts.approve_supplier. Returns { type, party }.
+create or replace function "better_supabase"."set_supplier_status"(party uuid, status text, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_kind text;
+  v_tenant uuid;
+  v_name text;
+  v_status text := nullif(trim(set_supplier_status.status), '');
+  v_reason text := nullif(trim(set_supplier_status.reason), '');
+  v_previous text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select 'company', x."tenant_id", x."name" into v_kind, v_tenant, v_name
+  from "better_supabase"."companies" x where x."id" = set_supplier_status.party and x."merged_into" is null;
+  if v_kind is null then
+    select 'person', x."tenant_id", x."name" into v_kind, v_tenant, v_name
+  from "better_supabase"."people" x where x."id" = set_supplier_status.party and x."merged_into" is null;
+  end if;
+  if v_kind is null then
+    raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.approve_supplier'), false)) then
+    raise exception 'not allowed to approve suppliers' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  if v_status is not null and v_status not in ('approved', 'conditional', 'blocked') then
+    raise exception 'a supplier status is approved, conditional or blocked' using errcode = '22023', hint = 'PARTY_SUPPLIER_STATUS_INVALID';
+  end if;
+  if length(v_reason) > 2000 then
+    raise exception 'a reason has at most 2000 characters' using errcode = '22023', hint = 'PARTY_SUPPLIER_STATUS_INVALID';
+  end if;
+  if v_kind = 'company' then
+    select x."supplier_status" into v_previous from "better_supabase"."companies" x where x."id" = set_supplier_status.party for update;
+    update "better_supabase"."companies" x set "supplier_status" = v_status, "updated_at" = now()
+    where x."id" = set_supplier_status.party and x."supplier_status" is distinct from v_status;
+    if found then
+      perform "better_supabase".emit_event('company.supplier_status_changed', jsonb_build_object('organizationId', v_tenant, 'companyId', set_supplier_status.party, 'name', v_name, 'status', v_status, 'previousStatus', v_previous, 'reason', v_reason), 'companies/' || set_supplier_status.party::text, (v_tenant::text)::text, null, 'better-supabase/contacts');
+  perform better_supabase.audit_event(
+    event_type => 'company.supplier_status_changed',
+    category => 'data',
+    target_type => 'company',
+    record_id => set_supplier_status.party::text,
+    target_label => v_name,
+    summary => 'supplier status of ' || v_name || ' set to ' || coalesce(v_status, 'none'),
+    tenant => (v_tenant::text)::uuid,
+    metadata => jsonb_build_object('organizationId', v_tenant, 'companyId', set_supplier_status.party, 'name', v_name, 'status', v_status, 'previousStatus', v_previous, 'reason', v_reason)
+  );
+    end if;
+  elsif v_kind = 'person' then
+    select x."supplier_status" into v_previous from "better_supabase"."people" x where x."id" = set_supplier_status.party for update;
+    update "better_supabase"."people" x set "supplier_status" = v_status, "updated_at" = now()
+    where x."id" = set_supplier_status.party and x."supplier_status" is distinct from v_status;
+    if found then
+      perform "better_supabase".emit_event('person.supplier_status_changed', jsonb_build_object('organizationId', v_tenant, 'personId', set_supplier_status.party, 'name', v_name, 'status', v_status, 'previousStatus', v_previous, 'reason', v_reason), 'persons/' || set_supplier_status.party::text, (v_tenant::text)::text, null, 'better-supabase/contacts');
+  perform better_supabase.audit_event(
+    event_type => 'person.supplier_status_changed',
+    category => 'data',
+    target_type => 'person',
+    record_id => set_supplier_status.party::text,
+    target_label => v_name,
+    summary => 'supplier status of ' || v_name || ' set to ' || coalesce(v_status, 'none'),
+    tenant => (v_tenant::text)::uuid,
+    metadata => jsonb_build_object('organizationId', v_tenant, 'personId', set_supplier_status.party, 'name', v_name, 'status', v_status, 'previousStatus', v_previous, 'reason', v_reason)
+  );
+    end if;
+  end if;
+  return case v_kind
+    when 'company' then (select jsonb_build_object('type', 'company', 'party', to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status")) from "better_supabase"."companies" x where x."id" = set_supplier_status.party)
+    when 'person' then (select jsonb_build_object('type', 'person', 'party', to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status")) from "better_supabase"."people" x where x."id" = set_supplier_status.party)
+  end;
+end;
+$$;
+revoke execute on function "better_supabase"."set_supplier_status"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."set_supplier_status"(uuid, text, text) to authenticated, service_role;
+
+-- The supplier status a company's qualifications give it: approved when the
+-- gap report lists no missing or expired qualification for it, conditional
+-- otherwise. Pass it to set_supplier_status to apply it.
+create or replace function "better_supabase"."supplier_status_from_qualifications"(party uuid)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_gaps jsonb;
+begin
+  select x."tenant_id" into v_tenant from "better_supabase"."companies" x
+  where x."id" = supplier_status_from_qualifications.party and x."merged_into" is null;
+  if v_tenant is null then
+    raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.read'), false)) then
+    raise exception 'not allowed to read companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  v_gaps := "better_supabase"."qualification_gaps"(v_tenant, 'company', jsonb_build_object('holderId', supplier_status_from_qualifications.party::text));
+  return case when exists (
+    select 1 from jsonb_array_elements(v_gaps) g where g ->> 'status' in ('missing', 'expired')
+  ) then 'conditional' else 'approved' end;
+end;
+$$;
+revoke execute on function "better_supabase"."supplier_status_from_qualifications"(uuid) from public, anon;
+grant execute on function "better_supabase"."supplier_status_from_qualifications"(uuid) to authenticated, service_role;
+
 -- The person contact fields name, for the inbox and the channels: by id,
 -- then by the identity on a channel ({ channel, address }), the user, then
 -- the email. Fills in what the person lacks, or creates a lead; an identity
@@ -899,7 +1125,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(p) from "better_supabase"."person_identities" i
+  select to_jsonb(p) || jsonb_build_object('roles', p."roles", 'payment_terms_days', p."payment_terms_days", 'credit_currency', p."credit_currency", 'credit_limit', p."credit_limit"::text, 'supplier_status', p."supplier_status") from "better_supabase"."person_identities" i
   join "better_supabase"."people" p on p."id" = i."person_id"
   where i."tenant_id" = find_person_by_identity.tenant
     and i."channel" = trim(find_person_by_identity.channel)
@@ -1093,6 +1319,9 @@ create trigger "bsb_search_person_index"
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
+drop function if exists "api"."list_people"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -1183,23 +1412,23 @@ as $$ select "better_supabase"."merge_people"($1, $2) $$;
 revoke execute on function "api"."merge_people"(uuid, uuid) from public, anon;
 grant execute on function "api"."merge_people"(uuid, uuid) to authenticated, service_role;
 
-create or replace function "api"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer)
+create or replace function "api"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_companies"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."list_companies"(uuid, text, text, uuid, text, uuid, integer) from public, anon;
-grant execute on function "api"."list_companies"(uuid, text, text, uuid, text, uuid, integer) to authenticated, service_role;
+as $$ select "better_supabase"."list_companies"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."list_companies"(uuid, text, text, uuid, text, uuid, integer, text, text) from public, anon;
+grant execute on function "api"."list_companies"(uuid, text, text, uuid, text, uuid, integer, text, text) to authenticated, service_role;
 
-create or replace function "api"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer)
+create or replace function "api"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_people"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."list_people"(uuid, text, text, uuid, text, uuid, integer) from public, anon;
-grant execute on function "api"."list_people"(uuid, text, text, uuid, text, uuid, integer) to authenticated, service_role;
+as $$ select "better_supabase"."list_people"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."list_people"(uuid, text, text, uuid, text, uuid, integer, text, text) from public, anon;
+grant execute on function "api"."list_people"(uuid, text, text, uuid, text, uuid, integer, text, text) to authenticated, service_role;
 
 create or replace function "api"."company_people_of"(company uuid)
 returns jsonb
@@ -1209,6 +1438,33 @@ set search_path = ''
 as $$ select "better_supabase"."company_people_of"($1) $$;
 revoke execute on function "api"."company_people_of"(uuid) from public, anon;
 grant execute on function "api"."company_people_of"(uuid) to authenticated, service_role;
+
+create or replace function "api"."set_party_roles"(party uuid, roles text[])
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_party_roles"($1, $2) $$;
+revoke execute on function "api"."set_party_roles"(uuid, text[]) from public, anon;
+grant execute on function "api"."set_party_roles"(uuid, text[]) to authenticated, service_role;
+
+create or replace function "api"."set_supplier_status"(party uuid, status text, reason text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_supplier_status"($1, $2, $3) $$;
+revoke execute on function "api"."set_supplier_status"(uuid, text, text) from public, anon;
+grant execute on function "api"."set_supplier_status"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."supplier_status_from_qualifications"(party uuid)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."supplier_status_from_qualifications"($1) $$;
+revoke execute on function "api"."supplier_status_from_qualifications"(uuid) from public, anon;
+grant execute on function "api"."supplier_status_from_qualifications"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_person_identities"(person uuid)
 returns jsonb

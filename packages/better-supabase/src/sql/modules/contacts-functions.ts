@@ -7,6 +7,7 @@ import { recordMergeFunction } from "../subject-merge-sql.ts";
 import { watchSql } from "../watch-sql.ts";
 import { identityMergeMoves } from "./contacts-identities.ts";
 import { personMergeMoves } from "./contacts-inbox.ts";
+import { roleJson, termsChecks } from "./contacts-roles.ts";
 import { asText } from "./over-app.ts";
 
 export interface PartyNames {
@@ -22,9 +23,12 @@ export interface PartyNames {
   readonly companyStages: string;
   /** The `text[]` of person lifecycle stages; the first is the default. */
   readonly personStages: string;
+  /** The `text[]` of roles a company or person can have (`options.roles`). */
+  readonly roles: string;
+  readonly approveSupplier: string;
 }
 
-type Kind = "company" | "person";
+export type Kind = "company" | "person";
 
 /**
  * ` || jsonb_build_object('fields', ...)` with a company's extra columns
@@ -46,6 +50,18 @@ function extraFields(ctx: BlockSqlContext, kind: Kind, alias: string): string {
       )})`;
 }
 
+/**
+ * A company or person row `alias` as jsonb: its columns, a company's extra
+ * columns under `fields`, and the role columns under fixed keys.
+ */
+export function partyJson(
+  ctx: BlockSqlContext,
+  kind: Kind,
+  alias: string,
+): string {
+  return `to_jsonb(${alias})${extraFields(ctx, kind, alias)}${roleJson(ctx, SPEC[kind].table, alias)}`;
+}
+
 interface Field {
   /** The attrs key, camelCase. */
   readonly key: string;
@@ -58,6 +74,16 @@ interface Field {
 const text = (v: string): string => `nullif(trim(${v}), '')`;
 const lower = (v: string): string => `lower(nullif(trim(${v}), ''))`;
 const uuid = (v: string): string => `nullif(${v}, '')::uuid`;
+const integer = (v: string): string => `nullif(trim(${v}), '')::integer`;
+const bigint = (v: string): string => `nullif(trim(${v}), '')::bigint`;
+const upper = (v: string): string => `upper(nullif(trim(${v}), ''))`;
+
+/** The commercial terms companies and people share. */
+const TERMS: readonly Field[] = [
+  { key: "paymentTermsDays", column: "paymentTermsDays", value: integer },
+  { key: "creditLimit", column: "creditLimit", value: bigint },
+  { key: "creditCurrency", column: "creditCurrency", value: upper },
+];
 
 const FIELDS: Readonly<Record<Kind, readonly Field[]>> = {
   company: [
@@ -67,6 +93,7 @@ const FIELDS: Readonly<Record<Kind, readonly Field[]>> = {
     { key: "vatId", column: "vatId", value: text },
     { key: "lifecycle", column: "lifecycle", value: text },
     { key: "ownerId", column: "owner", value: uuid },
+    ...TERMS,
   ],
   person: [
     { key: "name", column: "name", value: text },
@@ -76,6 +103,7 @@ const FIELDS: Readonly<Record<Kind, readonly Field[]>> = {
     { key: "lifecycle", column: "lifecycle", value: text },
     { key: "ownerId", column: "owner", value: uuid },
     { key: "userId", column: "user", value: uuid },
+    ...TERMS,
   ],
 };
 
@@ -226,7 +254,7 @@ begin
   end if;${unsupported(ctx, kind, `${fnName}.attrs`)}
   if ${has("lifecycle")} and not (${arg("lifecycle")} = any (${stages})) then
     ${fail("PARTY_LIFECYCLE_INVALID", "unknown lifecycle stage", "22023")}
-  end if;
+  end if;${termsChecks(ctx, spec.table, `${fnName}.attrs`)}
   ${ctx.hook(`before_${spec.hook}_save`, [
     [ctx.idType, `${fnName}.tenant`],
     ["uuid", `${fnName}.${kind}`],
@@ -257,7 +285,7 @@ begin
   exception when unique_violation then
     ${fail(spec.taken[0], spec.taken[1], "23505")}
   end;
-  select to_jsonb(x)${extraFields(ctx, kind, "x")} into v_row from ${table} x where x.${col("id")} = v_id;
+  select ${partyJson(ctx, kind, "x")} into v_row from ${table} x where x.${col("id")} = v_id;
   if v_created then
     ${ctx.record({ type: `${kind}.created`, payload, subject, tenant: `${fnName}.tenant::text`, audit: false })}
   else
@@ -347,9 +375,12 @@ function mergeFunction(
       "merge two different, unmerged records of one organization",
     ],
     clear: [kind === "company" ? "domain" : "email"],
-    fill: fieldsOf(ctx, kind)
-      .filter((field) => field.key !== "name" && field.key !== "lifecycle")
-      .map((field) => field.column),
+    fill: [
+      ...fieldsOf(ctx, kind)
+        .filter((field) => field.key !== "name" && field.key !== "lifecycle")
+        .map((field) => field.column),
+      ...(ctx.has(spec.table, "supplierStatus") ? ["supplierStatus"] : []),
+    ],
     move: (
       keep,
       drop,
@@ -357,7 +388,7 @@ function mergeFunction(
   select l.${li("tenant")}, ${kind === "company" ? `${keep}, l.${li("person")}` : `l.${li("company")}, ${keep}`}${role ? `, l.${li("role")}` : ""}, false
   from ${t("links")} l where l.${linkColumn} = ${drop}
   on conflict do nothing;
-  delete from ${t("links")} l where l.${linkColumn} = ${drop};${kind === "person" ? `${identityMergeMoves(names, keep, drop)}${personMergeMoves(ctx, keep, drop)}` : ""}`,
+  delete from ${t("links")} l where l.${linkColumn} = ${drop};${ctx.has(spec.table, "roles") ? `\n  update ${t(spec.table)} x set ${col("roles")} = array(select distinct r from unnest(x.${col("roles")} || v_drop.${col("roles")}) r order by 1) where x.${col("id")} = ${keep};` : ""}${kind === "person" ? `${identityMergeMoves(names, keep, drop)}${personMergeMoves(ctx, keep, drop)}` : ""}`,
     record: (keep, drop) =>
       ctx.record({
         type: `${kind}.merged`,
@@ -373,7 +404,7 @@ function mergeFunction(
         },
       }),
     returns: (keep) =>
-      `(select to_jsonb(x)${extraFields(ctx, kind, "x")} from ${t(spec.table)} x where x.${col("id")} = ${keep})`,
+      `(select ${partyJson(ctx, kind, "x")} from ${t(spec.table)} x where x.${col("id")} = ${keep})`,
   });
 }
 
@@ -392,11 +423,16 @@ function listFunction(
       ? `x.${col("name")} ilike v_like or x.${col("domain")} ilike v_like`
       : `x.${col("name")} ilike v_like or x.${col("email")} ilike v_like`;
 
+  const roles = ctx.has(spec.table, "roles");
+  const status = ctx.has(spec.table, "supplierStatus");
+
   return `
 -- A page of the organization's active ${spec.table}, by name. search matches
 -- the name and ${kind === "company" ? "domain" : "email"}; after_name and after_id continue after the
--- last row of the previous page.
-create or replace function ${fn(name)}(tenant ${ctx.idType}, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer)
+-- last row of the previous page. role keeps the ones with that role, and
+-- supplier_status the suppliers in that status.
+drop function if exists ${fn(name)}(${ctx.idType}, text, text, uuid, text, uuid, integer);
+create or replace function ${fn(name)}(tenant ${ctx.idType}, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
 stable
@@ -407,7 +443,7 @@ declare
   v_like text := '%' || replace(replace(replace(coalesce(${name}.search, ''), '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%';
 begin
   return coalesce((
-    select jsonb_agg(to_jsonb(p)${extraFields(ctx, kind, "p")} order by lower(p.${col("name")}), p.${col("id")})
+    select jsonb_agg(${partyJson(ctx, kind, "p")} order by lower(p.${col("name")}), p.${col("id")})
     from (
       select x.* from ${t(spec.table)} x
       where x.${col("tenant")} = ${name}.tenant
@@ -415,6 +451,8 @@ begin
         and (${name}.search is null or ${searchable})
         and (${name}.lifecycle is null or ${asText(ctx, spec.table, `x.${col("lifecycle")}`)} = ${name}.lifecycle)
         and (${name}.owner is null or ${ctx.has(spec.table, "owner") ? `x.${col("owner")} = ${name}.owner` : "false"})
+        and (${name}.role is null or ${roles ? `${name}.role = any (x.${col("roles")})` : "false"})
+        and (${name}.supplier_status is null or ${status ? `x.${col("supplierStatus")} = ${name}.supplier_status` : "false"})
         and (${name}.after_name is null or (lower(x.${col("name")}), x.${col("id")}) > (lower(${name}.after_name), ${name}.after_id))
       order by lower(x.${col("name")}), x.${col("id")}
       limit ${pageSize(`${name}.page_size`, 50, 200)}
@@ -422,7 +460,7 @@ begin
   ), '[]'::jsonb);
 end;
 $$;
-${userGrant(`${fn(name)}(${ctx.idType}, text, text, uuid, text, uuid, integer)`)}
+${userGrant(`${fn(name)}(${ctx.idType}, text, text, uuid, text, uuid, integer, text, text)`)}
 `;
 }
 
@@ -537,7 +575,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(p) || jsonb_build_object('role', ${role ? `l.${li("role")}` : "null"}, 'is_primary', l.${li("isPrimary")})
+  select coalesce(jsonb_agg(${partyJson(ctx, "person", "p")} || jsonb_build_object('role', ${role ? `l.${li("role")}` : "null"}, 'is_primary', l.${li("isPrimary")})
     order by l.${li("isPrimary")} desc, lower(p.${pe("name")}), p.${pe("id")}), '[]'::jsonb)
   from ${t("links")} l join ${t("people")} p on p.${pe("id")} = l.${li("person")}
   where l.${li("company")} = company_people_of.company and p.${pe("archivedAt")} is null

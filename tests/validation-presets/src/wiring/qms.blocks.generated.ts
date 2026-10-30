@@ -404,6 +404,7 @@ export const permissions = {
     read: "contacts.read",
     write: "contacts.write",
     manage: "contacts.manage",
+    approveSupplier: "contacts.approve_supplier",
   },
   control: {
     read: "compliance.read",
@@ -599,7 +600,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "compliance.collect" | "compliance.manage" | "compliance.read" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "compliance.collect" | "compliance.manage" | "compliance.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -671,6 +672,7 @@ export const blockEvents: Events<BlockEvents> = {
     "company.merged",
     "company.person_linked",
     "company.person_unlinked",
+    "company.supplier_status_changed",
     "company.updated",
     "compliance_policy.published",
     "control.created",
@@ -793,6 +795,7 @@ export const blockEvents: Events<BlockEvents> = {
     "person.archived",
     "person.created",
     "person.merged",
+    "person.supplier_status_changed",
     "person.updated",
     "pipeline.archived",
     "pipeline.created",
@@ -925,6 +928,7 @@ export const blockEventSchemas = {
   "company.merged": true,
   "company.person_linked": true,
   "company.person_unlinked": true,
+  "company.supplier_status_changed": true,
   "company.updated": true,
   "compliance_policy.published": true,
   "control.created": true,
@@ -1047,6 +1051,7 @@ export const blockEventSchemas = {
   "person.archived": true,
   "person.created": true,
   "person.merged": true,
+  "person.supplier_status_changed": true,
   "person.updated": true,
   "pipeline.archived": true,
   "pipeline.created": true,

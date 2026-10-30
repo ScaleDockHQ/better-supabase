@@ -7503,12 +7503,14 @@
       "createContacts",
       "dbTransport",
       "extendBlock",
+      "PARTY_ROLES",
       "partyListFilterSchema",
       "personInputSchema",
       "REPRESENTATIVE_AUTHORITIES",
       "REPRESENTATIVE_ROLES",
       "rpcTransport",
       "sqlTransport",
+      "SUPPLIER_STATUSES",
       "withBlockHooks",
       "wrapTransport"
     ],
@@ -7522,6 +7524,7 @@
       "Contacts",
       "ContactsEvents",
       "ContactsOptions",
+      "Party",
       "PartyCursor",
       "PartyListOptions",
       "PartyPage",
@@ -7534,7 +7537,9 @@
       "RepresentativeAuthority",
       "RepresentativeRole",
       "RepresentedRecord",
-      "RpcClient"
+      "RpcClient",
+      "SupplierStatus",
+      "SupplierStatusChangedEventData"
     ]
   },
   "./blocks/collections": {

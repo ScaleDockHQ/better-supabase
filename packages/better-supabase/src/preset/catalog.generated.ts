@@ -3202,7 +3202,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "inbox",
         "identities",
-        "relations"
+        "relations",
+        "qualifications"
       ],
       "manifest": "contacts",
       "scopes": [
@@ -3262,6 +3263,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "lifecycle": "lifecycle",
               "owner": "owner_user_id",
               "address": "address",
+              "roles": "roles",
+              "paymentTermsDays": "payment_terms_days",
+              "creditLimit": "credit_limit",
+              "creditCurrency": "credit_currency",
+              "supplierStatus": "supplier_status",
               "mergedInto": "merged_into",
               "archivedAt": "archived_at",
               "createdBy": "created_by",
@@ -3283,6 +3289,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "user": "user_id",
               "avatarUrl": "avatar_url",
               "metadata": "metadata",
+              "roles": "roles",
+              "paymentTermsDays": "payment_terms_days",
+              "creditLimit": "credit_limit",
+              "creditCurrency": "credit_currency",
+              "supplierStatus": "supplier_status",
               "mergedInto": "merged_into",
               "archivedAt": "archived_at",
               "createdBy": "created_by",
@@ -3294,7 +3305,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "keys": {
           "read": "contacts.read",
           "write": "contacts.write",
-          "manage": "contacts.manage"
+          "manage": "contacts.manage",
+          "approveSupplier": "contacts.approve_supplier"
         }
       }
     },
@@ -22933,6 +22945,18 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true
               },
+              "paymentTermsDays": {
+                "kind": "integer",
+                "optional": true,
+                "nullable": true,
+                "minimum": 0,
+                "maximum": 3650
+              },
+              "creditLimit": {
+                "kind": "custom",
+                "optional": true,
+                "nullable": true
+              },
               "fields": {
                 "kind": "json",
                 "optional": true,
@@ -22983,6 +23007,38 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "format": "uuid"
                 },
                 "address": {},
+                "paymentTermsDays": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 3650
+                },
+                "creditLimit": {
+                  "title": "Money",
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
                 "fields": {
                   "description": "The extra columns to set."
                 }
@@ -23003,6 +23059,19 @@ export const PRESET_CATALOG: PresetCatalog = {
               },
               "ownerId": {
                 "kind": "uuid",
+                "optional": true
+              },
+              "role": {
+                "kind": "string",
+                "optional": true
+              },
+              "supplierStatus": {
+                "kind": "enum",
+                "values": [
+                  "approved",
+                  "conditional",
+                  "blocked"
+                ],
                 "optional": true
               },
               "limit": {
@@ -23030,6 +23099,17 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "ownerId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "supplierStatus": {
+                  "type": "string",
+                  "enum": [
+                    "approved",
+                    "conditional",
+                    "blocked"
+                  ]
                 },
                 "limit": {
                   "type": "integer",
@@ -23084,6 +23164,18 @@ export const PRESET_CATALOG: PresetCatalog = {
               },
               "userId": {
                 "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "paymentTermsDays": {
+                "kind": "integer",
+                "optional": true,
+                "nullable": true,
+                "minimum": 0,
+                "maximum": 3650
+              },
+              "creditLimit": {
+                "kind": "custom",
                 "optional": true,
                 "nullable": true
               },
@@ -23143,6 +23235,38 @@ export const PRESET_CATALOG: PresetCatalog = {
                   ],
                   "format": "uuid"
                 },
+                "paymentTermsDays": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 3650
+                },
+                "creditLimit": {
+                  "title": "Money",
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
                 "fields": {
                   "description": "The extra columns to set."
                 }
@@ -23163,6 +23287,19 @@ export const PRESET_CATALOG: PresetCatalog = {
               },
               "ownerId": {
                 "kind": "uuid",
+                "optional": true
+              },
+              "role": {
+                "kind": "string",
+                "optional": true
+              },
+              "supplierStatus": {
+                "kind": "enum",
+                "values": [
+                  "approved",
+                  "conditional",
+                  "blocked"
+                ],
                 "optional": true
               },
               "limit": {
@@ -23191,6 +23328,17 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": "string",
                   "format": "uuid"
                 },
+                "role": {
+                  "type": "string"
+                },
+                "supplierStatus": {
+                  "type": "string",
+                  "enum": [
+                    "approved",
+                    "conditional",
+                    "blocked"
+                  ]
+                },
                 "limit": {
                   "type": "integer",
                   "minimum": 1
@@ -23213,10 +23361,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "company.merged",
           "company.person_linked",
           "company.person_unlinked",
+          "company.supplier_status_changed",
           "person.created",
           "person.updated",
           "person.archived",
-          "person.merged"
+          "person.merged",
+          "person.supplier_status_changed"
         ]
       }
     },

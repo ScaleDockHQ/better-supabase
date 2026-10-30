@@ -5,6 +5,7 @@ export {
   createContacts,
   type Contacts,
   type ContactsOptions,
+  type Party,
   type PartyCursor,
   type PartyListOptions,
   type PartyPage,
@@ -23,6 +24,12 @@ export {
   type RepresentativeAuthority,
   type RepresentativeRole,
 } from "./representatives.ts";
+
+export {
+  PARTY_ROLES,
+  SUPPLIER_STATUSES,
+  type SupplierStatus,
+} from "./roles.ts";
 
 export {
   extendBlock,
@@ -44,7 +51,10 @@ export { contactsBlock } from "./manifest.ts";
 
 export { contactsEvents } from "./events.ts";
 
-export type { ContactsEvents } from "./events.ts";
+export type {
+  ContactsEvents,
+  SupplierStatusChangedEventData,
+} from "./events.ts";
 
 export {
   companyInputSchema,

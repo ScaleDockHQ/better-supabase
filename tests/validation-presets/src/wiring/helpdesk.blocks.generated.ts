@@ -418,6 +418,7 @@ export const permissions = {
     read: "contacts.read",
     write: "contacts.write",
     manage: "contacts.manage",
+    approveSupplier: "contacts.approve_supplier",
   },
   conversation: {
     read: "messages.read",
@@ -527,7 +528,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "billing.manage" | "billing.read" | "contacts.manage" | "contacts.read" | "contacts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "knowledge.manage" | "knowledge.read" | "knowledge.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "saved_views.read" | "saved_views.share" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "timeline.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "billing.manage" | "billing.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "knowledge.manage" | "knowledge.read" | "knowledge.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "saved_views.read" | "saved_views.share" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "timeline.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -568,6 +569,7 @@ export const blockEvents: Events<BlockEvents> = {
     "company.merged",
     "company.person_linked",
     "company.person_unlinked",
+    "company.supplier_status_changed",
     "company.updated",
     "conversation.archived",
     "conversation.created",
@@ -626,6 +628,7 @@ export const blockEvents: Events<BlockEvents> = {
     "person.archived",
     "person.created",
     "person.merged",
+    "person.supplier_status_changed",
     "person.updated",
     "pipeline.archived",
     "pipeline.created",
@@ -698,6 +701,7 @@ export const blockEventSchemas = {
   "company.merged": true,
   "company.person_linked": true,
   "company.person_unlinked": true,
+  "company.supplier_status_changed": true,
   "company.updated": true,
   "conversation.archived": true,
   "conversation.created": true,
@@ -756,6 +760,7 @@ export const blockEventSchemas = {
   "person.archived": true,
   "person.created": true,
   "person.merged": true,
+  "person.supplier_status_changed": true,
   "person.updated": true,
   "pipeline.archived": true,
   "pipeline.created": true,
