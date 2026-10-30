@@ -4558,6 +4558,28 @@
       "ConvertedError"
     ]
   },
+  "./fhir": {
+    "values": [
+      "FHIR_MEDICATION_SYSTEMS",
+      "fromFhirMedicationRequest",
+      "fromFhirObservation",
+      "toFhirBundle",
+      "toFhirCarePlan",
+      "toFhirConsent",
+      "toFhirGoal",
+      "toFhirMedicationAdministration",
+      "toFhirMedicationRequest",
+      "toFhirObservation",
+      "toFhirPatient",
+      "toFhirRelatedPerson"
+    ],
+    "types": [
+      "* from ./types.ts",
+      "FhirSubjectOptions",
+      "FhirTemporal",
+      "FhirUserReference"
+    ]
+  },
   "./blocks/inbox": {
     "values": [
       "CONVERSATION_TO_TASK",

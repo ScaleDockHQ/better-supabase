@@ -56,6 +56,8 @@ export const SPEC_PINS: {
    * electronic form and the mod 97 check digits.
    */
   readonly iso13616: "2020";
+  /** FHIR R4 release whose base resources `better-supabase/fhir` maps to. */
+  readonly fhirR4: "4.0.1";
   /**
    * RFC 6902 JSON Patch that the versions block's `createPatch` writes and
    * `applyPatch` applies.
@@ -164,6 +166,7 @@ export const SPEC_PINS: {
   rfc4180: "2005-10",
   iso4217: "2026-09-17",
   iso13616: "2020",
+  fhirR4: "4.0.1",
   rfc6902: "2013-04",
   rfc9396: "2023-05",
   rfc9864: "2025-10",
