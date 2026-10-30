@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_148_care_plans.sql
+-- ==== schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
 -- @bsb-hash sha256:d0fe2fe1fdd96ad19e99f5af03cb25598b88267015ece7e7efb817473971cffd
@@ -1623,7 +1623,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_148_care_plans.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
 -- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950

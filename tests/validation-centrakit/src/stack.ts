@@ -98,6 +98,38 @@ const SEED = `insert into centrakit.roles (id, scope, key, name, system) values
 
 const SUPABASE = new URL("../supabase/", import.meta.url);
 
+// Renames the root fixture's schema, then drops the triggers and event
+// triggers it attaches to tables in other schemas.
+const SET_FIXTURE_ASIDE = `do $$
+declare
+  r record;
+begin
+  if to_regnamespace('better_supabase') is null then
+    return;
+  end if;
+  alter schema better_supabase rename to better_supabase_fixture;
+  for r in
+    select t.tgname, t.tgrelid::regclass as tbl
+    from pg_trigger t
+    join pg_proc p on p.oid = t.tgfoid
+    join pg_class c on c.oid = t.tgrelid
+    where not t.tgisinternal
+      and p.pronamespace = 'better_supabase_fixture'::regnamespace
+      and c.relnamespace <> 'better_supabase_fixture'::regnamespace
+  loop
+    execute format('drop trigger %I on %s', r.tgname, r.tbl);
+  end loop;
+  for r in
+    select e.evtname
+    from pg_event_trigger e
+    join pg_proc p on p.oid = e.evtfoid
+    where p.pronamespace = 'better_supabase_fixture'::regnamespace
+  loop
+    execute format('drop event trigger %I', r.evtname);
+  end loop;
+end
+$$`;
+
 /** CentraKit's own tables, as `add` finds them in its schema file. */
 async function centrakitTables(): Promise<Record<string, string>> {
   const path = "schemas/000_centrakit.sql";
@@ -236,8 +268,10 @@ export async function withCentraKit(
     await client.query("lock table auth.users in access exclusive mode");
     // The stack holds the root fixture's blocks. Their triggers would outlive
     // this install on the tables both share and emit with the fixture's
-    // config, so CentraKit starts from an empty schema.
-    await client.query("drop schema if exists better_supabase cascade");
+    // config, so CentraKit starts from an empty schema. Dropping the schema
+    // locks each of its objects, more than Postgres' default lock table holds,
+    // so it moves aside and only what it attaches elsewhere is dropped.
+    await client.query(SET_FIXTURE_ASIDE);
 
     for (const who of ["owner", "admin", "member", "support"] as const) {
       await client.query(

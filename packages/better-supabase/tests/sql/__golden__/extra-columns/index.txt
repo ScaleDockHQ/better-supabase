@@ -68,3 +68,4 @@ shifts
 accounting
 observations
 medications
+care-plans
