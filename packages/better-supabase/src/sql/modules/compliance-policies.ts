@@ -17,7 +17,7 @@ export const POLICY_ROLE: string = ALL_MEMBERS;
  * The role a policy was assigned to before every member was covered. The data
  * step moves its assignments onto {@link POLICY_ROLE}.
  */
-export const FORMER_POLICY_ROLE = "member";
+const FORMER_POLICY_ROLE = "member";
 
 /**
  * Moves the policy assignments that name the former `member` role onto every

@@ -83,10 +83,10 @@ describe("compliance module", () => {
     const sql = sqlOf();
 
     expect(sql).toContain(
-      `perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);`,
+      `perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*', null);`,
     );
     expect(sql).toContain(
-      `perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');`,
+      `perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*');`,
     );
     expect(sql).toContain(`from "better_supabase"."acknowledgements" ack`);
     expect(sql).not.toContain("policy_acknowledgements");
@@ -118,7 +118,7 @@ describe("compliance module", () => {
   from "better_supabase".policy_acknowledgements x`,
     );
     expect(managed).toContain(
-      `select x."tenant_id", 'compliance_policy', x."id"::text, 'role', 'member'`,
+      `select x."tenant_id", 'compliance_policy', x."id"::text, 'role', '*'`,
     );
     expect(managed).toContain(
       'drop table "better_supabase".policy_acknowledgements cascade;',
