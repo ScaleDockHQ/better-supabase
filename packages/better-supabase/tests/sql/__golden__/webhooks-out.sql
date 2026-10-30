@@ -793,7 +793,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:ce9dfb1849047f5feb332cc73e4fcc757c64577c2abfca9bf1d86cae93d33753
+-- @bsb-hash sha256:594fab58f723107a32dc5c0626b0803e9bb3b5d34e59e59d4e664540dc9858e0
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -811,6 +811,7 @@ with m(old_type, next_types) as (values
   ('announcement.saved', array['announcement.created', 'announcement.updated']::text[]),
   ('approval_policy.removed', array['approval_policy.deleted']::text[]),
   ('approval_policy.saved', array['approval_policy.created', 'approval_policy.updated']::text[]),
+  ('compliance_policy.acknowledged', array['acknowledgement.created']::text[]),
   ('connector.saved', array['connector.created', 'connector.updated']::text[]),
   ('control.saved', array['control.created', 'control.updated']::text[]),
   ('course.saved', array['course.created', 'course.updated']::text[]),
@@ -881,7 +882,7 @@ with m(old_type, next_types) as (values
   ('party.enriched', array['company.enriched', 'person.enriched']::text[]),
   ('pipeline_stage.saved', array['pipeline_stage.created', 'pipeline_stage.updated']::text[]),
   ('policy.*', array['compliance_policy.*']::text[]),
-  ('policy.acknowledged', array['compliance_policy.acknowledged']::text[]),
+  ('policy.acknowledged', array['acknowledgement.created']::text[]),
   ('policy.published', array['compliance_policy.published']::text[]),
   ('post_board.saved', array['post_board.created', 'post_board.updated']::text[]),
   ('postmortem.*', array['incident_postmortem.*']::text[]),
@@ -1855,7 +1856,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:ce9dfb1849047f5feb332cc73e4fcc757c64577c2abfca9bf1d86cae93d33753
+-- @bsb-hash sha256:594fab58f723107a32dc5c0626b0803e9bb3b5d34e59e59d4e664540dc9858e0
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1873,6 +1874,7 @@ with m(old_type, next_types) as (values
   ('announcement.saved', array['announcement.created', 'announcement.updated']::text[]),
   ('approval_policy.removed', array['approval_policy.deleted']::text[]),
   ('approval_policy.saved', array['approval_policy.created', 'approval_policy.updated']::text[]),
+  ('compliance_policy.acknowledged', array['acknowledgement.created']::text[]),
   ('connector.saved', array['connector.created', 'connector.updated']::text[]),
   ('control.saved', array['control.created', 'control.updated']::text[]),
   ('course.saved', array['course.created', 'course.updated']::text[]),
@@ -1943,7 +1945,7 @@ with m(old_type, next_types) as (values
   ('party.enriched', array['company.enriched', 'person.enriched']::text[]),
   ('pipeline_stage.saved', array['pipeline_stage.created', 'pipeline_stage.updated']::text[]),
   ('policy.*', array['compliance_policy.*']::text[]),
-  ('policy.acknowledged', array['compliance_policy.acknowledged']::text[]),
+  ('policy.acknowledged', array['acknowledgement.created']::text[]),
   ('policy.published', array['compliance_policy.published']::text[]),
   ('post_board.saved', array['post_board.created', 'post_board.updated']::text[]),
   ('postmortem.*', array['incident_postmortem.*']::text[]),
@@ -2809,7 +2811,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:d09c0ee20d6cb62f1a0afabec3e3939dbaa51b64cdc9bc7ae05c547baf3bd4a0
+-- @bsb-hash sha256:8905e3231cf305e9491ea8806da45ccf92041a5ec2604eb0326d955ade9ae208
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2827,6 +2829,7 @@ with m(old_type, next_types) as (values
   ('announcement.saved', array['announcement.created', 'announcement.updated']::text[]),
   ('approval_policy.removed', array['approval_policy.deleted']::text[]),
   ('approval_policy.saved', array['approval_policy.created', 'approval_policy.updated']::text[]),
+  ('compliance_policy.acknowledged', array['acknowledgement.created']::text[]),
   ('connector.saved', array['connector.created', 'connector.updated']::text[]),
   ('control.saved', array['control.created', 'control.updated']::text[]),
   ('course.saved', array['course.created', 'course.updated']::text[]),
@@ -2897,7 +2900,7 @@ with m(old_type, next_types) as (values
   ('party.enriched', array['company.enriched', 'person.enriched']::text[]),
   ('pipeline_stage.saved', array['pipeline_stage.created', 'pipeline_stage.updated']::text[]),
   ('policy.*', array['compliance_policy.*']::text[]),
-  ('policy.acknowledged', array['compliance_policy.acknowledged']::text[]),
+  ('policy.acknowledged', array['acknowledgement.created']::text[]),
   ('policy.published', array['compliance_policy.published']::text[]),
   ('post_board.saved', array['post_board.created', 'post_board.updated']::text[]),
   ('postmortem.*', array['incident_postmortem.*']::text[]),
@@ -3900,7 +3903,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:ce9dfb1849047f5feb332cc73e4fcc757c64577c2abfca9bf1d86cae93d33753
+-- @bsb-hash sha256:594fab58f723107a32dc5c0626b0803e9bb3b5d34e59e59d4e664540dc9858e0
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3918,6 +3921,7 @@ with m(old_type, next_types) as (values
   ('announcement.saved', array['announcement.created', 'announcement.updated']::text[]),
   ('approval_policy.removed', array['approval_policy.deleted']::text[]),
   ('approval_policy.saved', array['approval_policy.created', 'approval_policy.updated']::text[]),
+  ('compliance_policy.acknowledged', array['acknowledgement.created']::text[]),
   ('connector.saved', array['connector.created', 'connector.updated']::text[]),
   ('control.saved', array['control.created', 'control.updated']::text[]),
   ('course.saved', array['course.created', 'course.updated']::text[]),
@@ -3988,7 +3992,7 @@ with m(old_type, next_types) as (values
   ('party.enriched', array['company.enriched', 'person.enriched']::text[]),
   ('pipeline_stage.saved', array['pipeline_stage.created', 'pipeline_stage.updated']::text[]),
   ('policy.*', array['compliance_policy.*']::text[]),
-  ('policy.acknowledged', array['compliance_policy.acknowledged']::text[]),
+  ('policy.acknowledged', array['acknowledgement.created']::text[]),
   ('policy.published', array['compliance_policy.published']::text[]),
   ('post_board.saved', array['post_board.created', 'post_board.updated']::text[]),
   ('postmortem.*', array['incident_postmortem.*']::text[]),
@@ -4826,7 +4830,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:ce9dfb1849047f5feb332cc73e4fcc757c64577c2abfca9bf1d86cae93d33753
+-- @bsb-hash sha256:594fab58f723107a32dc5c0626b0803e9bb3b5d34e59e59d4e664540dc9858e0
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4844,6 +4848,7 @@ with m(old_type, next_types) as (values
   ('announcement.saved', array['announcement.created', 'announcement.updated']::text[]),
   ('approval_policy.removed', array['approval_policy.deleted']::text[]),
   ('approval_policy.saved', array['approval_policy.created', 'approval_policy.updated']::text[]),
+  ('compliance_policy.acknowledged', array['acknowledgement.created']::text[]),
   ('connector.saved', array['connector.created', 'connector.updated']::text[]),
   ('control.saved', array['control.created', 'control.updated']::text[]),
   ('course.saved', array['course.created', 'course.updated']::text[]),
@@ -4914,7 +4919,7 @@ with m(old_type, next_types) as (values
   ('party.enriched', array['company.enriched', 'person.enriched']::text[]),
   ('pipeline_stage.saved', array['pipeline_stage.created', 'pipeline_stage.updated']::text[]),
   ('policy.*', array['compliance_policy.*']::text[]),
-  ('policy.acknowledged', array['compliance_policy.acknowledged']::text[]),
+  ('policy.acknowledged', array['acknowledgement.created']::text[]),
   ('policy.published', array['compliance_policy.published']::text[]),
   ('post_board.saved', array['post_board.created', 'post_board.updated']::text[]),
   ('postmortem.*', array['incident_postmortem.*']::text[]),
@@ -5775,7 +5780,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:ce9dfb1849047f5feb332cc73e4fcc757c64577c2abfca9bf1d86cae93d33753
+-- @bsb-hash sha256:594fab58f723107a32dc5c0626b0803e9bb3b5d34e59e59d4e664540dc9858e0
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5793,6 +5798,7 @@ with m(old_type, next_types) as (values
   ('announcement.saved', array['announcement.created', 'announcement.updated']::text[]),
   ('approval_policy.removed', array['approval_policy.deleted']::text[]),
   ('approval_policy.saved', array['approval_policy.created', 'approval_policy.updated']::text[]),
+  ('compliance_policy.acknowledged', array['acknowledgement.created']::text[]),
   ('connector.saved', array['connector.created', 'connector.updated']::text[]),
   ('control.saved', array['control.created', 'control.updated']::text[]),
   ('course.saved', array['course.created', 'course.updated']::text[]),
@@ -5863,7 +5869,7 @@ with m(old_type, next_types) as (values
   ('party.enriched', array['company.enriched', 'person.enriched']::text[]),
   ('pipeline_stage.saved', array['pipeline_stage.created', 'pipeline_stage.updated']::text[]),
   ('policy.*', array['compliance_policy.*']::text[]),
-  ('policy.acknowledged', array['compliance_policy.acknowledged']::text[]),
+  ('policy.acknowledged', array['acknowledgement.created']::text[]),
   ('policy.published', array['compliance_policy.published']::text[]),
   ('post_board.saved', array['post_board.created', 'post_board.updated']::text[]),
   ('postmortem.*', array['incident_postmortem.*']::text[]),

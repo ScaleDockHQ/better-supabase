@@ -295,15 +295,15 @@ version, assigns every live policy that requires acknowledgement to the
 `member` role, and drops `policy_acknowledgements`. Saving a policy that
 requires acknowledgement assigns it the same way.
 
-| 0.46                                                  | 0.47                                                         |
-| ----------------------------------------------------- | ------------------------------------------------------------ |
-| `acknowledge_compliance_policy(policy_id)`            | `acknowledge('compliance_policy', policy_id::text)`          |
-| `list_compliance_policies(tenant, ..., pending_only)` | `list_my_acknowledgements(tenant)`                           |
-| `compliance_policy_acknowledgements(policy_id)`       | `acknowledgement_status` and `acknowledgements_of`           |
-| `policy_acknowledgements` table                       | `acknowledgements`, `subject_type = 'compliance_policy'`     |
-| `compliance.acknowledge` permission                   | `acknowledgements.acknowledge`                               |
-| `policy.acknowledged`, `compliance_policy.acknowledged` events | `acknowledgement.created` |
-| `POLICY_NOT_PUBLISHED` hint                           | `ACKNOWLEDGEMENT_NO_VERSION`, `ACKNOWLEDGEMENT_NOT_ASSIGNED` |
+| 0.46                                                           | 0.47                                                         |
+| -------------------------------------------------------------- | ------------------------------------------------------------ |
+| `acknowledge_compliance_policy(policy_id)`                     | `acknowledge('compliance_policy', policy_id::text)`          |
+| `list_compliance_policies(tenant, ..., pending_only)`          | `list_my_acknowledgements(tenant)`                           |
+| `compliance_policy_acknowledgements(policy_id)`                | `acknowledgement_status` and `acknowledgements_of`           |
+| `policy_acknowledgements` table                                | `acknowledgements`, `subject_type = 'compliance_policy'`     |
+| `compliance.acknowledge` permission                            | `acknowledgements.acknowledge`                               |
+| `policy.acknowledged`, `compliance_policy.acknowledged` events | `acknowledgement.created`                                    |
+| `POLICY_NOT_PUBLISHED` hint                                    | `ACKNOWLEDGEMENT_NO_VERSION`, `ACKNOWLEDGEMENT_NOT_ASSIGNED` |
 
 The client methods `acknowledgePolicy`, `acknowledgements(policyId)` and
 `policies(organizationId, { pendingOnly })` still work and call the

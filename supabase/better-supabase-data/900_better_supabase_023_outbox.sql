@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:796c588bd43c3f4e9c44ece9c856bc1360b38cb1401b9af94105089d09960ace
+-- @bsb-hash sha256:45f87795f52d4533a19c5e8eb56aae022ffffa7ed2292a581a9c07062eb4d9e5
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -14,6 +14,7 @@ from (values
   ('access.requested', 'access_request.requested'),
   ('ai_tool_policy.set', 'ai_tool_policy.updated'),
   ('approval_policy.removed', 'approval_policy.deleted'),
+  ('compliance_policy.acknowledged', 'acknowledgement.created'),
   ('credential.set', 'credential.updated'),
   ('custom_field.deleted', 'field_definition.deleted'),
   ('drive.node_created', 'drive_node.created'),
@@ -64,7 +65,7 @@ from (values
   ('organization.domain_removed', 'sso_domain.deleted'),
   ('organization.domain_updated', 'sso_domain.updated'),
   ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'compliance_policy.acknowledged'),
+  ('policy.acknowledged', 'acknowledgement.created'),
   ('policy.published', 'compliance_policy.published'),
   ('postmortem.published', 'incident_postmortem.published'),
   ('rule.disabled', 'automation.disabled'),
@@ -101,6 +102,7 @@ from (values
   ('access.requested', 'access_request.requested'),
   ('ai_tool_policy.set', 'ai_tool_policy.updated'),
   ('approval_policy.removed', 'approval_policy.deleted'),
+  ('compliance_policy.acknowledged', 'acknowledgement.created'),
   ('credential.set', 'credential.updated'),
   ('custom_field.deleted', 'field_definition.deleted'),
   ('drive.node_created', 'drive_node.created'),
@@ -151,7 +153,7 @@ from (values
   ('organization.domain_removed', 'sso_domain.deleted'),
   ('organization.domain_updated', 'sso_domain.updated'),
   ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'compliance_policy.acknowledged'),
+  ('policy.acknowledged', 'acknowledgement.created'),
   ('policy.published', 'compliance_policy.published'),
   ('postmortem.published', 'incident_postmortem.published'),
   ('rule.disabled', 'automation.disabled'),
@@ -192,6 +194,7 @@ with m(old_type, next_types) as (values
   ('announcement.saved', array['announcement.created', 'announcement.updated']::text[]),
   ('approval_policy.removed', array['approval_policy.deleted']::text[]),
   ('approval_policy.saved', array['approval_policy.created', 'approval_policy.updated']::text[]),
+  ('compliance_policy.acknowledged', array['acknowledgement.created']::text[]),
   ('connector.saved', array['connector.created', 'connector.updated']::text[]),
   ('control.saved', array['control.created', 'control.updated']::text[]),
   ('course.saved', array['course.created', 'course.updated']::text[]),
@@ -262,7 +265,7 @@ with m(old_type, next_types) as (values
   ('party.enriched', array['company.enriched', 'person.enriched']::text[]),
   ('pipeline_stage.saved', array['pipeline_stage.created', 'pipeline_stage.updated']::text[]),
   ('policy.*', array['compliance_policy.*']::text[]),
-  ('policy.acknowledged', array['compliance_policy.acknowledged']::text[]),
+  ('policy.acknowledged', array['acknowledgement.created']::text[]),
   ('policy.published', array['compliance_policy.published']::text[]),
   ('post_board.saved', array['post_board.created', 'post_board.updated']::text[]),
   ('postmortem.*', array['incident_postmortem.*']::text[]),

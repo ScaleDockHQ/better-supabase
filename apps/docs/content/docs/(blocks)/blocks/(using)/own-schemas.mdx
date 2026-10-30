@@ -222,7 +222,6 @@ may be your own enum or domain.
   - `better_supabase.control_evidence`: `id`, `tenant_id`, `control_id`, `task_id`, `attachment_id`, `collected_by`, `collected_at`, `valid_until`
   - `better_supabase.evidence_tasks`: `id`, `tenant_id`, `control_id`, `title`, `interval_days`, `due_on`, `notified_for`, `active`
   - `better_supabase.policies`: `id`, `tenant_id`, `key`, `title`, `requires_acknowledgement`, `current_version_id`, `version_number`, `published_at`, `archived_at`
-  - `better_supabase.policy_acknowledgements`: `id`, `tenant_id`, `policy_id`, `version_id`, `user_id`, `acknowledged_at`
 - `connectors`
   - `better_supabase.connector_servers`: `id`, `organization_id`, `name`, `url`, `auth_type`, `credential_ref`; typed: `transport`, `auth_type`
   - `better_supabase.connector_grants`: `id`, `user_id`, `server_id`, `organization_id`, `credential_ref`, `revoked_at`

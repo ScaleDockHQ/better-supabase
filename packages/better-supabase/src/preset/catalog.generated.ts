@@ -5725,13 +5725,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [
         "memberships",
         "permissions",
-        "versions"
+        "versions",
+        "acknowledgements"
       ],
       "integrates": [
         "attachments",
         "notifications",
         "outbox",
-        "audit"
+        "audit",
+        "acknowledgements"
       ],
       "manifest": "compliance",
       "scopes": [
@@ -5843,8 +5845,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "keys": {
           "read": "compliance.read",
           "manage": "compliance.manage",
-          "collect": "compliance.collect",
-          "acknowledge": "compliance.acknowledge"
+          "collect": "compliance.collect"
         }
       }
     },
@@ -14646,9 +14647,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "Policy"
         },
         {
-          "name": "PolicyAcknowledgedEventData"
-        },
-        {
           "name": "PolicyAcknowledgements"
         },
         {
@@ -14987,8 +14985,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "control.updated",
           "control.evidence_added",
           "evidence_task.missed",
-          "compliance_policy.published",
-          "compliance_policy.acknowledged"
+          "compliance_policy.published"
         ]
       }
     },

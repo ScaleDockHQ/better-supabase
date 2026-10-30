@@ -9561,7 +9561,6 @@
       "EvidenceTaskListOptions",
       "EvidenceTaskMissedEventData",
       "Policy",
-      "PolicyAcknowledgedEventData",
       "PolicyAcknowledgements",
       "PolicyInput",
       "PolicyListOptions",
