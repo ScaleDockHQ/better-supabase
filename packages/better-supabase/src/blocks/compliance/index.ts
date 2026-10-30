@@ -17,7 +17,6 @@ export {
   type EvidenceTaskInput,
   type EvidenceTaskListOptions,
   type Policy,
-  // oxlint-disable-next-line typescript/no-deprecated -- exported until the wrapper goes in 0.48
   type PolicyAcknowledgements,
   type PolicyInput,
   type PolicyListOptions,
@@ -59,5 +58,6 @@ export type {
   ControlSavedEventData,
   ComplianceEvents,
   EvidenceTaskMissedEventData,
+  PolicyAcknowledgedEventData,
   PolicyPublishedEventData,
 } from "./events.ts";
