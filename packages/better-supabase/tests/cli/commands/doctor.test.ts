@@ -420,6 +420,61 @@ describe("doctor command", () => {
     ]);
   });
 
+  it("writes a baseline, leaves out its findings and fails on a stale entry", async () => {
+    const snapshot = await parseSnapshot({
+      ...fixture,
+      extras: { ...fixture.extras, roleSettings: {} },
+    });
+
+    const config = {
+      tooling: { doctor: { baseline: "doctor-baseline.json" } },
+    };
+
+    await write("src/a.ts", "db.notes.list({ facetCounts: true });\n");
+
+    expect(
+      await usageError(() => doctor(["--update-baseline"], { snapshot })),
+    ).toMatch(/^--update-baseline rewrites tooling\.doctor\.baseline/);
+
+    await doctor(
+      ["--only", "BS210", "--update-baseline"],
+      { snapshot },
+      config,
+    );
+
+    const written = JSON.parse(
+      await readFile(join(root, "doctor-baseline.json"), "utf-8"),
+    ) as { code: string; reason: string }[];
+
+    expect(written.map((entry) => entry.code)).toEqual(["BS210"]);
+
+    const accepted = await doctor(
+      ["--only", "BS210", "--json"],
+      { snapshot },
+      config,
+    );
+
+    expect(findings(accepted)).toEqual([]);
+    expect(accepted.code).toBe(0);
+
+    await rm(join(root, "src/a.ts"));
+
+    const stale = await doctor(
+      ["--only", "BS210", "--json"],
+      { snapshot },
+      config,
+    );
+
+    expect(findings(stale)).toEqual([
+      expect.objectContaining({
+        code: "BS210",
+        severity: "error",
+        message: expect.stringContaining("doctor --update-baseline"),
+      }),
+    ]);
+    expect(stale.code).toBe(1);
+  });
+
   it("scans doctor.sources, skipping node_modules", async () => {
     const snapshot = await parseSnapshot({
       ...fixture,

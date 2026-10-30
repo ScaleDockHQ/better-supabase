@@ -998,6 +998,7 @@ Options
   --claims <json>         Plan with these JWT claims ({"role":"authenticated",...})
   --fix-grants            Print the grant and revoke SQL BS404 asks for, to add to your schema or migration
   --fix                   Run the SQL that resolves findings which carry a fix, such as validating a not valid check (BS236), against the database
+  --update-baseline       Rewrite tooling.doctor.baseline to accept this run's errors and warnings, keeping each entry's reason
 
 Global options
   --cwd <dir>            Project directory
