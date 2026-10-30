@@ -163,7 +163,7 @@ jobs:
         run: |
           read -ra affected <<< "$AFFECTED"
           pnpm exec turbo run test --filter=better-supabase "${affected[@]}" --log-file -- \
-            --shard="$SHARD/3" --reporter=blob
+            --shard="$SHARD/3" --reporter=blob --reporter=dot
 
       - name: Upload the blob report
         uses: actions/upload-artifact@v7
