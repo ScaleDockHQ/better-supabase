@@ -1,6 +1,6 @@
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:1aa48e90481552aeeb01bec672c85aef38c77b666a203ee87756e3ad839b0798
+-- @bsb-hash sha256:625676d58892ad15ef697a0c8f681863b0766f6ea7b26e2eedcbd0438376880e
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -188,6 +188,7 @@ begin
     when 'drive_document' then ''
     when 'donation_receipt' then ''
     when 'risk' then ''
+    when 'case' then to_char(next_number.at at time zone 'utc', 'YYYY')
     else null
   end;
   if v_period is null then
@@ -245,6 +246,7 @@ begin
     when 'drive_document' then 'DOC-{n:5}'
     when 'donation_receipt' then 'R-{n}'
     when 'risk' then 'RSK-{n:4}'
+    when 'case' then '{yyyy}-{n:4}'
     else null
   end;
   return v_format;
@@ -293,6 +295,7 @@ begin
     when 'drive_document' then ''
     when 'donation_receipt' then ''
     when 'risk' then ''
+    when 'case' then to_char(p_at at time zone 'utc', 'YYYY')
     else null
   end;
   if v_format is null or v_period is null then

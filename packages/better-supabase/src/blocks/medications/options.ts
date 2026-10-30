@@ -10,6 +10,11 @@ export type MedicationsSqlOptions = {
    */
   readonly missedAfterMinutes?: number;
   /**
+   * The case kind a missed dose opens, linked to the order's record, when the
+   * cases block is installed, such as `incident`. Default: no case.
+   */
+  readonly missedCaseKind?: string;
+  /**
    * The IANA time zone schedule times, start dates and the chart's default day
    * are in. Default `UTC`.
    */
@@ -21,6 +26,7 @@ export type MedicationsSqlOptions = {
 export const medicationsSqlOptions: BlockOptionsSchema<MedicationsSqlOptions> =
   blockOptions<MedicationsSqlOptions>({
     missedAfterMinutes: option.number({ default: 60 }),
+    missedCaseKind: option.string(),
     timeZone: option.string({ default: "UTC" }),
     extraColumns: option.extraColumns(),
   });

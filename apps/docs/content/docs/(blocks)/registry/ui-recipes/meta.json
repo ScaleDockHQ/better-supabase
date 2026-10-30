@@ -65,6 +65,8 @@
     "technician-day",
     "risk-register",
     "risk-heatmap",
+    "case-board",
+    "case-detail",
     "---People---",
     "employee-directory",
     "qualification-matrix",

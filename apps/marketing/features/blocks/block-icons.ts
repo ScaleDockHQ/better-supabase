@@ -47,6 +47,7 @@ import {
   FileSignatureIcon,
   FileTextIcon,
   FileUpIcon,
+  FileWarningIcon,
   FingerprintIcon,
   FlagIcon,
   FlameIcon,
@@ -317,6 +318,7 @@ export const BLOCK_ICONS = {
   consents: FileCheckIcon,
   incidents: SirenIcon,
   risks: Grid3x3Icon,
+  cases: FileWarningIcon,
   "care-plans": ClipboardPlusIcon,
   // Database primitives
   "updated-at": ClockIcon,

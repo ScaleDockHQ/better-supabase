@@ -69,3 +69,4 @@ accounting
 observations
 medications
 care-plans
+cases

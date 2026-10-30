@@ -19,6 +19,7 @@ import type { BookingsSqlOptions } from "./bookings/options.ts";
 import type { BulkSqlOptions } from "./bulk/options.ts";
 import type { CalendarSqlOptions } from "./calendar/options.ts";
 import type { CarePlansSqlOptions } from "./care-plans/options.ts";
+import type { CasesSqlOptions } from "./cases/options.ts";
 import type { CatalogSqlOptions } from "./catalog/options.ts";
 import type { CollectionsSqlOptions } from "./collections/options.ts";
 import type { CommentsSqlOptions } from "./comments/options.ts";
@@ -155,6 +156,7 @@ import { bookingsSqlOptions } from "./bookings/options.ts";
 import { bulkSqlOptions } from "./bulk/options.ts";
 import { calendarSqlOptions } from "./calendar/options.ts";
 import { carePlansSqlOptions } from "./care-plans/options.ts";
+import { casesSqlOptions } from "./cases/options.ts";
 import { catalogSqlOptions } from "./catalog/options.ts";
 import { collectionsSqlOptions } from "./collections/options.ts";
 import { commentsSqlOptions } from "./comments/options.ts";
@@ -391,6 +393,7 @@ export interface BlockOptionsRegistry {
   readonly "reserved-slugs": ReservedSlugsSqlOptions;
   readonly reviews: ReviewsSqlOptions;
   readonly risks: RisksSqlOptions;
+  readonly cases: CasesSqlOptions;
   readonly observations: ObservationsSqlOptions;
   readonly "rls-guard": None;
   readonly "saved-views": SavedViewsSqlOptions;
@@ -551,6 +554,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "reserved-slugs": reservedSlugsSqlOptions,
   reviews: reviewsSqlOptions,
   risks: risksSqlOptions,
+  cases: casesSqlOptions,
   observations: observationsSqlOptions,
   "rls-guard": NO_OPTIONS,
   "saved-views": savedViewsSqlOptions,

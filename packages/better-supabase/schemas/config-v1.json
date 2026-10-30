@@ -1621,6 +1621,7 @@
               "bulk",
               "calendar",
               "care-plans",
+              "cases",
               "catalog",
               "channels",
               "chat-sdk-state",
@@ -1785,6 +1786,7 @@
                   "bulk",
                   "calendar",
                   "care-plans",
+                  "cases",
                   "catalog",
                   "channels",
                   "chat-sdk-state",
@@ -1989,6 +1991,9 @@
             },
             "care-plans": {
               "$ref": "#/$defs/blocks/care-plans"
+            },
+            "cases": {
+              "$ref": "#/$defs/blocks/cases"
             },
             "catalog": {
               "$ref": "#/$defs/blocks/catalog"
@@ -4410,6 +4415,40 @@
           }
         }
       },
+      "cases": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "severities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "kinds": {},
+              "intakeKind": {
+                "type": "string"
+              },
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
       "catalog": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -5726,6 +5765,9 @@
               "missedAfterMinutes": {
                 "type": "number",
                 "default": 60
+              },
+              "missedCaseKind": {
+                "type": "string"
               },
               "timeZone": {
                 "type": "string",

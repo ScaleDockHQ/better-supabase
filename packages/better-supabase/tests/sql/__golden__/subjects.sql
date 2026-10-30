@@ -778,7 +778,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:785e499769dfa6a017be770fe0e9ccce1a61e9276e7f9ec59986da8b05987de4
+-- @bsb-hash sha256:e696fec561695ec338f750bb0865f22e081ec3733aa529f6fbfc3d9b2d5baf06
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1582,6 +1582,14 @@ begin
         select 1 from "better_supabase"."work_item_assignees" a
         where a."work_item_id"::text = k."subject_id"::text
           and a."user_id" = v_me)
+    union all
+    select 'owned'::text, 'case'::text, c."id"::text, c."number"::text, c."title"::text,
+      coalesce(c."due_on"::timestamptz, c."created_at")
+    from "better_supabase"."cases" c
+    where c."owner_id" = v_me
+      and c."status" = 'open'
+      and c."archived_at" is null
+      and (my_work.tenant is null or c."tenant_id" = my_work.tenant)
       ) u (kind, subject_type, subject_id, ref, title, at)
       order by u.at desc nulls last, u.kind, u.ref
       limit least(greatest(coalesce(my_work.page_size, 50), 1), 200)

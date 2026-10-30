@@ -83,7 +83,7 @@ const NAMES: BlockSqlNames = {
     "before_medication_administration_record",
     "after_medication_administration_record",
   ],
-  options: ["missedAfterMinutes", "timeZone", "extraColumns"],
+  options: ["missedAfterMinutes", "missedCaseKind", "timeZone", "extraColumns"],
   tables: {
     medications: {
       name: "medications",
@@ -410,7 +410,7 @@ export const MEDICATIONS: BlockSqlDefinition = {
   description:
     "A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.",
   requires: ["memberships", "permissions", "subjects"],
-  integrates: ["notifications", "outbox", "audit"],
+  integrates: ["notifications", "outbox", "audit", "cases"],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,

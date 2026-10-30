@@ -92,6 +92,16 @@ msgctxt "care-plans.rTFlYI"
 msgid "A client's problems, goals and actions in the active plan, and what each goal evaluation found."
 msgstr "A client's problems, goals and actions in the active plan, and what each goal evaluation found."
 
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.TTLDST"
+msgid "Cases"
+msgstr "Cases"
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.0jbldy"
+msgid "Nonconformities, complaints, incidents and the other cases of the organization, from report to a verified close."
+msgstr "Nonconformities, complaints, incidents and the other cases of the organization, from report to a verified close."
+
 #: src/app/[locale]/(app)/chat/page.tsx
 msgctxt "chat.WTrOy3"
 msgid "Chat"
@@ -3070,6 +3080,221 @@ msgstr "Evaluate a goal of the active plan to record what it reached."
 msgctxt "care-plans.2ncFXE"
 msgid "Read about evaluations"
 msgstr "Read about evaluations"
+
+#: src/features/cases/components/case-board.tsx
+msgctxt "cases.Z3SH1K"
+msgid "{kind}, due {date}"
+msgstr "{kind}, due {date}"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.1_3-n8"
+msgid "Closed {number}"
+msgstr "Closed {number}"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.qXe_G4"
+msgid "{number}: {title}"
+msgstr "{number}: {title}"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.0cEOii"
+msgid "{kind} in {stage}"
+msgstr "{kind} in {stage}"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.34dTMy"
+msgid "Effectiveness check due {date}"
+msgstr "Effectiveness check due {date}"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.Vg91Zy"
+msgid "No root cause recorded yet."
+msgstr "No root cause recorded yet."
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.Edwn1c"
+msgid "Before this case can close"
+msgstr "Before this case can close"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.rRlsS8"
+msgid "Nothing blocks closing this case"
+msgstr "Nothing blocks closing this case"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.keM5cz"
+msgid "No actions yet"
+msgstr "No actions yet"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.ukJ9mi"
+msgid "Containment and corrective actions are tasks; add them from the case's work items."
+msgstr "Containment and corrective actions are tasks; add them from the case's work items."
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.9Ym3ZK"
+msgid "Open, required"
+msgstr "Open, required"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/cases/components/case-detail.tsx
+msgctxt "cases.nDeMD5"
+msgid "Close case"
+msgstr "Close case"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.477I0g"
+msgid "Low"
+msgstr "Low"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.ovJ26C"
+msgid "Medium"
+msgstr "Medium"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.AxMhQr"
+msgid "High"
+msgstr "High"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.2pzTGC"
+msgid "Critical"
+msgstr "Critical"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.FRXOmD"
+msgid "Reported"
+msgstr "Reported"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases._GKH_w"
+msgid "Investigating"
+msgstr "Investigating"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.U5sYRe"
+msgid "Acting"
+msgstr "Acting"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.LPxYNw"
+msgid "Verifying"
+msgstr "Verifying"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.izMqt-"
+msgid "Record the root cause."
+msgstr "Record the root cause."
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.x_bR95"
+msgid "Add at least one required action."
+msgstr "Add at least one required action."
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.s272mU"
+msgid "Finish the open required actions."
+msgstr "Finish the open required actions."
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.q7kUzR"
+msgid "Record whether the actions worked."
+msgstr "Record whether the actions worked."
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.3ehcCP"
+msgid "Publish a new version of the affected documents."
+msgstr "Publish a new version of the affected documents."
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.yC3EIo"
+msgid "Containment"
+msgstr "Containment"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.ddW5zC"
+msgid "Correction"
+msgstr "Correction"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.Qx_tIx"
+msgid "Corrective"
+msgstr "Corrective"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.VO7L8y"
+msgid "Preventive"
+msgstr "Preventive"
+
+#: src/features/cases/components/case-labels.ts
+msgctxt "cases.cpI605"
+msgid "Improvement"
+msgstr "Improvement"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.K0dxA6"
+msgid "Open cases"
+msgstr "Open cases"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.4NNkXw"
+msgid "Each open case in its stage. Drag a card to move it; closing happens on the case once nothing blocks it."
+msgstr "Each open case in its stage. Drag a card to move it; closing happens on the case once nothing blocks it."
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.741_Ec"
+msgid "The cases didn't load"
+msgstr "The cases didn't load"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.I-RtUF"
+msgid "No open cases"
+msgstr "No open cases"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.Wf5S1U"
+msgid "Nonconformities, complaints and incidents land here when someone reports one, through the API or a public form."
+msgstr "Nonconformities, complaints and incidents land here when someone reports one, through the API or a public form."
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.2Enwrz"
+msgid "Read the cases guide"
+msgstr "Read the cases guide"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.G-MTSE"
+msgid "Pick a case"
+msgstr "Pick a case"
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.8JpBR1"
+msgid "Open a case on the board to see what still stops it from closing."
+msgstr "Open a case on the board to see what still stops it from closing."
+
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases._gd0g1"
+msgid "The case didn't load"
+msgstr "The case didn't load"
 
 #: src/features/chat/components/channel-sidebar.tsx
 msgctxt "chat.LUrJwE"
@@ -8815,6 +9040,11 @@ msgstr "Qualifications"
 msgctxt "navigation._s79W_"
 msgid "Risks"
 msgstr "Risks"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.TTLDST"
+msgid "Cases"
+msgstr "Cases"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.poLbhw"

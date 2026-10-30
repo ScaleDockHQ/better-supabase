@@ -7749,7 +7749,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "notifications",
         "outbox",
-        "audit"
+        "audit",
+        "cases"
       ],
       "manifest": "medications",
       "scopes": [
@@ -8008,6 +8009,152 @@ export const PRESET_CATALOG: PresetCatalog = {
           "evaluate": "care_plans.evaluate",
           "publish": "care_plans.publish",
           "manage": "care_plans.manage"
+        }
+      }
+    },
+    {
+      "name": "cases",
+      "title": "Cases",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "pipelines"
+      ],
+      "integrates": [
+        "tasks",
+        "numbering",
+        "forms",
+        "relations",
+        "drive",
+        "notifications",
+        "outbox",
+        "audit",
+        "pipelines",
+        "subjects"
+      ],
+      "manifest": "cases",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "cases",
+      "entities": {
+        "specs": {
+          "case": {
+            "table": "cases",
+            "singular": "case",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "rank": {
+                "column": "rank",
+                "group": "stage"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "number",
+                  "description",
+                  "rootCause"
+                ]
+              }
+            }
+          },
+          "case_kind": {
+            "table": "kinds",
+            "singular": "case_kind"
+          },
+          "case_action": {
+            "table": "actions",
+            "singular": "case_action"
+          }
+        },
+        "tables": {
+          "cases": {
+            "name": "cases",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind_id",
+              "number": "number",
+              "sequence": "sequence",
+              "title": "title",
+              "description": "description",
+              "severity": "severity",
+              "source": "source",
+              "reporter": "reporter_id",
+              "reporterContact": "reporter_contact",
+              "owner": "owner_id",
+              "occurredAt": "occurred_at",
+              "detectedAt": "detected_at",
+              "dueOn": "due_on",
+              "pipeline": "pipeline_id",
+              "stage": "stage_id",
+              "stageEnteredAt": "stage_entered_at",
+              "status": "status",
+              "rootCause": "root_cause",
+              "rootCauseSubmission": "root_cause_submission_id",
+              "effective": "effective",
+              "effectivenessDueOn": "effectiveness_due_on",
+              "effectivenessNotifiedFor": "effectiveness_notified_for",
+              "effectivenessNote": "effectiveness_note",
+              "effectivenessSubmission": "effectiveness_submission_id",
+              "closedAt": "closed_at",
+              "closedBy": "closed_by",
+              "closeNote": "close_note",
+              "rank": "rank",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "kinds": {
+            "name": "case_kinds",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "prefix": "prefix",
+              "pipeline": "pipeline_id",
+              "investigationForm": "investigation_form_id",
+              "effectivenessForm": "effectiveness_form_id",
+              "effectivenessAfterDays": "effectiveness_after_days",
+              "requiresRootCause": "requires_root_cause",
+              "requiresActions": "requires_actions",
+              "requiresEffectiveness": "requires_effectiveness",
+              "requiresRevisions": "requires_revisions",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "actions": {
+            "name": "case_actions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "case": "case_id",
+              "task": "task_id",
+              "type": "type",
+              "required": "required",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "cases.read",
+          "create": "cases.create",
+          "write": "cases.write",
+          "close": "cases.close",
+          "manage": "cases.manage"
         }
       }
     },
@@ -17069,6 +17216,482 @@ export const PRESET_CATALOG: PresetCatalog = {
           "cron": "0 6 * * *",
           "runs": "notifyDueReviews()",
           "description": "Reports the risks whose review date has come."
+        }
+      ]
+    },
+    {
+      "name": "cases",
+      "sql": [
+        "cases"
+      ],
+      "category": "work",
+      "client": {
+        "export": "casesBlock",
+        "subpath": "better-supabase/blocks/cases"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Case",
+          "fields": true
+        },
+        {
+          "name": "CaseAction"
+        },
+        {
+          "name": "CaseActionAdded"
+        },
+        {
+          "name": "CaseActionCreatedEventData"
+        },
+        {
+          "name": "CaseActionDeletedEventData"
+        },
+        {
+          "name": "CaseActionInput"
+        },
+        {
+          "name": "CaseActionType"
+        },
+        {
+          "name": "CaseBlocker"
+        },
+        {
+          "name": "CaseChange",
+          "fields": true
+        },
+        {
+          "name": "CaseClosedEventData"
+        },
+        {
+          "name": "CaseDetail",
+          "fields": true
+        },
+        {
+          "name": "CaseEffectivenessDateReachedEventData"
+        },
+        {
+          "name": "CaseEffectivenessRecordedEventData"
+        },
+        {
+          "name": "CaseEventData"
+        },
+        {
+          "name": "CaseInput",
+          "fields": true
+        },
+        {
+          "name": "CaseKind"
+        },
+        {
+          "name": "CaseKindEventData"
+        },
+        {
+          "name": "CaseKindInput"
+        },
+        {
+          "name": "CaseListOptions"
+        },
+        {
+          "name": "CaseMove"
+        },
+        {
+          "name": "CasePage",
+          "fields": true
+        },
+        {
+          "name": "CaseReasonEventData"
+        },
+        {
+          "name": "CaseRootCauseRecordedEventData"
+        },
+        {
+          "name": "Cases",
+          "fields": true
+        },
+        {
+          "name": "CasesEvents"
+        },
+        {
+          "name": "CasesOptions"
+        },
+        {
+          "name": "CasesSqlOptions"
+        },
+        {
+          "name": "CaseStat"
+        },
+        {
+          "name": "CaseStatsGroup"
+        },
+        {
+          "name": "CaseStatsOptions"
+        },
+        {
+          "name": "CaseStatus"
+        },
+        {
+          "name": "CaseUpdatedEventData"
+        }
+      ],
+      "entitySchemas": {
+        "case": {
+          "input": {
+            "title": "CaseInput",
+            "fields": {
+              "kind": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 41,
+                "description": "The key of one of the organization's case kinds."
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 20000
+              },
+              "severity": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 41,
+                "description": "One of `options.severities`."
+              },
+              "source": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 41,
+                "description": "One of `options.sources`. Default `internal`."
+              },
+              "occurredAt": {
+                "kind": "instant",
+                "optional": true,
+                "nullable": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "dueOn": {
+                "kind": "plainDate",
+                "optional": true,
+                "nullable": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CaseInput",
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 41,
+                  "description": "The key of one of the organization's case kinds."
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 20000
+                },
+                "severity": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 41,
+                  "description": "One of `options.severities`."
+                },
+                "source": {
+                  "type": "string",
+                  "maxLength": 41,
+                  "description": "One of `options.sources`. Default `internal`."
+                },
+                "occurredAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "ownerId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "dueOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "kind",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "case_kind": {
+          "input": {
+            "title": "CaseKindInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 41
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "prefix": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 6,
+                "description": "1 to 6 capital letters that start the case numbers."
+              },
+              "investigationFormId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "effectivenessFormId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "effectivenessAfterDays": {
+                "kind": "integer",
+                "optional": true,
+                "nullable": true,
+                "minimum": 1,
+                "maximum": 365
+              },
+              "requiresRootCause": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "requiresActions": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "requiresEffectiveness": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "requiresRevisions": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "kindId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CaseKindInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 41
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "prefix": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 6,
+                  "description": "1 to 6 capital letters that start the case numbers."
+                },
+                "investigationFormId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "effectivenessFormId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "effectivenessAfterDays": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1,
+                  "maximum": 365
+                },
+                "requiresRootCause": {
+                  "type": "boolean"
+                },
+                "requiresActions": {
+                  "type": "boolean"
+                },
+                "requiresEffectiveness": {
+                  "type": "boolean"
+                },
+                "requiresRevisions": {
+                  "type": "boolean"
+                },
+                "kindId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "key",
+                "name",
+                "prefix"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "case_action": {
+          "input": {
+            "title": "CaseActionInput",
+            "fields": {
+              "type": {
+                "kind": "enum",
+                "values": [
+                  "containment",
+                  "correction",
+                  "corrective",
+                  "preventive",
+                  "improvement"
+                ]
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "assigneeId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "dueAt": {
+                "kind": "instant",
+                "optional": true,
+                "nullable": true
+              },
+              "required": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CaseActionInput",
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "containment",
+                    "correction",
+                    "corrective",
+                    "preventive",
+                    "improvement"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "assigneeId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "dueAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "type",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "CasesEvents",
+        "types": [
+          "case_kind.created",
+          "case_kind.updated",
+          "case_kind.archived",
+          "case.created",
+          "case.updated",
+          "case.root_cause_recorded",
+          "case_action.created",
+          "case_action.deleted",
+          "case.effectiveness_recorded",
+          "case.effectiveness_date_reached",
+          "case.closed",
+          "case.reopened",
+          "case.cancelled"
+        ]
+      },
+      "schedules": [
+        {
+          "name": "effectiveness-due",
+          "cron": "0 6 * * *",
+          "runs": "notifyDueEffectiveness()",
+          "description": "Reports the cases whose effectiveness check date has come."
         }
       ]
     },

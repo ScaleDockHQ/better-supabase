@@ -276,4 +276,11 @@ export const MODULE_PERMISSION_SCOPES: {
     publish: "tenant",
     manage: "tenant",
   },
+  cases: {
+    read: "tenant",
+    create: "tenant",
+    write: "tenant",
+    close: "tenant",
+    manage: "tenant",
+  },
 };

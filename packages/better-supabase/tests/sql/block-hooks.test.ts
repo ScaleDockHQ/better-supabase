@@ -218,6 +218,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_risk_close",
     "after_risk_close",
   ],
+  cases: [
+    "before_case_open",
+    "after_case_open",
+    "before_case_close",
+    "after_case_close",
+  ],
   observations: [
     "before_observation_definition_save",
     "after_observation_definition_save",

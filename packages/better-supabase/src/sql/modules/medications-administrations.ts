@@ -10,10 +10,44 @@ import {
   medicationKeys,
   medicationTimeZone,
   missedAfterMinutes,
+  missedCaseKind,
   notifyMedication,
   orderJson,
   PLAN_DAYS,
 } from "./medications-shared.ts";
+
+/**
+ * Opens a case of `kind` for the missed dose in `v_row`, linked to the order's
+ * record, seeding the organization's case kinds on first use.
+ */
+function missedCaseSql(ctx: BlockSqlContext, kind: string): string {
+  const cases = ctx.of("cases");
+  const k = (column: string): string => cases.col("kinds", column);
+  const a = (column: string): string => ctx.col("administrations", column);
+  const o = (column: string): string => ctx.col("orders", column);
+  const m = (column: string): string => ctx.col("medications", column);
+  const zone = sqlString(medicationTimeZone(ctx));
+
+  const kindId = `select y.${k("id")} into v_case_kind from ${cases.table("kinds")} y
+    where y.${k("tenant")}::text = v_row.${a("tenant")}::text and y.${k("key")} = ${sqlString(kind)} and y.${k("archivedAt")} is null;`;
+
+  return `
+    ${kindId}
+    if v_case_kind is null then
+      perform ${cases.fn("ensure_case_kinds")}(v_row.${a("tenant")});
+      ${kindId}
+    end if;
+    if v_case_kind is not null then
+      perform ${cases.fn("open_case_as")}(v_case_kind, jsonb_build_object(
+        'title', left('Missed dose: ' || coalesce((select z.${m("name")} from ${ctx.table("medications")} z where z.${m("id")} = v_order.${o("medication")}), 'medication')
+          || ' at ' || to_char(v_row.${a("scheduledAt")} at time zone ${zone}, 'YYYY-MM-DD HH24:MI'), 200),
+        'source', 'internal',
+        'occurredAt', v_row.${a("scheduledAt")},
+        'originType', v_order.${o("subjectType")},
+        'originId', v_order.${o("subjectId")}
+      ), null);
+    end if;`;
+}
 
 /** The planning, recording, missed-dose and chart functions. */
 export function medicationAdministrationFunctions(
@@ -33,6 +67,9 @@ export function medicationAdministrationFunctions(
   const today = `(now() at time zone ${zone})::date`;
   const missedAfter = String(missedAfterMinutes(ctx));
   const claims = ctx.installed("notifications") ? "\n  v_claims text;" : "";
+  const caseKind = missedCaseKind(ctx);
+  const caseVars = caseKind === undefined ? "" : "\n  v_case_kind uuid;";
+  const openCase = caseKind === undefined ? "" : missedCaseSql(ctx, caseKind);
 
   const hasNote = ctx.has("administrations", "note");
 
@@ -281,7 +318,7 @@ as $$
 declare
   v_row ${administrations}%rowtype;
   v_order ${orders}%rowtype;
-  v_count integer := 0;${claims}
+  v_count integer := 0;${claims}${caseVars}
 begin
   for v_row in
     update ${administrations} x set ${a("status")} = 'missed'
@@ -299,7 +336,7 @@ begin
       summary: "'A medication dose was missed'",
       key: `'medication_administration.missed:' || v_row.${a("id")}::text`,
       data: `jsonb_build_object('medicationOrderId', v_order.${o("id")}, 'scheduledAt', v_row.${a("scheduledAt")})`,
-    })}
+    })}${openCase}
     v_count := v_count + 1;
   end loop;
   return v_count;

@@ -4,8 +4,9 @@ import { WEB_APP } from "./types.ts";
 
 const RISKS = `${WEB_APP}/src/features/risks/components`;
 const OBSERVATIONS = `${WEB_APP}/src/features/observations/components`;
+const CASES = `${WEB_APP}/src/features/cases/components`;
 
-/** Recipes for the quality, risk and observation blocks. */
+/** Recipes for the quality, risk, observation and case blocks. */
 export const QUALITY_RECIPES: readonly RecipeSource[] = [
   {
     slug: "risk-register",
@@ -67,6 +68,32 @@ export const QUALITY_RECIPES: readonly RecipeSource[] = [
         "table",
         "@reui/frame",
       ],
+      glue: [],
+    },
+  },
+  {
+    slug: "case-board",
+    title: "Case board",
+    blocks: ["cases"],
+    kind: "component",
+    description:
+      "The open cases in stage columns, reported to verifying; dragging a card moves the case to that stage of its kind's pipeline.",
+    web: {
+      file: `${CASES}/case-board.tsx`,
+      components: ["badge", "card", "@reui/kanban"],
+      glue: [],
+    },
+  },
+  {
+    slug: "case-detail",
+    title: "Case detail",
+    blocks: ["cases"],
+    kind: "component",
+    description:
+      "One case with its severity, root cause, what still blocks closing it and its actions, and a Close button once nothing blocks it.",
+    web: {
+      file: `${CASES}/case-detail.tsx`,
+      components: ["alert", "badge", "button", "empty", "@reui/frame"],
       glue: [],
     },
   },

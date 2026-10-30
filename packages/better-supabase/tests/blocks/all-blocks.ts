@@ -22,6 +22,7 @@ import type { bookingsBlock } from "../../src/blocks/bookings/manifest.ts";
 import type { bulkBlock } from "../../src/blocks/bulk/manifest.ts";
 import type { calendarBlock } from "../../src/blocks/calendar/manifest.ts";
 import type { carePlansBlock } from "../../src/blocks/care-plans/manifest.ts";
+import type { casesBlock } from "../../src/blocks/cases/manifest.ts";
 import type { catalogBlock } from "../../src/blocks/catalog/manifest.ts";
 import type { channelsBlock } from "../../src/blocks/channels/manifest.ts";
 import type { collectionsBlock } from "../../src/blocks/collections/manifest.ts";
@@ -270,6 +271,7 @@ export type AllBlocks = {
   readonly reservedSlugs: typeof reservedSlugsBlock;
   readonly reviews: typeof reviewsBlock;
   readonly risks: typeof risksBlock;
+  readonly cases: typeof casesBlock;
   readonly observations: typeof observationsBlock;
   readonly rules: typeof automationsBlock;
   readonly vercelMarketplace: typeof vercelMarketplaceBlock;
