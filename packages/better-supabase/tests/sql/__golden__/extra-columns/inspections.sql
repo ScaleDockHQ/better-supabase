@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:c8866fca17455297c8711072c20c1aa83721de90963127086b3a743f0fcb63de
+-- @bsb-hash sha256:227391e03fe2be4f633fbef2e4b85cae92895095625f60fcd1ecc4f202571ab8
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -164,7 +164,7 @@ create table if not exists "better_supabase"."inspection_members" (
   primary key ("inspection_id", "user_id"),
   foreign key ("tenant_id", "inspection_id") references "better_supabase"."inspections" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "inspection_members_inspection_idx" on "better_supabase"."inspection_members" ("tenant_id", "inspection_id");
+create index if not exists "inspection_members_parent_idx" on "better_supabase"."inspection_members" ("tenant_id", "inspection_id");
 create index if not exists "inspection_members_user_idx" on "better_supabase"."inspection_members" ("user_id", "inspection_id");
 -- One lead per inspection; inspections.lead_id names the same user.
 create unique index if not exists "inspection_members_lead_key" on "better_supabase"."inspection_members" ("inspection_id") where "role" = 'lead';
@@ -216,7 +216,7 @@ create table if not exists "better_supabase"."inspection_findings" (
   unique ("inspection_id", "number"),
   foreign key ("tenant_id", "inspection_id") references "better_supabase"."inspections" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "inspection_findings_inspection_idx" on "better_supabase"."inspection_findings" ("tenant_id", "inspection_id", "number");
+create index if not exists "inspection_findings_parent_idx" on "better_supabase"."inspection_findings" ("tenant_id", "inspection_id", "number");
 create index if not exists "inspection_findings_control_idx" on "better_supabase"."inspection_findings" ("control_id") where "control_id" is not null;
 create index if not exists "inspection_findings_case_idx" on "better_supabase"."inspection_findings" ("case_id") where "case_id" is not null;
 alter table "better_supabase"."inspection_findings" enable row level security;
@@ -585,7 +585,7 @@ begin
     raise exception 'no such inspection' using errcode = 'P0002', hint = 'INSPECTION_NOT_FOUND';
   end if;
   v_tenant := v_row."tenant_id";
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_tenant, 'inspections.write'), false) and "better_supabase"."inspection_role"(v_row."id") in ('lead'))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_tenant, 'inspections.write'), false) and coalesce("better_supabase"."inspection_role"(v_row."id") in ('lead'), false))) then
     raise exception 'not allowed to change this inspection' using errcode = '42501', hint = 'INSPECTION_FORBIDDEN';
   end if;
   if v_row."status" in ('closed', 'canceled') then
@@ -688,7 +688,7 @@ begin
   if not found then
     raise exception 'no such inspection' using errcode = 'P0002', hint = 'INSPECTION_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.write'), false) and "better_supabase"."inspection_role"(v_row."id") in ('lead'))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.write'), false) and coalesce("better_supabase"."inspection_role"(v_row."id") in ('lead'), false))) then
     raise exception 'not allowed to change this inspection''s team' using errcode = '42501', hint = 'INSPECTION_FORBIDDEN';
   end if;
   if v_row."status" in ('closed', 'canceled') then
@@ -725,7 +725,7 @@ begin
   if not found then
     raise exception 'no such inspection' using errcode = 'P0002', hint = 'INSPECTION_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.write'), false) and "better_supabase"."inspection_role"(v_row."id") in ('lead', 'auditor'))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.write'), false) and coalesce("better_supabase"."inspection_role"(v_row."id") in ('lead', 'auditor'), false))) then
     raise exception 'not allowed to start this inspection' using errcode = '42501', hint = 'INSPECTION_FORBIDDEN';
   end if;
   if v_row."status" <> 'planned' then
@@ -765,7 +765,7 @@ begin
   if not found then
     raise exception 'no such inspection' using errcode = 'P0002', hint = 'INSPECTION_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.write'), false) and "better_supabase"."inspection_role"(v_row."id") in ('lead', 'auditor'))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.write'), false) and coalesce("better_supabase"."inspection_role"(v_row."id") in ('lead', 'auditor'), false))) then
     raise exception 'not allowed to fill in this checklist' using errcode = '42501', hint = 'INSPECTION_FORBIDDEN';
   end if;
   if v_row."status" <> 'in_progress' then
@@ -802,7 +802,7 @@ begin
   if not found then
     raise exception 'no such inspection' using errcode = 'P0002', hint = 'INSPECTION_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.write'), false) and "better_supabase"."inspection_role"(v_row."id") in ('lead'))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.write'), false) and coalesce("better_supabase"."inspection_role"(v_row."id") in ('lead'), false))) then
     raise exception 'not allowed to complete this inspection' using errcode = '42501', hint = 'INSPECTION_FORBIDDEN';
   end if;
   if v_row."status" <> 'in_progress' then
@@ -851,7 +851,7 @@ begin
   if not found then
     raise exception 'no such inspection' using errcode = 'P0002', hint = 'INSPECTION_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.write'), false) and "better_supabase"."inspection_role"(v_row."id") in ('lead'))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.write'), false) and coalesce("better_supabase"."inspection_role"(v_row."id") in ('lead'), false))) then
     raise exception 'not allowed to close this inspection' using errcode = '42501', hint = 'INSPECTION_FORBIDDEN';
   end if;
   if v_row."status" <> 'reporting' then
@@ -954,11 +954,11 @@ begin
   if not found then
     raise exception 'no such inspection' using errcode = 'P0002', hint = 'INSPECTION_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_inspection."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_inspection."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_inspection."tenant_id", 'inspections.write'), false) and "better_supabase"."inspection_role"(v_inspection."id") in ('lead', 'auditor'))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_inspection."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_inspection."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_inspection."tenant_id", 'inspections.write'), false) and coalesce("better_supabase"."inspection_role"(v_inspection."id") in ('lead', 'auditor'), false))) then
     raise exception 'not allowed to add findings to this inspection' using errcode = '42501', hint = 'INSPECTION_FORBIDDEN';
   end if;
   if v_inspection."status" not in ('in_progress', 'reporting') then
-    raise exception 'findings change while the inspection is in progress or reporting' using errcode = '22023', hint = 'INSPECTION_INVALID';
+    raise exception 'findings change while the inspection is in progress or reporting' using errcode = '55000', hint = 'INSPECTION_STATUS_INVALID';
   end if;
   if v_type is null or not (v_type = any (array['major_nonconformity', 'minor_nonconformity', 'observation', 'opportunity', 'positive']::text[])) then
     raise exception 'the type is not one of options.findingTypes' using errcode = '22023', hint = 'INSPECTION_FINDING_TYPE_UNKNOWN';
@@ -1028,11 +1028,11 @@ begin
     raise exception 'no such finding' using errcode = 'P0002', hint = 'INSPECTION_FINDING_NOT_FOUND';
   end if;
   select * into v_inspection from "better_supabase"."inspections" x where x."id" = v_row."inspection_id" for update;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_inspection."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_inspection."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_inspection."tenant_id", 'inspections.write'), false) and "better_supabase"."inspection_role"(v_inspection."id") in ('lead', 'auditor'))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_inspection."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_inspection."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_inspection."tenant_id", 'inspections.write'), false) and coalesce("better_supabase"."inspection_role"(v_inspection."id") in ('lead', 'auditor'), false))) then
     raise exception 'not allowed to change this finding' using errcode = '42501', hint = 'INSPECTION_FORBIDDEN';
   end if;
   if v_inspection."status" not in ('in_progress', 'reporting') then
-    raise exception 'findings change while the inspection is in progress or reporting' using errcode = '22023', hint = 'INSPECTION_INVALID';
+    raise exception 'findings change while the inspection is in progress or reporting' using errcode = '55000', hint = 'INSPECTION_STATUS_INVALID';
   end if;
   if jsonb_typeof(update_inspection_finding.changes) is distinct from 'object' then
     raise exception 'changes must be an object' using errcode = '22023', hint = 'INSPECTION_INVALID';
@@ -1095,11 +1095,11 @@ begin
     raise exception 'no such finding' using errcode = 'P0002', hint = 'INSPECTION_FINDING_NOT_FOUND';
   end if;
   select * into v_inspection from "better_supabase"."inspections" x where x."id" = v_row."inspection_id" for update;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_inspection."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_inspection."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_inspection."tenant_id", 'inspections.write'), false) and "better_supabase"."inspection_role"(v_inspection."id") in ('lead', 'auditor'))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_inspection."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_inspection."tenant_id", 'inspections.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_inspection."tenant_id", 'inspections.write'), false) and coalesce("better_supabase"."inspection_role"(v_inspection."id") in ('lead', 'auditor'), false))) then
     raise exception 'not allowed to delete this finding' using errcode = '42501', hint = 'INSPECTION_FORBIDDEN';
   end if;
   if v_inspection."status" not in ('in_progress', 'reporting') then
-    raise exception 'findings change while the inspection is in progress or reporting' using errcode = '22023', hint = 'INSPECTION_INVALID';
+    raise exception 'findings change while the inspection is in progress or reporting' using errcode = '55000', hint = 'INSPECTION_STATUS_INVALID';
   end if;
   if v_row."case_id" is not null then
     raise exception 'a finding with a case can''t be deleted' using errcode = '55000', hint = 'INSPECTION_FINDING_HAS_CASE';

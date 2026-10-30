@@ -230,7 +230,7 @@ export function inspectionsSql(ctx: BlockSqlContext): InspectionsSql {
     manage,
     allowed,
     acts: (tenant, inspection, roles) =>
-      `(${allowed(tenant, manage)} or (auth.uid() is not null and ${ctx.can("tenant", tenant, write)} and ${role(inspection)} in (${roles.map((r) => sqlString(r)).join(", ")})))`,
+      `(${allowed(tenant, manage)} or (auth.uid() is not null and ${ctx.can("tenant", tenant, write)} and coalesce(${role(inspection)} in (${roles.map((r) => sqlString(r)).join(", ")}), false)))`,
     sees: (tenant, inspection) =>
       `(${allowed(tenant, read)} or ${role(inspection)} is not null)`,
     invalid: (message) => fail("INSPECTION_INVALID", message, "22023"),

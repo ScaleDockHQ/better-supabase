@@ -1665,6 +1665,7 @@
               "imports",
               "inbox",
               "incidents",
+              "inspections",
               "inventory",
               "invitations",
               "invoices",
@@ -1830,6 +1831,7 @@
                   "imports",
                   "inbox",
                   "incidents",
+                  "inspections",
                   "inventory",
                   "invitations",
                   "invoices",
@@ -2123,6 +2125,9 @@
             },
             "incidents": {
               "$ref": "#/$defs/blocks/incidents"
+            },
+            "inspections": {
+              "$ref": "#/$defs/blocks/inspections"
             },
             "inventory": {
               "$ref": "#/$defs/blocks/inventory"
@@ -5427,6 +5432,42 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "inspections": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "findingTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "caseFindingTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {

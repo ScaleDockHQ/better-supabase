@@ -328,7 +328,7 @@ create table if not exists ${members} (
   primary key (${m("inspection")}, ${m("user")}),
   foreign key (${m("tenant")}, ${m("inspection")}) references ${inspections} (${i("tenant")}, ${i("id")}) on delete cascade
 );${appKey("members", "inspection_user", `${m("inspection")}, ${m("user")}`)}
-create index if not exists ${name("members", "inspection_idx")} on ${members} (${m("tenant")}, ${m("inspection")});
+create index if not exists ${name("members", "parent_idx")} on ${members} (${m("tenant")}, ${m("inspection")});
 create index if not exists ${name("members", "user_idx")} on ${members} (${m("user")}, ${m("inspection")});
 -- One lead per inspection; inspections.lead_id names the same user.
 create unique index if not exists ${name("members", "lead_key")} on ${members} (${m("inspection")}) where ${m("role")} = 'lead';
@@ -366,7 +366,7 @@ create table if not exists ${findings} (
   unique (${f("inspection")}, ${f("number")}),
   foreign key (${f("tenant")}, ${f("inspection")}) references ${inspections} (${i("tenant")}, ${i("id")}) on delete cascade
 );${appKey("findings", "inspection_number", `${f("inspection")}, ${f("number")}`)}
-create index if not exists ${name("findings", "inspection_idx")} on ${findings} (${f("tenant")}, ${f("inspection")}, ${f("number")});
+create index if not exists ${name("findings", "parent_idx")} on ${findings} (${f("tenant")}, ${f("inspection")}, ${f("number")});
 create index if not exists ${name("findings", "control_idx")} on ${findings} (${f("control")}) where ${f("control")} is not null;
 create index if not exists ${name("findings", "case_idx")} on ${findings} (${f("case")}) where ${f("case")} is not null;
 ${lockTable(findings, { read: true })}

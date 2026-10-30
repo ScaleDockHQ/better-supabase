@@ -11,6 +11,12 @@ const TEXTS = [
   ["evidence", 10_000],
 ] as const;
 
+const FINDINGS_CLOSED = fail(
+  "INSPECTION_STATUS_INVALID",
+  "findings change while the inspection is in progress or reporting",
+  "55000",
+);
+
 /** The source a raised case gets: `inspection` when the cases block takes it. */
 function caseSource(cases: BlockSqlContext): string {
   const sources = cases.option("sources");
@@ -84,7 +90,7 @@ function loadFinding(q: InspectionsSql, func: string, what: string): string {
     ${q.forbidden(`not allowed to ${what}`)}
   end if;
   if v_inspection.${i("status")} not in ('in_progress', 'reporting') then
-    ${q.invalid("findings change while the inspection is in progress or reporting")}
+    ${FINDINGS_CLOSED}
   end if;`;
 }
 
@@ -214,7 +220,7 @@ begin
     ${q.forbidden("not allowed to add findings to this inspection")}
   end if;
   if v_inspection.${i("status")} not in ('in_progress', 'reporting') then
-    ${q.invalid("findings change while the inspection is in progress or reporting")}
+    ${FINDINGS_CLOSED}
   end if;
   ${typeCheck}${textCheck((column) => `add_inspection_finding.${column}`)}
   ${controlCheck(q, `v_inspection.${i("tenant")}`, "add_inspection_finding.control_id")}
