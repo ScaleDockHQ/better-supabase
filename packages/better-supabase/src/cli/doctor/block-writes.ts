@@ -1,7 +1,7 @@
 import type { BlockTable } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import { toSnake } from "../../casing/index.ts";
+import { toSnake } from "../../index.ts";
 import { blockTables } from "../../sql/index.ts";
 import { appTablesOf } from "./app-tables.ts";
 
