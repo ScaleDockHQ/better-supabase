@@ -40,10 +40,10 @@ export const SOURCES = ["manual", "form", "device", "import"] as const;
 export const BUCKETS = ["hour", "day", "week", "month"] as const;
 
 /** The code system of the shipped vital signs. */
-export const LOINC = "http://loinc.org";
+const LOINC = "http://loinc.org";
 
 /** The `defaults` option values. */
-export const DEFAULT_SETS = ["none", "vitals"] as const;
+const DEFAULT_SETS = ["none", "vitals"] as const;
 
 /** A component of a `components` definition, as the definition stores it. */
 interface VitalComponent {
@@ -82,7 +82,7 @@ interface Vital {
  * adult defaults; an organization tightens them by saving its own definition
  * with the same key.
  */
-export const VITALS: readonly Vital[] = [
+const VITALS: readonly Vital[] = [
   {
     key: "heart_rate",
     title: "Heart rate",
