@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
--- @bsb-block webhooks-out@5 managed
--- @bsb-hash sha256:e99f2d2b7b6f89bade0a06a2799bdf0ae1afbdebf5b0ac9deae5796fa83e2a18
+-- @bsb-block webhooks-out@6 managed
+-- @bsb-hash sha256:be2b7205a309367a1174799c5d1964a6e6b997682d8a788b9c09b8a636dd80bf
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -540,6 +540,147 @@ as $$
 $$;
 revoke execute on function "better_supabase"."webhook_secrets"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."webhook_secrets"(uuid) to service_role;
+
+-- Adds an endpoint to tenant, from fields such as {"url", "eventTypes",
+-- "name"}; returns it. A field it leaves out gets the column default.
+create or replace function "better_supabase"."create_webhook_endpoint"(tenant uuid, fields jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid := create_webhook_endpoint.tenant;
+  v_id uuid;
+  v_endpoint jsonb;
+begin
+  if not (centrakit.authz_actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_tenant, 'webhook.manage'), false) then
+    raise exception 'Not allowed to manage this webhook endpoint' using errcode = '42501', hint = 'WEBHOOK_FORBIDDEN';
+  end if;
+  if jsonb_typeof(coalesce(create_webhook_endpoint.fields, '{}')) <> 'object' or exists (
+    select 1 from jsonb_each(coalesce(create_webhook_endpoint.fields, '{}')) e
+    where case e.key when 'name' then jsonb_typeof(e.value) <> 'string' when 'url' then jsonb_typeof(e.value) <> 'string' when 'enabled' then jsonb_typeof(e.value) <> 'boolean' when 'eventTypes' then (jsonb_typeof(e.value) <> 'array' or exists (select 1 from jsonb_array_elements(e.value) a where jsonb_typeof(a) <> 'string')) else true end
+  ) then
+    raise exception 'A webhook endpoint field is unknown or has the wrong type' using errcode = '22023', hint = 'WEBHOOK_ENDPOINT_INVALID';
+  end if;
+  if create_webhook_endpoint.fields ->> 'url' is null or create_webhook_endpoint.fields ->> 'url' !~* '^https://' then
+    raise exception 'A webhook endpoint URL must start with https://' using errcode = '22023', hint = 'WEBHOOK_ENDPOINT_URL';
+  end if;
+  insert into "centrakit"."webhook_destinations" ("organization_id", "url", "enabled", "event_kinds", "name")
+  values (create_webhook_endpoint.tenant, create_webhook_endpoint.fields ->> 'url', coalesce((create_webhook_endpoint.fields ->> 'enabled')::boolean, true), coalesce(array(select jsonb_array_elements_text(create_webhook_endpoint.fields -> 'eventTypes')), '{}'), create_webhook_endpoint.fields ->> 'name')
+  returning "id" into v_id;
+  select jsonb_build_object('id', d."id", 'tenant', d."organization_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_kinds", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") into v_endpoint
+  from "centrakit"."webhook_destinations" d where d."id" = v_id;
+  return v_endpoint;
+end;
+$$;
+revoke execute on function "better_supabase"."create_webhook_endpoint"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_webhook_endpoint"(uuid, jsonb) to authenticated, service_role;
+
+-- Changes the fields of an endpoint that fields names; returns it. Turning
+-- enabled back on clears the failure streak.
+create or replace function "better_supabase"."update_webhook_endpoint"(endpoint uuid, fields jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid;
+  v_endpoint jsonb;
+begin
+  if not (centrakit.authz_actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select d."organization_id" into v_tenant
+  from "centrakit"."webhook_destinations" d where d."id" = update_webhook_endpoint.endpoint;
+  if not found then
+    raise exception 'Webhook endpoint not found' using errcode = 'P0002', hint = 'WEBHOOK_ENDPOINT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_tenant, 'webhook.manage'), false) then
+    raise exception 'Not allowed to manage this webhook endpoint' using errcode = '42501', hint = 'WEBHOOK_FORBIDDEN';
+  end if;
+  if jsonb_typeof(coalesce(update_webhook_endpoint.fields, '{}')) <> 'object' or exists (
+    select 1 from jsonb_each(coalesce(update_webhook_endpoint.fields, '{}')) e
+    where case e.key when 'name' then jsonb_typeof(e.value) <> 'string' when 'url' then jsonb_typeof(e.value) <> 'string' when 'enabled' then jsonb_typeof(e.value) <> 'boolean' when 'eventTypes' then (jsonb_typeof(e.value) <> 'array' or exists (select 1 from jsonb_array_elements(e.value) a where jsonb_typeof(a) <> 'string')) else true end
+  ) then
+    raise exception 'A webhook endpoint field is unknown or has the wrong type' using errcode = '22023', hint = 'WEBHOOK_ENDPOINT_INVALID';
+  end if;
+  if update_webhook_endpoint.fields ? 'url' then
+    if update_webhook_endpoint.fields ->> 'url' is null or update_webhook_endpoint.fields ->> 'url' !~* '^https://' then
+    raise exception 'A webhook endpoint URL must start with https://' using errcode = '22023', hint = 'WEBHOOK_ENDPOINT_URL';
+  end if;
+  end if;
+  update "centrakit"."webhook_destinations" d set "name" = case when update_webhook_endpoint.fields ? 'name' then update_webhook_endpoint.fields ->> 'name' else d."name" end, "url" = case when update_webhook_endpoint.fields ? 'url' then update_webhook_endpoint.fields ->> 'url' else d."url" end, "enabled" = case when update_webhook_endpoint.fields ? 'enabled' then (update_webhook_endpoint.fields ->> 'enabled')::boolean else d."enabled" end, "event_kinds" = case when update_webhook_endpoint.fields ? 'eventTypes' then array(select jsonb_array_elements_text(update_webhook_endpoint.fields -> 'eventTypes')) else d."event_kinds" end, "updated_at" = now()
+  where d."id" = update_webhook_endpoint.endpoint;
+  select jsonb_build_object('id', d."id", 'tenant', d."organization_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_kinds", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") into v_endpoint
+  from "centrakit"."webhook_destinations" d where d."id" = update_webhook_endpoint.endpoint;
+  return v_endpoint;
+end;
+$$;
+revoke execute on function "better_supabase"."update_webhook_endpoint"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."update_webhook_endpoint"(uuid, jsonb) to authenticated, service_role;
+
+-- The tenant's endpoints, newest first, without their secrets.
+create or replace function "better_supabase"."list_webhook_endpoints"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid := list_webhook_endpoints.tenant;
+  v_endpoints jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_tenant, 'webhook.view'), false) then
+    raise exception 'Not allowed to manage this webhook endpoint' using errcode = '42501', hint = 'WEBHOOK_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object('id', d."id", 'tenant', d."organization_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_kinds", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") order by d."created_at" desc, d."id"), '[]')
+  into v_endpoints
+  from "centrakit"."webhook_destinations" d
+  where d."organization_id" = list_webhook_endpoints.tenant;
+  return v_endpoints;
+end;
+$$;
+revoke execute on function "better_supabase"."list_webhook_endpoints"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."list_webhook_endpoints"(uuid) to authenticated, service_role;
+
+-- Deletes an endpoint with its secrets and deliveries.
+create or replace function "better_supabase"."delete_webhook_endpoint"(endpoint uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid;
+begin
+  if not (centrakit.authz_actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select d."organization_id" into v_tenant
+  from "centrakit"."webhook_destinations" d where d."id" = delete_webhook_endpoint.endpoint;
+  if not found then
+    raise exception 'Webhook endpoint not found' using errcode = 'P0002', hint = 'WEBHOOK_ENDPOINT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_tenant, 'webhook.manage'), false) then
+    raise exception 'Not allowed to manage this webhook endpoint' using errcode = '42501', hint = 'WEBHOOK_FORBIDDEN';
+  end if;
+  delete from "centrakit"."webhook_destinations" d
+  where d."id" = delete_webhook_endpoint.endpoint;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_webhook_endpoint"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."delete_webhook_endpoint"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
