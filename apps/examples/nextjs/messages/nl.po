@@ -4524,6 +4524,21 @@ msgid "Add the companies you sell to and the people you talk to."
 msgstr "Voeg de bedrijven toe waaraan je verkoopt en de mensen met wie je praat."
 
 #: src/features/crm/components/contact-list.tsx
+msgctxt "crm.6XFO_C"
+msgid "Approved"
+msgstr "Goedgekeurd"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.2s7KhN"
+msgid "Conditional"
+msgstr "Voorwaardelijk"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.qUJTsT"
+msgid "Blocked"
+msgstr "Geblokkeerd"
+
+#: src/features/crm/components/contact-list.tsx
 msgctxt "crm.KkpdQS"
 msgid "{count, plural, one {# contact} other {# contacts}}"
 msgstr "{count, plural, one {# contact} other {# contacten}}"
@@ -4552,6 +4567,11 @@ msgstr "E-mail of domein"
 msgctxt "crm.TGAGHp"
 msgid "Lifecycle"
 msgstr "Levenscyclus"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.5Ya43Y"
+msgid "Supplier"
+msgstr "Leverancier"
 
 #: src/features/crm/components/create-contact-dialog.tsx
 msgctxt "crm.ckQ_gN"

@@ -85,6 +85,12 @@ export async function ContactList() {
     ["opportunity", t("Opportunity")],
   ]);
 
+  const suppliers = {
+    approved: { label: t("Approved"), variant: "success-light" },
+    conditional: { label: t("Conditional"), variant: "warning-light" },
+    blocked: { label: t("Blocked"), variant: "destructive-light" },
+  } as const;
+
   return (
     <Card>
       <CardHeader>
@@ -103,6 +109,7 @@ export async function ContactList() {
               <TableHead>{t("Type")}</TableHead>
               <TableHead>{t("Email or domain")}</TableHead>
               <TableHead>{t("Lifecycle")}</TableHead>
+              <TableHead>{t("Supplier")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -137,6 +144,13 @@ export async function ContactList() {
                   <Badge variant="secondary">
                     {lifecycles.get(contact.lifecycle) ?? contact.lifecycle}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  {contact.supplierStatus ? (
+                    <Badge variant={suppliers[contact.supplierStatus].variant}>
+                      {suppliers[contact.supplierStatus].label}
+                    </Badge>
+                  ) : null}
                 </TableCell>
               </TableRow>
             ))}

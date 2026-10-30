@@ -1,4 +1,5 @@
 import "server-only";
+import type { SupplierStatus } from "better-supabase/blocks/contacts";
 import type { Money } from "better-supabase/commerce";
 
 import { money } from "better-supabase/commerce";
@@ -41,6 +42,8 @@ export interface ContactSummary {
   readonly lifecycle: string;
   /** A company's domain or a person's email. */
   readonly detail: string | null;
+  /** Where a supplier stands, `null` until someone assesses it. */
+  readonly supplierStatus: SupplierStatus | null;
 }
 
 export interface CompanyContact {
@@ -95,6 +98,7 @@ export async function loadContacts(): Promise<
       name: company.name,
       lifecycle: company.lifecycle,
       detail: company.domain ?? null,
+      supplierStatus: company.supplierStatus ?? null,
     })),
     ...people.items.map((person): ContactSummary => ({
       id: person.id,
@@ -102,6 +106,7 @@ export async function loadContacts(): Promise<
       name: person.name,
       lifecycle: person.lifecycle,
       detail: person.email ?? null,
+      supplierStatus: person.supplierStatus ?? null,
     })),
   ].toSorted((a, b) => a.name.localeCompare(b.name));
 }
@@ -150,6 +155,7 @@ export async function loadContact(
         name: company.name,
         lifecycle: company.lifecycle,
         detail: company.domain ?? null,
+        supplierStatus: company.supplierStatus ?? null,
         email: null,
         phone: null,
         title: null,
@@ -171,6 +177,7 @@ export async function loadContact(
             name: person.name,
             lifecycle: person.lifecycle,
             detail: person.email ?? null,
+            supplierStatus: person.supplierStatus ?? null,
           })),
       };
     }
@@ -201,6 +208,7 @@ export async function loadContact(
         name: person.name,
         lifecycle: person.lifecycle,
         detail: person.email ?? null,
+        supplierStatus: person.supplierStatus ?? null,
         email: person.email ?? null,
         phone: person.phone ?? null,
         title: person.title ?? null,
