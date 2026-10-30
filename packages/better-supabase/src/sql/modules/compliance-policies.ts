@@ -6,18 +6,27 @@ import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { optionalField } from "./compliance-shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
-/** The policy and acknowledgement functions of the `compliance` module. */
+/**
+ * The role a policy that requires acknowledgement is assigned to in the
+ * acknowledgements block.
+ */
+export const POLICY_ROLE = "member";
+
+/** The policy functions of the `compliance` module. */
 export function policyFunctions(ctx: BlockSqlContext): string {
   const policies = ctx.table("policies");
-  const acks = ctx.table("acknowledgements");
   const p = (column: string): string => ctx.col("policies", column);
-  const a = (column: string): string => ctx.col("acknowledgements", column);
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
   const permissions = moduleOperations("compliance");
   const read = ctx.permission("read", permissions.read);
   const manage = ctx.permission("manage", permissions.manage);
-  const acknowledge = ctx.permission("acknowledge", permissions.acknowledge);
+  const acknowledgements = ctx.of("acknowledgements");
+  const acks = acknowledgements.table("acknowledgements");
+
+  const a = (column: string): string =>
+    acknowledgements.col("acknowledgements", column);
+
   const members = ctx.of("memberships");
   const memberships = members.table("memberships");
   const mt = members.col("memberships", "tenant");
@@ -45,11 +54,17 @@ export function policyFunctions(ctx: BlockSqlContext): string {
     "P0002",
   );
 
+  const ofPolicy = (row: string): string =>
+    `ack.${a("subjectType")} = ${policyType} and ack.${a("subjectId")} = ${row}.${p("id")}::text and ack.${a("version")} = ${row}.${p("currentVersion")}`;
+
   const mine = (row: string): string =>
-    `(select ack.${a("acknowledgedAt")} from ${acks} ack where ack.${a("policy")} = ${row}.${p("id")} and ack.${a("version")} = ${row}.${p("currentVersion")} and ack.${a("user")} = auth.uid())`;
+    `(select ack.${a("acknowledgedAt")} from ${acks} ack where ${ofPolicy(row)} and ack.${a("user")} = auth.uid())`;
 
   const acknowledged = (row: string): string =>
-    `(select count(*) from ${acks} ack join ${memberships} am on am.${mt} = ack.${a("tenant")} and am.${mu} = ack.${a("user")} where ack.${a("policy")} = ${row}.${p("id")} and ack.${a("version")} = ${row}.${p("currentVersion")})`;
+    `(select count(*) from ${acks} ack join ${memberships} am on am.${mt} = ack.${a("tenant")} and am.${mu} = ack.${a("user")} where ${ofPolicy(row)})`;
+
+  const assignment = (name: string, extra: string): string =>
+    `${acknowledgements.fn(name)}(v_row.${p("tenant")}, ${policyType}, v_row.${p("id")}::text, 'role', ${sqlString(POLICY_ROLE)}${extra})`;
 
   const policyJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'key', ${row}.${p("key")}, 'title', ${row}.${p("title")}, 'ownerId', ${field(row, "owner")}, 'requiresAcknowledgement', ${row}.${p("requiresAck")}, 'versionId', ${row}.${p("currentVersion")}, 'versionNumber', ${row}.${p("versionNumber")}, 'publishedAt', ${row}.${p("publishedAt")}, 'archivedAt', ${row}.${p("archivedAt")}, 'createdAt', ${field(row, "createdAt")}, 'updatedAt', ${field(row, "updatedAt")}, 'acknowledgedAt', ${mine(row)}, 'acknowledgedCount', ${acknowledged(row)}, 'memberCount', (select count(*) from ${memberships} pm where pm.${mt} = ${row}.${p("tenant")}))`;
@@ -74,7 +89,10 @@ export function policyFunctions(ctx: BlockSqlContext): string {
 
   return `
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
--- versions publish_compliance_policy writes.
+-- versions publish_compliance_policy writes. A policy that requires
+-- acknowledgement is assigned once to every member holding the member role
+-- (acknowledgements block); turning the requirement off removes that
+-- assignment.
 create or replace function ${fn("save_compliance_policy")}(tenant ${idType}, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
@@ -84,6 +102,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${policies}%rowtype;
+  v_required boolean;
 begin
   if not ${allowed("save_compliance_policy.tenant", manage)} then
     ${forbidden("not allowed to manage policies")}
@@ -97,7 +116,10 @@ ${
   end if;
 `
     : ""
-}  if save_compliance_policy.policy_id is null then
+}  select x.${p("requiresAck")} and x.${p("archivedAt")} is null into v_required from ${policies} x
+    where x.${p("tenant")} = save_compliance_policy.tenant
+      and (x.${p("id")} = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x.${p("key")} = save_compliance_policy.key));
+  if save_compliance_policy.policy_id is null then
     insert into ${policies} (${p("tenant")}, ${p("key")}, ${p("title")}${owner ? `, ${p("owner")}` : ""}, ${p("requiresAck")})
     values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title)${owner ? ", save_compliance_policy.owner_id" : ""}, coalesce(save_compliance_policy.requires_acknowledgement, true))
     on conflict (${p("tenant")}, ${p("key")}) do update
@@ -113,13 +135,19 @@ ${
       ${notFound}
     end if;
   end if;
+  if v_row.${p("requiresAck")} and v_row.${p("archivedAt")} is null and v_required is distinct from true then
+    perform ${assignment("place_acknowledgement_assignment", ", null")};
+  elsif not v_row.${p("requiresAck")} and v_required then
+    perform ${assignment("drop_acknowledgement_assignment", "")};
+  end if;
   return ${policyJson("v_row")};
 end;
 $$;
 ${userGrant(`${fn("save_compliance_policy")}(${idType}, text, text, uuid, boolean, uuid)`)}
 
 -- Publishes the policy text as a new frozen version (versions block) and
--- makes it current. Members acknowledge each published version again.
+-- makes it current. Members acknowledge each published version again, through
+-- acknowledge in the acknowledgements block.
 create or replace function ${fn("publish_compliance_policy")}(policy_id uuid, content jsonb, label text default null)
 returns jsonb
 language plpgsql
@@ -161,6 +189,8 @@ end;
 $$;
 ${userGrant(`${fn("publish_compliance_policy")}(uuid, jsonb, text)`)}
 
+-- Archives a policy and removes its member role assignment, so members stop
+-- seeing it as pending.
 create or replace function ${fn("archive_compliance_policy")}(policy_id uuid)
 returns jsonb
 language plpgsql
@@ -180,53 +210,16 @@ begin
   update ${policies} x set ${p("archivedAt")} = coalesce(x.${p("archivedAt")}, now())${touch}
     where x.${p("id")} = v_row.${p("id")}
     returning * into v_row;
+  perform ${assignment("drop_acknowledgement_assignment", "")};
   return ${policyJson("v_row")};
 end;
 $$;
 ${userGrant(`${fn("archive_compliance_policy")}(uuid)`)}
 
--- The caller acknowledges the policy's current version. A second call keeps
--- the first acknowledgement.
-create or replace function ${fn("acknowledge_compliance_policy")}(policy_id uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row ${policies}%rowtype;
-  v_me uuid := auth.uid();
-begin
-  select * into v_row from ${policies} x where x.${p("id")} = acknowledge_compliance_policy.policy_id;
-  if not found then
-    ${notFound}
-  end if;
-  if v_me is null or not ${ctx.can("tenant", `v_row.${p("tenant")}`, acknowledge)} then
-    ${forbidden("not allowed to acknowledge policies")}
-  end if;
-  if v_row.${p("currentVersion")} is null or v_row.${p("archivedAt")} is not null then
-    ${fail("COMPLIANCE_POLICY_NOT_PUBLISHED", "the policy has no published version to acknowledge", "55000")}
-  end if;
-  insert into ${acks} (${a("tenant")}, ${a("policy")}, ${a("version")}, ${a("user")})
-  values (v_row.${p("tenant")}, v_row.${p("id")}, v_row.${p("currentVersion")}, v_me)
-  on conflict (${a("policy")}, ${a("version")}, ${a("user")}) do nothing;
-  if found then
-    ${policyRecord(
-      "compliance_policy.acknowledged",
-      `jsonb_build_object('organizationId', v_row.${p("tenant")}, 'policyId', v_row.${p("id")}, 'versionId', v_row.${p("currentVersion")}, 'userId', v_me)`,
-      `'acknowledged policy ' || v_row.${p("title")} || ' version ' || v_row.${p("versionNumber")}::text`,
-    )}
-  end if;
-  return ${policyJson("v_row")};
-end;
-$$;
-${userGrant(`${fn("acknowledge_compliance_policy")}(uuid)`)}
-
 -- The policies, with the caller's acknowledgement of each current version
--- and how many members acknowledged it. pending_only: the published policies
--- that need the caller's acknowledgement.
-create or replace function ${fn("list_compliance_policies")}(tenant ${idType}, include_archived boolean default false, pending_only boolean default false)
+-- and how many members acknowledged it. list_my_acknowledgements in the
+-- acknowledgements block lists the ones the caller still has to acknowledge.
+create or replace function ${fn("list_compliance_policies")}(tenant ${idType}, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -234,7 +227,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (${allowed("list_compliance_policies.tenant", read)} or ${ctx.can("tenant", "list_compliance_policies.tenant", acknowledge)}) then
+  if not ${allowed("list_compliance_policies.tenant", read)} then
     ${forbidden("not allowed to read policies")}
   end if;
   return (
@@ -242,47 +235,9 @@ begin
     from ${policies} x
     where x.${p("tenant")} = list_compliance_policies.tenant
       and (coalesce(list_compliance_policies.include_archived, false) or x.${p("archivedAt")} is null)
-      and (not coalesce(list_compliance_policies.pending_only, false) or (
-        x.${p("requiresAck")} and x.${p("currentVersion")} is not null and x.${p("archivedAt")} is null and ${mine("x")} is null
-      ))
   );
 end;
 $$;
-${userGrant(`${fn("list_compliance_policies")}(${idType}, boolean, boolean)`)}
-
--- Every member and when they acknowledged the policy's current version
--- (null: not yet), for the policy's owner and compliance reviewers.
-create or replace function ${fn("compliance_policy_acknowledgements")}(policy_id uuid)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  v_row ${policies}%rowtype;
-begin
-  select * into v_row from ${policies} x where x.${p("id")} = compliance_policy_acknowledgements.policy_id;
-  if not found then
-    ${notFound}
-  end if;
-  if not ${allowed(`v_row.${p("tenant")}`, read)} then
-    ${forbidden("not allowed to read policy acknowledgements")}
-  end if;
-  return jsonb_build_object(
-    'id', v_row.${p("id")},
-    'versionId', v_row.${p("currentVersion")},
-    'versionNumber', v_row.${p("versionNumber")},
-    'members', (
-      select coalesce(jsonb_agg(jsonb_build_object('userId', m.${mu}, 'acknowledgedAt', ack.${a("acknowledgedAt")})
-        order by ack.${a("acknowledgedAt")} nulls first, m.${mu}), '[]'::jsonb)
-      from ${memberships} m
-      left join ${acks} ack on ack.${a("policy")} = v_row.${p("id")} and ack.${a("version")} = v_row.${p("currentVersion")} and ack.${a("user")} = m.${mu}
-      where m.${mt} = v_row.${p("tenant")}
-    )
-  );
-end;
-$$;
-${userGrant(`${fn("compliance_policy_acknowledgements")}(uuid)`)}
+${userGrant(`${fn("list_compliance_policies")}(${idType}, boolean)`)}
 `;
 }

@@ -1,6 +1,6 @@
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:ba7e4e795b44e448dad4853bf1ecfc3f70f7b87eb47d0b16f1bf599d1e2a4c27
+-- @bsb-hash sha256:7fa6e8aa6effe1fa8c6d185c3da3c268cc2acda8eaa2e1924fce2e50602c19e8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -14,6 +14,7 @@ from (values
   ('access.requested', 'access_request.requested'),
   ('ai_tool_policy.set', 'ai_tool_policy.updated'),
   ('approval_policy.removed', 'approval_policy.deleted'),
+  ('compliance_policy.acknowledged', 'acknowledgement.created'),
   ('credential.set', 'credential.updated'),
   ('custom_field.deleted', 'field_definition.deleted'),
   ('drive.node_created', 'drive_node.created'),
@@ -64,7 +65,7 @@ from (values
   ('organization.domain_removed', 'sso_domain.deleted'),
   ('organization.domain_updated', 'sso_domain.updated'),
   ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'compliance_policy.acknowledged'),
+  ('policy.acknowledged', 'acknowledgement.created'),
   ('policy.published', 'compliance_policy.published'),
   ('postmortem.published', 'incident_postmortem.published'),
   ('rule.disabled', 'automation.disabled'),
@@ -101,6 +102,7 @@ from (values
   ('access.requested', 'access_request.requested'),
   ('ai_tool_policy.set', 'ai_tool_policy.updated'),
   ('approval_policy.removed', 'approval_policy.deleted'),
+  ('compliance_policy.acknowledged', 'acknowledgement.created'),
   ('credential.set', 'credential.updated'),
   ('custom_field.deleted', 'field_definition.deleted'),
   ('drive.node_created', 'drive_node.created'),
@@ -151,7 +153,7 @@ from (values
   ('organization.domain_removed', 'sso_domain.deleted'),
   ('organization.domain_updated', 'sso_domain.updated'),
   ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'compliance_policy.acknowledged'),
+  ('policy.acknowledged', 'acknowledgement.created'),
   ('policy.published', 'compliance_policy.published'),
   ('postmortem.published', 'incident_postmortem.published'),
   ('rule.disabled', 'automation.disabled'),

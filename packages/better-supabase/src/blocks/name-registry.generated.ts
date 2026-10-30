@@ -53,7 +53,7 @@ export interface BlockNameRegistry {
       readonly "acknowledgements": "id" | "tenant" | "subjectType" | "subjectId" | "version" | "user" | "method" | "signature" | "acknowledgedAt";
       readonly "notices": "id" | "tenant" | "subjectType" | "subjectId" | "version" | "user" | "notifiedAt";
     };
-    readonly functions: "acknowledge" | "acknowledgement_status" | "acknowledgements_of" | "assign_acknowledgement" | "current_acknowledgement_version" | "list_acknowledgement_assignments" | "list_my_acknowledgements" | "notify_due_acknowledgements" | "unassign_acknowledgement";
+    readonly functions: "acknowledge" | "acknowledgement_status" | "acknowledgements_of" | "assign_acknowledgement" | "current_acknowledgement_version" | "drop_acknowledgement_assignment" | "list_acknowledgement_assignments" | "list_my_acknowledgements" | "notify_due_acknowledgements" | "place_acknowledgement_assignment" | "unassign_acknowledgement";
     readonly actions: "read" | "manage" | "acknowledge";
     readonly hooks: "before_acknowledgement_assignment_create" | "after_acknowledgement_assignment_create" | "before_acknowledgement_create" | "after_acknowledgement_create";
     readonly entities: {
@@ -507,10 +507,9 @@ export interface BlockNameRegistry {
       readonly "evidence": "id" | "tenant" | "control" | "task" | "attachment" | "note" | "collectedBy" | "collectedAt" | "validUntil";
       readonly "tasks": "id" | "tenant" | "control" | "title" | "assignee" | "intervalDays" | "dueOn" | "lastCollectedAt" | "notifiedFor" | "active" | "createdAt" | "updatedAt";
       readonly "policies": "id" | "tenant" | "key" | "title" | "owner" | "requiresAck" | "currentVersion" | "versionNumber" | "publishedAt" | "archivedAt" | "createdAt" | "updatedAt";
-      readonly "acknowledgements": "id" | "tenant" | "policy" | "version" | "user" | "acknowledgedAt";
     };
-    readonly functions: "acknowledge_compliance_policy" | "add_control_evidence" | "archive_compliance_policy" | "compliance_policy_acknowledgements" | "control_posture" | "get_control" | "list_compliance_policies" | "list_control_frameworks" | "list_controls" | "list_evidence_tasks" | "notify_overdue_evidence_tasks" | "publish_compliance_policy" | "remove_control_evidence" | "save_compliance_policy" | "save_control" | "save_control_framework" | "save_evidence_task";
-    readonly actions: "read" | "manage" | "collect" | "acknowledge";
+    readonly functions: "add_control_evidence" | "archive_compliance_policy" | "control_posture" | "get_control" | "list_compliance_policies" | "list_control_frameworks" | "list_controls" | "list_evidence_tasks" | "notify_overdue_evidence_tasks" | "publish_compliance_policy" | "remove_control_evidence" | "save_compliance_policy" | "save_control" | "save_control_framework" | "save_evidence_task";
+    readonly actions: "read" | "manage" | "collect";
     readonly hooks: never;
     readonly entities: {
       readonly "control": "id" | "tenant_id" | "framework_id" | "code" | "title" | "description" | "owner_id" | "applicable" | "source" | "jurisdiction" | "created_at" | "updated_at";

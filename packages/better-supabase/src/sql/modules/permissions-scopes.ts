@@ -211,12 +211,7 @@ export const MODULE_PERMISSION_SCOPES: {
   dispatch: { read: "tenant", manage: "tenant", work: "tenant" },
   shipments: { read: "tenant", manage: "tenant" },
   contracts: { read: "tenant", write: "tenant", manage: "tenant" },
-  compliance: {
-    read: "tenant",
-    manage: "tenant",
-    collect: "tenant",
-    acknowledge: "tenant",
-  },
+  compliance: { read: "tenant", manage: "tenant", collect: "tenant" },
   acknowledgements: { read: "tenant", manage: "tenant", acknowledge: "tenant" },
   incidents: { read: "tenant", write: "tenant", manage: "tenant" },
   courses: { read: "tenant", enroll: "tenant", manage: "tenant" },

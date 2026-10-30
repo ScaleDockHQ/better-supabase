@@ -3,8 +3,10 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
 
+import { createAcknowledgements } from "../../src/blocks/acknowledgements/index.ts";
 import { createCompliance } from "../../src/blocks/compliance/index.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
+import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -14,6 +16,7 @@ const MODULES = [
   "outbox",
   "notifications",
   "versions",
+  "acknowledgements",
   "compliance",
 ];
 
@@ -37,6 +40,7 @@ describe.skipIf(!live)("compliance", () => {
       await s.install(MODULES);
       const org = await s.organization(owner, { member: analyst });
       const controls = createCompliance({ transport: sqlTransport(s.sql) });
+      const acks = createAcknowledgements({ transport: sqlTransport(s.sql) });
 
       await s.as(owner);
 
@@ -158,9 +162,11 @@ describe.skipIf(!live)("compliance", () => {
         .savePolicy(org, { key: "acceptable-use", title: "Acceptable use" })
         .orThrow();
 
+      const record = { type: "compliance_policy", id: policy.id };
+
       await s.as(analyst);
-      expect(await controls.acknowledgePolicy(policy.id).then(hint)).toBe(
-        "COMPLIANCE_POLICY_NOT_PUBLISHED",
+      expect(await acks.acknowledge(record).then(hint)).toBe(
+        "ACKNOWLEDGEMENT_NO_VERSION",
       );
 
       await s.as(owner);
@@ -177,29 +183,24 @@ describe.skipIf(!live)("compliance", () => {
 
       await s.as(analyst);
       expect(
-        (await controls.policies(org, { pendingOnly: true }).orThrow()).map(
-          (item) => item.id,
-        ),
+        (await acks.mine(org).orThrow()).map((item) => item.record.id),
       ).toEqual([policy.id]);
 
-      const acknowledged = await controls
-        .acknowledgePolicy(policy.id)
-        .orThrow();
+      const acknowledged = await acks.acknowledge(record).orThrow();
 
-      expect(acknowledged.acknowledgedAt).toBeDefined();
-      expect(
-        await controls.policies(org, { pendingOnly: true }).orThrow(),
-      ).toEqual([]);
+      expect(acknowledged.versionId).toBe(published.versionId);
+      expect(await acks.mine(org).orThrow()).toEqual([]);
 
       await s.as(owner);
       await controls
         .publishPolicy(policy.id, { body: "Use company devices only." }, "v2")
         .orThrow();
-      const roster = await controls.acknowledgements(policy.id).orThrow();
-      expect(roster.versionNumber).toBe(2);
-      expect(
-        roster.members.every((member) => member.acknowledgedAt === undefined),
-      ).toBe(true);
+      const roster = await acks.status(record).orThrow();
+      expect(roster.versionId).not.toBe(published.versionId);
+      expect(roster.acknowledged).toBe(0);
+      expect(roster.pending.map((member) => member.userId)).toEqual([
+        analyst.id,
+      ]);
 
       const archived = await controls.archivePolicy(policy.id).orThrow();
       expect(archived.archivedAt).toBeDefined();
@@ -207,8 +208,8 @@ describe.skipIf(!live)("compliance", () => {
         await controls.publishPolicy(policy.id, { body: "Again" }).then(hint),
       ).toBe("COMPLIANCE_POLICY_ARCHIVED");
       await s.as(analyst);
-      expect(await controls.acknowledgePolicy(policy.id).then(hint)).toBe(
-        "COMPLIANCE_POLICY_NOT_PUBLISHED",
+      expect(await acks.acknowledge(record).then(hint)).toBe(
+        "ACKNOWLEDGEMENT_NOT_ASSIGNED",
       );
 
       await s.asRole(outsider);
@@ -218,7 +219,7 @@ describe.skipIf(!live)("compliance", () => {
       await s.service();
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where type like any (array['control%', 'compliance_policy.%', 'evidence_task.%'])",
+        "select type from better_supabase.outbox_events where type like any (array['control%', 'compliance_policy.%', 'evidence_task.%', 'acknowledgement.%'])",
       );
 
       expect(new Set(events.map((row) => row.type))).toEqual(
@@ -227,9 +228,98 @@ describe.skipIf(!live)("compliance", () => {
           "control.evidence_added",
           "evidence_task.missed",
           "compliance_policy.published",
-          "compliance_policy.acknowledged",
+          "acknowledgement.created",
         ]),
       );
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("upgrades version 1 policy acknowledgements onto the acknowledgements block", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const tenant = crypto.randomUUID();
+      const policy = crypto.randomUUID();
+      const archived = crypto.randomUUID();
+      const version = crypto.randomUUID();
+      const user = await s.user("member");
+
+      await s.client.query(
+        `create schema compliance_up;
+create table compliance_up.versions (id uuid primary key);
+create table compliance_up.policies (
+  id uuid primary key,
+  tenant_id uuid not null,
+  requires_acknowledgement boolean not null,
+  archived_at timestamptz
+);
+create table compliance_up.policy_acknowledgements (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
+  policy_id uuid not null,
+  version_id uuid not null,
+  user_id uuid not null,
+  acknowledged_at timestamptz not null
+);
+create function compliance_up.acknowledge_compliance_policy(policy_id uuid) returns jsonb
+language sql as $$ select '{}'::jsonb $$;
+insert into compliance_up.versions values ('$version');
+insert into compliance_up.policies values
+  ('$policy', '$tenant', true, null),
+  ('$archived', '$tenant', true, now());
+insert into compliance_up.policy_acknowledgements (tenant_id, policy_id, version_id, user_id, acknowledged_at)
+values ('$tenant', '$policy', '$version', '$user', '2026-01-02T03:04:05Z');`
+          .replaceAll("$version", version)
+          .replaceAll("$policy", policy)
+          .replaceAll("$archived", archived)
+          .replaceAll("$tenant", tenant)
+          .replaceAll("$user", user.id),
+      );
+
+      const [plan] = upgradePlan([{ module: "compliance", version: 1 }], {
+        modules: {
+          compliance: { schema: "compliance_up" },
+          acknowledgements: { schema: "compliance_up" },
+          versions: { schema: "compliance_up" },
+        },
+      });
+
+      for (const step of [...plan!.steps, ...plan!.steps]) {
+        await s.client.query(step.sql);
+      }
+
+      expect(
+        await s.rows(
+          `select tenant_id::text, subject_type, subject_id, version_id::text, user_id::text,
+             acknowledged_at = '2026-01-02T03:04:05Z'::timestamptz as kept_at
+           from compliance_up.acknowledgements`,
+        ),
+      ).toEqual([
+        {
+          tenant_id: tenant,
+          subject_type: "compliance_policy",
+          subject_id: policy,
+          version_id: version,
+          user_id: user.id,
+          kept_at: true,
+        },
+      ]);
+      expect(
+        await s.rows(
+          `select subject_id, principal_type, principal_id
+           from compliance_up.acknowledgement_assignments`,
+        ),
+      ).toEqual([
+        { subject_id: policy, principal_type: "role", principal_id: "member" },
+      ]);
+      expect(
+        await s.rows(
+          `select to_regclass('compliance_up.policy_acknowledgements')::text as old_table,
+             to_regprocedure('compliance_up.acknowledge_compliance_policy(uuid)')::text as old_function`,
+        ),
+      ).toEqual([{ old_table: null, old_function: null }]);
     } finally {
       await s.close();
     }

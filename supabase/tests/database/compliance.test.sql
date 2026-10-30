@@ -3,16 +3,20 @@
 -- collects evidence and acknowledges the policy, and the Globex owner (…a3)
 -- sees none of it. Run with `supabase test db`.
 begin;
-select plan(20);
+select plan(24);
 
 select is(
   (select count(*) from pg_catalog.pg_tables
    where schemaname = 'better_supabase'
-     and tablename in ('control_frameworks', 'controls', 'control_evidence', 'evidence_tasks', 'policies', 'policy_acknowledgements')
+     and tablename in ('control_frameworks', 'controls', 'control_evidence', 'evidence_tasks', 'policies')
      and rowsecurity),
-  6::bigint,
+  5::bigint,
   'the controls tables have RLS enabled'
 );
+select hasnt_table('better_supabase', 'policy_acknowledgements',
+  'policy acknowledgements live in the acknowledgements block');
+select hasnt_function('better_supabase', 'acknowledge_compliance_policy',
+  'members acknowledge policies through acknowledge');
 select table_privs_are('better_supabase', 'controls', 'anon', '{}'::text[],
   'anon has no privileges on controls');
 select table_privs_are('better_supabase', 'policies', 'anon', '{}'::text[],
@@ -57,6 +61,13 @@ select is(
   true,
   'publishing a policy stores a version'
 );
+select is(
+  (select count(*) from better_supabase.acknowledgement_assignments
+    where subject_type = 'compliance_policy' and subject_id = (select id from ids where name = 'aup')::text
+      and principal_type = 'role' and principal_id = 'member'),
+  1::bigint,
+  'a policy that requires acknowledgement is assigned to the member role once'
+);
 
 reset role;
 select set_config(
@@ -99,17 +110,19 @@ select is(
   'the posture rolls up passing, failing and not applicable controls'
 );
 select is(
-  jsonb_array_length(better_supabase.list_compliance_policies('00000000-0000-4000-8000-000000000001', pending_only => true)),
-  1,
+  (select count(*) from jsonb_array_elements(better_supabase.list_my_acknowledgements('00000000-0000-4000-8000-000000000001')) a
+    where a ->> 'subjectType' = 'compliance_policy'),
+  1::bigint,
   'the published policy waits for the member to acknowledge it'
 );
 select lives_ok(
-  $$select better_supabase.acknowledge_compliance_policy((select id from ids where name = 'aup'))$$,
+  $$select better_supabase.acknowledge('compliance_policy', (select id from ids where name = 'aup')::text)$$,
   'a member acknowledges the policy'
 );
 select is(
-  jsonb_array_length(better_supabase.list_compliance_policies('00000000-0000-4000-8000-000000000001', pending_only => true)),
-  0,
+  (select count(*) from jsonb_array_elements(better_supabase.list_my_acknowledgements('00000000-0000-4000-8000-000000000001')) a
+    where a ->> 'subjectType' = 'compliance_policy'),
+  0::bigint,
   'an acknowledged policy is no longer pending'
 );
 
@@ -131,6 +144,12 @@ select throws_ok(
   null,
   null,
   'the Globex owner cannot add evidence to an Acme control'
+);
+select throws_ok(
+  $$select better_supabase.acknowledge('compliance_policy', (select id from ids where name = 'aup')::text)$$,
+  null,
+  'you aren''t asked to acknowledge this record',
+  'a member of another organization cannot acknowledge an Acme policy'
 );
 
 -- A legal register: a framework of kind legal whose controls are obligations.

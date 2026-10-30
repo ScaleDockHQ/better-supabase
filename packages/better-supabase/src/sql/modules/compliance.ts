@@ -5,18 +5,25 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type { BlockContributes } from "../contributions.ts";
+import type {
+  BlockSqlDeprecation,
+  BlockSqlDefinition,
+  BlockSqlUpgrade,
+} from "../module-types.ts";
 
-import { sqlIdent } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import { entityType } from "../resolved-names.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
+import { acknowledgementTables } from "./acknowledgements.ts";
 import { complianceFunctions } from "./compliance-functions.ts";
-import { policyFunctions } from "./compliance-policies.ts";
+import { POLICY_ROLE, policyFunctions } from "./compliance-policies.ts";
 import {
   CONTROL_RESERVED,
   evidenceAttachments,
@@ -51,10 +58,6 @@ const EVENTS: BlockSqlEvents<ComplianceEvents> = {
   "compliance_policy.published": {
     subject: "policies",
     payload: ["organizationId", "policyId", "versionId", "number"],
-  },
-  "compliance_policy.acknowledged": {
-    subject: "policies",
-    payload: ["organizationId", "policyId", "versionId", "userId"],
   },
 };
 
@@ -185,19 +188,6 @@ const NAMES: BlockSqlNames = {
       },
       optional: ["owner", "createdAt", "updatedAt"],
     },
-    acknowledgements: {
-      name: "policy_acknowledgements",
-      app: {},
-      lifecycle: { tenant: "tenant", user: "user", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        policy: "policy_id",
-        version: "version_id",
-        user: "user_id",
-        acknowledgedAt: "acknowledged_at",
-      },
-    },
   },
 };
 
@@ -207,16 +197,12 @@ function tables(ctx: BlockSqlContext): string {
   const evidence = ctx.table("evidence");
   const tasks = ctx.table("tasks");
   const policies = ctx.table("policies");
-  const acks = ctx.table("acknowledgements");
   const f = (column: string): string => ctx.col("frameworks", column);
   const k = (column: string): string => ctx.col("controls", column);
   const e = (column: string): string => ctx.col("evidence", column);
   const t = (column: string): string => ctx.col("tasks", column);
   const p = (column: string): string => ctx.col("policies", column);
-  const a = (column: string): string => ctx.col("acknowledgements", column);
-  const permissions = moduleOperations("compliance");
-  const read = ctx.permission("read", permissions.read);
-  const acknowledge = ctx.permission("acknowledge", permissions.acknowledge);
+  const read = ctx.permission("read", moduleOperations("compliance").read);
   const versions = ctx.of("versions");
   const attachments = evidenceAttachments(ctx);
   const extras = ctx.extraColumns("controls", CONTROL_RESERVED);
@@ -355,23 +341,7 @@ create table if not exists ${policies} (
 );${appKey("policies", "tenant_key", `${p("tenant")}, ${p("key")}`)}${appKey("policies", "tenant_id", `${p("tenant")}, ${p("id")}`)}
 create index if not exists ${name("policies", "version_idx")} on ${policies} (${p("currentVersion")}) where ${p("currentVersion")} is not null;
 ${lockTable(policies, { read: true })}
-${readPolicy("policies", `${ctx.scope.check(p("tenant"), read)} or ${ctx.scope.check(p("tenant"), acknowledge)}`)}
-
-create table if not exists ${acks} (
-  ${a("id")} uuid primary key default gen_random_uuid(),
-  ${a("tenant")} ${ctx.idType} not null,
-  ${a("policy")} uuid not null,
-  ${a("version")} uuid not null${versionRef},
-  ${a("user")} uuid not null,
-  ${a("acknowledgedAt")} timestamptz not null default now(),
-  unique (${a("policy")}, ${a("version")}, ${a("user")}),
-  foreign key (${a("tenant")}, ${a("policy")}) references ${policies} (${p("tenant")}, ${p("id")}) on delete cascade
-);${appKey("acknowledgements", "policy_version_user", `${a("policy")}, ${a("version")}, ${a("user")}`)}
-create index if not exists ${name("acknowledgements", "user_idx")} on ${acks} (${a("tenant")}, ${a("user")});
-create index if not exists ${name("acknowledgements", "parent_idx")} on ${acks} (${a("tenant")}, ${a("policy")});
-create index if not exists ${name("acknowledgements", "version_idx")} on ${acks} (${a("version")});
-${lockTable(acks, { read: true })}
-${readPolicy("acknowledgements", `${a("user")} = (select auth.uid()) or ${ctx.scope.check(a("tenant"), read)}`)}
+${readPolicy("policies", ctx.scope.check(p("tenant"), read))}
 `;
 }
 
@@ -386,9 +356,16 @@ function build(ctx: BlockSqlContext): string {
     );
   }
 
+  if (ctx.of("acknowledgements").mode === "custom") {
+    throw new TypeError(
+      "blocks.compliance needs the acknowledgements tables; acknowledgements can't be in custom mode",
+    );
+  }
+
   return `${schemaPreamble(ctx)}
 -- Compliance controls: frameworks of controls, evidence linked to them,
--- recurring evidence tasks, and versioned policies members acknowledge.
+-- recurring evidence tasks, and versioned policies members acknowledge
+-- through the acknowledgements block.
 ${tables(ctx)}${complianceFunctions(ctx)}${policyFunctions(ctx)}`;
 }
 
@@ -455,32 +432,128 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "archive_compliance_policy", args: ["uuid"], returns: "jsonb" },
-    { name: "acknowledge_compliance_policy", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_compliance_policies",
-      args: ["{id}", "boolean", "boolean"],
-      returns: "jsonb",
-    },
-    {
-      name: "compliance_policy_acknowledgements",
-      args: ["uuid"],
+      args: ["{id}", "boolean"],
       returns: "jsonb",
     },
   ];
 }
+
+const CONTRIBUTES: BlockContributes = {
+  acknowledgements: (own) => {
+    const policies = own.tableName("policies");
+
+    return [
+      {
+        subject: entityType(own.resolved, "compliance_policy"),
+        versionColumn: own.colName("policies", "currentVersion"),
+        record: {
+          table: `${policies.schema}.${policies.name}`,
+          idType: "uuid",
+          tenant: own.colName("policies", "tenant"),
+          permission: own.permissionKey(
+            "read",
+            moduleOperations("compliance").read,
+          ),
+        },
+      },
+    ];
+  },
+};
+
+const TO_ACKNOWLEDGEMENTS: BlockSqlUpgrade = {
+  from: 1,
+  description:
+    "Policy acknowledgements move onto the acknowledgements block: each policy_acknowledgements row becomes an acknowledgement of the policy's version, every live policy that requires acknowledgement is assigned to the member role, and policy_acknowledgements, acknowledge_compliance_policy and compliance_policy_acknowledgements go.",
+  sql: (ctx) => {
+    const acknowledgements = ctx.of("acknowledgements");
+
+    if (ctx.mode === "custom" || acknowledgements.mode === "custom") {
+      return "";
+    }
+
+    const acks = acknowledgements.table("acknowledgements");
+    const assignments = acknowledgements.table("assignments");
+
+    const a = (column: string): string =>
+      acknowledgements.col("acknowledgements", column);
+
+    const g = (column: string): string =>
+      acknowledgements.col("assignments", column);
+
+    const p = (column: string): string => ctx.col("policies", column);
+    const old = `${ctx.schema}.policy_acknowledgements`;
+    const type = sqlString(entityType(ctx.resolved, "compliance_policy"));
+
+    return `-- The acknowledgements tables, so the policy acknowledgements can move before the module files run.
+${acknowledgementTables(acknowledgements)}
+
+insert into ${assignments} (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")})
+select x.${p("tenant")}, ${type}, x.${p("id")}::text, 'role', ${sqlString(POLICY_ROLE)}
+from ${ctx.table("policies")} x
+where x.${p("requiresAck")} and x.${p("archivedAt")} is null
+on conflict (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")}) do nothing;
+
+do $$
+begin
+  if to_regclass(${sqlString(old)}) is null then
+    return;
+  end if;
+  insert into ${acks} (${a("tenant")}, ${a("subjectType")}, ${a("subjectId")}, ${a("version")}, ${a("user")}, ${a("acknowledgedAt")})
+  select x.tenant_id, ${type}, x.policy_id::text, x.version_id, x.user_id, x.acknowledged_at
+  from ${old} x
+  on conflict (${a("subjectType")}, ${a("subjectId")}, ${a("version")}, ${a("user")}) do nothing;
+  drop table ${old} cascade;
+end;
+$$;
+
+drop function if exists ${ctx.fn("acknowledge_compliance_policy")}(uuid);
+drop function if exists ${ctx.fn("compliance_policy_acknowledgements")}(uuid);
+drop function if exists ${ctx.fn("list_compliance_policies")}(${ctx.idType}, boolean, boolean);`;
+  },
+};
+
+const DEPRECATED: readonly BlockSqlDeprecation[] = [
+  {
+    kind: "table",
+    symbol: "better_supabase.policy_acknowledgements",
+    use: "better_supabase.acknowledgements (subject_type compliance_policy)",
+    since: "0.47.0",
+    removed: "0.47.0",
+  },
+  {
+    kind: "function",
+    symbol: "better_supabase.acknowledge_compliance_policy",
+    use: "better_supabase.acknowledge('compliance_policy', policy_id)",
+    since: "0.47.0",
+    removed: "0.47.0",
+  },
+  {
+    kind: "function",
+    symbol: "better_supabase.compliance_policy_acknowledgements",
+    use: "better_supabase.acknowledgement_status('compliance_policy', policy_id) and acknowledgements_of",
+    since: "0.47.0",
+    removed: "0.47.0",
+  },
+];
 
 export const COMPLIANCE: BlockSqlDefinition = {
   name: "compliance",
   scopes: ["tenant"],
   title: "Compliance controls",
   description:
-    "Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.",
-  requires: ["memberships", "permissions", "versions"],
+    "Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.",
+  requires: ["memberships", "permissions", "versions", "acknowledgements"],
   integrates: ["attachments", "notifications", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
+  version: 2,
+  upgrades: [TO_ACKNOWLEDGEMENTS],
+  deprecated: DEPRECATED,
   names: NAMES,
   contract,
   build,
+  contributes: CONTRIBUTES,
   data: subjectTypeRenames,
 };

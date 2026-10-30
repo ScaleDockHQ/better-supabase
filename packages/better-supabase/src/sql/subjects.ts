@@ -245,16 +245,30 @@ export function subjectsOption(
      * block.
      */
     readonly always?: (entry: SubjectConfig) => boolean;
+    /**
+     * Record types other blocks contribute, as `on.<type>` entries, that join
+     * the subjects when neither `on` nor the registry names them.
+     */
+    readonly joined?: Readonly<Record<string, Record<string, unknown>>>;
   } = {},
 ): readonly [string, Subject][] {
   const where = `blocks.${ctx.instance}.on`;
 
-  const raw = withAlways(
+  const listed = withAlways(
     ctx,
     rawSubjects(ctx, where, extraKeys, allow),
     extraKeys,
     allow.always,
   );
+
+  const raw = {
+    ...Object.fromEntries(
+      Object.entries(allow.joined ?? {}).filter(
+        ([type]) => !Object.hasOwn(listed, type),
+      ),
+    ),
+    ...listed,
+  };
 
   return Object.entries(raw).map(([type, entry]): [string, Subject] => {
     if (!SUBJECT_TYPE_PATTERN.test(type)) {

@@ -13,6 +13,38 @@ const sqlOf = (modules: readonly string[], layout: Layout = {}): string =>
 const BASE = ["versions", "acknowledgements"];
 
 describe("acknowledgements module", () => {
+  it("writes assignments for other blocks only through revoked functions", () => {
+    const sql = sqlOf(BASE);
+
+    expect(sql).toContain(
+      `revoke execute on function "better_supabase"."place_acknowledgement_assignment"(uuid, text, text, text, text, integer) from public, anon, authenticated;`,
+    );
+    expect(sql).toContain(
+      `revoke execute on function "better_supabase"."drop_acknowledgement_assignment"(uuid, text, text, text, text) from public, anon, authenticated;`,
+    );
+    expect(sql).toMatch(
+      /function "better_supabase"\."assign_acknowledgement"[\s\S]*?actor_may_write\(\)[\s\S]*?place_acknowledgement_assignment/u,
+    );
+  });
+
+  it("acknowledges a contributed record type without narrowing the others", () => {
+    const sql = sqlOf(["versions", "acknowledgements", "compliance"]);
+
+    expect(sql).toContain(
+      `if current_acknowledgement_version.subject_type = 'compliance_policy' then`,
+    );
+    expect(sql).not.toContain("when 'compliance_policy' then exists");
+
+    const listed = sqlOf(["versions", "acknowledgements", "compliance"], {
+      modules: {
+        acknowledgements: { on: { contract: { table: "public.contracts" } } },
+      },
+    });
+
+    expect(listed).toContain("when 'compliance_policy' then exists");
+    expect(listed).toContain("when 'contract' then exists");
+  });
+
   it("keeps acknowledgements bound to a version and assignments per principal", () => {
     const sql = sqlOf(BASE);
 

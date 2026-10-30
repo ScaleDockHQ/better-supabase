@@ -121,4 +121,35 @@ select * from better_supabase.ai_document_versions;
       { line: 3, message: expect.stringContaining("versions table") },
     ]);
   });
+
+  it("lists the policy acknowledgement calls that moved to the acknowledgements block", () => {
+    const source = `await db.$client.rpc("acknowledge_compliance_policy", { policy_id });
+if (error.hint === "POLICY_NOT_PUBLISHED") wait();
+const keep = await compliance.policies(org);
+`;
+
+    const result = applyCodemod(v047, source, "src/policies.ts");
+
+    expect(result.text).toBe(source);
+    expect(result.review).toEqual([
+      {
+        line: 1,
+        message: expect.stringContaining(
+          "acknowledge('compliance_policy', id)",
+        ),
+      },
+      {
+        line: 2,
+        message: expect.stringContaining("ACKNOWLEDGEMENT_NO_VERSION"),
+      },
+    ]);
+
+    const sql = applyCodemod(
+      v047,
+      "select * from better_supabase.policy_acknowledgements;\n",
+      "supabase/schemas/reports.sql",
+    );
+
+    expect(sql.review.map((line) => line.line)).toEqual([1]);
+  });
 });

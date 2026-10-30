@@ -10,6 +10,7 @@ import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { ComplianceEvents } from "better-supabase/blocks/compliance";
+import type { AcknowledgementsEvents } from "better-supabase/blocks/acknowledgements";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
@@ -22,6 +23,7 @@ import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
 import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { complianceBlock as complianceBlockInstance } from "better-supabase/blocks/compliance";
+import { acknowledgementsBlock as acknowledgementsBlockInstance } from "better-supabase/blocks/acknowledgements";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
 import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
@@ -66,6 +68,10 @@ export const blockConfig = {
     options: {},
   },
   compliance: {
+    schema: "better_supabase",
+    options: {},
+  },
+  acknowledgements: {
     schema: "better_supabase",
     options: {},
   },
@@ -131,6 +137,7 @@ export const blocks = {
   billing: billingBlockInstance,
   enrollments: enrollmentsBlockInstance,
   compliance: complianceBlockInstance,
+  acknowledgements: acknowledgementsBlockInstance,
   entitlements: entitlementsBlockInstance,
   notifications: notificationsBlockInstance,
   onboarding: onboardingBlockInstance,
@@ -148,6 +155,11 @@ export const blocks = {
  * @public
  */
 export const permissions = {
+  acknowledgements: {
+    read: "acknowledgements.read",
+    manage: "acknowledgements.manage",
+    acknowledge: "acknowledgements.acknowledge",
+  },
   "api-keys": {
     manage: "api_keys.manage",
     own: "api_keys.own",
@@ -171,7 +183,6 @@ export const permissions = {
     read: "compliance.read",
     manage: "compliance.manage",
     collect: "compliance.collect",
-    acknowledge: "compliance.acknowledge",
   },
   compliance_policy: {
     read: "compliance.read",
@@ -230,13 +241,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "compliance.acknowledge" | "compliance.collect" | "compliance.manage" | "compliance.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "compliance.collect" | "compliance.manage" | "compliance.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & ComplianceEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & ComplianceEvents & AcknowledgementsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -245,6 +256,10 @@ export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & Bill
  */
 export const blockEvents: Events<BlockEvents> = {
   types: [
+    "acknowledgement.created",
+    "acknowledgement.reminded",
+    "acknowledgement_assignment.created",
+    "acknowledgement_assignment.deleted",
     "api_key.created",
     "api_key.revoked",
     "api_key.rotated",
@@ -260,7 +275,6 @@ export const blockEvents: Events<BlockEvents> = {
     "billing.subscription_created",
     "billing.subscription_deleted",
     "billing.subscription_updated",
-    "compliance_policy.acknowledged",
     "compliance_policy.published",
     "control.created",
     "control.evidence_added",
@@ -323,6 +337,10 @@ export const blockEvents: Events<BlockEvents> = {
  * @public
  */
 export const blockEventSchemas = {
+  "acknowledgement.created": true,
+  "acknowledgement.reminded": true,
+  "acknowledgement_assignment.created": true,
+  "acknowledgement_assignment.deleted": true,
   "api_key.created": true,
   "api_key.revoked": true,
   "api_key.rotated": true,
@@ -338,7 +356,6 @@ export const blockEventSchemas = {
   "billing.subscription_created": true,
   "billing.subscription_deleted": true,
   "billing.subscription_updated": true,
-  "compliance_policy.acknowledged": true,
   "compliance_policy.published": true,
   "control.created": true,
   "control.evidence_added": true,

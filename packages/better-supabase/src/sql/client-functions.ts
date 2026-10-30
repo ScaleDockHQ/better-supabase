@@ -64,7 +64,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   comments:
     "comment_conversation comment_counts copy_comments create_comment get_comment list_comments list_file_comments",
   compliance:
-    "acknowledge_compliance_policy add_control_evidence archive_compliance_policy compliance_policy_acknowledgements control_posture get_control list_compliance_policies list_control_frameworks list_controls list_evidence_tasks notify_overdue_evidence_tasks publish_compliance_policy remove_control_evidence save_compliance_policy save_control save_control_framework save_evidence_task",
+    "add_control_evidence archive_compliance_policy control_posture get_control list_compliance_policies list_control_frameworks list_controls list_evidence_tasks notify_overdue_evidence_tasks publish_compliance_policy remove_control_evidence save_compliance_policy save_control save_control_framework save_evidence_task",
   connectors:
     "check_connector_fingerprint decide_connector_fingerprint delete_connector_server expiring_connector_grants get_connector get_connector_session list_connector_servers purge_connector_sessions record_connector_grant renew_connector_grant revoke_connector_grant save_connector_server save_connector_session",
   consents:

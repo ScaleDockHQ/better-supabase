@@ -178,7 +178,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:08a9906bbcb89f47712b878e3e2103cc365687c8e81924860139d137b2a904f6
+-- @bsb-hash sha256:bdeeff274088237a937407908b9bca2166cd0f961749298ea2a0671967579388
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -192,6 +192,7 @@ from (values
   ('access.requested', 'access_request.requested'),
   ('ai_tool_policy.set', 'ai_tool_policy.updated'),
   ('approval_policy.removed', 'approval_policy.deleted'),
+  ('compliance_policy.acknowledged', 'acknowledgement.created'),
   ('credential.set', 'credential.updated'),
   ('custom_field.deleted', 'field_definition.deleted'),
   ('drive.node_created', 'drive_node.created'),
@@ -242,7 +243,7 @@ from (values
   ('organization.domain_removed', 'sso_domain.deleted'),
   ('organization.domain_updated', 'sso_domain.updated'),
   ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'compliance_policy.acknowledged'),
+  ('policy.acknowledged', 'acknowledgement.created'),
   ('policy.published', 'compliance_policy.published'),
   ('postmortem.published', 'incident_postmortem.published'),
   ('rule.disabled', 'automation.disabled'),
@@ -464,7 +465,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:08a9906bbcb89f47712b878e3e2103cc365687c8e81924860139d137b2a904f6
+-- @bsb-hash sha256:bdeeff274088237a937407908b9bca2166cd0f961749298ea2a0671967579388
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -478,6 +479,7 @@ from (values
   ('access.requested', 'access_request.requested'),
   ('ai_tool_policy.set', 'ai_tool_policy.updated'),
   ('approval_policy.removed', 'approval_policy.deleted'),
+  ('compliance_policy.acknowledged', 'acknowledgement.created'),
   ('credential.set', 'credential.updated'),
   ('custom_field.deleted', 'field_definition.deleted'),
   ('drive.node_created', 'drive_node.created'),
@@ -528,7 +530,7 @@ from (values
   ('organization.domain_removed', 'sso_domain.deleted'),
   ('organization.domain_updated', 'sso_domain.updated'),
   ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'compliance_policy.acknowledged'),
+  ('policy.acknowledged', 'acknowledgement.created'),
   ('policy.published', 'compliance_policy.published'),
   ('postmortem.published', 'incident_postmortem.published'),
   ('rule.disabled', 'automation.disabled'),
@@ -755,7 +757,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:c169f7c2527882b1da5f5470eef93c9ffc63c133aebd0c561b279dc11a1f8d73
+-- @bsb-hash sha256:3fec7e1460695a3d32bd080a3d9ecea6c0aee8dfdec94bf21b2b25fac5a77758
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -769,6 +771,7 @@ from (values
   ('access.requested', 'access_request.requested'),
   ('ai_tool_policy.set', 'ai_tool_policy.updated'),
   ('approval_policy.removed', 'approval_policy.deleted'),
+  ('compliance_policy.acknowledged', 'acknowledgement.created'),
   ('credential.set', 'credential.updated'),
   ('custom_field.deleted', 'field_definition.deleted'),
   ('drive.node_created', 'drive_node.created'),
@@ -819,7 +822,7 @@ from (values
   ('organization.domain_removed', 'sso_domain.deleted'),
   ('organization.domain_updated', 'sso_domain.updated'),
   ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'compliance_policy.acknowledged'),
+  ('policy.acknowledged', 'acknowledgement.created'),
   ('policy.published', 'compliance_policy.published'),
   ('postmortem.published', 'incident_postmortem.published'),
   ('rule.disabled', 'automation.disabled'),
@@ -1063,7 +1066,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:08a9906bbcb89f47712b878e3e2103cc365687c8e81924860139d137b2a904f6
+-- @bsb-hash sha256:bdeeff274088237a937407908b9bca2166cd0f961749298ea2a0671967579388
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1077,6 +1080,7 @@ from (values
   ('access.requested', 'access_request.requested'),
   ('ai_tool_policy.set', 'ai_tool_policy.updated'),
   ('approval_policy.removed', 'approval_policy.deleted'),
+  ('compliance_policy.acknowledged', 'acknowledgement.created'),
   ('credential.set', 'credential.updated'),
   ('custom_field.deleted', 'field_definition.deleted'),
   ('drive.node_created', 'drive_node.created'),
@@ -1127,7 +1131,7 @@ from (values
   ('organization.domain_removed', 'sso_domain.deleted'),
   ('organization.domain_updated', 'sso_domain.updated'),
   ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'compliance_policy.acknowledged'),
+  ('policy.acknowledged', 'acknowledgement.created'),
   ('policy.published', 'compliance_policy.published'),
   ('postmortem.published', 'incident_postmortem.published'),
   ('rule.disabled', 'automation.disabled'),
@@ -1348,7 +1352,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:08a9906bbcb89f47712b878e3e2103cc365687c8e81924860139d137b2a904f6
+-- @bsb-hash sha256:bdeeff274088237a937407908b9bca2166cd0f961749298ea2a0671967579388
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1362,6 +1366,7 @@ from (values
   ('access.requested', 'access_request.requested'),
   ('ai_tool_policy.set', 'ai_tool_policy.updated'),
   ('approval_policy.removed', 'approval_policy.deleted'),
+  ('compliance_policy.acknowledged', 'acknowledgement.created'),
   ('credential.set', 'credential.updated'),
   ('custom_field.deleted', 'field_definition.deleted'),
   ('drive.node_created', 'drive_node.created'),
@@ -1412,7 +1417,7 @@ from (values
   ('organization.domain_removed', 'sso_domain.deleted'),
   ('organization.domain_updated', 'sso_domain.updated'),
   ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'compliance_policy.acknowledged'),
+  ('policy.acknowledged', 'acknowledgement.created'),
   ('policy.published', 'compliance_policy.published'),
   ('postmortem.published', 'incident_postmortem.published'),
   ('rule.disabled', 'automation.disabled'),
@@ -1634,7 +1639,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:08a9906bbcb89f47712b878e3e2103cc365687c8e81924860139d137b2a904f6
+-- @bsb-hash sha256:bdeeff274088237a937407908b9bca2166cd0f961749298ea2a0671967579388
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1648,6 +1653,7 @@ from (values
   ('access.requested', 'access_request.requested'),
   ('ai_tool_policy.set', 'ai_tool_policy.updated'),
   ('approval_policy.removed', 'approval_policy.deleted'),
+  ('compliance_policy.acknowledged', 'acknowledgement.created'),
   ('credential.set', 'credential.updated'),
   ('custom_field.deleted', 'field_definition.deleted'),
   ('drive.node_created', 'drive_node.created'),
@@ -1698,7 +1704,7 @@ from (values
   ('organization.domain_removed', 'sso_domain.deleted'),
   ('organization.domain_updated', 'sso_domain.updated'),
   ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'compliance_policy.acknowledged'),
+  ('policy.acknowledged', 'acknowledgement.created'),
   ('policy.published', 'compliance_policy.published'),
   ('postmortem.published', 'incident_postmortem.published'),
   ('rule.disabled', 'automation.disabled'),

@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block-data permissions
--- @bsb-hash sha256:9764b09aece35ae78ffbebe45c5c143b8212edb1394eaea0012d5c632a2f5614
+-- @bsb-hash sha256:6604cde1c8de5f209d18061bf26e3965028560b862bec9c6ef42e3d8af5b059f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -26,8 +26,9 @@ begin
     ('ai.read', array['agents.read', 'connectors.read', 'knowledge.read', 'memory.read']::text[], true),
     ('ai.share', array['agents.publish']::text[], true),
     ('ai_chat.admin', array['ai_chat.manage']::text[], true),
+    ('compliance.acknowledge', array['acknowledgements.acknowledge']::text[], true),
     ('controls.*', array['compliance.*']::text[], true),
-    ('controls.acknowledge', array['compliance.acknowledge']::text[], true),
+    ('controls.acknowledge', array['acknowledgements.acknowledge']::text[], true),
     ('controls.collect', array['compliance.collect']::text[], true),
     ('controls.manage', array['compliance.manage']::text[], true),
     ('controls.read', array['compliance.read']::text[], true),

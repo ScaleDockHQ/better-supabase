@@ -557,12 +557,11 @@ describe("createCompliance", () => {
     ]);
   });
 
-  it("saves, publishes, archives and acknowledges policies", async () => {
+  it("saves, publishes, archives and lists policies", async () => {
     const t = fieldsTransport({
       save_compliance_policy: () => POLICY,
       publish_compliance_policy: () => POLICY,
       archive_compliance_policy: () => BARE_POLICY,
-      acknowledge_compliance_policy: () => POLICY,
       list_compliance_policies: () => [POLICY, BARE_POLICY],
     });
 
@@ -586,11 +585,8 @@ describe("createCompliance", () => {
 
     const archived = await controls.archivePolicy("p2").orThrow();
 
-    await controls.acknowledgePolicy("p1").orThrow();
     await controls.policies("org-1").orThrow();
-    await controls
-      .policies("org-1", { includeArchived: true, pendingOnly: true })
-      .orThrow();
+    await controls.policies("org-1", { includeArchived: true }).orThrow();
 
     expect(saved).toMatchObject({
       versionId: "v1",
@@ -643,44 +639,106 @@ describe("createCompliance", () => {
         { policy_id: "p1", content: { body: "Text" }, label: "2026" },
       ],
       ["archive_compliance_policy", { policy_id: "p2" }],
-      ["acknowledge_compliance_policy", { policy_id: "p1" }],
       [
         "list_compliance_policies",
-        { tenant: "org-1", include_archived: false, pending_only: false },
+        { tenant: "org-1", include_archived: false },
       ],
-      [
-        "list_compliance_policies",
-        { tenant: "org-1", include_archived: true, pending_only: true },
-      ],
+      ["list_compliance_policies", { tenant: "org-1", include_archived: true }],
     ]);
   });
 
-  it("reads who acknowledged a policy", async () => {
+  it("keeps the deprecated acknowledgement calls on the acknowledgements functions", async () => {
     const t = fieldsTransport({
-      compliance_policy_acknowledgements: (args) =>
-        args["policy_id"] === "p1"
-          ? {
-              id: "p1",
-              versionId: "v1",
-              versionNumber: 2,
-              members: [
-                { userId: "u1", acknowledgedAt: AT },
-                { userId: "u2", acknowledgedAt: null },
-              ],
-            }
-          : { id: "p2", versionNumber: null },
+      acknowledge: () => ({ organizationId: "org-1" }),
+      list_compliance_policies: () => [POLICY, BARE_POLICY],
+      list_my_acknowledgements: () => [
+        { subjectType: "compliance_policy", subjectId: "p2" },
+        { subjectType: "contract", subjectId: "p1" },
+      ],
     });
 
     const controls = createCompliance({ transport: t });
 
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated wrapper under test
+    const acknowledged = await controls.acknowledgePolicy("p1").orThrow();
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated wrapper under test
+    const missing = await controls.acknowledgePolicy("p9");
+
+    const pending = await controls
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated wrapper under test
+      .policies("org-1", { pendingOnly: true })
+      .orThrow();
+
+    expect(acknowledged.id).toBe("p1");
+    expect(missing.ok ? undefined : missing.error).toMatchObject({
+      kind: "not_found",
+      hint: "COMPLIANCE_POLICY_NOT_FOUND",
+    });
+    expect(pending.map((item) => item.id)).toEqual(["p2"]);
+    expect(t.calls).toEqual([
+      [
+        "acknowledge",
+        {
+          subject_type: "compliance_policy",
+          subject_id: "p1",
+          version_id: null,
+          signature_id: null,
+        },
+      ],
+      ["list_compliance_policies", { tenant: "org-1", include_archived: true }],
+      [
+        "acknowledge",
+        {
+          subject_type: "compliance_policy",
+          subject_id: "p9",
+          version_id: null,
+          signature_id: null,
+        },
+      ],
+      ["list_compliance_policies", { tenant: "org-1", include_archived: true }],
+      [
+        "list_compliance_policies",
+        { tenant: "org-1", include_archived: false },
+      ],
+      ["list_my_acknowledgements", { tenant: "org-1", pending_only: true }],
+    ]);
+  });
+
+  it("reads who acknowledged a policy from the acknowledgements block", async () => {
+    const t = fieldsTransport({
+      acknowledgement_status: (args) =>
+        args["subject_id"] === "p1"
+          ? { versionId: "v1", pending: [{ userId: "u2" }] }
+          : { versionId: null, pending: [] },
+      acknowledgements_of: (args) =>
+        args["subject_id"] === "p1"
+          ? [{ userId: "u1", acknowledgedAt: AT }]
+          : [],
+    });
+
+    const controls = createCompliance({
+      transport: t,
+      policySubjectType: "policy_doc",
+    });
+
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated wrapper under test
     const acknowledged = await controls.acknowledgements("p1").orThrow();
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated wrapper under test
     const unpublished = await controls.acknowledgements("p2").orThrow();
 
     expect(acknowledged.policyId).toBe("p1");
-    expect(acknowledged.versionNumber).toBe(2);
+    expect(acknowledged.versionId).toBe("v1");
     expect(acknowledged.members[0]?.acknowledgedAt?.toString()).toBe(AT);
     expect(acknowledged.members[1]).toEqual({ userId: "u2" });
     expect(unpublished).toEqual({ policyId: "p2", members: [] });
+    expect(t.calls[0]).toEqual([
+      "acknowledgement_status",
+      { subject_type: "policy_doc", subject_id: "p1" },
+    ]);
+    expect(t.calls[1]).toEqual([
+      "acknowledgements_of",
+      { subject_type: "policy_doc", subject_id: "p1", version_id: "v1" },
+    ]);
   });
 
   it("rejects malformed rows and stored fields the schema refuses", async () => {
