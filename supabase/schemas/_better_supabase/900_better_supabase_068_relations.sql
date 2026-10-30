@@ -1,6 +1,6 @@
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:0d5466220b9e8f658144f89edeaf13672bab6067bd2355ae7c225ad590bdaafd
+-- @bsb-hash sha256:e592303a8a5ef1afba17c4a60e1e019b310fe7309c3056b1542621e56868eb18
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -137,7 +137,7 @@ begin
     select v_target_type, v_target_id, v_source_type, v_source_id
       into v_source_type, v_source_id, v_target_type, v_target_id;
   end if;
-  if v_kind = 'represents' and not (v_source_type in ('person')) then
+  if v_kind = 'represents' and not (v_source_type in ('person') and v_target_type in ('customer')) then
     raise exception 'this kind of link doesn''t accept these record types' using errcode = '22023', hint = 'RELATION_TYPE_NOT_ALLOWED';
   end if;
   if v_kind = 'mitigated_by' and not (v_source_type in ('risk') and v_target_type in ('control', 'work_item', 'drive_node')) then
