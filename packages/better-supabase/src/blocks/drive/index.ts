@@ -32,6 +32,14 @@ export {
 export { driveSubject } from "./subject.ts";
 
 export type {
+  DriveDocument,
+  DriveDocumentFilters,
+  DriveDocumentInput,
+  DriveDocuments,
+  DriveDocumentStatus,
+} from "./documents.ts";
+
+export type {
   DriveContribution,
   DriveFileRequest,
   DriveRequestUpload,

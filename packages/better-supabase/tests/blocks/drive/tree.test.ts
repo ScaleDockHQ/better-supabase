@@ -50,6 +50,7 @@ const node = (
   openedAt: undefined,
   labels: undefined,
   approval: undefined,
+  document: undefined,
 });
 
 describe("fileTypeCategory", () => {

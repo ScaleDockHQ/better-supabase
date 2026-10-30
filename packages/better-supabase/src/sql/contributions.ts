@@ -16,6 +16,7 @@ export interface BlockContributions {
   readonly pipelines: PipelineContribution;
   readonly relations: RelationContribution;
   readonly "share-links": ShareLinkContribution;
+  readonly "state-machine": StateMachineContribution;
   readonly subjects: SubjectContribution;
 }
 
@@ -76,6 +77,8 @@ export interface AccessGrantContribution {
 
 /** SQL expressions for the approval request being decided. */
 export interface ApprovalRequestSql {
+  /** The request's id. */
+  readonly id: string;
   /** The request's subject id, as text. */
   readonly subjectId: string;
   /** The decision's comment. */
@@ -181,6 +184,23 @@ export interface ShareLinkContribution {
    * refuses any other with `SHARE_LINK_ROLE_INVALID`. Default: `["view"]`.
    */
   readonly roles?: readonly string[];
+}
+
+/**
+ * A status machine on a table of the contributing block, for when the app
+ * doesn't configure `blocks.state-machine.options.machines.<name>` itself. The
+ * table must render before the state-machine block.
+ */
+export interface StateMachineContribution {
+  /** The machine name: the subject type its approvals and history use. */
+  readonly name: string;
+  /** The machine entry: `table`, `column`, `transitions` and the other keys. */
+  readonly entry: Readonly<Record<string, unknown>>;
+  /**
+   * The status may stay null: an insert keeps it null, and a null status may
+   * only move to `initial`. For tables where only some rows run the machine.
+   */
+  readonly optional?: boolean;
 }
 
 /** One section `record_summary` counts. */

@@ -8,7 +8,7 @@ import { sequenceEntry } from "./modules/numbering-entities.ts";
  * The `numbering` format of `entity` in `tenant` as SQL, when the app
  * configured one or the block contributes a default.
  */
-function sequenceFormatOf(
+export function sequenceFormatOf(
   ctx: BlockSqlContext,
   entity: string,
   tenant: string,

@@ -10,6 +10,12 @@ import {
   serviceGrant,
   userGrant,
 } from "../shared.ts";
+import {
+  documentGate,
+  documentJson,
+  documentPreludeSql,
+  driveDocumentsSql,
+} from "./drive-documents.ts";
 import { labelTags, READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
 import { driveLinksSql } from "./drive-links.ts";
 import { lockGuard, subtreeLockGuard } from "./drive-locks.ts";
@@ -406,14 +412,14 @@ as $$
       ? `case when ${previewPath("drive_object_allowed.path")} then
     drive_object_allowed.action = 'select'
       and split_part(drive_object_allowed.path, '/', 3) ~ ${UUID_TEXT}
-      and ${canRead("split_part(drive_object_allowed.path, '/', 3)::uuid")}
+      and ${canRead("split_part(drive_object_allowed.path, '/', 3)::uuid")}${documentGate(kit, "split_part(drive_object_allowed.path, '/', 3)::uuid", `(select pn.${n("attachment")} from ${T} pn where pn.${n("id")}::text = split_part(drive_object_allowed.path, '/', 3))`)}
   else `
       : ""
   }coalesce((
     select case
       when f.${a("subjectType")} is distinct from ${typeLit} then true
       when f.${a("subjectId")} !~ ${UUID_TEXT} then false
-      when drive_object_allowed.action = 'select' then ${canDownload(`f.${a("subjectId")}::uuid`)}
+      when drive_object_allowed.action = 'select' then ${canDownload(`f.${a("subjectId")}::uuid`)}${documentGate(kit, `f.${a("subjectId")}::uuid`, `f.${a("id")}`)}
       else ${fn("drive_node_writable")}(f.${a("subjectId")}::uuid)${roles.upload === undefined ? "" : ` or ${uploadedOwn(`f.${a("subjectId")}::uuid`)}`}
     end
     from ${A} f
@@ -943,13 +949,13 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ${nodeJson(`${fileJson}${labelJson}${approvalJson}`)}
+  select ${nodeJson(`${fileJson}${labelJson}${approvalJson}${documentJson(kit)}`)}
 $$;
 revoke execute on function ${fn("drive_node_json")}(${T}) from public, anon, authenticated;
 `;
 
   const late = `${schemaPreamble(own)}
-${attachmentKey}${fileNodeJson}
+${attachmentKey}${documentPreludeSql(kit)}${fileNodeJson}
 -- Before a node is deleted for good, its stored objects go into
 -- drive.node_purged for the app to remove through Storage; after, its
 -- grants, attachments${versions === undefined ? "" : ", revisions"}${state === undefined ? "" : " and starred state"} go too.
@@ -986,7 +992,7 @@ drop trigger if exists ${ctx.trigger("drive_node_purged")} on ${T};
 create trigger ${ctx.trigger("drive_node_purged")}
   after delete on ${T}
   for each row execute function ${fn("drive_node_purged")}();
-${fileFunctions}${driveTextFunctionsSql(kit)}${revisionFunctions}${binFunctions}${stateFunctions}${driveLinksSql(kit)}${labelFunctions}${approvalFunctions}`;
+${fileFunctions}${driveTextFunctionsSql(kit)}${revisionFunctions}${binFunctions}${stateFunctions}${driveLinksSql(kit)}${labelFunctions}${approvalFunctions}${driveDocumentsSql(kit)}`;
 
   return late;
 }

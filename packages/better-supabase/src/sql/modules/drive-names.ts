@@ -5,6 +5,19 @@ export const PATH_SEGMENT = "drive-nodes";
 
 const SUBJECT = ["organizationId", "subjectType", "subjectId"] as const;
 
+/** The node columns `options.control` adds for controlled documents. */
+export const DOCUMENT_COLUMNS = [
+  "documentNumber",
+  "documentType",
+  "documentStatus",
+  "documentOwner",
+  "effectiveVersion",
+  "effectiveFrom",
+  "reviewIntervalMonths",
+  "nextReviewOn",
+  "reviewNotifiedFor",
+] as const;
+
 const EVENTS: BlockSqlEvents<DriveEvents> = {
   "drive.node_created": {
     subject: PATH_SEGMENT,
@@ -76,6 +89,30 @@ export const FILE_EVENTS: BlockSqlEvents<DriveEvents> = {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "objects"],
   },
+  "drive.node_document_saved": {
+    subject: PATH_SEGMENT,
+    payload: [...SUBJECT, "documentNumber", "documentType", "ownerId"],
+  },
+  "drive.node_submitted": {
+    subject: PATH_SEGMENT,
+    payload: [...SUBJECT, "documentNumber", "attachmentId", "requestId"],
+  },
+  "drive.node_released": {
+    subject: PATH_SEGMENT,
+    payload: [...SUBJECT, "documentNumber", "versionId", "attachmentId"],
+  },
+  "drive.node_obsoleted": {
+    subject: PATH_SEGMENT,
+    payload: [...SUBJECT, "documentNumber", "reason"],
+  },
+  "drive.node_reviewed": {
+    subject: PATH_SEGMENT,
+    payload: [...SUBJECT, "documentNumber", "outcome", "note", "nextReviewOn"],
+  },
+  "drive.node_review_due": {
+    subject: PATH_SEGMENT,
+    payload: [...SUBJECT, "documentNumber", "ownerId", "nextReviewOn"],
+  },
 };
 
 export const NAMES: BlockSqlNames = {
@@ -109,11 +146,15 @@ export const NAMES: BlockSqlNames = {
     "extraColumns",
     "maxTextBytes",
     "quota",
+    "control",
   ],
   tables: {
     nodes: {
       name: "drive_nodes",
-      app: {},
+      app: {
+        unused: (ctx) =>
+          ctx.option("control") === undefined ? DOCUMENT_COLUMNS : [],
+      },
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -135,6 +176,15 @@ export const NAMES: BlockSqlNames = {
         lockNote: "lock_note",
         downloadBlocked: "download_blocked",
         previewPages: "preview_pages",
+        documentNumber: "document_number",
+        documentType: "document_type",
+        documentStatus: "document_status",
+        documentOwner: "document_owner_id",
+        effectiveVersion: "effective_version_id",
+        effectiveFrom: "effective_from",
+        reviewIntervalMonths: "review_interval_months",
+        nextReviewOn: "next_review_on",
+        reviewNotifiedFor: "review_notified_for",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -154,6 +204,15 @@ export const NAMES: BlockSqlNames = {
         "lockNote",
         "downloadBlocked",
         "previewPages",
+        "documentNumber",
+        "documentType",
+        "documentStatus",
+        "documentOwner",
+        "effectiveVersion",
+        "effectiveFrom",
+        "reviewIntervalMonths",
+        "nextReviewOn",
+        "reviewNotifiedFor",
         "createdBy",
         "updatedAt",
       ],

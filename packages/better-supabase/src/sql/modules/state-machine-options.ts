@@ -41,6 +41,11 @@ export interface Machine {
    * reads (and writes, unless `write` is false).
    */
   readonly history?: "app" | AppHistory;
+  /**
+   * Set by a block's state-machine contribution: the status may stay null, and
+   * a null status may only move to `initial`.
+   */
+  readonly optional?: true;
 }
 
 /** An app table that keeps a machine's history. */
@@ -72,21 +77,40 @@ export const ACTOR_FIELDS = [
 ] as const;
 
 export function machines(ctx: BlockSqlContext): readonly Machine[] {
-  const raw = ctx.option("machines");
+  const raw = ctx.option("machines") ?? {};
 
-  if (raw === undefined) {
-    return [];
-  }
-
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+  if (typeof raw !== "object" || Array.isArray(raw)) {
     throw new TypeError(
       "blocks.state-machine.options.machines must be an object",
     );
   }
 
-  return Object.entries(raw).map(([name, entry]) =>
+  const configured = Object.entries(raw).map(([name, entry]) =>
     machine(name, entry, ctx.subjects, ctx.naming),
   );
+
+  const names = new Set(configured.map((each) => each.name));
+
+  const contributed = ctx
+    .contributions("state-machine")
+    .filter((each) => !names.has(each.name))
+    .map((each): Machine => {
+      const item = machine(each.name, each.entry, ctx.subjects, ctx.naming);
+
+      if (each.optional !== true) {
+        return item;
+      }
+
+      if (item.stages || item.lifecycle || item.workflow !== undefined) {
+        throw new TypeError(
+          `the ${each.name} machine is optional, which stages, lifecycle and workflow don't support`,
+        );
+      }
+
+      return { ...item, optional: true };
+    });
+
+  return [...configured, ...contributed];
 }
 
 /**
