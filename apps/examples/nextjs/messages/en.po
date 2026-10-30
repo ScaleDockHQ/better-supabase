@@ -398,6 +398,16 @@ msgctxt "notifications.vdNnuz"
 msgid "Sent by the notifications block. The count stays live over Realtime."
 msgstr "Sent by the notifications block. The count stays live over Realtime."
 
+#: src/app/[locale]/(app)/observations/page.tsx
+msgctxt "observations.M_xDHn"
+msgid "Observations"
+msgstr "Observations"
+
+#: src/app/[locale]/(app)/observations/page.tsx
+msgctxt "observations.fXkKNK"
+msgid "A customer's latest vital signs, each flagged against its reference range, with the trend of its recent readings."
+msgstr "A customer's latest vital signs, each flagged against its reference range, with the trend of its recent readings."
+
 #: src/app/[locale]/(app)/page.tsx
 msgctxt "dashboard.hzSNj4"
 msgid "Dashboard"
@@ -8515,6 +8525,11 @@ msgid "Finance"
 msgstr "Finance"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.M_xDHn"
+msgid "Observations"
+msgstr "Observations"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"
 msgid "Notifications"
 msgstr "Notifications"
@@ -8683,6 +8698,111 @@ msgstr "Counting…"
 msgctxt "notifications.94cCzv"
 msgid "{count, number} unread"
 msgstr "{count, number} unread"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.isSzws"
+msgid "The vital signs didn't load"
+msgstr "The vital signs didn't load"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.myq2ZL"
+msgid "Normal"
+msgstr "Normal"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.477I0g"
+msgid "Low"
+msgstr "Low"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.AxMhQr"
+msgid "High"
+msgstr "High"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.LyFoHh"
+msgid "Critically low"
+msgstr "Critically low"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.oU6Scx"
+msgid "Critically high"
+msgstr "Critically high"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.fh3p7B"
+msgid "Vital signs"
+msgstr "Vital signs"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.tziwxM"
+msgid "The latest readings of a customer, against their ranges."
+msgstr "The latest readings of a customer, against their ranges."
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.pU67Jy"
+msgid "The latest readings for {name}, against their ranges."
+msgstr "The latest readings for {name}, against their ranges."
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.T22tdu"
+msgid "No readings yet"
+msgstr "No readings yet"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.UFYKw7"
+msgid "Recorded vital signs appear here with their flag and recent trend."
+msgstr "Recorded vital signs appear here with their flag and recent trend."
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.Vc6lZj"
+msgid "Read how to record an observation"
+msgstr "Read how to record an observation"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.pfC1Ww"
+msgid "Latest vital signs"
+msgstr "Latest vital signs"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.XsDoHr"
+msgid "Measurement"
+msgstr "Measurement"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.adThp5"
+msgid "Latest"
+msgstr "Latest"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.bSCV9J"
+msgid "Flag"
+msgstr "Flag"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.WZTXKm"
+msgid "Trend"
+msgstr "Trend"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.ZKqxlO"
+msgid "Observed"
+msgstr "Observed"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.0PpfG7"
+msgid "{title}: the last {count, number} readings"
+msgstr "{title}: the last {count, number} readings"
 
 #: src/features/offline/components/connectivity-fallback.tsx
 msgctxt "offline.38Jnwq"

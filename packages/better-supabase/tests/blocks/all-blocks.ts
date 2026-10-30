@@ -80,6 +80,7 @@ import type { moderationBlock } from "../../src/blocks/moderation/manifest.ts";
 import type { notificationsBlock } from "../../src/blocks/notifications/manifest.ts";
 import type { numberingBlock } from "../../src/blocks/numbering/manifest.ts";
 import type { oauthServerBlock } from "../../src/blocks/oauth-server/manifest.ts";
+import type { observationsBlock } from "../../src/blocks/observations/manifest.ts";
 import type { onboardingBlock } from "../../src/blocks/onboarding/manifest.ts";
 import type { ordersBlock } from "../../src/blocks/orders/manifest.ts";
 import type { organizationsBlock } from "../../src/blocks/organizations/manifest.ts";
@@ -265,6 +266,7 @@ export type AllBlocks = {
   readonly reservedSlugs: typeof reservedSlugsBlock;
   readonly reviews: typeof reviewsBlock;
   readonly risks: typeof risksBlock;
+  readonly observations: typeof observationsBlock;
   readonly rules: typeof automationsBlock;
   readonly vercelMarketplace: typeof vercelMarketplaceBlock;
   readonly savedViews: typeof savedViewsBlock;

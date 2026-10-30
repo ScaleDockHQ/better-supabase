@@ -1,0 +1,300 @@
+---
+title: Observations
+description: Coded measurements of any record, such as vital signs, against definitions with a unit, a code and ranges, with a computed flag, critical alerts, amendments, device ingest, series and form mapping.
+---
+
+`observations` records measurements of a record: a patient's heart rate, a
+machine's temperature, a client's weight. A definition says what is measured,
+in which unit and with which code, and which values are valid, normal and
+critical. Each observation gets a flag from those ranges, a critical value
+alerts the record's leads, and a correction keeps the original as `amended`.
+
+```bash
+better-supabase add observations
+```
+
+```ts
+import { createObservations } from "better-supabase/blocks/observations";
+```
+
+The module requires `memberships`, `permissions` and `subjects`: an
+observation belongs to any record type in `config.subjects`, and the caller
+needs access to that record. With [forms](/docs/blocks/forms) a submitted form
+records observations, with [notifications](/docs/blocks/notifications) a
+critical value notifies the record's leads, with `outbox` it records the
+events, and with `audit` every change is audited.
+
+## Tables
+
+| Table                     | Holds                                                                                         |
+| ------------------------- | --------------------------------------------------------------------------------------------- |
+| `observation_definitions` | A definition per organization by `key`, or a system one, with its value type, unit and ranges |
+| `observations`            | The measurements: a record, a definition, the value, its flag, status and source              |
+
+Members read their organizations' definitions and the system ones. Reading an
+observation also needs access to its record, and the rest needs a permission:
+
+| Permission            | Allows                                                |
+| --------------------- | ----------------------------------------------------- |
+| `observations.read`   | reading observations                                  |
+| `observations.record` | recording, amending and marking observations in error |
+| `observations.manage` | saving and archiving the organization's definitions   |
+
+Admins have all three; members get `read` and `record`.
+
+## Definitions
+
+Set `options.defaults` to `vitals` to install nine system definitions every
+organization reads, each with its LOINC code and UCUM unit:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  observations: { options: { defaults: "vitals" } },
+},
+```
+
+| Key                 | Title             | Unit                          | Reference range      |
+| ------------------- | ----------------- | ----------------------------- | -------------------- |
+| `heart_rate`        | Heart rate        | `/min`                        | 51 to 90             |
+| `blood_pressure`    | Blood pressure    | `mm[Hg]`, systolic, diastolic | 100 to 140, 60 to 90 |
+| `body_temperature`  | Body temperature  | `Cel`                         | 36.1 to 38           |
+| `respiratory_rate`  | Respiratory rate  | `/min`                        | 12 to 20             |
+| `oxygen_saturation` | Oxygen saturation | `%`                           | 96 and up            |
+| `body_weight`       | Body weight       | `kg`                          | none                 |
+| `body_height`       | Body height       | `cm`                          | none                 |
+| `pain_score`        | Pain score        | `{score}`                     | up to 3              |
+| `blood_glucose`     | Blood glucose     | `mmol/L`                      | 4 to 7.8             |
+
+An organization adds its own, such as an early warning score:
+
+```ts
+await db.observations
+  .saveDefinition(organizationId, "mews", {
+    title: "Modified early warning score",
+    valueType: "integer",
+    unit: "{score}",
+    validLow: 0,
+    validHigh: 14,
+    referenceHigh: 2,
+    criticalHigh: 5,
+  })
+  .orThrow();
+```
+
+`saveDefinition` creates the definition or updates the one with the same key,
+and restores it if it was archived. A key a system definition uses overrides
+it for that organization. `archiveDefinition` stops a definition from taking
+new observations; its observations stay. `definitions` lists the
+organization's and the system ones by title, with
+`{ includeArchived: true }` for the archived ones too.
+
+| `valueType`  | Value                                                                   |
+| ------------ | ----------------------------------------------------------------------- |
+| `number`     | a number, rounded to `decimals`                                         |
+| `integer`    | a whole number                                                          |
+| `boolean`    | `true` or `false`                                                       |
+| `code`       | a code from your own list, as a string                                  |
+| `text`       | free text, up to 4,000 characters                                       |
+| `components` | the component values by key, such as `{ systolic: 120, diastolic: 80 }` |
+
+A `components` definition has one to twenty components, each with a `key`,
+and optionally a `title`, `code`, `unit`, `decimals`, its own ranges and
+`optional: true`. A value needs every component that isn't optional.
+
+## Ranges and flags
+
+A value outside the valid range is refused with `OBSERVATION_VALUE_INVALID`.
+Inside it, the flag is `critical_low` or `critical_high` at or past a critical
+bound, `low` or `high` outside the reference range, and `normal` otherwise. A
+definition without ranges leaves the flag out. A `components` value takes the
+furthest flag of its parts.
+
+## Recording
+
+```ts
+const reading = await db.observations
+  .record(organizationId, {
+    subjectType: "patient",
+    subjectId: patientId,
+    definitionKey: "heart_rate",
+    value: 135,
+    method: "palpation",
+  })
+  .orThrow();
+// reading.flag is "critical_high"
+```
+
+`observedAt` defaults to now and may not be in the future. `recordMany`
+records up to 500 observations, all or none. A critical value records
+`observation.critical_recorded` and, with notifications installed, notifies each member
+of the record's team with the role `lead`, except the caller.
+
+`ingest` takes readings from a device or an import with the service role.
+Each item carries an `externalId`; an item ingested before is skipped, so a
+retried batch records nothing twice:
+
+```ts
+const result = await observations
+  .ingest(organizationId, [
+    {
+      subjectType: "patient",
+      subjectId: patientId,
+      definitionKey: "oxygen_saturation",
+      value: 94,
+      observedAt: Temporal.Instant.from("2026-10-30T08:00:00Z"),
+      externalId: "oximeter-17:1730275200",
+      device: "oximeter-17",
+    },
+  ])
+  .orThrow();
+// { inserted: 1, skipped: 0, ids: ["…"] }
+```
+
+## Corrections
+
+```ts
+const corrected = await db.observations
+  .amend(reading.id, { value: 115 }, "Counted over 15 seconds")
+  .orThrow();
+// corrected.replacesId is reading.id, reading's status is now "amended"
+```
+
+`amend` records the corrected observation and marks the original `amended`;
+what the changes leave out stays. `markError(observationId, reason)` marks one
+`entered_in_error`, and marking twice keeps the first reason. Neither deletes
+anything.
+
+## Reading
+
+```ts
+const latest = await db.observations.latest("patient", patientId).orThrow();
+// { heart_rate: { value: 115, flag: "high", … }, blood_pressure: { … } }
+
+const points = await db.observations
+  .series("patient", patientId, "heart_rate", {
+    since: Temporal.Now.instant().subtract({ hours: 24 }),
+  })
+  .orThrow();
+// [{ id, observedAt, value, flag }], oldest first
+
+const daily = await db.observations
+  .buckets("patient", patientId, "blood_pressure", "day")
+  .orThrow();
+// [{ bucket, count, min, max, avg, components: { systolic: { min, max, avg } } }]
+```
+
+`list` returns a record's observations, the latest first, filtered by
+`definitionKey`; it leaves out amended and entered-in-error ones unless you
+pass `includeAll: true`. `limit` defaults to 100, at most 1,000. `series`,
+`buckets` and `latest` only read final values. `buckets` groups by UTC `hour`,
+`day`, `week` or `month`, with `until` excluded from the range.
+
+The [observation chart](/docs/registry/ui-recipes/observation-chart) recipe
+renders the latest values with their flags and a sparkline of each series.
+
+## From a form
+
+With [forms](/docs/blocks/forms) installed, a form field maps to a definition
+through `meta.observation`, and to one component through `meta.component`:
+
+```ts
+fields: [
+  { key: "pulse", label: "Pulse", type: "number", meta: { observation: "heart_rate" } },
+  { key: "sys", label: "Systolic", type: "number", meta: { observation: "blood_pressure", component: "systolic" } },
+  { key: "dia", label: "Diastolic", type: "number", meta: { observation: "blood_pressure", component: "diastolic" } },
+],
+```
+
+A submission about a record (`submit_form` with a subject) records its
+observations with `source: "form"` and the `submissionId`, in the same
+transaction. `fromSubmission(submissionId)` records them for a submission made
+before the mapping, and a submission is recorded only once.
+
+## FHIR
+
+The columns follow the FHIR R4 Observation resource, so an export maps one to
+one: the definition's `codeSystem` and `code` are `Observation.code`, the unit
+is a UCUM code, `components` are `Observation.component`, the flag is the
+interpretation (`N`, `L`, `H`, `LL`, `HH`), and `final`, `amended` and
+`entered_in_error` are FHIR statuses.
+
+## Options
+
+| Option         | Default | Does                                                                                         |
+| -------------- | ------- | -------------------------------------------------------------------------------------------- |
+| `defaults`     | `none`  | `vitals` installs the nine system definitions above                                          |
+| `partitioned`  | `false` | Partitions the observations table by month; amendments keep their link without a foreign key |
+| `extraColumns` | none    | Extra columns on the observations table                                                      |
+
+Pass a Standard Schema as `fields` to type the extra columns, parse them on
+reads and validate them on `record`:
+
+```ts
+const observations = createObservations({
+  transport,
+  fields: z.object({ ward: z.string().optional() }),
+});
+```
+
+## Adopting tables
+
+An app with its own tables keeps them: the module runs over them and maps
+their columns. The definition's timestamps are optional; map them to `null`
+and the module leaves them out.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  observations: {
+    tables: {
+      definitions: "public.measurement_types",
+      observations: "public.measurements",
+    },
+    columns: {
+      definitions: { title: "name", createdAt: null, updatedAt: null },
+    },
+  },
+},
+```
+
+## Events
+
+| Event                                                              | Data                                                                                                           |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `observation_definition.created`, `observation_definition.updated` | `organizationId` (null for a system one), `definitionId`, `key`, `title`                                       |
+| `observation.recorded`                                             | `organizationId`, `observationId`, `definitionKey`, `subjectType`, `subjectId`, `observedAt`, `flag`, `source` |
+| `observation.critical_recorded`                                    | the same observation fields, with `observedAt` and `flag`                                                      |
+| `observation.amended`                                              | the same observation fields, with `replacesId` and `reason`                                                    |
+| `observation.error_marked`                                         | the same observation fields, with `reason`                                                                     |
+
+## Hooks
+
+`before_observation_definition_save`, `after_observation_definition_save`,
+`before_observation_record`, `after_observation_record`,
+`before_observation_amend`, `after_observation_amend`,
+`before_observation_mark_error` and `after_observation_mark_error` run in the
+same transaction as the change. See [extending blocks](/docs/extending/blocks).
+
+## Errors
+
+| Hint                               | Cause                                                                      |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| `OBSERVATION_FORBIDDEN`            | the caller lacks the permission or can't access the record                 |
+| `OBSERVATION_DEFINITION_INVALID`   | a bad key, title, value type, unit, components or ranges                   |
+| `OBSERVATION_DEFINITION_NOT_FOUND` | no definition with that key, or a form field names one that doesn't exist  |
+| `OBSERVATION_DEFINITION_ARCHIVED`  | the definition is archived                                                 |
+| `OBSERVATION_VALUE_INVALID`        | a value of the wrong type, outside the valid range, or missing a component |
+| `OBSERVATION_INVALID`              | a bad record, a future `observedAt`, too many items, or a bad filter       |
+| `OBSERVATION_NOT_FOUND`            | no observation or form submission the caller can change                    |
+| `ACTOR_READ_ONLY`                  | a read-only support session tried a write                                  |
+
+## Without the client
+
+`db.observations` is this client. Code that does not go through `bsb.db()`
+builds it with a transport:
+
+```ts
+import { createObservations } from "better-supabase/blocks/observations";
+
+const observations = createObservations({ transport });
+const latest = await observations.latest("patient", patientId).orThrow();
+```

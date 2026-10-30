@@ -57,6 +57,7 @@ import {
   Grid3x3Icon,
   HandCoinsIcon,
   HandHeartIcon,
+  HeartPulseIcon,
   HourglassIcon,
   HouseIcon,
   HandshakeIcon,
@@ -234,6 +235,7 @@ export const BLOCK_ICONS = {
   employees: IdCardIcon,
   qualifications: AwardIcon,
   shifts: CalendarRangeIcon,
+  observations: HeartPulseIcon,
   // Billing & commerce
   entitlements: BadgeCheckIcon,
   usage: GaugeIcon,

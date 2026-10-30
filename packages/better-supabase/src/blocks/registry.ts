@@ -81,6 +81,7 @@ import { moderationBlock } from "./moderation/manifest.ts";
 import { notificationsBlock } from "./notifications/manifest.ts";
 import { numberingBlock } from "./numbering/manifest.ts";
 import { oauthServerBlock } from "./oauth-server/manifest.ts";
+import { observationsBlock } from "./observations/manifest.ts";
 import { onboardingBlock } from "./onboarding/manifest.ts";
 import { ordersBlock } from "./orders/manifest.ts";
 import { organizationsBlock } from "./organizations/manifest.ts";
@@ -211,6 +212,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   risksBlock,
   shiftsBlock,
   consentsBlock,
+  observationsBlock,
   driveBlock,
   employeesBlock,
   activitiesBlock,

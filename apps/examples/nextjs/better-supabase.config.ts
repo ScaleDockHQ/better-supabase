@@ -443,6 +443,9 @@ export default defineConfig({
     // Risks link their barriers to controls and snapshot assessments as
     // versions.
     risks: {},
+    // Vital signs on a customer's record, with the seeded vitals definitions;
+    // a critical value alerts the record's leads.
+    observations: { options: { defaults: "vitals" } },
     // Rosters: shifts from templates, assignments checked for leave,
     // qualifications and rest time, open shift requests and swaps.
     shifts: {},

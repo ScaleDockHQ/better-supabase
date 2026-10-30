@@ -7600,6 +7600,98 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "observations",
+      "title": "Observations",
+      "category": "people",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "forms",
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "observations",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "observations",
+      "entities": {
+        "specs": {
+          "observation": {
+            "table": "observations",
+            "singular": "observation",
+            "primary": true
+          },
+          "observation_definition": {
+            "table": "definitions",
+            "singular": "observation_definition"
+          }
+        },
+        "tables": {
+          "observations": {
+            "name": "observations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "definition": "definition_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "observedAt": "observed_at",
+              "valueNumber": "value_number",
+              "valueText": "value_text",
+              "valueCode": "value_code",
+              "components": "components",
+              "flag": "flag",
+              "status": "status",
+              "replaces": "replaces_id",
+              "reason": "reason",
+              "method": "method",
+              "device": "device",
+              "source": "source",
+              "externalId": "external_id",
+              "submission": "submission_id",
+              "performer": "performer_id",
+              "note": "note",
+              "createdAt": "created_at"
+            }
+          },
+          "definitions": {
+            "name": "observation_definitions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "title": "title",
+              "valueType": "value_type",
+              "unit": "unit",
+              "codeSystem": "code_system",
+              "code": "code",
+              "components": "components",
+              "decimals": "decimals",
+              "validLow": "valid_low",
+              "validHigh": "valid_high",
+              "referenceLow": "reference_low",
+              "referenceHigh": "reference_high",
+              "criticalLow": "critical_low",
+              "criticalHigh": "critical_high",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "observations.read",
+          "record": "observations.record",
+          "manage": "observations.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -16662,6 +16754,369 @@ export const PRESET_CATALOG: PresetCatalog = {
           "description": "Marks the grants past their valid-until date expired."
         }
       ]
+    },
+    {
+      "name": "observations",
+      "sql": [
+        "observations"
+      ],
+      "category": "people",
+      "client": {
+        "export": "observationsBlock",
+        "subpath": "better-supabase/blocks/observations"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Observation",
+          "fields": true
+        },
+        {
+          "name": "ObservationAmendedEventData"
+        },
+        {
+          "name": "ObservationBucket"
+        },
+        {
+          "name": "ObservationBucketStats"
+        },
+        {
+          "name": "ObservationChanges",
+          "fields": true
+        },
+        {
+          "name": "ObservationComponent"
+        },
+        {
+          "name": "ObservationCriticalEventData"
+        },
+        {
+          "name": "ObservationDefinition"
+        },
+        {
+          "name": "ObservationDefinitionInput"
+        },
+        {
+          "name": "ObservationDefinitionSavedEventData"
+        },
+        {
+          "name": "ObservationErrorMarkedEventData"
+        },
+        {
+          "name": "ObservationEventData"
+        },
+        {
+          "name": "ObservationFlag"
+        },
+        {
+          "name": "ObservationIngestItem",
+          "fields": true
+        },
+        {
+          "name": "ObservationIngestResult"
+        },
+        {
+          "name": "ObservationInput",
+          "fields": true
+        },
+        {
+          "name": "ObservationListOptions"
+        },
+        {
+          "name": "ObservationPoint"
+        },
+        {
+          "name": "ObservationRangeOptions"
+        },
+        {
+          "name": "ObservationRanges"
+        },
+        {
+          "name": "ObservationRecordedEventData"
+        },
+        {
+          "name": "Observations",
+          "fields": true
+        },
+        {
+          "name": "ObservationsEvents"
+        },
+        {
+          "name": "ObservationsOptions"
+        },
+        {
+          "name": "ObservationSource"
+        },
+        {
+          "name": "ObservationStats"
+        },
+        {
+          "name": "ObservationStatus"
+        },
+        {
+          "name": "ObservationValue"
+        },
+        {
+          "name": "ObservationValueType"
+        }
+      ],
+      "entitySchemas": {
+        "observation_definition": {
+          "input": {
+            "title": "ObservationDefinitionInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "valueType": {
+                "kind": "enum",
+                "values": [
+                  "number",
+                  "integer",
+                  "boolean",
+                  "code",
+                  "text",
+                  "components"
+                ]
+              },
+              "unit": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 64
+              },
+              "codeSystem": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "code": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 64
+              },
+              "components": {
+                "kind": "json",
+                "optional": true,
+                "array": true,
+                "description": "For `components`: each with a key, a title, a code, a unit, decimals, optional and ranges."
+              },
+              "decimals": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0,
+                "maximum": 6
+              },
+              "validLow": {
+                "kind": "number",
+                "optional": true
+              },
+              "validHigh": {
+                "kind": "number",
+                "optional": true
+              },
+              "referenceLow": {
+                "kind": "number",
+                "optional": true
+              },
+              "referenceHigh": {
+                "kind": "number",
+                "optional": true
+              },
+              "criticalLow": {
+                "kind": "number",
+                "optional": true
+              },
+              "criticalHigh": {
+                "kind": "number",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ObservationDefinitionInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "valueType": {
+                  "type": "string",
+                  "enum": [
+                    "number",
+                    "integer",
+                    "boolean",
+                    "code",
+                    "text",
+                    "components"
+                  ]
+                },
+                "unit": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "codeSystem": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "code": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "components": {
+                  "type": "array",
+                  "items": {},
+                  "description": "For `components`: each with a key, a title, a code, a unit, decimals, optional and ranges."
+                },
+                "decimals": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 6
+                },
+                "validLow": {
+                  "type": "number"
+                },
+                "validHigh": {
+                  "type": "number"
+                },
+                "referenceLow": {
+                  "type": "number"
+                },
+                "referenceHigh": {
+                  "type": "number"
+                },
+                "criticalLow": {
+                  "type": "number"
+                },
+                "criticalHigh": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "title",
+                "valueType"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "observation": {
+          "input": {
+            "title": "ObservationInput",
+            "fields": {
+              "subjectType": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "subjectId": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "definitionKey": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63
+              },
+              "value": {
+                "kind": "unknown",
+                "description": "A number, true or false, a string, or the component values by key."
+              },
+              "observedAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "method": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "device": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "note": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 4000
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ObservationInput",
+              "type": "object",
+              "properties": {
+                "subjectType": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "subjectId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "definitionKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "value": {
+                  "description": "A number, true or false, a string, or the component values by key."
+                },
+                "observedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "method": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "device": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "subjectType",
+                "subjectId",
+                "definitionKey",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "ObservationsEvents",
+        "types": [
+          "observation_definition.created",
+          "observation_definition.updated",
+          "observation.recorded",
+          "observation.critical_recorded",
+          "observation.amended",
+          "observation.error_marked"
+        ]
+      }
     },
     {
       "name": "drive",

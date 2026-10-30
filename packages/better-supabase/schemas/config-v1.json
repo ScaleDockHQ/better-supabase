@@ -1677,6 +1677,7 @@
               "notifications",
               "numbering",
               "oauth-server",
+              "observations",
               "onboarding",
               "orders",
               "organizations",
@@ -1838,6 +1839,7 @@
                   "notifications",
                   "numbering",
                   "oauth-server",
+                  "observations",
                   "onboarding",
                   "orders",
                   "organizations",
@@ -2161,6 +2163,9 @@
             },
             "oauth-server": {
               "$ref": "#/$defs/blocks/oauth-server"
+            },
+            "observations": {
+              "$ref": "#/$defs/blocks/observations"
             },
             "onboarding": {
               "$ref": "#/$defs/blocks/onboarding"
@@ -5824,6 +5829,32 @@
             "properties": {
               "clientIdPattern": {
                 "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "observations": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "defaults": {
+                "type": "string",
+                "default": "none"
+              },
+              "partitioned": {
+                "type": "boolean",
+                "default": false
+              },
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           }

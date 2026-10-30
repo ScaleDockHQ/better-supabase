@@ -210,6 +210,16 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_risk_close",
     "after_risk_close",
   ],
+  observations: [
+    "before_observation_definition_save",
+    "after_observation_definition_save",
+    "before_observation_record",
+    "after_observation_record",
+    "before_observation_amend",
+    "after_observation_amend",
+    "before_observation_mark_error",
+    "after_observation_mark_error",
+  ],
 };
 
 /** Modules that call their hooks only for configured items. */

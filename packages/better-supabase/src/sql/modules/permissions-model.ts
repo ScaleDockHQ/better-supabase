@@ -114,6 +114,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "consents.*",
     "waitlist.invite",
     "accounting.*",
+    "observations.*",
   ],
   member: [
     "organization.read",
@@ -237,6 +238,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "forecasts.read",
     "field_history.read",
     "risks.read",
+    "observations.read",
+    "observations.record",
   ],
   viewer: ["organization.read"],
 };
@@ -572,6 +575,9 @@ export const OPERATIONS = {
   "risks.write": "risks.write",
   "risks.assess": "risks.assess",
   "risks.manage": "risks.manage",
+  "observations.read": "observations.read",
+  "observations.record": "observations.record",
+  "observations.manage": "observations.manage",
 } as const;
 
 /** An operation name, `<module>.<action>`. */

@@ -438,6 +438,9 @@ may be your own enum or domain.
   - `better_supabase.oauth_authorization_codes`: `code_hash`, `client_id`, `user_id`, `grant_id`, `redirect_uri`, `scope`, `resource`, `code_challenge`, `expires_at`, `consumed_at`
   - `better_supabase.oauth_device_codes`: `device_code_hash`, `user_code`, `client_id`, `scope`, `resource`, `status`, `user_id`, `grant_id`, `poll_interval`, `last_polled_at`, `expires_at`, `consumed_at`; typed: `status`
   - `better_supabase.oauth_revocations`: `jti`, `expires_at`
+- `observations`
+  - `better_supabase.observation_definitions`: `id`, `tenant_id`, `key`, `title`, `value_type`, `unit`, `code_system`, `code`, `components`, `decimals`, `valid_low`, `valid_high`, `reference_low`, `reference_high`, `critical_low`, `critical_high`, `archived_at`
+  - `better_supabase.observations`: `id`, `tenant_id`, `definition_id`, `subject_type`, `subject_id`, `observed_at`, `value_number`, `value_text`, `value_code`, `components`, `flag`, `status`, `replaces_id`, `source`, `external_id`, `submission_id`, `performer_id`, `created_at`
 - `orders`
   - `better_supabase.carts`: `id`, `tenant_id`, `user_id`, `currency`, `price_list_id`, `status`, `shipping_address`, `shipping_rate_id`, `created_at`, `updated_at`, `converted_at`; typed: `status`
   - `better_supabase.cart_lines`: `id`, `tenant_id`, `cart_id`, `variant_id`, `quantity`, `unit_amount`, `created_at`, `updated_at`

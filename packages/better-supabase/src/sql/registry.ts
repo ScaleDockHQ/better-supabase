@@ -93,6 +93,7 @@ import { MODERATION } from "./modules/moderation.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
 import { NUMBER_SEQUENCES } from "./modules/numbering.ts";
 import { OAUTH_SERVER } from "./modules/oauth-server.ts";
+import { OBSERVATIONS } from "./modules/observations.ts";
 import { ONBOARDING } from "./modules/onboarding.ts";
 import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
@@ -392,6 +393,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(ACCOUNTING),
       built(ACKNOWLEDGEMENTS),
       built(CONSENTS),
+      built(OBSERVATIONS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

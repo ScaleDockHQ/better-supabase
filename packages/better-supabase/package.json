@@ -1075,6 +1075,11 @@
       "types": "./dist/blocks/consents/index.d.ts",
       "default": "./dist/blocks/consents/index.js"
     },
+    "./blocks/observations": {
+      "@better-supabase/source": "./src/blocks/observations/index.ts",
+      "types": "./dist/blocks/observations/index.d.ts",
+      "default": "./dist/blocks/observations/index.js"
+    },
     "./blocks/contracts": {
       "@better-supabase/source": "./src/blocks/contracts/index.ts",
       "types": "./dist/blocks/contracts/index.d.ts",
@@ -1949,6 +1954,10 @@
       "./blocks/consents": {
         "types": "./dist/blocks/consents/index.d.ts",
         "default": "./dist/blocks/consents/index.js"
+      },
+      "./blocks/observations": {
+        "types": "./dist/blocks/observations/index.d.ts",
+        "default": "./dist/blocks/observations/index.js"
       },
       "./blocks/contracts": {
         "types": "./dist/blocks/contracts/index.d.ts",
