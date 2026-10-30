@@ -18446,6 +18446,86 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Bom"
+        },
+        {
+          "name": "BomActivatedEventData"
+        },
+        {
+          "name": "BomComponent"
+        },
+        {
+          "name": "BomComponentInput"
+        },
+        {
+          "name": "BomDetail"
+        },
+        {
+          "name": "BomExplosion"
+        },
+        {
+          "name": "BomExplosionLine"
+        },
+        {
+          "name": "BomInput"
+        },
+        {
+          "name": "BomOperation"
+        },
+        {
+          "name": "BomOperationInput"
+        },
+        {
+          "name": "BomStatus"
+        },
+        {
+          "name": "BomUse"
+        },
+        {
+          "name": "ProductionConsumption"
+        },
+        {
+          "name": "ProductionOrder",
+          "fields": true
+        },
+        {
+          "name": "ProductionOrderCancelledEventData"
+        },
+        {
+          "name": "ProductionOrderCompletedEventData"
+        },
+        {
+          "name": "ProductionOrderComponent"
+        },
+        {
+          "name": "ProductionOrderDetail",
+          "fields": true
+        },
+        {
+          "name": "ProductionOrderEventData"
+        },
+        {
+          "name": "ProductionOrderInput",
+          "fields": true
+        },
+        {
+          "name": "ProductionOrderListOptions"
+        },
+        {
+          "name": "ProductionOrderOperation"
+        },
+        {
+          "name": "ProductionOrderStatus"
+        },
+        {
+          "name": "WorkCenter"
+        },
+        {
+          "name": "WorkCenterInput"
+        }
+      ],
       "entitySchemas": {
         "bom": {
           "input": {
@@ -18639,6 +18719,15 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         }
+      },
+      "events": {
+        "type": "ManufacturingEvents",
+        "types": [
+          "bom.activated",
+          "production_order.released",
+          "production_order.completed",
+          "production_order.cancelled"
+        ]
       }
     },
     {
