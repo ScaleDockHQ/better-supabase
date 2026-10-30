@@ -20,6 +20,7 @@ import {
   lockGuard,
   subtreeLockGuard,
 } from "./drive-locks.ts";
+import { driveOwnershipSql } from "./drive-ownership.ts";
 import { driveTablesSql, driveTriggersSql } from "./drive-tables.ts";
 import { driveTextTableSql } from "./drive-texts.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -928,7 +929,8 @@ ${driveGrantsSql(kit)}
 ${driveHoldsSql(kit)}
 ${driveDrivesSql(kit)}
 ${driveLocksSql(kit)}
-${driveTextTableSql(kit)}`;
+${driveTextTableSql(kit)}
+${driveOwnershipSql(kit)}`;
 
   return core;
 }

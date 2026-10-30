@@ -2,7 +2,7 @@ import type { DriveKit } from "./drive-kit.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, SERVICE_CALLER, serviceGrant, userGrant } from "../shared.ts";
-import { UUID_TEXT } from "./drive-kit.ts";
+import { UUID_TEXT, usable } from "./drive-kit.ts";
 
 const LOCKED_MESSAGE = "this item is checked out by someone else";
 
@@ -191,7 +191,14 @@ begin
   end if;
   if drive_share_link_allowed.role = 'upload' and v_node.${n("kind")} <> 'folder' then
     ${fail("DRIVE_LINK_ROLE_INVALID", "an upload link names a folder", "22023")}
-  end if;
+  end if;${
+    usable(ctx, "settings") === undefined
+      ? ""
+      : `
+  if ${fn("drive_sharing")}(v_node.${n("tenant")}) ->> 'links' = 'none' then
+    ${fail("DRIVE_SHARING_DISABLED", "this organization has turned off share links", "42501")}
+  end if;`
+  }
   return true;
 end;
 $$;

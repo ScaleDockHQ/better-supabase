@@ -422,7 +422,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:7b35d9487d54d4b44350750d885aaec4e8c786a2b4546a64bd6d84faf685e77f
+-- @bsb-hash sha256:c19e47b3de1c9aab443fbbeb6b6697cfa933898761db85cb9c816d645f168452
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -869,9 +869,10 @@ $$;
 revoke execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) to authenticated, service_role;
 
--- Asks for access to one record: its team leads approve, or the holders of
--- subjects.manage when it has no lead. The final approval adds a team row
--- (or the record's accessGrant) that ends after the duration.
+-- Asks for access to one record: its team leads approve, then the record's
+-- own approvers when its type names them, or the holders of subjects.manage.
+-- The final approval adds a team row (or the record's accessGrant) that ends
+-- after the duration.
 create or replace function "better_supabase"."request_record_access"(subject_type text, subject_id text, action text default 'read', reason text default null, duration interval default interval '7 days')
 returns jsonb
 language plpgsql
@@ -1100,6 +1101,48 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_emergency_access"(uuid, boolean, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_emergency_access"(uuid, boolean, integer, timestamptz) to authenticated, service_role;
+
+-- The access requests on one record, newest first: every one for a holder of
+-- access_requests.read, a team lead or one of the record's approvers, and the
+-- caller's own for anyone else.
+create or replace function "better_supabase"."list_record_access_requests"(subject_type text, subject_id text, status text default null, page_size integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+set intervalstyle = 'iso_8601'
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid;
+  v_all boolean;
+begin
+  v_tenant := "better_supabase"."record_team_tenant"(list_record_access_requests.subject_type, list_record_access_requests.subject_id);
+  if v_tenant is null then
+    return '[]'::jsonb;
+  end if;
+  v_all := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'access_requests.read'), false)
+    or coalesce(auth.uid() = any ("better_supabase"."record_team_leads"(list_record_access_requests.subject_type, list_record_access_requests.subject_id)), false)
+    or false;
+  return (
+    select coalesce(jsonb_agg(item order by created desc), '[]'::jsonb)
+    from (
+      select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'target', r."target", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'emergency', r."emergency", 'review', case when r."reviewed_at" is null then null else jsonb_build_object('verdict', r."review_verdict", 'note', r."review_note", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at") end, 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as item, r."created_at" as created
+      from "better_supabase"."access_requests" r
+      left join "better_supabase"."approval_requests" x on x."id" = r."approval_id"
+      where r."tenant_id" = v_tenant and r."target" = 'record'
+        and r."subject_type" = list_record_access_requests.subject_type and r."subject_id" = list_record_access_requests.subject_id
+        and (v_all or r."user_id" = auth.uid())
+        and (list_record_access_requests.status is null or case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end = list_record_access_requests.status)
+      order by r."created_at" desc
+      limit least(greatest(coalesce(list_record_access_requests.page_size, 50), 1), 200)
+    ) items
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_record_access_requests"(text, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_record_access_requests"(text, text, text, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

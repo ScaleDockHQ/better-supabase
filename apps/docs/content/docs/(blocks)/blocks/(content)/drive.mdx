@@ -160,6 +160,78 @@ A contributor can't list, open or download the folder or anything in it, includi
 
 The upload role works on node grants, not on drive grants. When your grant table's `role` column is an enum, add the upload role's value to it.
 
+## Access requests
+
+With [access-requests](/docs/blocks/access-requests) installed, a member who finds a link to a node they can't open can ask for access instead of asking someone to share it. Turn it on in the subject entry; `accessRequests: true` lets members ask to read, and a list such as `["read", "write"]` names the actions they may ask for:
+
+```ts title="better-supabase.config.ts"
+subjects: {
+  drive_node: driveSubject({ accessRequests: true }),
+},
+```
+
+Pass the access-requests client to the drive as `recordAccess` (`createBlocks` wires it for you), then call `requestAccess` and `accessRequests`:
+
+```ts
+const drive = createDrive({
+  transport,
+  recordAccess: createAccessRequests({ transport }),
+});
+
+const request = await drive
+  .requestAccess(nodeId, {
+    action: "read",
+    reason: "Preparing the quarter close",
+    duration: Temporal.Duration.from({ days: 3 }),
+  })
+  .orThrow();
+
+const pending = await drive
+  .accessRequests(nodeId, { status: "pending" })
+  .orThrow();
+```
+
+The users who hold the top role on the node, on a folder above it or on its drive approve the request; without one, the holders of `subjects.manage` do. On approval the drive adds a node grant marked as an access request, with the read role for `read`, the comment role for `comment` and the write role for `write`, that ends with the request (7 days unless the request names a duration). Ending the request, or `expire_access_grants()`, removes that grant and never touches a grant someone shared by hand. A client built without `recordAccess` returns `invalid_request` with the hint `DRIVE_ACCESS_REQUESTS_CLIENT`. Over your own grant table, map a boolean `accessRequest` column and `expiresAt` in `blocks.drive.columns.grants`; without them, rendering the SQL fails with an error that names them.
+
+An approved request changes the node's grants, not its record team. Adding someone to the node's team with `add_subject_member` lets them read the node's comments and attachments, but not the node itself: share the node for that.
+
+## Ownership and offboarding
+
+`transferOwnership` hands everything one member holds at the top role to another member: their top-role grants on nodes, and with `drives` on, their drive grants and the drives they own. It needs `drive.manage` or the service role, and the new owner must be a member (`DRIVE_PRINCIPAL_NOT_FOUND`). Each moved node records `drive.node_ownership_transferred` and each drive `drive.ownership_transferred`.
+
+```ts
+const moved = await db.drive
+  .transferOwnership(organizationId, leavingUserId, managerId)
+  .orThrow();
+// { nodes: 12, drives: 1 }
+```
+
+`driveOffboardingSink` runs the transfer from the outbox when a member leaves, on `organization.member_removed` and on the employees block's `employee.offboarded`. `transferTo` names the new owner from the event; return `undefined` to keep the items where they are. Give it a drive client on the service transport, since the member's grants are gone by the time the event arrives:
+
+```ts title="src/app/api/outbox/route.ts"
+import { driveOffboardingSink } from "better-supabase/blocks/drive";
+
+const driveOffboarding = driveOffboardingSink(admin.$blocks.drive, {
+  transferTo: async (event) => ownerOf(event.organizationId),
+});
+```
+
+A failed transfer throws, so the outbox retries the event.
+
+## Sharing policy
+
+With the [settings](/docs/blocks/settings) block installed, an organization can turn sharing down through the `drive.sharing` organization setting. `guests: false` refuses guest grants on drive items, and `links` takes `anyone` (the default), `organization`, which lets only signed-in members of the organization open a link, or `none`, which refuses new share links and stops existing ones from opening. Refusals fail with `forbidden` and the hint `DRIVE_SHARING_DISABLED`.
+
+```ts title="src/lib/settings.ts"
+import { driveSettings } from "better-supabase/blocks/drive";
+
+export const settings = defineSettings({
+  organization: { ...driveSettings.schemas.organization },
+});
+```
+
+`driveSettings` declares the setting with its schema and default (`{ guests: true, links: "anyone" }`), and `drive_sharing(tenant)` returns the merged value in SQL for your own policies. Sharing with members of the organization is never restricted by this setting.
+
 ## File requests
 
 A file request lets anyone with a link send files into a folder, without an account. It is a [share link](/docs/blocks/share-links) with the role `upload`, so it takes the same expiry, use limit and password. `createFileRequest` needs the share role on the folder, and the token comes back once:
@@ -465,46 +537,49 @@ drive: {
 
 ## Errors
 
-| Hint                         | When                                                                                                 |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `DRIVE_NOT_FOUND`            | The node doesn't exist, or the caller may not read it                                                |
-| `DRIVE_FORBIDDEN`            | The caller's role on the node doesn't allow the change                                               |
-| `DRIVE_NAME_CONFLICT`        | The folder already has a node with that name and `conflict` is `fail`                                |
-| `DRIVE_NAME_INVALID`         | The name isn't 1 to 255 characters, or holds a `/` or a control character                            |
-| `DRIVE_CONFLICT_INVALID`     | `conflict` isn't `fail`, `rename` or `replace`                                                       |
-| `DRIVE_PARENT_NOT_FOUND`     | The parent folder doesn't exist in the organization                                                  |
-| `DRIVE_PARENT_NOT_FOLDER`    | The parent is a file                                                                                 |
-| `DRIVE_PARENT_TRASHED`       | `restore` names a node whose folder is still in the bin                                              |
-| `DRIVE_MOVE_CYCLE`           | The move puts a folder inside itself                                                                 |
-| `DRIVE_RANK_INVALID`         | The rank isn't a rank key                                                                            |
-| `DRIVE_ROLE_UNKNOWN`         | The role isn't one of `options.roles`                                                                |
-| `DRIVE_PRINCIPAL_INVALID`    | The principal type isn't `user`, `team` or `role`, or the id is missing                              |
-| `DRIVE_PRINCIPAL_NOT_FOUND`  | The user isn't a member, or the team or role isn't in the organization                               |
-| `DRIVE_NOT_A_FILE`           | A file call names a folder                                                                           |
-| `DRIVE_ATTACHMENT_NOT_FOUND` | `commit` or `requestApproval` names an upload that doesn't belong to the file, or isn't uploaded yet |
-| `DRIVE_REVISION_NOT_FOUND`   | The revision doesn't belong to the file                                                              |
-| `DRIVE_LINK_NOT_FOUND`       | The link is unknown, expired or revoked, or the node isn't under it                                  |
-| `DRIVE_STORAGE_CLIENT`       | A file call ran on a client created without `storage`                                                |
-| `DRIVE_READ_ONLY`            | The node mirrors an external account, so only the sync may change it                                 |
-| `DRIVE_HELD`                 | The node or something under it is under a legal hold                                                 |
-| `DRIVE_HOLD_INVALID`         | `hold` needs an end in the future                                                                    |
-| `DRIVE_REQUIRED`             | A top-level node needs a drive                                                                       |
-| `DRIVE_KIND_INVALID`         | The drive kind isn't one of `options.driveKinds`                                                     |
-| `DRIVE_CONNECTION_NOT_FOUND` | `createDrive` names a connection that doesn't exist or isn't the caller's                            |
-| `DRIVE_CONNECTION_EXISTS`    | The caller already connected this account under that name                                            |
-| `DRIVE_PROVIDER_INVALID`     | The provider isn't one of `options.sources`                                                          |
-| `DRIVE_NOT_CONNECTED`        | `drive_sync_batch` names a drive that doesn't mirror a connection                                    |
-| `DRIVE_OWNER_NOT_MEMBER`     | The owner isn't an active member of the organization                                                 |
-| `DRIVE_LOCKED`               | Someone else has the file, or a file under the folder, checked out                                   |
-| `DRIVE_LOCK_INVALID`         | The lock doesn't end in the future within 30 days, or the note is over 500 characters                |
-| `DRIVE_DOWNLOAD_BLOCKED`     | `download` names a file whose downloads are blocked for the caller                                   |
-| `DRIVE_TARGET_INVALID`       | A download block names an unknown target type, or `blocked` isn't true or false                      |
-| `DRIVE_LINK_ROLE_INVALID`    | An upload link names a file, `link` opens an upload link, or a view link takes a file                |
-| `DRIVE_LINK_RATE_LIMITED`    | A file request took more files than its rate limit allows                                            |
-| `DRIVE_PREVIEWS_INVALID`     | `drive_set_previews` got no page count or a negative one                                             |
-| `DRIVE_QUOTA_EXCEEDED`       | The upload would pass the organization's `quota` meter                                               |
-| `DRIVE_TEXT_FAILED`          | The text extractor threw while reading the file                                                      |
-| `TRASH_HELD`                 | `purge` names a batch with a subject under a legal hold                                              |
+| Hint                           | When                                                                                                 |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `DRIVE_NOT_FOUND`              | The node doesn't exist, or the caller may not read it                                                |
+| `DRIVE_FORBIDDEN`              | The caller's role on the node doesn't allow the change                                               |
+| `DRIVE_NAME_CONFLICT`          | The folder already has a node with that name and `conflict` is `fail`                                |
+| `DRIVE_NAME_INVALID`           | The name isn't 1 to 255 characters, or holds a `/` or a control character                            |
+| `DRIVE_CONFLICT_INVALID`       | `conflict` isn't `fail`, `rename` or `replace`                                                       |
+| `DRIVE_PARENT_NOT_FOUND`       | The parent folder doesn't exist in the organization                                                  |
+| `DRIVE_PARENT_NOT_FOLDER`      | The parent is a file                                                                                 |
+| `DRIVE_PARENT_TRASHED`         | `restore` names a node whose folder is still in the bin                                              |
+| `DRIVE_MOVE_CYCLE`             | The move puts a folder inside itself                                                                 |
+| `DRIVE_RANK_INVALID`           | The rank isn't a rank key                                                                            |
+| `DRIVE_ROLE_UNKNOWN`           | The role isn't one of `options.roles`                                                                |
+| `DRIVE_PRINCIPAL_INVALID`      | The principal type isn't `user`, `team` or `role`, or the id is missing                              |
+| `DRIVE_PRINCIPAL_NOT_FOUND`    | The user isn't a member, or the team or role isn't in the organization                               |
+| `DRIVE_NOT_A_FILE`             | A file call names a folder                                                                           |
+| `DRIVE_ATTACHMENT_NOT_FOUND`   | `commit` or `requestApproval` names an upload that doesn't belong to the file, or isn't uploaded yet |
+| `DRIVE_REVISION_NOT_FOUND`     | The revision doesn't belong to the file                                                              |
+| `DRIVE_LINK_NOT_FOUND`         | The link is unknown, expired or revoked, or the node isn't under it                                  |
+| `DRIVE_STORAGE_CLIENT`         | A file call ran on a client created without `storage`                                                |
+| `DRIVE_READ_ONLY`              | The node mirrors an external account, so only the sync may change it                                 |
+| `DRIVE_HELD`                   | The node or something under it is under a legal hold                                                 |
+| `DRIVE_HOLD_INVALID`           | `hold` needs an end in the future                                                                    |
+| `DRIVE_REQUIRED`               | A top-level node needs a drive                                                                       |
+| `DRIVE_KIND_INVALID`           | The drive kind isn't one of `options.driveKinds`                                                     |
+| `DRIVE_CONNECTION_NOT_FOUND`   | `createDrive` names a connection that doesn't exist or isn't the caller's                            |
+| `DRIVE_CONNECTION_EXISTS`      | The caller already connected this account under that name                                            |
+| `DRIVE_PROVIDER_INVALID`       | The provider isn't one of `options.sources`                                                          |
+| `DRIVE_NOT_CONNECTED`          | `drive_sync_batch` names a drive that doesn't mirror a connection                                    |
+| `DRIVE_OWNER_NOT_MEMBER`       | The owner isn't an active member of the organization                                                 |
+| `DRIVE_LOCKED`                 | Someone else has the file, or a file under the folder, checked out                                   |
+| `DRIVE_LOCK_INVALID`           | The lock doesn't end in the future within 30 days, or the note is over 500 characters                |
+| `DRIVE_DOWNLOAD_BLOCKED`       | `download` names a file whose downloads are blocked for the caller                                   |
+| `DRIVE_TARGET_INVALID`         | A download block names an unknown target type, or `blocked` isn't true or false                      |
+| `DRIVE_LINK_ROLE_INVALID`      | An upload link names a file, `link` opens an upload link, or a view link takes a file                |
+| `DRIVE_LINK_RATE_LIMITED`      | A file request took more files than its rate limit allows                                            |
+| `DRIVE_PREVIEWS_INVALID`       | `drive_set_previews` got no page count or a negative one                                             |
+| `DRIVE_QUOTA_EXCEEDED`         | The upload would pass the organization's `quota` meter                                               |
+| `DRIVE_TEXT_FAILED`            | The text extractor threw while reading the file                                                      |
+| `DRIVE_TRANSFER_INVALID`       | `transferOwnership` names the same user twice, or no user                                            |
+| `DRIVE_SHARING_DISABLED`       | The organization's `drive.sharing` setting turns off that link or guest grant                        |
+| `DRIVE_ACCESS_REQUESTS_CLIENT` | `requestAccess` or `accessRequests` ran on a client created without `recordAccess`                   |
+| `TRASH_HELD`                   | `purge` names a batch with a subject under a legal hold                                              |
 
 A read-only support session refuses every write with `ACTOR_READ_ONLY`. In a
 writable [support session](/docs/auth/impersonation#storage-in-a-support-session),
@@ -514,7 +589,7 @@ with the hint `DRIVE_FORBIDDEN`, and the upload stays uncommitted.
 
 ## Events and hooks
 
-The drive records `drive.node_created`, `drive.node_renamed`, `drive.node_moved`, `drive.node_shared`, `drive.node_unshared`, `drive.node_purged`, `drive.node_hold_placed`, `drive.node_hold_released`, `drive.node_locked`, `drive.node_unlocked` and `drive.node_download_blocked_changed`; with `drives` on it also records `drive.created`, `drive.renamed`, `drive.deleted`, `drive.shared`, `drive.unshared`, `drive.download_blocked_changed`, `drive.connection_created` and `drive.connection_removed`. The [events page](/docs/extending/events) lists their payloads. Sharing, unsharing and download blocks also write an `access` audit entry. The `before_` and `after_` SQL hooks run around `drive_node_create`, `drive_node_move`, `drive_node_rename` and `drive_node_share`, and the client takes `withBlockHooks` hooks on every method.
+The drive records `drive.node_created`, `drive.node_renamed`, `drive.node_moved`, `drive.node_shared`, `drive.node_unshared`, `drive.node_purged`, `drive.node_hold_placed`, `drive.node_hold_released`, `drive.node_locked`, `drive.node_unlocked`, `drive.node_download_blocked_changed` and `drive.node_ownership_transferred`; with `drives` on it also records `drive.created`, `drive.renamed`, `drive.deleted`, `drive.shared`, `drive.unshared`, `drive.download_blocked_changed`, `drive.ownership_transferred`, `drive.connection_created` and `drive.connection_removed`. The [events page](/docs/extending/events) lists their payloads. Sharing, unsharing, download blocks and ownership transfers also write an `access` audit entry. The `before_` and `after_` SQL hooks run around `drive_node_create`, `drive_node_move`, `drive_node_rename` and `drive_node_share`, and the client takes `withBlockHooks` hooks on every method.
 
 ## Without the client
 

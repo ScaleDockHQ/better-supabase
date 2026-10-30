@@ -161,6 +161,12 @@ export interface AccessRequestListOptions {
   readonly before?: Temporal.Instant;
 }
 
+export interface RecordRequestListOptions {
+  /** Default: every status. */
+  readonly status?: AccessRequestStatus;
+  readonly pageSize?: number;
+}
+
 /** `F` is the extra fields `options.fields` describes. */
 export interface AccessRequests<F extends object = Record<never, never>> {
   /**
@@ -192,6 +198,16 @@ export interface AccessRequests<F extends object = Record<never, never>> {
   emergencies(
     organizationId: string,
     options?: EmergencyListOptions,
+  ): AsyncResult<readonly (RecordAccessRequest & F)[]>;
+  /**
+   * The requests on one record, newest first: all of them for readers of the
+   * organization, its team leads and its approvers, and the caller's own for
+   * anyone else.
+   */
+  records(
+    subjectType: string,
+    subjectId: string,
+    options?: RecordRequestListOptions,
   ): AsyncResult<readonly (RecordAccessRequest & F)[]>;
   /** Ends granted access early: a manager, or the holder giving it up. */
   end(id: string): AsyncResult<AccessRequest & F>;
@@ -400,6 +416,24 @@ export function createAccessRequests<
           recordsOf(value, "list_emergency_access").map(
             (raw) =>
               [raw, recordRequestOf(raw, "list_emergency_access")] as const,
+          ),
+      ).andThen((rows) => allWithFields(fields, rows)),
+    records: (subjectType, subjectId, list = {}) =>
+      call(
+        "list_record_access_requests",
+        {
+          subject_type: subjectType,
+          subject_id: subjectId,
+          status: list.status ?? null,
+          page_size: list.pageSize ?? null,
+        },
+        (value) =>
+          recordsOf(value, "list_record_access_requests").map(
+            (raw) =>
+              [
+                raw,
+                recordRequestOf(raw, "list_record_access_requests"),
+              ] as const,
           ),
       ).andThen((rows) => allWithFields(fields, rows)),
     end: (id) => one("end_access", { request_id: id }),

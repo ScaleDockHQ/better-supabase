@@ -38,7 +38,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:f4a0c095507a0503fb6155789da8a70eafdc45e8b77e466188b6087801a61021
+-- @bsb-hash sha256:cbc6c7747946bee29068b35a5389edcb94ca0d95a3b000f0238fa3e9ef9ba9b0
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -730,6 +730,15 @@ begin
   if v_role = 'upload' then
     raise exception 'an upload link takes files and opens nothing' using errcode = '22023', hint = 'DRIVE_LINK_ROLE_INVALID';
   end if;
+  if "better_supabase"."drive_sharing"(v_node."tenant_id") ->> 'links' = 'none' then
+    raise exception 'this organization has turned off share links' using errcode = '42501', hint = 'DRIVE_SHARING_DISABLED';
+  end if;
+  if "better_supabase"."drive_sharing"(v_node."tenant_id") ->> 'links' = 'organization' and not exists (
+    select 1 from "better_supabase"."memberships" mu
+    where mu."organization_id" = v_node."tenant_id" and mu."user_id" = auth.uid() and mu."disabled_at" is null
+  ) then
+    raise exception 'sign in as a member of this organization to open this link' using errcode = '42501', hint = 'DRIVE_SHARING_DISABLED';
+  end if;
   v_download := coalesce(v_download, true) and not "better_supabase"."drive_download_blocked"(v_node."id");
   return jsonb_build_object(
     'link', jsonb_build_object('id', v_link_id, 'role', v_role, 'nodeId', v_root::uuid, 'expiresAt', v_expires, 'downloadAllowed', v_download),
@@ -807,6 +816,15 @@ begin
     and x."tenant_id"::text = v_link ->> 'organizationId' and x."deleted_at" is null;
   if not found or v_folder."kind" <> 'folder' then
     raise exception 'this link does not open that item' using errcode = 'P0002', hint = 'DRIVE_LINK_NOT_FOUND';
+  end if;
+  if "better_supabase"."drive_sharing"(v_folder."tenant_id") ->> 'links' = 'none' then
+    raise exception 'this organization has turned off share links' using errcode = '42501', hint = 'DRIVE_SHARING_DISABLED';
+  end if;
+  if "better_supabase"."drive_sharing"(v_folder."tenant_id") ->> 'links' = 'organization' and not exists (
+    select 1 from "better_supabase"."memberships" mu
+    where mu."organization_id" = v_folder."tenant_id" and mu."user_id" = auth.uid() and mu."disabled_at" is null
+  ) then
+    raise exception 'sign in as a member of this organization to open this link' using errcode = '42501', hint = 'DRIVE_SHARING_DISABLED';
   end if;
   if (coalesce(v_folder."source"::text, 'internal') not in ('internal', 'request') or false) then
     raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
@@ -953,6 +971,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_approvals"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_approvals"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."drive_guest_sharing"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new."subject_type" = 'drive_node'
+    and ("better_supabase"."drive_sharing"(new."tenant_id") ->> 'guests')::boolean is false then
+    raise exception 'this organization has turned off sharing drive items with guests' using errcode = '42501', hint = 'DRIVE_SHARING_DISABLED';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."drive_guest_sharing"() from public, anon, authenticated;
+drop trigger if exists "bsb_drive_guest_sharing" on "better_supabase"."guest_grants";
+create trigger "bsb_drive_guest_sharing"
+  before insert or update of "subject_type", "subject_id" on "better_supabase"."guest_grants"
+  for each row execute function "better_supabase"."drive_guest_sharing"();
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

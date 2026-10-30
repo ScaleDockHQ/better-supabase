@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:038d59e4b2f1fb5cf0683db2b125e618a652035d885a3a96017eb08ff51e0270
+-- @bsb-hash sha256:35a8b6f85c825ae11ea2bee59b3960ed9900828d8d5cdeb3107f886cfabc1e9e
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -205,6 +205,15 @@ begin
   end if;
   if v_role = 'upload' then
     raise exception 'an upload link takes files and opens nothing' using errcode = '22023', hint = 'DRIVE_LINK_ROLE_INVALID';
+  end if;
+  if "better_supabase"."drive_sharing"(v_node."organization_id") ->> 'links' = 'none' then
+    raise exception 'this organization has turned off share links' using errcode = '42501', hint = 'DRIVE_SHARING_DISABLED';
+  end if;
+  if "better_supabase"."drive_sharing"(v_node."organization_id") ->> 'links' = 'organization' and not exists (
+    select 1 from "centrakit"."organization_users" mu
+    where mu."organization_id" = v_node."organization_id" and mu."user_id" = auth.uid()
+  ) then
+    raise exception 'sign in as a member of this organization to open this link' using errcode = '42501', hint = 'DRIVE_SHARING_DISABLED';
   end if;
   v_download := coalesce(v_download, true) and not "better_supabase"."drive_download_blocked"(v_node."id");
   return jsonb_build_object(

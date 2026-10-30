@@ -10,12 +10,15 @@ import { accessRequestsSqlOptions } from "./options.ts";
 export const accessRequestsBlock: BlockOf<
   "access-requests",
   typeof createAccessRequests,
-  AccessRequestsEvents
+  AccessRequestsEvents,
+  Record<never, never>,
+  "recordAccess"
 > = defineBlock({
   name: "access-requests",
   sql: ["access-requests"],
   options: { "access-requests": accessRequestsSqlOptions },
   events: accessRequestsEvents,
+  provides: { recordAccess: (client) => client },
   create: createAccessRequests,
   category: "identity",
   recipes: ["access-requests-inbox"],

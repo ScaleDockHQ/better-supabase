@@ -87,7 +87,15 @@ The record's team leads approve it; a record without a lead goes to the holders 
 
 A request for a subject type without a team, an unknown action, a record that doesn't exist or access the member already has fails with `ACCESS_REQUEST_RECORD_INVALID`. A member can have one pending request per record. Read a request's target from `request.target`: `role` or `record`.
 
-A block that keeps its own grants, such as the drive, contributes an access grant for its subject type. The module then calls the block's grant function on approval and again with `ends_at = now()` when the grant ends, instead of adding a `subject_members` row.
+`records(subjectType, subjectId)` lists the requests on one record, newest first. Readers of the organization's requests (`access_requests.read`), the record's team leads and its approvers see all of them; anyone else sees their own. Pass `{ status: "pending" }` to list the open ones, and `pageSize` (50 by default, at most 200).
+
+```ts
+const pending = await db.accessRequests
+  .records("client", clientId, { status: "pending" })
+  .orThrow();
+```
+
+A block that keeps its own grants, such as the [drive](/docs/blocks/drive#access-requests), contributes an access grant for its subject type. The module then calls the block's grant function on approval and again with `ends_at = now()` when the grant ends, instead of adding a `subject_members` row. The contribution can also name an approvers function, which returns the users who approve a request when the record has no team lead (the drive names the node's owners); without one, the holders of `subjects.manage` approve.
 
 ## Emergency access
 

@@ -8,7 +8,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   acknowledgements:
     "acknowledge acknowledgement_status acknowledgements_of assign_acknowledgement list_acknowledgement_assignments list_my_acknowledgements notify_due_acknowledgements unassign_acknowledgement",
   "access-requests":
-    "end_access get_access_request list_access_requests list_emergency_access open_emergency_access request_access request_record_access review_emergency_access",
+    "end_access get_access_request list_access_requests list_emergency_access list_record_access_requests open_emergency_access request_access request_record_access review_emergency_access",
   accounting:
     "accounting_balance_sheet accounting_budget_vs_actual accounting_fx_rate accounting_general_ledger accounting_period_close_blockers accounting_profit_and_loss accounting_tax_report accounting_trial_balance archive_accounting_account close_accounting_period close_fiscal_year delete_accounting_entry get_accounting_budget get_accounting_entry get_accounting_settings list_accounting_accounts list_accounting_budgets list_accounting_dimensions list_accounting_entries list_accounting_journals list_accounting_periods list_accounting_tax_codes open_fiscal_year post_accounting_entry post_accounting_source reopen_accounting_period reverse_accounting_entry save_accounting_account save_accounting_budget save_accounting_dimension save_accounting_dimension_value save_accounting_entry save_accounting_journal save_accounting_tax_code set_accounting_account_role set_accounting_fx_rate set_accounting_lock_date setup_accounting",
   activities:
@@ -89,7 +89,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   donations:
     "archive_donation_fund create_pledge due_pledge_installments get_gift issue_gift_receipt issue_yearly_receipt list_donation_funds list_donation_receipts list_gifts list_pledges open_gift record_gift record_gift_payment save_donation_fund update_pledge void_donation_receipt yearly_giving_summary",
   drive:
-    "drive_create_folder drive_delete drive_get drive_grants drive_hold drive_list drive_lock drive_move drive_path drive_release_hold drive_rename drive_set_download_blocked drive_share drive_shared drive_unlock drive_unshare",
+    "drive_create_folder drive_delete drive_get drive_grants drive_hold drive_list drive_lock drive_move drive_path drive_release_hold drive_rename drive_set_download_blocked drive_share drive_shared drive_transfer_ownership drive_unlock drive_unshare",
   employees:
     "add_employee_contract create_employee employee_contracts employee_private_details offboard_employee org_chart reports_of save_employee_private_details update_employees",
   enrichment:

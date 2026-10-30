@@ -28,6 +28,8 @@ export type DriveEvents = {
   readonly "drive.deleted": DriveEventData;
   readonly "drive.shared": DriveEventData;
   readonly "drive.unshared": DriveEventData;
+  readonly "drive.node_ownership_transferred": DriveEventData;
+  readonly "drive.ownership_transferred": DriveEventData;
   readonly "drive.connection_created": DriveEventData;
   readonly "drive.connection_removed": DriveEventData;
 };
@@ -57,6 +59,8 @@ export const driveEvents: Events<DriveEvents> = defineEvents({
   "drive.deleted": event<DriveEventData>(),
   "drive.shared": event<DriveEventData>(),
   "drive.unshared": event<DriveEventData>(),
+  "drive.node_ownership_transferred": event<DriveEventData>(),
+  "drive.ownership_transferred": event<DriveEventData>(),
   "drive.connection_created": event<DriveEventData>(),
   "drive.connection_removed": event<DriveEventData>(),
 });

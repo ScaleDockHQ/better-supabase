@@ -12,6 +12,7 @@ export {
   type EmergencyReviewInput,
   type RecordAccessInput,
   type RecordAccessRequest,
+  type RecordRequestListOptions,
   type RoleAccessRequest,
 } from "./access-requests.ts";
 

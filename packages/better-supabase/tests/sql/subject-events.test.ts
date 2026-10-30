@@ -122,6 +122,8 @@ const SUBJECT_EVENTS = [
   "drive.deleted",
   "drive.shared",
   "drive.unshared",
+  "drive.node_ownership_transferred",
+  "drive.ownership_transferred",
   "drive.download_blocked_changed",
   "drive.connection_created",
   "drive.connection_removed",

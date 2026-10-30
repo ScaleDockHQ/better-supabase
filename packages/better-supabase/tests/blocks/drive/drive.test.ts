@@ -723,5 +723,12 @@ describe("drive client", () => {
       table: "app.drive_nodes",
       permissions: { fields: { check: "app.drive_node_writable" } },
     });
+    expect(driveSubject()).not.toHaveProperty("team");
+    expect(driveSubject({ accessRequests: true }).team).toEqual({
+      actions: ["read"],
+    });
+    expect(driveSubject({ accessRequests: ["read", "comment"] }).team).toEqual({
+      actions: ["read", "comment"],
+    });
   });
 });

@@ -1,7 +1,11 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
-import type { BlockContributes } from "../contributions.ts";
+import type {
+  AccessGrantContribution,
+  BlockContributes,
+} from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { registeredSubjects, teamActions } from "../subject-registry.ts";
 import { driveCoreSql } from "./drive-core.ts";
 import {
   DOCUMENT_CONTRIBUTES,
@@ -11,6 +15,7 @@ import {
 import { driveFilesSql } from "./drive-files.ts";
 import { driveKit, driveSubjectType, labelTags } from "./drive-kit.ts";
 import { FILE_EVENTS, NAMES } from "./drive-names.ts";
+import { driveRequestsSupported } from "./drive-ownership.ts";
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const drive = ctx.of("drive");
@@ -51,6 +56,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "boolean",
     },
     { name: "drive_grants", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "drive_transfer_ownership",
+      args: ["{id}", "uuid", "uuid"],
+      returns: "jsonb",
+    },
     { name: "drive_node_held", args: ["uuid"], returns: "boolean" },
     { name: "drive_node_readable", args: ["uuid"], returns: "boolean" },
     { name: "drive_node_writable", args: ["uuid"], returns: "boolean" },
@@ -177,6 +187,8 @@ const INTEGRATES = [
   "trash",
   "teams",
   "share-links",
+  "settings",
+  "guests",
 ] as const;
 
 /**
@@ -185,7 +197,43 @@ const INTEGRATES = [
  * of them; `drive-files` adds what needs those modules.
  */
 
+/**
+ * Access requests on nodes, when config.subjects gives the node type a team: an
+ * approved request becomes a node grant, and the members who may share the node
+ * approve it.
+ */
+function accessRequests(
+  own: BlockSqlContext,
+  target: BlockSqlContext,
+): readonly AccessGrantContribution[] {
+  if (own.mode === "custom" || !target.installed("subjects")) {
+    return [];
+  }
+
+  const subjects = target.of("subjects");
+  const type = driveSubjectType(own);
+
+  const node = registeredSubjects(subjects.subjects, subjects.naming).find(
+    (subject) => subject.type === type,
+  );
+
+  if (node === undefined || teamActions(node).length === 0) {
+    return [];
+  }
+
+  driveRequestsSupported(own);
+
+  return [
+    {
+      subject: type,
+      grant: own.fn("drive_grant_access"),
+      approvers: own.fn("drive_access_approvers"),
+    },
+  ];
+}
+
 const CONTRIBUTES: BlockContributes = {
+  "access-requests": accessRequests,
   "share-links": (own) => [
     {
       subject: driveSubjectType(own),

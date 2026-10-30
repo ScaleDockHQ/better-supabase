@@ -64,9 +64,9 @@ export interface CreateBlocksOptions extends Omit<BlockContext, "schema"> {
   readonly config?: GeneratedBlocks;
   /**
    * The key of the block that provides a port (`notifier`, `files`,
-   * `attachments`, `workflows`, `mailer`) when more than one block in the set
-   * provides it and the consumer's `blocks.<instance>.uses` names none of
-   * them.
+   * `attachments`, `workflows`, `mailer`, `recordAccess`) when more than one
+   * block in the set provides it and the consumer's `blocks.<instance>.uses`
+   * names none of them.
    */
   readonly ports?: Readonly<Partial<Record<UniquePort, string>>>;
   /**
@@ -452,6 +452,7 @@ const UNIQUE_PORTS: readonly UniquePort[] = [
   "attachments",
   "workflows",
   "mailer",
+  "recordAccess",
 ];
 
 /** `key`'s entry in `hooks`, which `BlocksHooks` keys like the blocks. */

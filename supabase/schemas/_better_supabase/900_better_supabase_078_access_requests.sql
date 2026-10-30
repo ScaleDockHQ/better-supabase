@@ -1,6 +1,6 @@
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:92327923ecf45a7438f5d53607d029879ef60653fb45a2ca33d02b11784edf09
+-- @bsb-hash sha256:50934a202be6f5284985fc3779afc633af7094c22b2cba5de6f1438fd9c35322
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -225,7 +225,12 @@ begin
   end;
   if v_row."target" = 'record' then
     v_ends := now() + v_row."duration";
-    v_member := "better_supabase"."grant_subject_member"(v_row."subject_type", v_row."subject_id", v_row."user_id", v_ends, v_row."emergency", v_row."reason");
+    case v_row."subject_type"
+    when 'drive_node' then
+      perform "better_supabase"."drive_grant_access"(v_row."subject_id", v_row."user_id", v_row."action", v_ends);
+    else
+      v_member := "better_supabase"."grant_subject_member"(v_row."subject_type", v_row."subject_id", v_row."user_id", v_ends, v_row."emergency", v_row."reason");
+    end case;
     update "better_supabase"."access_requests" r
     set "granted_at" = now(), "expires_at" = v_ends, "member_id" = v_member
     where r."id" = v_row."id"
@@ -313,9 +318,14 @@ begin
     raise exception 'this access isn''t active' using errcode = '22023', hint = 'ACCESS_NOT_GRANTED';
   end if;
   if v_row."target" = 'record' then
-    if v_row."member_id" is not null then
+    case v_row."subject_type"
+    when 'drive_node' then
+      perform "better_supabase"."drive_grant_access"(v_row."subject_id", v_row."user_id", v_row."action", now());
+    else
+      if v_row."member_id" is not null then
         perform "better_supabase"."close_subject_member"(v_row."member_id");
       end if;
+    end case;
   else
     -- Only a role that is still the granted one goes back; a later change wins.
     if exists (
@@ -447,9 +457,10 @@ $$;
 revoke execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) to authenticated, service_role;
 
--- Asks for access to one record: its team leads approve, or the holders of
--- subjects.manage when it has no lead. The final approval adds a team row
--- (or the record's accessGrant) that ends after the duration.
+-- Asks for access to one record: its team leads approve, then the record's
+-- own approvers when its type names them, or the holders of subjects.manage.
+-- The final approval adds a team row (or the record's accessGrant) that ends
+-- after the duration.
 create or replace function "better_supabase"."request_record_access"(subject_type text, subject_id text, action text default 'read', reason text default null, duration interval default interval '7 days')
 returns jsonb
 language plpgsql
@@ -472,8 +483,9 @@ begin
   if v_me is null then
     raise exception 'sign in to request access' using errcode = '42501', hint = 'ACCESS_SIGN_IN';
   end if;
-  if not (request_record_access.subject_type = any (array['customer']::text[])) or (case request_record_access.subject_type
+  if not (request_record_access.subject_type = any (array['customer', 'drive_node']::text[])) or (case request_record_access.subject_type
       when 'customer' then not (request_record_access.action = any (array['read', 'write']::text[]))
+      when 'drive_node' then not (request_record_access.action = any (array['read']::text[]))
       else true end) then
     raise exception 'this record or action can''t be requested' using errcode = '22023', hint = 'ACCESS_REQUEST_RECORD_INVALID';
   end if;
@@ -502,6 +514,11 @@ begin
   values (v_tenant, v_me, 'record', request_record_access.subject_type, request_record_access.subject_id, request_record_access.action, request_record_access.reason, v_duration)
   returning * into v_row;
   v_leads := "better_supabase"."record_team_leads"(request_record_access.subject_type, request_record_access.subject_id);
+  if coalesce(cardinality(v_leads), 0) = 0 then
+    v_leads := case request_record_access.subject_type
+      when 'drive_node' then array_remove("better_supabase"."drive_access_approvers"(request_record_access.subject_id), v_me)
+      else v_leads end;
+  end if;
   v_approval := "better_supabase"."open_approval"(
     v_tenant, 'access_request', v_row."id"::text, 'grant',
     '{"steps":[{"approvers":{"permission":"members.update_role"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb || jsonb_build_object('steps', jsonb_build_array(jsonb_build_object(
@@ -553,8 +570,9 @@ begin
   if length(btrim(coalesce(open_emergency_access.reason, ''))) < 10 then
     raise exception 'say why you need emergency access, in at least 10 characters' using errcode = '22023', hint = 'ACCESS_REQUEST_REASON_REQUIRED';
   end if;
-  if not (open_emergency_access.subject_type = any (array['customer']::text[])) or (case open_emergency_access.subject_type
+  if not (open_emergency_access.subject_type = any (array['customer', 'drive_node']::text[])) or (case open_emergency_access.subject_type
       when 'customer' then not ('read' = any (array['read', 'write']::text[]))
+      when 'drive_node' then not ('read' = any (array['read']::text[]))
       else true end) then
     raise exception 'this record or action can''t be requested' using errcode = '22023', hint = 'ACCESS_REQUEST_RECORD_INVALID';
   end if;
@@ -682,6 +700,50 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_emergency_access"(uuid, boolean, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_emergency_access"(uuid, boolean, integer, timestamptz) to authenticated, service_role;
+
+-- The access requests on one record, newest first: every one for a holder of
+-- access_requests.read, a team lead or one of the record's approvers, and the
+-- caller's own for anyone else.
+create or replace function "better_supabase"."list_record_access_requests"(subject_type text, subject_id text, status text default null, page_size integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+set intervalstyle = 'iso_8601'
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid;
+  v_all boolean;
+begin
+  v_tenant := "better_supabase"."record_team_tenant"(list_record_access_requests.subject_type, list_record_access_requests.subject_id);
+  if v_tenant is null then
+    return '[]'::jsonb;
+  end if;
+  v_all := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'access_requests.read'), false)
+    or coalesce(auth.uid() = any ("better_supabase"."record_team_leads"(list_record_access_requests.subject_type, list_record_access_requests.subject_id)), false)
+    or coalesce(auth.uid() = any (case list_record_access_requests.subject_type
+      when 'drive_node' then "better_supabase"."drive_access_approvers"(list_record_access_requests.subject_id)
+      end), false);
+  return (
+    select coalesce(jsonb_agg(item order by created desc), '[]'::jsonb)
+    from (
+      select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'target', r."target", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'emergency', r."emergency", 'review', case when r."reviewed_at" is null then null else jsonb_build_object('verdict', r."review_verdict", 'note', r."review_note", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at") end, 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as item, r."created_at" as created
+      from "better_supabase"."access_requests" r
+      left join "better_supabase"."approval_requests" x on x."id" = r."approval_id"
+      where r."tenant_id" = v_tenant and r."target" = 'record'
+        and r."subject_type" = list_record_access_requests.subject_type and r."subject_id" = list_record_access_requests.subject_id
+        and (v_all or r."user_id" = auth.uid())
+        and (list_record_access_requests.status is null or case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end = list_record_access_requests.status)
+      order by r."created_at" desc
+      limit least(greatest(coalesce(list_record_access_requests.page_size, 50), 1), 200)
+    ) items
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_record_access_requests"(text, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_record_access_requests"(text, text, text, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -824,6 +886,15 @@ set search_path = ''
 as $$ select "better_supabase"."list_emergency_access"($1, $2, $3, $4) $$;
 revoke execute on function "api"."list_emergency_access"(uuid, boolean, integer, timestamptz) from public, anon;
 grant execute on function "api"."list_emergency_access"(uuid, boolean, integer, timestamptz) to authenticated, service_role;
+
+create or replace function "api"."list_record_access_requests"(subject_type text, subject_id text, status text default null, page_size integer default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_record_access_requests"($1, $2, $3, $4) $$;
+revoke execute on function "api"."list_record_access_requests"(text, text, text, integer) from public, anon;
+grant execute on function "api"."list_record_access_requests"(text, text, text, integer) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

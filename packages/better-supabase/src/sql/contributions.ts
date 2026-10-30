@@ -73,6 +73,11 @@ export interface AccessGrantContribution {
   /** The subject type, which also declares `subjects.<type>.team`. */
   readonly subject: string;
   readonly grant: string;
+  /**
+   * A function `(subject_id text) returns uuid[]`: who approves a request on a
+   * record that has no team lead, before the holders of `subjects.manage`.
+   */
+  readonly approvers?: string;
 }
 
 /** SQL expressions for the approval request being decided. */

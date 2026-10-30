@@ -2576,7 +2576,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "versions",
         "trash",
         "teams",
-        "share-links"
+        "share-links",
+        "settings",
+        "guests",
+        "access-requests"
       ],
       "manifest": "drive",
       "scopes": [
@@ -2655,6 +2658,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "trash",
         "teams",
         "share-links",
+        "settings",
+        "guests",
         "tags",
         "approvals",
         "rate-limit",
@@ -17130,7 +17135,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/drive"
       },
       "consumes": {
-        "attachments": "optional"
+        "attachments": "optional",
+        "recordAccess": "optional"
       },
       "provides": [],
       "entityTypes": [
@@ -17168,6 +17174,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "drive.deleted",
           "drive.shared",
           "drive.unshared",
+          "drive.node_ownership_transferred",
+          "drive.ownership_transferred",
           "drive.connection_created",
           "drive.connection_removed"
         ]

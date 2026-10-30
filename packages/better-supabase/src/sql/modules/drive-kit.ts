@@ -46,7 +46,7 @@ export interface DriveRoles {
 }
 
 /** `options.roles` (lowest first) and the roles each action needs. */
-function driveRoles(ctx: BlockSqlContext): DriveRoles {
+export function driveRoles(ctx: BlockSqlContext): DriveRoles {
   const where = "blocks.drive.options";
   const all = ctx.list("roles", ["viewer", "editor", "owner"]);
 
@@ -191,7 +191,8 @@ function conflictDefault(ctx: BlockSqlContext): string {
   return conflict;
 }
 
-const usable = (
+/** The module `name`, when it is installed and managed. */
+export const usable = (
   ctx: BlockSqlContext,
   name: string,
 ): BlockSqlContext | undefined =>
@@ -839,7 +840,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     typed
       ? `insert into ${G} (${g("tenant")}, ${g("node")}, ${g("principalType")}, ${g("principalId")}, ${g("role")})
     values (${node}.${n("tenant")}, ${node}.${n("id")}, 'user', ${uid}::text, ${ctx.cast("grants", "role", role)})
-    on conflict (${g("node")}, ${g("principalType")}, ${g("principalId")}) do update set ${g("role")} = excluded.${g("role")};`
+    on conflict (${g("node")}, ${g("principalType")}, ${g("principalId")}) do update set ${g("role")} = excluded.${g("role")}${ctx.has("grants", "accessRequest") ? `, ${g("accessRequest")} = false` : ""};`
       : `delete from ${G} dg where dg.${g("node")} = ${node}.${n("id")} and dg.${g("user")} = ${uid};
     insert into ${G} (${g("tenant")}, ${g("node")}, ${g("user")}, ${g("role")})
     values (${node}.${n("tenant")}, ${node}.${n("id")}, ${uid}, ${ctx.cast("grants", "role", role)});`;
