@@ -17135,7 +17135,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/drive"
       },
       "consumes": {
-        "attachments": "optional"
+        "attachments": "optional",
+        "recordAccess": "optional"
       },
       "provides": [],
       "entityTypes": [
