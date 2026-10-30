@@ -19,4 +19,9 @@ describe("codeRanges", () => {
       "\nc",
     ]);
   });
+
+  it("ends an unterminated block comment at the end of the text", () => {
+    const text = "a /* b\nc";
+    expect(codeRanges(text).map(([s, e]) => text.slice(s, e))).toEqual(["a "]);
+  });
 });

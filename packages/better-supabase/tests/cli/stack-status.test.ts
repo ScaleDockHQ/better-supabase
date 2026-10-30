@@ -67,6 +67,13 @@ describe("readStackStatus", () => {
     ).rejects.toMatchObject({ code: "supabase_cli_missing" });
   });
 
+  it("asks for a named stack with --stack", async () => {
+    const bin = await fakeSupabase(`printf '{"ARGS":"%s"}' "$*"`);
+    expect(
+      await readStackStatus(root, { SUPABASE_BIN: bin }, { stack: "dev" }),
+    ).toEqual({ ok: true, status: { ARGS: "status --stack dev -o json" } });
+  });
+
   it("rejects a status that prints no JSON", async () => {
     const bin = await fakeSupabase("echo Stopped");
     await expect(readStackStatus(root, { SUPABASE_BIN: bin })).rejects.toThrow(
