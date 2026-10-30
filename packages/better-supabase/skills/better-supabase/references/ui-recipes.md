@@ -24537,6 +24537,131 @@ export function TrialBalanceSkeleton() {
 }
 ```
 
+## Production order board
+
+Production orders in status columns from draft to done; dragging a draft to Released releases it, and a running order to Done completes it. It loads its data on the server through the block's client; the [manufacturing block](https://bettersupabase.com/blocks/manufacturing) must be installed (`npx better-supabase add manufacturing`). Page: https://bettersupabase.com/recipes/production-order-board.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge card @reui/kanban
+```
+
+```tsx title="apps/examples/nextjs/src/features/manufacturing/components/production-order-board.tsx"
+/**
+ * The organization's production orders in a column for their status. Dragging a
+ * draft to Released releases it, and dragging a released or started order to
+ * Done completes it with its planned quantity; any other move, or a refused one
+ * such as a component shortage, puts the card back. The parent keys it by the
+ * cards' statuses, so a refresh starts it from the saved board.
+ */
+export function ProductionOrderBoard({
+  cards,
+  canRelease,
+  canComplete,
+}: {
+  cards: readonly ProductionOrderCard[];
+  canRelease: boolean;
+  canComplete: boolean;
+}) {
+  const errorMessage = useErrorMessage();
+  const label = useStatusLabel();
+  const [columns, setColumns] = useState(() => columnsOf(cards));
+  const release = useAction(releaseProductionOrder);
+  const complete = useAction(completeProductionOrder);
+  const pending = release.pending || complete.pending;
+  const byId = new Map(cards.map((card) => [card.id, card]));
+
+  const movable = (card: ProductionOrderCard): boolean =>
+    card.status === "draft"
+      ? canRelease
+      : card.status !== "done" && canComplete;
+
+  return (
+    <div data-recipe="production-order-board">
+      <Kanban
+        value={columns}
+        onValueChange={setColumns}
+        getItemValue={(card) => card.id}
+        onValueCommit={(_value, meta) => {
+          if (meta.kind !== "item") {
+            return;
+          }
+
+          const from = v.parse(StatusSchema, meta.activeContainer);
+          const to = v.parse(StatusSchema, meta.overContainer);
+          const card = byId.get(String(meta.event.active.id));
+
+          const run =
+            card === undefined
+              ? undefined
+              : from === "draft" && to === "released"
+                ? release.run({ orderId: card.id })
+                : from !== "draft" && from !== "done" && to === "done"
+                  ? complete.run({ orderId: card.id, produced: card.quantity })
+                  : undefined;
+
+          if (run === undefined) {
+            setColumns(meta.previousValue);
+
+            return;
+          }
+
+          void run.then((result) => {
+            if (!result.ok) {
+              setColumns(meta.previousValue);
+              toast.error(errorMessage(result.error));
+            }
+
+            return result;
+          });
+        }}
+      >
+        <KanbanBoard className="flex overflow-x-auto">
+          {BOARD_STATUSES.map((status) => {
+            const column = columns[status] ?? [];
+
+            return (
+              <KanbanColumn
+                key={status}
+                value={status}
+                className="w-72 shrink-0 gap-3 rounded-lg bg-muted/50 p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium">{label(status)}</span>
+                  <Badge variant="outline">{column.length}</Badge>
+                </div>
+                <KanbanColumnContent value={status} className="min-h-16">
+                  {column.map((card) => (
+                    <KanbanItem
+                      key={card.id}
+                      value={card.id}
+                      disabled={!movable(card) || pending}
+                    >
+                      <KanbanItemHandle cursor={movable(card)}>
+                        <OrderItem card={card} />
+                      </KanbanItemHandle>
+                    </KanbanItem>
+                  ))}
+                </KanbanColumnContent>
+              </KanbanColumn>
+            );
+          })}
+        </KanbanBoard>
+        <KanbanOverlay>
+          {({ value, variant }) => {
+            const card =
+              variant === "item" ? byId.get(String(value)) : undefined;
+
+            return card ? <OrderItem card={card} /> : null;
+          }}
+        </KanbanOverlay>
+      </Kanban>
+    </div>
+  );
+}
+```
+
 ## Record grid
 
 An app table as a data grid with search, filters, saved views and bulk actions on the selected rows, including a Set field action. It loads its data on the server through the block's client; the [saved-views block](https://bettersupabase.com/blocks/saved-views) must be installed (`npx better-supabase add saved-views`). Page: https://bettersupabase.com/recipes/record-grid.

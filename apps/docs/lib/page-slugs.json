@@ -118,6 +118,7 @@
   "blocks/leave",
   "blocks/ledger",
   "blocks/mail-sync",
+  "blocks/manufacturing",
   "blocks/medications",
   "blocks/memberships",
   "blocks/memory",

@@ -139,5 +139,6 @@ add one, and link it from the code or config it explains.
 | [0133](0133-drive-roles-sharing-and-controlled-documents.md)  | Drive commenter and upload-only roles, link passwords and download control, preview and text ports, controlled documents                           |
 | [0135](0135-care-records.md)                                  | Care records as domain-neutral blocks keyed on any subject, with FHIR R4 mappers and ports for national formats                                    |
 | [0136](0136-accounting-books-beside-the-ledger.md)            | Double-entry books in an `accounting` block beside the operational ledger, with account roles, periods and reports                                 |
+| [0139](0139-manufacturing.md)                                 | BOM versions, production orders over `move_stock`, and lot genealogy in `stock_lot_links`                                                          |
 | [0138](0138-shifts.md)                                        | Shifts in their own block: templates, draft and published shifts, assignments checked against overlap, leave, qualifications and rest              |
 | [0140](0140-drive-text-and-quotas.md)                         | Drive keeps extracted text beside the node for search, filled by a TextExtractor from the outbox, and checks upload quotas in SQL                  |

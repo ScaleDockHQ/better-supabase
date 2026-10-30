@@ -114,7 +114,7 @@ Other blocks never post to an account code. They post to a role, and each
 organization maps every role to one of its accounts with
 `setAccountRole(organizationId, role, accountId)`:
 
-`receivable`, `payable`, `bank`, `revenue`, `cogs`, `inventory`,
+`receivable`, `payable`, `bank`, `revenue`, `cogs`, `inventory`, `work_in_progress`,
 `expense`, `tax_payable`, `tax_receivable`, `retained_earnings`, `fx_gain`, `fx_loss`,
 `fixed_asset`, `accumulated_depreciation`, `depreciation_expense`,
 `disposal_gain`, `disposal_loss` and `suspense`.
@@ -149,18 +149,19 @@ When `accounting` is installed, these blocks book their documents in the same
 transaction as the write that changes them, in the journal of each type with
 the lowest code and against the account roles:
 
-| Block                               | Source type             | When                                | Entry                                                                                       |
-| ----------------------------------- | ----------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------- |
-| [invoices](/docs/blocks/invoices)   | `invoice`               | an invoice or credit note is issued | sales: receivable against revenue and tax per rate                                          |
-| [invoices](/docs/blocks/invoices)   | `invoice_payment`       | a payment or refund is recorded     | bank: bank against the receivable                                                           |
-| [expenses](/docs/blocks/expenses)   | `expense_report`        | a report is approved                | purchase: expense against payable to the member                                             |
-| [expenses](/docs/blocks/expenses)   | `expense_reimbursement` | a report is reimbursed              | bank: payable against bank                                                                  |
-| [inventory](/docs/blocks/inventory) | `stock_movement`        | a costed movement posts             | general: inventory against payable, cost of goods or expense                                |
-| [leases](/docs/blocks/leases)       | `lease_rent`            | a rent charge posts                 | sales: receivable against revenue                                                           |
-| [leases](/docs/blocks/leases)       | `lease_payment`         | a rent payment is recorded          | bank: bank against the receivable                                                           |
-| [donations](/docs/blocks/donations) | `gift`                  | a gift posts                        | bank: bank against revenue                                                                  |
-| [assets](/docs/blocks/assets)       | `asset_depreciation`    | a month of depreciation runs        | general: depreciation expense against accumulated depreciation                              |
-| [assets](/docs/blocks/assets)       | `asset_disposal`        | an asset is disposed of             | general: bank and accumulated depreciation against the asset, the difference a gain or loss |
+| Block                                       | Source type             | When                                    | Entry                                                                                       |
+| ------------------------------------------- | ----------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [invoices](/docs/blocks/invoices)           | `invoice`               | an invoice or credit note is issued     | sales: receivable against revenue and tax per rate                                          |
+| [invoices](/docs/blocks/invoices)           | `invoice_payment`       | a payment or refund is recorded         | bank: bank against the receivable                                                           |
+| [expenses](/docs/blocks/expenses)           | `expense_report`        | a report is approved                    | purchase: expense against payable to the member                                             |
+| [expenses](/docs/blocks/expenses)           | `expense_reimbursement` | a report is reimbursed                  | bank: payable against bank                                                                  |
+| [inventory](/docs/blocks/inventory)         | `stock_movement`        | a costed movement posts                 | general: inventory against payable, cost of goods, work in progress or expense              |
+| [manufacturing](/docs/blocks/manufacturing) | `production_order`      | a production order completes with labor | general: work in progress against expense                                                   |
+| [leases](/docs/blocks/leases)               | `lease_rent`            | a rent charge posts                     | sales: receivable against revenue                                                           |
+| [leases](/docs/blocks/leases)               | `lease_payment`         | a rent payment is recorded              | bank: bank against the receivable                                                           |
+| [donations](/docs/blocks/donations)         | `gift`                  | a gift posts                            | bank: bank against revenue                                                                  |
+| [assets](/docs/blocks/assets)               | `asset_depreciation`    | a month of depreciation runs            | general: depreciation expense against accumulated depreciation                              |
+| [assets](/docs/blocks/assets)               | `asset_disposal`        | an asset is disposed of                 | general: bank and accumulated depreciation against the asset, the difference a gain or loss |
 
 Each document books once: voiding an invoice, or refunding a gift, reverses
 its entry. A stock movement takes its value from weighted average cost, so

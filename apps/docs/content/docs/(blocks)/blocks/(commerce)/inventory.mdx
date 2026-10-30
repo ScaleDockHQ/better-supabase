@@ -135,8 +135,9 @@ await inventory
 ```
 
 `adjustStock` takes `adjustment`, `damage`, `loss`, `return` or `receipt`.
-The other movement reasons (`count`, `sale`, `transfer_out`, `transfer_in`)
-come from the functions that write them. A movement is a ledger transaction
+The other movement reasons (`count`, `sale`, `transfer_out`, `transfer_in`,
+and the [manufacturing](/docs/blocks/manufacturing) block's `consumption` and
+`production`) come from the functions that write them. A movement is a ledger transaction
 of kind `stock.<reason>`, and `movementId` is its id. Ledger entries can't be
 updated; a correction is a new movement. Read a variant's history with the
 ledger client's `entries(accountId)` on its stock accounts (`kind: "stock"`,

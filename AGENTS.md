@@ -251,6 +251,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0134: Record teams (`subjects.<type>.team`, `subject_members`) grant per-record actions in `can_subject`; emergency access and read logging build on them.
 - 0135: Care plans, observations, medications, consents and funding are domain-neutral blocks keyed on any subject, with FHIR R4 mappers and ports for national formats.
 - 0136: Double-entry books live in the `accounting` block beside the operational `ledger`: account roles, journals, numbered entries in fiscal periods that close, FX, tax codes and reports.
+- 0139: Manufacturing versions bills of materials, runs production orders over `move_stock` with `consumption` and `production` reasons, and keeps lot genealogy in `stock_lot_links`.
 - 0138: Shifts are their own block; every assignment, request approval and swap runs one SQL check for overlap, approved leave, qualifications and rest.
 - 0140: Drive keeps extracted text in `drive_node_texts`, searched through the `drive_node_search` view and filled from the outbox; `quota` checks `within_quota` on upload.
 

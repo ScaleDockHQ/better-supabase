@@ -1,0 +1,275 @@
+---
+title: Manufacturing
+description: Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that consume components and receive the output through inventory, lot genealogy and recall, and material requirements.
+---
+
+`manufacturing` makes products out of other products. A bill of materials
+lists what one unit of a variant takes and the operations that make it, a
+production order consumes the components from stock and receives the output
+at their cost plus labor, and every output lot remembers the lots it was made
+from, so a recall finds everything a bad lot went into.
+
+```bash
+better-supabase add manufacturing
+```
+
+```ts
+import { createManufacturing } from "better-supabase/blocks/manufacturing";
+```
+
+The module requires `tenant`, `permissions`, [catalog](/docs/blocks/catalog),
+[inventory](/docs/blocks/inventory) and [numbering](/docs/blocks/numbering).
+Every stock change goes through the inventory block's `move_stock`, so the
+components and the output have the same ledger, lots, serials, bins and
+average cost as any other stock. With [assets](/docs/blocks/assets) a work
+center names the machine it runs on, with [drive](/docs/blocks/drive) an
+operation links its work instructions, with
+[inspections](/docs/blocks/inspections) an operation schedules an inspection
+when it starts, and with [accounting](/docs/blocks/accounting) the labor books
+to work in progress. With `outbox` it records the events, and with `audit`
+every change is audited.
+
+## Tables
+
+| Table                         | Holds                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------ |
+| `boms`                        | The versions of a variant's bill of materials: a quantity, a status and a note       |
+| `bom_components`              | What a version takes per its quantity, with planned scrap and the operation it feeds |
+| `bom_operations`              | The routing: sequence, work center, setup and run minutes, instructions, inspection  |
+| `work_centers`                | Where operations run: a name, an asset, hours per day and a cost rate per hour       |
+| `production_orders`           | An order with its number, variant, version, quantity, location, status and costs     |
+| `production_order_operations` | The routing copied onto an order, with its operator, minutes and inspection          |
+| `production_consumptions`     | What an order took from stock, per lot or serial, at its stock value                 |
+| `stock_lot_links`             | The genealogy: each output lot and the lots consumed to make it                      |
+
+Members with `manufacturing.read` read every table. Writes go through the
+functions below. Production orders are subjects of type `production_order`,
+so comments, attachments, tags and the other subject blocks work on them.
+
+| Permission              | Allows                                                      | Default roles        |
+| ----------------------- | ----------------------------------------------------------- | -------------------- |
+| `manufacturing.read`    | reading bills of materials, orders, genealogy and planning  | owner, admin, member |
+| `manufacturing.write`   | drafting versions, creating, releasing and canceling orders | owner, admin         |
+| `manufacturing.produce` | running operations, recording consumption, completing       | owner, admin, member |
+| `manufacturing.manage`  | activating a version and changing work centers              | owner, admin         |
+
+## Bills of materials
+
+`saveBom` saves a new `draft` version of a variant's bill of materials, or
+changes a draft one when it passes a `bomId`. `quantity` is how many units
+the components make (default 1), and `scrapBps` adds planned scrap in basis
+points. `activateBom` makes a version `active` and archives the one before
+it, so each variant has one active version and older orders keep the version
+they were made with.
+
+```ts
+const oven = await db.manufacturing
+  .saveWorkCenter({ name: "Oven", costRate: money(6000n, "EUR") })
+  .orThrow();
+
+const bom = await db.manufacturing
+  .saveBom(breadId, {
+    components: [
+      { variantId: flourId, quantity: 0.5, operation: 10 },
+      { variantId: saltId, quantity: 10 },
+    ],
+    operations: [
+      {
+        sequence: 10,
+        workCenterId: oven.id,
+        title: "Bake",
+        runMinutesPerUnit: 6,
+      },
+    ],
+  })
+  .orThrow();
+
+await db.manufacturing.activateBom(bom.id).orThrow();
+```
+
+A component quantity rounds up to the scale of the component's unit. A
+component can itself have an active version, and `activateBom` fails with
+`BOM_CYCLE` when a variant would end up among its own components at any
+level. `explodeBom(variantId, quantity)` lists the components of `quantity`
+units through every level of active versions (20 at most) and totals the
+materials to buy, and `whereUsed(variantId)` lists the versions a variant
+goes into, every level up.
+
+## Production orders
+
+`createOrder` creates a `draft` order numbered from the `production_order`
+sequence (`MO-{yyyy}-{n:4}`), pinned to the variant's active version or the
+`bomId` it names. The location defaults to the organization's first active
+one. The order then moves through these statuses:
+
+| Status        | Reached through               | What happens                                                |
+| ------------- | ----------------------------- | ----------------------------------------------------------- |
+| `draft`       | `createOrder`                 | the order can still change                                  |
+| `released`    | `release`                     | the routing is copied and the components are allocated      |
+| `in_progress` | `startOperation`, consumption | the operations run and components leave stock               |
+| `done`        | `complete`                    | the output is received, the costs are set                   |
+| `canceled`    | `cancel`                      | the allocations are released and consumed stock is returned |
+
+`release` allocates each component at the order's location through the
+inventory block's allocations, and fails with `PRODUCTION_ORDER_SHORTAGE`
+when one would go on backorder, unless it passes `{ allowShortage: true }`.
+
+```ts
+const order = await db.manufacturing
+  .createOrder({ variantId: breadId, quantity: 4 })
+  .orThrow();
+// order.number is "MO-2026-0001"
+
+await db.manufacturing.release(order.id).orThrow();
+
+const [bake] = (await db.manufacturing.getOrder(order.id).orThrow()).operations;
+await db.manufacturing.startOperation(bake.id).orThrow();
+await db.manufacturing.finishOperation(bake.id, 24).orThrow();
+
+const done = await db.manufacturing.complete(order.id, 4).orThrow();
+// done.materialCost and done.laborCost, in the item's currency
+```
+
+`startOperation` and `finishOperation` record the operator and the minutes,
+which default to the time since the start. An operation with an inspection
+template schedules an inspection of that kind, with the order as its
+auditee. `recordConsumption` takes a component out of stock from the order's
+allocation; its `detail` picks the bin, the lot or the serials, as for
+`move_stock`. A movement leaves stock with the reason `consumption` and the
+order as its reference.
+
+`complete(orderId, produced, { scrap, lot })` takes the components not yet
+recorded (a backflush), then receives `produced` units with the reason
+`production` at the material cost plus the labor cost. The labor is each
+operation's minutes at its work center's cost rate. A lot-tracked output goes
+into the lot the order names, or a new lot coded with the order number. That
+output lot is linked to every lot the order consumed. `cancel` releases the
+allocations and returns what the order consumed to stock.
+
+## Lot genealogy and recall
+
+`lotGenealogy(lotId)` lists the lots a lot was made from, every level down,
+and `lotGenealogy(lotId, "up")` the lots made from it. `lotRecall(lotId)`
+starts from a suspect lot and returns every lot made from it, their stock
+still on hand per location and bin, the documents they left stock for (such
+as a sales order or a shipment) and the production orders that consumed
+them.
+
+```ts
+const recall = await db.manufacturing.lotRecall(flourLotId).orThrow();
+// recall.lots, recall.stock, recall.documents, recall.orders
+```
+
+## Material requirements
+
+`requirements(horizonDays)` nets every variant with a reorder point or open
+demand against what's available, incoming and planned in open production
+orders, through every level of active versions, within `horizonDays`
+(default 30). Each suggestion is `produce` when the variant has an active
+bill of materials and `purchase` otherwise.
+`createFromRequirements(items)` turns the suggestions it is given into draft
+production orders and, when the inventory block has purchase orders, draft
+purchase orders for the supplier each item names.
+
+```ts
+const plan = await db.manufacturing.requirements(14).orThrow();
+
+await db.manufacturing
+  .createFromRequirements(
+    plan.items.map((item) => ({
+      variantId: item.variantId,
+      action: item.action,
+      quantity: item.quantity,
+      supplier: { type: "contact", id: supplierId },
+    })),
+  )
+  .orThrow();
+```
+
+## Accounting
+
+Stock movements book through the inventory block's `stock_movement` source:
+a consumption moves its value from inventory to the `work_in_progress` role,
+and the output moves it back. With `accounting` installed, completing an
+order with labor books a `production_order` entry in the general journal,
+work in progress against expense, so work in progress nets to zero once the
+order is done. The generic chart maps `work_in_progress` to account 1350.
+
+## Methods
+
+| Method                                               | Returns                                                    |
+| ---------------------------------------------------- | ---------------------------------------------------------- |
+| `saveBom(variantId, input, bomId)`                   | the version with its components and operations             |
+| `activateBom(bomId)`                                 | the active version                                         |
+| `getBom(bomId)`                                      | the version with its components and operations             |
+| `listBoms(variantId)`                                | every version, by variant and the latest first             |
+| `explodeBom(variantId, quantity)`                    | the components at every level and the materials to buy     |
+| `whereUsed(variantId)`                               | the versions the variant goes into, every level up         |
+| `saveWorkCenter(input, workCenterId)`                | the work center                                            |
+| `workCenters()`                                      | the work centers by name                                   |
+| `createOrder(input)`                                 | the draft order                                            |
+| `release(orderId, { allowShortage })`                | the released order with its operations and allocations     |
+| `startOperation(operationId)`                        | the order                                                  |
+| `finishOperation(operationId, minutes)`              | the order                                                  |
+| `recordConsumption(orderId, variantId, qty, detail)` | the order with the consumption                             |
+| `complete(orderId, produced, { scrap, lot })`        | the done order with its costs and output lot               |
+| `cancel(orderId, reason)`                            | the canceled order                                         |
+| `getOrder(orderId)`                                  | the order with its operations, components and consumptions |
+| `listOrders({ status, variantId, limit })`           | the orders, the earliest due first, then the latest        |
+| `lotGenealogy(lotId, direction)`                     | the lots down or up the genealogy                          |
+| `lotRecall(lotId)`                                   | the lots, stock, documents and orders a recall reaches     |
+| `requirements(horizonDays)`                          | the produce and purchase suggestions                       |
+| `createFromRequirements(items)`                      | the draft production orders and purchase orders            |
+
+## Options
+
+| Option         | Default | Does                                         |
+| -------------- | ------- | -------------------------------------------- |
+| `extraColumns` | none    | Extra columns on the production orders table |
+
+The client's `fields` schema types those columns on every order it returns.
+
+## Errors
+
+| Hint                              | Cause                                                        |
+| --------------------------------- | ------------------------------------------------------------ |
+| `MANUFACTURING_FORBIDDEN`         | the caller lacks the permission                              |
+| `BOM_INVALID`                     | a component or operation is invalid, such as a zero quantity |
+| `BOM_CYCLE`                       | the variant would end up among its own components            |
+| `BOM_NOT_ACTIVE`                  | no active version, or a draft where an active one is needed  |
+| `BOM_NOT_FOUND`                   | no version with this id that the caller sees                 |
+| `WORK_CENTER_NOT_FOUND`           | no work center with this id in the organization              |
+| `PRODUCTION_ORDER_INVALID`        | a field is invalid, such as a quantity of zero               |
+| `PRODUCTION_ORDER_STATUS_INVALID` | the call doesn't fit the status, such as completing a draft  |
+| `PRODUCTION_ORDER_SHORTAGE`       | `release` would put a component on backorder                 |
+| `PRODUCTION_ORDER_NOT_FOUND`      | no order with this id that the caller sees                   |
+| `PRODUCTION_OPERATION_NOT_FOUND`  | no operation with this id that the caller sees               |
+| `INVENTORY_LOT_NOT_FOUND`         | no lot with this id that the caller sees                     |
+
+## Events
+
+`bom.activated`, `production_order.released`, `production_order.completed`
+and `production_order.cancelled`. The
+[events page](/docs/extending/events) lists their payloads.
+
+## Purchasing
+
+Material requirements create the inventory block's draft purchase orders. A
+purchasing block with requisitions and approvals isn't part of this release;
+when it ships, `createFromRequirements` will create requisitions through it.
+
+## Without the client
+
+`db.manufacturing` is this client. Code that does not go through `bsb.db()`
+builds it with a transport and an organization id:
+
+```ts
+const manufacturing = createManufacturing({
+  transport,
+  tenant: organizationId,
+});
+
+const open = await manufacturing
+  .listOrders({ status: "in_progress" })
+  .orThrow();
+```

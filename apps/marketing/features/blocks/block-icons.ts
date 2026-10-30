@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 
 import {
   AlarmClockIcon,
+  FactoryIcon,
   ActivityIcon,
   ArchiveIcon,
   BookCheckIcon,
@@ -249,6 +250,7 @@ export const BLOCK_ICONS = {
   reviews: StarIcon,
   moderation: ShieldAlertIcon,
   inventory: WarehouseIcon,
+  manufacturing: FactoryIcon,
   orders: ShoppingCartIcon,
   promotions: TicketPercentIcon,
   invoices: ReceiptIcon,
