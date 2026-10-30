@@ -18,6 +18,7 @@ import {
   schemaPreamble,
   updatedAt,
 } from "../shared.ts";
+import { endpointFunctions } from "./webhooks-out-endpoints.ts";
 import {
   ADDED_COLUMNS,
   functions,
@@ -474,6 +475,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     reenable(ctx, n),
     vaultCleanup(ctx, n),
     functions(ctx, n),
+    endpointFunctions(ctx, n),
   ].join("\n");
 }
 
@@ -512,6 +514,18 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "text",
     },
     { name: "webhook_secrets", args: ["uuid"], returns: "text[]" },
+    {
+      name: "create_webhook_endpoint",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
+    {
+      name: "update_webhook_endpoint",
+      args: ["uuid", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "list_webhook_endpoints", args: ["{id}"], returns: "jsonb" },
+    { name: "delete_webhook_endpoint", args: ["uuid"], returns: "boolean" },
   ];
 }
 
@@ -525,7 +539,7 @@ export const WEBHOOKS_OUT: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   names: NAMES,
   contract,
   upgrades: [
@@ -557,6 +571,12 @@ export const WEBHOOKS_OUT: BlockSqlDefinition = {
       from: 4,
       description:
         "publish_webhook_events(events) queues a batch of events in one call, with publish_webhook_event's checks per event and a {count} or {error} result each. options.partitioned partitions a new deliveries table by month on created_at and applies to new tables only.",
+      sql: () => "",
+    },
+    {
+      from: 5,
+      description:
+        "create_webhook_endpoint, update_webhook_endpoint, list_webhook_endpoints and delete_webhook_endpoint manage a tenant's endpoints behind the module's manage and view permissions.",
       sql: () => "",
     },
   ],

@@ -22,6 +22,30 @@ export interface NotificationMessage {
   readonly hydrated?: unknown;
 }
 
+/** A recipient without an account, such as a customer or a contact. */
+export interface ContactRecipient {
+  readonly email: string;
+  readonly name?: string;
+}
+
+/**
+ * A notification for a contact: `send` hands it to each channel with
+ * `sendToContact` right away. It has no delivery row, so it is not retried.
+ */
+export interface ContactMessage {
+  /** The channel name, e.g. `email`. */
+  readonly channel: string;
+  /** The event id, the channel and the address: the idempotency key. */
+  readonly key: string;
+  readonly contact: ContactRecipient;
+  /** The notification; `id` and `recipientId` are the event id. */
+  readonly notification: NotificationItem;
+  /** What `render` returned for it, when `createNotifications` has one. */
+  readonly text?: RenderedText;
+  /** What `hydrate` returned for it, when `createNotifications` has one. */
+  readonly hydrated?: unknown;
+}
+
 export interface NotificationSendResult {
   /** `skipped` when the channel decided not to send. Defaults to `sent`. */
   readonly status?: "sent" | "skipped";
@@ -48,5 +72,12 @@ export interface NotificationChannel {
   readonly name: string;
   send(
     message: NotificationMessage,
+  ): NotificationSendResult | void | Promise<NotificationSendResult | void>;
+  /**
+   * Sends to a `{ email, name }` recipient of `send`. A channel without it
+   * skips contacts; `emailChannel` has it.
+   */
+  sendToContact?(
+    message: ContactMessage,
   ): NotificationSendResult | void | Promise<NotificationSendResult | void>;
 }

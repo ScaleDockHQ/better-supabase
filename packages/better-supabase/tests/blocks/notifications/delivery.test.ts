@@ -857,3 +857,158 @@ describe("createNotifications suppressions", () => {
     expect(result.error?.kind).toBe("forbidden");
   });
 });
+
+describe("contact recipients", () => {
+  const render = (item: { readonly summary: string | null }) => ({
+    title: item.summary ?? "Update",
+  });
+
+  it("emails a contact once per new notification, keyed by event and address", async () => {
+    const { transport: mail, sent } = recordingTransport();
+
+    const { transport, calls } = fakeTransport({
+      send_notification: () => ({ id: "e1", recipients: ["u1"] }),
+    });
+
+    const notifications = createNotifications({
+      transport,
+      types,
+      render,
+      email: { transport: mail, from: "hi@acme.test" },
+    });
+
+    const result = await notifications.send("task.assigned", {
+      data: { title: "Ship it" },
+      summary: "Your quote is ready",
+      recipients: ["u1", { email: "Cara@Client.test", name: 'Cara "C" Lee' }],
+    });
+
+    expect(calls[0]?.args["notification"]).toMatchObject({
+      recipients: ["u1"],
+    });
+    expect(result.data).toEqual({
+      id: "e1",
+      eventId: "e1",
+      recipients: ["u1"],
+      contacts: [
+        {
+          email: "Cara@Client.test",
+          channel: "email",
+          status: "sent",
+          providerMessageId: "m-e1:email:cara@client.test",
+        },
+      ],
+    });
+    expect(sent).toEqual([
+      {
+        idempotencyKey: "e1:email:cara@client.test",
+        message: {
+          from: "hi@acme.test",
+          to: '"Cara C Lee" <Cara@Client.test>',
+          subject: "Your quote is ready",
+          text: "Your quote is ready",
+          category: "notification",
+          headers: { "Auto-Submitted": "auto-generated" },
+        },
+      },
+    ]);
+  });
+
+  it("still emails the contacts when no user gets it, under the send's key", async () => {
+    const { transport: mail, sent } = recordingTransport();
+    const { transport } = fakeTransport({ send_notification: () => null });
+
+    const notifications = createNotifications({
+      transport,
+      types,
+      render,
+      email: { transport: mail, from: "hi@acme.test" },
+    });
+
+    const result = await notifications.send("task.assigned", {
+      data: { title: "Ship it" },
+      key: "quote-7",
+      recipients: [{ email: "cara@client.test" }],
+    });
+
+    expect(result.data).toMatchObject({
+      id: "key:quote-7",
+      recipients: [],
+      contacts: [{ email: "cara@client.test", status: "sent" }],
+    });
+    expect(sent[0]?.idempotencyKey).toBe("key:quote-7:email:cara@client.test");
+  });
+
+  it("sends nothing for a repeated key when users were the only recipients", async () => {
+    const { transport: mail, sent } = recordingTransport();
+    const { transport } = fakeTransport({ send_notification: () => null });
+
+    const notifications = createNotifications({
+      transport,
+      types,
+      render,
+      email: { transport: mail, from: "hi@acme.test" },
+    });
+
+    const result = await notifications.send("task.assigned", {
+      data: { title: "Ship it" },
+      recipients: ["u1"],
+    });
+
+    expect(result).toMatchObject({ ok: true, data: null });
+    expect(sent).toEqual([]);
+  });
+
+  it("rejects a contact without an address before calling the database", async () => {
+    const { transport, calls } = fakeTransport();
+    const notifications = createNotifications({ transport, types });
+
+    const result = await notifications.send("task.assigned", {
+      data: { title: "Ship it" },
+      recipients: ["u1", { email: "not an address" }],
+    });
+
+    expect(result.error).toMatchObject({
+      kind: "validation",
+      hint: "NOTIFICATION_CONTACT_EMAIL",
+      issues: [{ path: ["recipients", 1, "email"] }],
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("reports a failed contact delivery without failing the send", async () => {
+    const mail: DeliveryTransport = {
+      apiVersion: 1,
+      channel: "email",
+      provider: "fake",
+      send() {
+        throw new Error("mailbox full");
+      },
+    };
+
+    const { transport } = fakeTransport({
+      send_notification: () => ({ id: "e1", recipients: [] }),
+    });
+
+    const notifications = createNotifications({
+      transport,
+      types,
+      render,
+      email: { transport: mail, from: "hi@acme.test" },
+    });
+
+    const result = await notifications.send("task.assigned", {
+      data: { title: "Ship it" },
+      recipients: [{ email: "cara@client.test" }],
+    });
+
+    expect(result.data?.contacts).toEqual([
+      {
+        email: "cara@client.test",
+        channel: "email",
+        status: "failed",
+        error: "mailbox full",
+      },
+    ]);
+  });
+});

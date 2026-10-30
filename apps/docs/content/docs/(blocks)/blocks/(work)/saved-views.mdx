@@ -373,3 +373,13 @@ await savedViews
 
 const views = await savedViews.list(organizationId, "tasks").orThrow();
 ```
+
+A page payload RPC that returns `list_views` rows, for example next to the
+list's first page, parses each with `viewOf(row)` from
+`better-supabase/blocks/saved-views`, the way the client does:
+
+```ts
+import { viewOf } from "better-supabase/blocks/saved-views";
+
+const views = payload.views.map(viewOf);
+```

@@ -26,6 +26,7 @@ import type {
   SuppressionReason,
 } from "./api-types.ts";
 import type { NotificationChannel, NotificationMessage } from "./channel.ts";
+import type { Prepared } from "./contacts.ts";
 import type { Claimed, Hydration } from "./delivery-batch.ts";
 import type { NotificationsEvents } from "./events.ts";
 import type { NotificationItem } from "./types.ts";
@@ -55,7 +56,9 @@ import {
   pageOf,
   nullableInstant,
   nullableText,
+  optionalText,
 } from "../shared.ts";
+import { contactItem, deliverToContacts, splitRecipients } from "./contacts.ts";
 import {
   byLocale,
   deliveryChannels,
@@ -68,10 +71,10 @@ import {
   recordedDeliveryEventOf,
 } from "./delivery-events.ts";
 import {
-  LEVELS,
   cursorOf,
   filtersOf,
   publicObjectUrl,
+  subscriptionOf,
   toItem,
 } from "./rows.ts";
 
@@ -551,7 +554,7 @@ export function createNotifications<
   const prepare = async (
     type: string,
     input: SendInput<unknown, F>,
-  ): Promise<Result<Record<string, unknown>>> => {
+  ): Promise<Result<Prepared>> => {
     const schemaOf = Object.hasOwn(options.types, type)
       ? options.types[type]
       : undefined;
@@ -594,10 +597,26 @@ export function createNotifications<
       );
     }
 
-    return ok({
+    const recipients = splitRecipients(input.recipients ?? []);
+
+    if (recipients.invalid.length > 0) {
+      const message = "A contact recipient needs an email address";
+
+      return err(
+        dbError("validation", message, {
+          issues: recipients.invalid.map((index) => ({
+            path: ["recipients", index, "email"],
+            message,
+          })),
+          hint: "NOTIFICATION_CONTACT_EMAIL",
+        }),
+      );
+    }
+
+    const args = {
       type,
       data: data.data,
-      recipients: input.recipients ?? [],
+      recipients: recipients.users,
       tenant: input.tenant,
       permission: input.permission,
       subject_type: input.subject?.type,
@@ -616,7 +635,9 @@ export function createNotifications<
       watchers: input.watchers,
       exclude: input.exclude,
       fields: extra.data,
-    });
+    };
+
+    return ok({ args, contacts: recipients.contacts });
   };
 
   const sentOf = (value: unknown): SentNotification | null =>
@@ -631,15 +652,55 @@ export function createNotifications<
         }
       : null;
 
-  /** Announces a sent notification and runs `onSent`. */
+  /**
+   * A send that reached no user: the contacts still get it, under an id from
+   * the send's `key` (so the provider drops a repeat) or a new one. Nothing is
+   * stored, so no event is announced.
+   */
+  const contactsOnly = async (
+    prepared: Prepared,
+    channels: readonly string[] | undefined,
+  ): Promise<SentNotification> => {
+    const key = optionalText(prepared.args["key"]);
+    const eventId = key === undefined ? crypto.randomUUID() : `key:${key}`;
+
+    const contacts = await deliverToContacts(
+      channelList,
+      channels,
+      prepared.contacts,
+      contactItem(eventId, prepared.args),
+      options,
+    );
+
+    return { id: eventId, eventId, recipients: [], contacts };
+  };
+
+  /**
+   * Sends to the contacts, announces a sent notification and runs `onSent`. A
+   * repeated key sends nothing again.
+   */
   const settle = async (
-    sent: SentNotification | null,
-    type: string,
-    tenant: string | undefined,
+    found: SentNotification | null,
+    prepared: Prepared,
+    channels: readonly string[] | undefined,
   ): Promise<Result<SentNotification | null>> => {
-    if (sent === null) {
-      return ok(null);
+    if (found === null) {
+      return prepared.contacts.length === 0
+        ? ok(null)
+        : ok(await contactsOnly(prepared, channels));
     }
+
+    const contacts = await deliverToContacts(
+      channelList,
+      channels,
+      prepared.contacts,
+      contactItem(found.eventId, prepared.args),
+      options,
+    );
+
+    const sent = contacts.length === 0 ? found : { ...found, contacts };
+    const type = String(prepared.args["type"]);
+    const tenant = optionalText(prepared.args["tenant"]);
 
     const { id, recipients } = sent;
     emit(
@@ -670,11 +731,13 @@ export function createNotifications<
 
         const sent = await run(
           "send_notification",
-          { notification: notification.data },
+          { notification: notification.data.args },
           sentOf,
         );
 
-        return sent.ok ? settle(sent.data, type, input.tenant) : sent;
+        return sent.ok
+          ? settle(sent.data, notification.data, input.channels)
+          : sent;
       });
     },
     sendMany(items) {
@@ -692,7 +755,7 @@ export function createNotifications<
             ? ok([])
             : await run(
                 "send_notifications",
-                { events: valid.map((entry) => entry.notification) },
+                { events: valid.map((entry) => entry.notification.args) },
                 (value) =>
                   batchResultsOf(
                     value,
@@ -714,7 +777,7 @@ export function createNotifications<
               : result,
         );
 
-        for (const [position, { index }] of valid.entries()) {
+        for (const [position, { index, notification }] of valid.entries()) {
           const result = sent.data[position];
           const item = items[index];
 
@@ -723,7 +786,7 @@ export function createNotifications<
           }
 
           results[index] = result.ok
-            ? await settle(result.data, item.type, item.tenant)
+            ? await settle(result.data, notification, item.channels)
             : result;
         }
 
@@ -840,25 +903,13 @@ export function createNotifications<
           subject_id: subscriptionOptions.subject?.id ?? null,
         },
         (value) =>
-          (Array.isArray(value) ? value : [])
-            .filter(isRecord)
-            .flatMap((row): NotificationSubscription[] => {
-              const level = LEVELS.find((entry) => entry === row["level"]);
+          (Array.isArray(value) ? value : []).flatMap(
+            (row): NotificationSubscription[] => {
+              const subscription = subscriptionOf(row);
 
-              return level === undefined
-                ? []
-                : [
-                    {
-                      subject: {
-                        type: String(row["subject_type"]),
-                        id: String(row["subject_id"]),
-                      },
-                      level,
-                      tenant: nullableText(row["tenant"]),
-                      createdAt: nullableInstant(row["created_at"]),
-                    },
-                  ];
-            }),
+              return subscription === undefined ? [] : [subscription];
+            },
+          ),
       );
     },
     preferences(preferenceOptions = {}) {

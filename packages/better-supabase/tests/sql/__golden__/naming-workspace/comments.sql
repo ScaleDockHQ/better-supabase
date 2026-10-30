@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
--- @bsb-block comments@8 managed
--- @bsb-hash sha256:7ead52de76df015bcad0e6eb2eeb4a01fb0bc13a3b6d290eb27787936bcf08f8
+-- @bsb-block comments@9 managed
+-- @bsb-hash sha256:7e27fede2423ae24c40b658e44d632fcb8b2e070c14e41566d3f2f962a5000e1
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -217,8 +217,10 @@ grant execute on function "better_supabase"."create_comment"(uuid, text, text, t
 
 
 -- A record's comments and replies in one list, oldest first; deleted ones
--- stay as placeholders so replies keep their parent. Page with after and
--- after_id (the last comment's sent_at and id) or skip (an offset).
+-- stay as placeholders so replies keep their parent, unless include_deleted
+-- is false. Page with after and after_id (the last comment's sent_at and id)
+-- or skip (an offset).
+drop function if exists "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid);
 create or replace function "better_supabase"."list_comments"(
   tenant uuid,
   subject_type text,
@@ -226,7 +228,8 @@ create or replace function "better_supabase"."list_comments"(
   after timestamptz default null,
   max_rows integer default 100,
   skip integer default 0,
-  after_id uuid default null
+  after_id uuid default null,
+  include_deleted boolean default true
 )
 returns jsonb
 language plpgsql
@@ -243,6 +246,7 @@ begin
   return "better_supabase"."comments_json"(array(
     select x."id" from "better_supabase"."messages" x
     where x."conversation_id" = v_conv and x."sent_at" is not null
+      and (coalesce(list_comments.include_deleted, true) or x."deleted_at" is null)
       and (list_comments.after is null
         or (x."sent_at", x."id") > (list_comments.after, coalesce(list_comments.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
     order by x."sent_at", x."id"
@@ -251,8 +255,8 @@ begin
   ));
 end;
 $$;
-revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
-grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid, boolean) to authenticated, service_role;
 
 -- The top-level comments anchored to a file, oldest first: on its pages,
 -- regions and moments, on any record the caller can read.
@@ -420,13 +424,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block-data comments
--- @bsb-hash sha256:ec18ec62c750f44de5b8ad60fc2d424cf37bb2d537ae17e99e99adceb72a60af
+-- @bsb-hash sha256:b88720e1f8db856027df7f4a32cd82bc30bc62603e455805ccbce770f292744d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('comments', 8, 'managed')
+values ('comments', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

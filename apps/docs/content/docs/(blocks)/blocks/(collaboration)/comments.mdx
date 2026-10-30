@@ -170,7 +170,10 @@ record it is on, and `taskId`, the work item it became. So a comment carries
 Threads are one level deep: a reply to a reply joins the root's thread.
 `list` pages with `cursor` (an instant) and `cursorId` (the last comment's
 id, so comments sent in the same instant aren't skipped), or with `offset` and
-`limit` (default 100, at most 500). `counts` leaves out deleted comments and
+`limit` (default 100, at most 500). Pass `includeDeleted: false` to leave
+deleted comments out of the page instead of returning them as placeholders;
+the database filters them, so `limit` counts only the comments you get back.
+`counts` leaves out deleted comments and
 returns 0 for a record without any; `subjectKey(subject)` from
 `better-supabase/blocks` builds its keys.
 

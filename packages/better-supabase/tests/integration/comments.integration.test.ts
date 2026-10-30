@@ -226,6 +226,13 @@ describe.skipIf(!live)("comments", () => {
       expect(after.find((comment) => comment.id === reply.id)).toMatchObject({
         body: "Looks good",
       });
+      expect(
+        (await comments.list(subject, { includeDeleted: false }).orThrow()).map(
+          (comment) => comment.id,
+        ),
+      ).toEqual(
+        after.flatMap((comment) => (comment.deletedAt ? [] : [comment.id])),
+      );
 
       await s.asRole(outsider);
       expect(await comments.list(subject).orThrow()).toEqual([]);

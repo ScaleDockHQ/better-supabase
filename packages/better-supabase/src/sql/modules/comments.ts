@@ -445,8 +445,10 @@ ${userGrant(`${fn("create_comment")}(${id}, text, text, text, jsonb, uuid[])`)}
 ${sent}
 
 -- A record's comments and replies in one list, oldest first; deleted ones
--- stay as placeholders so replies keep their parent. Page with after and
--- after_id (the last comment's sent_at and id) or skip (an offset).
+-- stay as placeholders so replies keep their parent, unless include_deleted
+-- is false. Page with after and after_id (the last comment's sent_at and id)
+-- or skip (an offset).
+drop function if exists ${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer, uuid);
 create or replace function ${fn("list_comments")}(
   tenant ${id},
   subject_type text,
@@ -454,7 +456,8 @@ create or replace function ${fn("list_comments")}(
   after timestamptz default null,
   max_rows integer default 100,
   skip integer default 0,
-  after_id uuid default null
+  after_id uuid default null,
+  include_deleted boolean default true
 )
 returns jsonb
 language plpgsql
@@ -471,6 +474,7 @@ begin
   return ${fn("comments_json")}(array(
     select x.${ms("id")} from ${m.table("messages")} x
     where x.${ms("conversation")} = v_conv and x.${ms("sentAt")} is not null
+      and (coalesce(list_comments.include_deleted, true) or x.${ms("deletedAt")} is null)
       and (list_comments.after is null
         or (x.${ms("sentAt")}, x.${ms("id")}) > (list_comments.after, coalesce(list_comments.after_id, ${MAX_UUID})))
     order by x.${ms("sentAt")}, x.${ms("id")}
@@ -479,7 +483,7 @@ begin
   ));
 end;
 $$;
-${userGrant(`${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer, uuid)`)}
+${userGrant(`${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer, uuid, boolean)`)}
 
 -- The top-level comments anchored to a file, oldest first: on its pages,
 -- regions and moments, on any record the caller can read.
@@ -622,6 +626,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "integer",
         "integer",
         "uuid",
+        "boolean",
       ],
       returns: "jsonb",
     },
@@ -820,7 +825,7 @@ export const COMMENTS: BlockSqlDefinition = {
   integrates: ["notifications", "tasks", "reactions", "attachments"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 8,
+  version: 9,
   upgrades: [
     {
       from: 1,
@@ -862,6 +867,13 @@ export const COMMENTS: BlockSqlDefinition = {
       sql: () => "",
     },
     TO_MESSAGING,
+    {
+      from: 8,
+      description:
+        "list_comments takes include_deleted; false leaves deleted comments out instead of returning placeholders.",
+      sql: (ctx) =>
+        `drop function if exists ${ctx.fn("list_comments")}(${ctx.idType}, text, text, timestamptz, integer, integer, uuid);`,
+    },
   ],
   deprecated: [
     {

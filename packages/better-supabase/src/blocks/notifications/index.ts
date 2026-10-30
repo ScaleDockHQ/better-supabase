@@ -18,12 +18,16 @@ export type {
 export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export type {
+  ContactMessage,
+  ContactRecipient,
   NotificationChannel,
   NotificationMessage,
   NotificationSendResult,
 } from "./channel.ts";
 
 export { createNotifications } from "./notifications.ts";
+
+export { subscriptionOf } from "./rows.ts";
 
 export { mailHeaders } from "./delivery.ts";
 
@@ -67,6 +71,7 @@ export {
 
 export type {
   AvatarUrls,
+  ContactDelivery,
   DeliverOptions,
   DeliverResult,
   DeliveryEvent,

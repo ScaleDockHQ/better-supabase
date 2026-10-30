@@ -10,6 +10,16 @@ import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { ListQueryInput } from "../../list/list-query.ts";
+import type {
+  DuplicateViewInput,
+  SavedView,
+  SavedViewKind,
+  SavedViewList,
+  SavedViewPreference,
+  SavedViewPreferenceInput,
+  SavedViewScope,
+  SavedViewState,
+} from "./types.ts";
 
 import {
   blockFields,
@@ -22,126 +32,9 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
-import {
-  blockCall,
-  isRecord,
-  optionalText,
-  recordOf,
-  recordsOf,
-  textOf,
-} from "../shared.ts";
-
-export const SAVED_VIEW_KINDS = [
-  "table",
-  "board",
-  "calendar",
-  "timeline",
-  "gantt",
-] as const;
-
-export type SavedViewKind = (typeof SAVED_VIEW_KINDS)[number];
-
-export const SAVED_VIEW_SCOPES = ["user", "team", "tenant"] as const;
-
-export type SavedViewScope = (typeof SAVED_VIEW_SCOPES)[number];
-
-export const SAVED_VIEW_DENSITIES = [
-  "compact",
-  "default",
-  "comfortable",
-] as const;
-
-export type SavedViewDensity = (typeof SAVED_VIEW_DENSITIES)[number];
-
-/** Column layout, in the shape of TanStack Table's column state. */
-export interface SavedViewColumns {
-  readonly visible?: readonly string[];
-  readonly order?: readonly string[];
-  readonly sizes?: Readonly<Record<string, number>>;
-  readonly pinned?: {
-    readonly left?: readonly string[];
-    readonly right?: readonly string[];
-  };
-}
-
-/** What a view stores. `query` is the list's typed input, without the page. */
-export interface SavedViewState<
-  Q extends ListQueryInput<string, string> = ListQueryInput<string, string>,
-> {
-  readonly query?: Omit<Q, "page" | "after">;
-  readonly columns?: SavedViewColumns;
-  readonly grouping?: readonly string[];
-  readonly density?: SavedViewDensity;
-  /**
-   * Settings of the layout, such as a board's group column or a calendar's date
-   * field.
-   */
-  readonly layout?: Readonly<Record<string, unknown>>;
-  /**
-   * Keeps the view to the records of a collection
-   * (`better-supabase/blocks/collections`): pass `collections.where(id)` as the
-   * list's `where`.
-   */
-  readonly collectionId?: string;
-}
-
-/** The part of a view's state that lives outside the URL. */
-export type SavedViewDisplayState = Omit<SavedViewState, "query">;
-
-/** The caller's own flags for a view, which need no right to change it. */
-export interface SavedViewPreference {
-  /** Opens this view first, ahead of every slot default. */
-  readonly isDefault: boolean;
-  readonly hidden: boolean;
-  readonly pinned: boolean;
-}
-
-export interface SavedViewPreferenceInput {
-  readonly isDefault?: boolean;
-  readonly hidden?: boolean;
-  readonly pinned?: boolean;
-}
-
-export interface DuplicateViewInput {
-  readonly name?: string;
-  /** Default `user`. `team` and `tenant` need `saved_views.share`. */
-  readonly scope?: SavedViewScope;
-  /** The team, for `scope: "team"`. */
-  readonly teamId?: string;
-}
-
-/**
- * The part of a `defineListQuery` definition a saved view checks its query
- * against. Any list definition fits.
- */
-export interface SavedViewList {
-  parse(input: object | undefined): {
-    readonly ok: boolean;
-    readonly issues?: readonly ValidationIssue[] | undefined;
-  };
-  readonly jsonSchema: Readonly<Record<string, unknown>>;
-}
-
-export interface SavedView<
-  Q extends ListQueryInput<string, string> = ListQueryInput<string, string>,
-  F extends object = Record<never, never>,
-> {
-  readonly id: string;
-  readonly list: string;
-  readonly scope: SavedViewScope;
-  readonly ownerId: string | null;
-  readonly teamId: string | null;
-  readonly name: string;
-  readonly kind: SavedViewKind;
-  readonly state: SavedViewState<Q>;
-  readonly rank: string;
-  /** The default of its slot (the owner's, the team's or the tenant's). */
-  readonly isDefault: boolean;
-  /** The caller's own flags; all false without the preferences table. */
-  readonly preference: SavedViewPreference;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
-  readonly fields: RowFields<F>;
-}
+import { blockCall, isRecord, recordOf, recordsOf, textOf } from "../shared.ts";
+import { preferenceOf, viewOf } from "./rows.ts";
+import { SAVED_VIEW_DENSITIES, SAVED_VIEW_SCOPES } from "./types.ts";
 
 /**
  * What `upsert` and `duplicate` resolve to: the view's id, rank key and extra
@@ -402,50 +295,12 @@ function withoutPage(query: object): Record<string, unknown> {
   );
 }
 
-function oneOfOr<T extends string>(
-  values: readonly T[],
-  value: unknown,
-  fallback: T,
-): T {
-  return values.find((item) => item === value) ?? fallback;
-}
-
-function preferenceOf(value: unknown): SavedViewPreference {
-  const row = isRecord(value) ? value : {};
-
-  return {
-    isDefault: row["isDefault"] === true,
-    hidden: row["hidden"] === true,
-    pinned: row["pinned"] === true,
-  };
-}
-
 function savedOf(value: unknown): SavedViewRef {
   const row = recordOf(value, "saved view");
 
   return {
     id: textOf(row["id"]),
     rank: textOf(row["rank"]),
-    fields: rowFields(row["fields"]),
-  };
-}
-
-function viewOf(value: unknown): SavedView {
-  const row = recordOf(value, "saved view");
-  const state = row["state"];
-
-  return {
-    id: textOf(row["id"]),
-    list: textOf(row["list"]),
-    scope: oneOfOr(SAVED_VIEW_SCOPES, row["scope"], "user"),
-    ownerId: optionalText(row["ownerId"]) ?? null,
-    teamId: optionalText(row["teamId"]) ?? null,
-    name: textOf(row["name"]),
-    kind: oneOfOr(SAVED_VIEW_KINDS, row["kind"], "table"),
-    state: isRecord(state) ? state : {},
-    rank: optionalText(row["rank"]) ?? "V",
-    isDefault: row["isDefault"] === true,
-    preference: preferenceOf(row["preference"]),
     fields: rowFields(row["fields"]),
   };
 }

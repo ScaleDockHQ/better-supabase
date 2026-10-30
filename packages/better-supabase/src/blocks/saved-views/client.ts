@@ -1,13 +1,13 @@
 import type { ListQueryInput } from "../../list/list-query.ts";
 import type { Controller } from "../controller.ts";
 import type { ListUrlState } from "./query-state.ts";
+import type { DefaultViewCandidate } from "./saved-views.ts";
 import type {
-  DefaultViewCandidate,
   SavedViewDisplayState,
   SavedViewPreferenceInput,
   SavedViewScope,
   SavedViewState,
-} from "./saved-views.ts";
+} from "./types.ts";
 
 import { defineController } from "../controller.ts";
 import {

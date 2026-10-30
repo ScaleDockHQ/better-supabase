@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { toItem } from "../../../src/blocks/notifications/rows.ts";
+import {
+  subscriptionOf,
+  toItem,
+} from "../../../src/blocks/notifications/rows.ts";
 
 const row = {
   id: "n1",
@@ -47,5 +50,27 @@ describe("toItem", () => {
 
     expect(item.actions).toEqual([]);
     expect(item.resolution).toEqual({ outcome: "paid" });
+  });
+});
+
+describe("subscriptionOf", () => {
+  it("parses a subscriptions row and rejects an unknown level", () => {
+    expect(
+      subscriptionOf({
+        subject_type: "deal",
+        subject_id: "d1",
+        level: "all",
+        tenant: "org-1",
+        created_at: "2026-10-25T12:00:00Z",
+      }),
+    ).toMatchObject({
+      subject: { type: "deal", id: "d1" },
+      level: "all",
+      tenant: "org-1",
+    });
+    expect(
+      subscriptionOf({ subject_type: "deal", level: "loud" }),
+    ).toBeUndefined();
+    expect(subscriptionOf("nope")).toBeUndefined();
   });
 });

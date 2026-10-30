@@ -355,6 +355,18 @@ describe("createComments", () => {
     ]);
   });
 
+  it("leaves deleted comments out with includeDeleted: false", async () => {
+    const fake = fakeTransport({ list_comments: [row] });
+
+    const comments = createComments({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    await comments.list(PROJECT, { includeDeleted: false }).orThrow();
+    expect(fake.calls[0]![2]).toMatchObject({ include_deleted: false });
+  });
+
   it("pages by offset, counts comments per subject and copies a thread", async () => {
     const fake = fakeTransport({
       list_comments: [],

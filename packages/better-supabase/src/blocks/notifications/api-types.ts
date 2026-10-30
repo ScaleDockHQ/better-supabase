@@ -13,7 +13,7 @@ import type { RequestContext } from "../../core/plugin.ts";
 import type { AsyncResult, Result } from "../../core/result.ts";
 import type { CloudEvent, EventSink } from "../../events/cloud-event.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
-import type { NotificationChannel } from "./channel.ts";
+import type { ContactRecipient, NotificationChannel } from "./channel.ts";
 import type { EmailChannelOptions } from "./email.ts";
 import type {
   NotificationItem,
@@ -32,10 +32,15 @@ export interface SendInput<
   F extends object = Record<never, never>,
 > {
   /**
-   * Who gets it. Watchers of `subject` and the `notification_audience` hook add
-   * more.
+   * Who gets it: user ids, or `{ email, name }` for a contact without an
+   * account. Watchers of `subject` and the `notification_audience` hook add
+   * more users. A contact gets the notification right away from each channel
+   * with `sendToContact` (the email channel), once per new notification. When
+   * no user gets it, the contacts still do, under the id `key:<key>` with a
+   * `key` (so a repeat sends the same idempotency key) or a new uuid, and
+   * nothing is stored.
    */
-  readonly recipients?: readonly string[];
+  readonly recipients?: readonly (string | ContactRecipient)[];
   /**
    * Also notify the users who hold this permission in `tenant`. Needs `tenant`.
    * Without a holders template the send is refused.
@@ -158,12 +163,26 @@ export type AvatarUrls =
   | ((path: string) => string | null);
 
 export interface SentNotification {
-  /** The event id, the same as `eventId`. */
+  /**
+   * The event id, the same as `eventId`. A send that reached only contacts has
+   * no stored event; see `SendInput.recipients`.
+   */
   readonly id: string;
   /** The shared event id: the `eventId` of each recipient's `list()` item. */
   readonly eventId: string;
   /** The user ids that received it. */
   readonly recipients: readonly string[];
+  /** What each channel did with each contact recipient. */
+  readonly contacts?: readonly ContactDelivery[];
+}
+
+export interface ContactDelivery {
+  readonly email: string;
+  readonly channel: string;
+  readonly status: "sent" | "skipped" | "failed";
+  readonly providerMessageId?: string;
+  /** Why it failed. */
+  readonly error?: string;
 }
 
 export interface NotificationUpdate {
