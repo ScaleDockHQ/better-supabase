@@ -64,8 +64,57 @@ blocks: {
 | `policy`      | one step: holders of `members.update_role`    | An [approvals policy](/docs/blocks/approvals#configure-policies) without `run`: steps, `expiresIn`, `selfApproval` |
 | `maxDuration` | none                                          | An ISO 8601 duration that caps a grant and is the default when a request names none                                |
 | `join`        | `false`                                       | Lets someone outside the organization ask to join with a role                                                      |
+| `emergency`   | `{ maxHours: 8 }`                             | How long [emergency access](#emergency-access) lasts, from 1 to 168 hours                                          |
 
 A member can have one pending request per organization (`ACCESS_REQUEST_PENDING`), can't ask for the role they hold (`ACCESS_ROLE_HELD`), and an owner can't ask for another role.
+
+## Record access
+
+With the [subjects](/docs/blocks/subjects) block installed and a subject type that has a `team`, a member can ask for access to one record instead of a role. `requestRecord` names the subject type, the record id and the action (`read` by default), with a duration of 7 days unless the request names one; `maxDuration` caps it here too.
+
+```ts
+const request = await db.accessRequests
+  .requestRecord({
+    subjectType: "client",
+    subjectId: clientId,
+    reason: "Covering for Ana this week",
+    duration: Temporal.Duration.from({ days: 2 }),
+  })
+  .orThrow();
+```
+
+The record's team leads approve it; a record without a lead goes to the holders of `subjects.manage`. The `policy` option still sets the expiry and self approval. On the final approval the module adds a `subject_members` row whose `endsAt` is the end of the grant, so the requester gets the access the record's team has until then. `end(id)` and `expire_access_grants()` close that row, and they never close access the member already had through the team.
+
+A request for a subject type without a team, an unknown action, a record that doesn't exist or access the member already has fails with `ACCESS_REQUEST_RECORD_INVALID`. A member can have one pending request per record. Read a request's target from `request.target`: `role` or `record`.
+
+A block that keeps its own grants, such as the drive, contributes an access grant for its subject type. The module then calls the block's grant function on approval and again with `ends_at = now()` when the grant ends, instead of adding a `subject_members` row.
+
+## Emergency access
+
+Emergency access is break-glass access to one record: it starts at once, without an approval, and is reviewed afterwards. It needs `access_requests.emergency`, which owners and admins hold and members don't (grant it to an on-call role), and a reason of at least 10 characters (`ACCESS_REQUEST_REASON_REQUIRED`).
+
+```ts
+const access = await db.accessRequests
+  .openEmergency({
+    subjectType: "patient",
+    subjectId: patientId,
+    reason: "On call, the patient is in the emergency room",
+  })
+  .orThrow();
+```
+
+The grant is a `subject_members` row marked `emergency` that ends after `emergency.maxHours` (8 by default). The record's team leads and the holders of `access_requests.review` get a notification. A reviewer lists the grants with `emergencies(organizationId)` (unreviewed ones by default; pass `{ unreviewed: false }` for all) and records a verdict:
+
+```ts
+await db.accessRequests
+  .reviewEmergency(access.id, {
+    verdict: "justified",
+    note: "Confirmed with the shift lead",
+  })
+  .orThrow();
+```
+
+Reviewing needs `access_requests.review`, which owners and admins hold. Nobody reviews their own emergency access, and a grant is reviewed once (`ACCESS_REQUEST_REVIEW_INVALID`). The verdict, the note, the reviewer and the time are on `access.review`.
 
 ## Statuses
 
@@ -85,7 +134,7 @@ With the `provider` access model the module doesn't touch memberships. The autho
 
 ## Events and hooks
 
-The module records `access.requested`, `access.request_approved` and `access.ended` (with `reason` set to `expired` or `revoked`), each with `organizationId`, `userId`, `role`, the request `id`, `approvalId` and `expiresAt`; they also go to the [audit log](/docs/blocks/audit). The approvals module records its own `approval.*` events for the request. The module calls `before_access_request`, `after_access_request`, `before_access_grant` and `after_access_grant`.
+The module records `access.requested`, `access.request_approved` and `access.ended` (with `reason` set to `expired` or `revoked`), each with `organizationId`, `userId`, `role`, the request `id`, `approvalId` and `expiresAt`, plus `target`, `subjectType`, `subjectId` and `action` (null for a role request; `role` is null for a record request). Emergency access records `access_request.emergency_opened` (with the `reason`) and `access_request.emergency_reviewed` (with the `verdict`) instead. They all go to the [audit log](/docs/blocks/audit). The approvals module records its own `approval.*` events for the request. The module calls `before_access_request` and `after_access_request` for role requests, and `before_access_grant` and `after_access_grant` for every grant.
 
 ## With ReUI
 

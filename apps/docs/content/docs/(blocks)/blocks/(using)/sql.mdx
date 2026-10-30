@@ -1556,7 +1556,11 @@ The `subjects` block stores the members in `subject_members`. A row names a
 user or a team from the [`teams`](/docs/blocks/teams) block, a role and the
 days it counts (`starts_on` and `ends_on`, both included). A membership
 counts from `starts_on` through `ends_on`, so access stops the day after a
-membership ends, without a job to revoke it.
+membership ends, without a job to revoke it. A row the
+[access-requests](/docs/blocks/access-requests#record-access) block grants
+also has `ends_at`, the exact time it stops counting, and `emergency` for
+[emergency access](/docs/blocks/access-requests#emergency-access); the client
+reads it as `endsAt`.
 
 | Function                                                                                   | What it does                                                                                     |
 | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |

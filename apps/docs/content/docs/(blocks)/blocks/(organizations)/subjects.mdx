@@ -57,7 +57,9 @@ const { items, nextCursor } = await subjects.members
 ```
 
 `end(memberId, { endsOn })` ends a membership, and `list(subject)` reads the
-record's team. [Record teams](/docs/blocks/sql#record-teams) covers the
+record's team. A membership granted through an
+[access request](/docs/blocks/access-requests#record-access) has an `endsAt`
+instant as well. [Record teams](/docs/blocks/sql#record-teams) covers the
 config, the roles and who may manage a team.
 
 The [SQL modules page](/docs/blocks/sql#subject-registry) covers the
