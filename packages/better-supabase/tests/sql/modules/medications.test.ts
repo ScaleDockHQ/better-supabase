@@ -105,6 +105,68 @@ describe("medications module", () => {
     ).toThrow('"Mars/Base" is not a time zone');
   });
 
+  it("adds extra columns to medications and doses and writes them from fields", () => {
+    const sql = sqlOf(BASE, {
+      modules: {
+        medications: {
+          options: {
+            medicationExtraColumns: { shelf: "text" },
+            administrationExtraColumns: { site: "text" },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      `alter table "better_supabase"."medications" add column if not exists "shelf" text;`,
+    );
+    expect(sql).toContain(
+      `alter table "better_supabase"."medication_administrations" add column if not exists "site" text;`,
+    );
+    expect(sql).toContain("save_medication.fields");
+    expect(sql).toContain("record_medication_administration.fields");
+    expect(sql).toContain("record_as_needed_administration.fields");
+    expect(sql).toContain("fields jsonb default null");
+    expect(sql).not.toContain('add column if not exists "ward"');
+    expect(sqlOf()).not.toContain(".fields");
+    expect(() =>
+      sqlOf(BASE, {
+        modules: {
+          medications: {
+            options: { medicationExtraColumns: { name: "text" } },
+          },
+        },
+      }),
+    ).toThrow(/shadows/);
+  });
+
+  it("signs doses and approves orders only with the signatures module", () => {
+    const without = sqlOf();
+    expect(without).toContain(
+      "signing a medication record needs the signatures module",
+    );
+
+    const sql = sqlOf([...BASE, "signatures"]);
+    expect(sql).toContain(`from "better_supabase"."signatures" sg`);
+    expect(sql).toContain("approve_medication_order");
+    expect(sql).toContain("signature_id uuid default null");
+    expect(sql).toContain("'medication_administration'");
+    expect(sql).toContain("'medication_order'");
+  });
+
+  it("lets guests read orders, doses and medications when guestRead is on", () => {
+    const modules = [...BASE, "guests"];
+    const off = sqlOf(modules);
+
+    const on = sqlOf(modules, {
+      modules: { medications: { options: { guestRead: true } } },
+    });
+
+    const count = (sql: string): number => sql.split("portal_").length;
+
+    expect(count(on)).toBeGreaterThan(count(off));
+  });
+
   it("adds extra columns to orders and writes them from attrs.fields", () => {
     const sql = sqlOf(BASE, {
       modules: { medications: { options: { extraColumns: { ward: "text" } } } },

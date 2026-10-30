@@ -8,20 +8,24 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { guestOr } from "../guest-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, schemaPreamble } from "../shared.ts";
+import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { medicationAdministrationFunctions } from "./medications-administrations.ts";
 import { medicationFunctions } from "./medications-functions.ts";
 import {
+  ADMINISTRATION_EXTRA,
   ADMINISTRATION_STATUSES,
   CODE_SYSTEMS,
+  MEDICATION_EXTRA,
   medicationKeys,
   medicationTimeZone,
   missedAfterMinutes,
   ORDER_RESERVED,
   ORDER_SOURCES,
+  ROW_RESERVED,
   ORDER_STATUSES,
   sqlList,
 } from "./medications-shared.ts";
@@ -83,7 +87,15 @@ const NAMES: BlockSqlNames = {
     "before_medication_administration_record",
     "after_medication_administration_record",
   ],
-  options: ["missedAfterMinutes", "missedCaseKind", "timeZone", "extraColumns"],
+  options: [
+    "missedAfterMinutes",
+    "missedCaseKind",
+    "timeZone",
+    "extraColumns",
+    MEDICATION_EXTRA,
+    ADMINISTRATION_EXTRA,
+    "guestRead",
+  ],
   tables: {
     medications: {
       name: "medications",
@@ -130,11 +142,18 @@ const NAMES: BlockSqlNames = {
         requiresDoubleCheck: "requires_double_check",
         status: "status",
         stoppedReason: "stopped_reason",
+        signature: "signature_id",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["prescriber", "createdBy", "createdAt", "updatedAt"],
+      optional: [
+        "prescriber",
+        "signature",
+        "createdBy",
+        "createdAt",
+        "updatedAt",
+      ],
     },
     administrations: {
       name: "medication_administrations",
@@ -152,8 +171,9 @@ const NAMES: BlockSqlNames = {
         checkedBy: "checked_by",
         reason: "reason",
         note: "note",
+        signature: "signature_id",
       },
-      optional: ["note"],
+      optional: ["note", "signature"],
     },
   },
 };
@@ -200,6 +220,20 @@ function tables(ctx: BlockSqlContext): string {
       { drop: true, target: ctx.table(logical) },
     );
 
+  // A guest with a read grant on the record reads its orders, doses and the
+  // medications they name (options.guestRead).
+  const guestRead = ctx.flag("guestRead", false);
+
+  const guestOf = (
+    tenant: string,
+    type: string,
+    id: string,
+  ): readonly string[] => {
+    const guest = ctx.scope.guest(tenant, type, `${id}::text`, "read");
+
+    return guestRead && guest !== "false" ? [guest] : [];
+  };
+
   const appKey = (logical: string, what: string, columns: string): string =>
     ctx.owns(logical)
       ? ""
@@ -218,11 +252,10 @@ create table if not exists ${medications} (
   ${m("highRisk")} boolean not null default false,
   ${m("archivedAt")} timestamptz,${stamps("medications", ["createdAt", "updatedAt"])}
   unique (${m("tenant")}, ${m("id")})
-);${appKey("medications", "tenant_id", `${m("tenant")}, ${m("id")}`)}
+);${addExtraColumns(medications, ctx.extraColumns("medications", ROW_RESERVED, MEDICATION_EXTRA))}${appKey("medications", "tenant_id", `${m("tenant")}, ${m("id")}`)}
 create index if not exists ${name("medications", "tenant_idx")} on ${medications} (${m("tenant")}, ${m("name")});
 create unique index if not exists ${name("medications", "code_idx")} on ${medications} (${m("tenant")}, ${m("codeSystem")}, ${m("code")}) where ${m("code")} is not null;
 ${lockModuleTable(ctx, "medications", { read: true })}
-${readPolicy("medications", ctx.scope.check(m("tenant"), read))}
 
 create table if not exists ${orders} (
   ${o("id")} uuid primary key default gen_random_uuid(),
@@ -248,7 +281,7 @@ create table if not exists ${orders} (
   ${o("externalId")} text check (${o("externalId")} is null or length(${o("externalId")}) <= 200),
   ${o("requiresDoubleCheck")} boolean not null default false,
   ${o("status")} text not null default 'active' check (${o("status")} in ${sqlList(ORDER_STATUSES)}),
-  ${o("stoppedReason")} text check (${o("stoppedReason")} is null or length(${o("stoppedReason")}) <= 1000),${opt("orders", "createdBy", () => `${o("createdBy")} uuid`)}${stamps("orders", ["createdAt", "updatedAt"])}
+  ${o("stoppedReason")} text check (${o("stoppedReason")} is null or length(${o("stoppedReason")}) <= 1000),${opt("orders", "signature", () => `${o("signature")} uuid`)}${opt("orders", "createdBy", () => `${o("createdBy")} uuid`)}${stamps("orders", ["createdAt", "updatedAt"])}
   check (${o("endsOn")} is null or ${o("endsOn")} >= ${o("startsOn")}),
   check (${o("asNeeded")} or ${o("schedule")} is not null),
   unique (${o("tenant")}, ${o("id")}),
@@ -259,7 +292,23 @@ create index if not exists ${name("orders", "subject_idx")} on ${orders} (${o("s
 create index if not exists ${name("orders", "status_idx")} on ${orders} (${o("tenant")}, ${o("status")});
 create unique index if not exists ${name("orders", "external_idx")} on ${orders} (${o("tenant")}, ${o("externalId")}) where ${o("externalId")} is not null;
 ${lockModuleTable(ctx, "orders", { read: true })}
-${readPolicy("orders", `${ctx.scope.check(o("tenant"), read)} and coalesce(${canSubject}(${o("subjectType")}, ${o("subjectId")}, 'read'), false)`)}
+${readPolicy(
+  "orders",
+  guestOr(
+    `${ctx.scope.check(o("tenant"), read)} and coalesce(${canSubject}(${o("subjectType")}, ${o("subjectId")}, 'read'), false)`,
+    guestOf(o("tenant"), o("subjectType"), o("subjectId")),
+  ),
+)}
+${readPolicy(
+  "medications",
+  guestOr(
+    ctx.scope.check(m("tenant"), read),
+    guestOf(m("tenant"), `x.${o("subjectType")}`, `x.${o("subjectId")}`).map(
+      (guest) =>
+        `exists (select 1 from ${orders} x where x.${o("tenant")} = ${medications}.${m("tenant")} and x.${o("medication")} = ${medications}.${m("id")} and ${guest})`,
+    ),
+  ),
+)}
 
 create table if not exists ${administrations} (
   ${a("id")} uuid primary key default gen_random_uuid(),
@@ -273,16 +322,29 @@ create table if not exists ${administrations} (
   ${a("performer")} uuid,
   -- The second member who checked a high-risk dose.
   ${a("checkedBy")} uuid,
-  ${a("reason")} text check (${a("reason")} is null or length(${a("reason")}) <= 1000),${opt("administrations", "note", () => `${a("note")} text check (${a("note")} is null or length(${a("note")}) <= 2000)`)}
+  ${a("reason")} text check (${a("reason")} is null or length(${a("reason")}) <= 1000),${opt("administrations", "note", () => `${a("note")} text check (${a("note")} is null or length(${a("note")}) <= 2000)`)}${opt("administrations", "signature", () => `${a("signature")} uuid`)}
   check (${a("checkedBy")} is null or ${a("checkedBy")} is distinct from ${a("performer")}),
   unique (${a("order")}, ${a("scheduledAt")}),
   foreign key (${a("tenant")}, ${a("order")}) references ${orders} (${o("tenant")}, ${o("id")}) on delete cascade
-);${appKey("administrations", "order_time_key", `${a("order")}, ${a("scheduledAt")}`)}
+);${addExtraColumns(administrations, ctx.extraColumns("administrations", ROW_RESERVED, ADMINISTRATION_EXTRA))}${appKey("administrations", "order_time_key", `${a("order")}, ${a("scheduledAt")}`)}
 create index if not exists ${name("administrations", "order_idx")} on ${administrations} (${a("tenant")}, ${a("order")});
 create index if not exists ${name("administrations", "planned_idx")} on ${administrations} (${a("scheduledAt")}) where ${a("status")} = 'planned';
 create index if not exists ${name("administrations", "given_idx")} on ${administrations} (${a("order")}, ${a("administeredAt")}) where ${a("status")} = 'given';
 ${lockModuleTable(ctx, "administrations", { read: true })}
-${readPolicy("administrations", `${ctx.scope.check(a("tenant"), read)} and exists (select 1 from ${orders} x where x.${o("id")} = ${a("order")} and coalesce(${canSubject}(x.${o("subjectType")}, x.${o("subjectId")}, 'read'), false))`)}
+${readPolicy(
+  "administrations",
+  guestOr(
+    `${ctx.scope.check(a("tenant"), read)} and exists (select 1 from ${orders} x where x.${o("id")} = ${a("order")} and coalesce(${canSubject}(x.${o("subjectType")}, x.${o("subjectId")}, 'read'), false))`,
+    guestOf(
+      `x.${o("tenant")}`,
+      `x.${o("subjectType")}`,
+      `x.${o("subjectId")}`,
+    ).map(
+      (guest) =>
+        `exists (select 1 from ${orders} x where x.${o("id")} = ${a("order")} and ${guest})`,
+    ),
+  ),
+)}
 `;
 }
 
@@ -325,7 +387,15 @@ function build(ctx: BlockSqlContext): string {
 ${tables(ctx)}${medicationFunctions(ctx)}${medicationAdministrationFunctions(ctx)}${orderMerges(ctx)}`;
 }
 
-function contract(): readonly BlockSqlContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
+  const medicationFields = extraFieldsArg(
+    ctx.extraColumns("medications", ROW_RESERVED, MEDICATION_EXTRA),
+  ).contract;
+
+  const administrationFields = extraFieldsArg(
+    ctx.extraColumns("administrations", ROW_RESERVED, ADMINISTRATION_EXTRA),
+  ).contract;
+
   return [
     {
       name: "save_medication",
@@ -339,6 +409,7 @@ function contract(): readonly BlockSqlContractFunction[] {
         "text",
         "boolean",
         "uuid",
+        ...medicationFields,
       ],
       returns: "jsonb",
     },
@@ -369,6 +440,15 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["uuid", "boolean"],
       returns: "jsonb",
     },
+    ...(ctx.has("orders", "signature")
+      ? [
+          {
+            name: "approve_medication_order",
+            args: ["uuid", "uuid"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
     { name: "stop_medication_order", args: ["uuid", "text"], returns: "jsonb" },
     {
       name: "medication_orders_of",
@@ -382,12 +462,28 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     {
       name: "record_medication_administration",
-      args: ["uuid", "text", "numeric", "text", "uuid", "text"],
+      args: [
+        "uuid",
+        "text",
+        "numeric",
+        "text",
+        "uuid",
+        "text",
+        ...(ctx.has("administrations", "signature") ? ["uuid"] : []),
+        ...administrationFields,
+      ],
       returns: "jsonb",
     },
     {
       name: "record_as_needed_administration",
-      args: ["uuid", "numeric", "text", "uuid", "text"],
+      args: [
+        "uuid",
+        "numeric",
+        "text",
+        "uuid",
+        "text",
+        ...administrationFields,
+      ],
       returns: "jsonb",
     },
     {
@@ -410,7 +506,14 @@ export const MEDICATIONS: BlockSqlDefinition = {
   description:
     "A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.",
   requires: ["memberships", "permissions", "subjects"],
-  integrates: ["notifications", "outbox", "audit", "cases"],
+  integrates: [
+    "notifications",
+    "outbox",
+    "audit",
+    "cases",
+    "signatures",
+    "guests",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,

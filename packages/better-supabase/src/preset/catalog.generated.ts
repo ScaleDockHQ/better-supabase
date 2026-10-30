@@ -7741,7 +7741,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "outbox",
         "audit",
-        "cases"
+        "cases",
+        "signatures",
+        "guests"
       ],
       "manifest": "medications",
       "scopes": [
@@ -7805,6 +7807,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "requiresDoubleCheck": "requires_double_check",
               "status": "status",
               "stoppedReason": "stopped_reason",
+              "signature": "signature_id",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -7823,7 +7826,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "performer": "performer_id",
               "checkedBy": "checked_by",
               "reason": "reason",
-              "note": "note"
+              "note": "note",
+              "signature": "signature_id"
             }
           }
         },
@@ -19868,6 +19872,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "medicationId": {
                 "kind": "uuid",
                 "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
               }
             },
             "jsonSchema": {
@@ -19913,6 +19922,9 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "medicationId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
                 }
               },
               "required": [

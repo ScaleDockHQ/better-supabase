@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:1f4479d75467d89f92ad26324fdddab61a59a010e6bc1470582490f69f4ba027
+-- @bsb-hash sha256:08c2959397762aea5fbf84163036055f2abadd82b2b81aea9a92db96c630ff6c
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -99,10 +99,6 @@ alter table "better_supabase"."medications" enable row level security;
 revoke all on "better_supabase"."medications" from public, anon, authenticated;
 grant select on "better_supabase"."medications" to authenticated;
 grant all on "better_supabase"."medications" to service_role;
-drop policy if exists medications_read on "better_supabase"."medications";
-create policy medications_read on "better_supabase"."medications"
-  for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
 
 create table if not exists "better_supabase"."medication_orders" (
   "id" uuid primary key default gen_random_uuid(),
@@ -130,6 +126,7 @@ create table if not exists "better_supabase"."medication_orders" (
   "requires_double_check" boolean not null default false,
   "status" text not null default 'active' check ("status" in ('active', 'paused', 'stopped')),
   "stopped_reason" text check ("stopped_reason" is null or length("stopped_reason") <= 1000),
+  "signature_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -151,6 +148,10 @@ drop policy if exists medication_orders_read on "better_supabase"."medication_or
 create policy medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+drop policy if exists medications_read on "better_supabase"."medications";
+create policy medications_read on "better_supabase"."medications"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
 
 create table if not exists "better_supabase"."medication_administrations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -166,6 +167,7 @@ create table if not exists "better_supabase"."medication_administrations" (
   "checked_by" uuid,
   "reason" text check ("reason" is null or length("reason") <= 1000),
   "note" text check ("note" is null or length("note") <= 2000),
+  "signature_id" uuid,
   check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
   unique ("order_id", "scheduled_at"),
   foreign key ("tenant_id", "order_id") references "better_supabase"."medication_orders" ("tenant_id", "id") on delete cascade
@@ -185,6 +187,7 @@ create policy medication_administrations_read on "better_supabase"."medication_a
 -- Adds a medication to the organization's catalog, or changes one
 -- (medication_id). A code from a catalog other than custom is unique in the
 -- organization.
+drop function if exists "better_supabase"."save_medication"(uuid, text, text, text, text, text, text, boolean, uuid, jsonb);
 create or replace function "better_supabase"."save_medication"(tenant uuid, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null)
 returns jsonb
 language plpgsql
@@ -527,7 +530,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'signatureId', v_row."signature_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."prescribe_medication"(uuid, text, text, uuid, jsonb) from public, anon;
@@ -713,7 +716,7 @@ begin
   where x."id" = v_row."id"
   returning x.* into v_row;
     null;
-    v_created := v_created || jsonb_build_array(jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note")));
+    v_created := v_created || jsonb_build_array(jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'signatureId', v_row."signature_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note")));
   end loop;
   return jsonb_build_object('created', v_created, 'skipped', v_skipped);
 end;
@@ -848,11 +851,49 @@ begin
   returning x.* into v_row;
   delete from "better_supabase"."medication_administrations" x where x."order_id" = v_row."id" and x."status" = 'planned' and x."scheduled_at" > now();
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'signatureId', v_row."signature_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."update_medication_order"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_medication_order"(uuid, jsonb) to authenticated, service_role;
+
+-- Approves an order with the caller's completed signature on it (subject type
+-- medication_order, the order's id). Needs the signatures module.
+create or replace function "better_supabase"."approve_medication_order"(order_id uuid, signature_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."medication_orders"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."medication_orders" x where x."id" = approve_medication_order.order_id for update;
+  if not found then
+    raise exception 'medication order not found' using errcode = 'P0002', hint = 'MEDICATION_ORDER_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'medications.prescribe'), false)) then
+    raise exception 'not allowed to prescribe medication' using errcode = '42501', hint = 'MEDICATION_FORBIDDEN';
+  end if;
+  if approve_medication_order.signature_id is null then
+    raise exception 'approving an order needs a signature' using errcode = '22023', hint = 'MEDICATION_SIGNATURE_INVALID';
+  end if;
+  if approve_medication_order.signature_id is not null then
+    raise exception 'signing a medication record needs the signatures module' using errcode = '22023', hint = 'MEDICATION_SIGNATURE_INVALID';
+  end if;
+  update "better_supabase"."medication_orders" x set "signature_id" = approve_medication_order.signature_id, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning x.* into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'signatureId', v_row."signature_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+end;
+$$;
+revoke execute on function "better_supabase"."approve_medication_order"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."approve_medication_order"(uuid, uuid) to authenticated, service_role;
 
 -- Pauses an active order (paused true) or resumes a paused one. A paused
 -- order gets no planned doses; the ones after now are removed.
@@ -881,7 +922,7 @@ begin
     raise exception 'the medication order is stopped' using errcode = '22023', hint = 'MEDICATION_ORDER_INACTIVE';
   end if;
   if v_row."status" = v_status then
-    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'signatureId', v_row."signature_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
   end if;
   update "better_supabase"."medication_orders" x set "status" = v_status, "updated_at" = now()
   where x."id" = v_row."id"
@@ -892,7 +933,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'signatureId', v_row."signature_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."pause_medication_order"(uuid, boolean) from public, anon;
@@ -928,7 +969,7 @@ begin
     raise exception 'a reason is at most 1000 characters' using errcode = '22023', hint = 'MEDICATION_ORDER_INVALID';
   end if;
   if v_row."status" = 'stopped' then
-    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'signatureId', v_row."signature_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_medication_order_stop"(uuid)');
@@ -951,7 +992,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'medicationId', v_row."medication_id", 'dose', v_row."dose", 'doseUnit', v_row."dose_unit", 'route', v_row."route", 'schedule', v_row."schedule", 'asNeeded', v_row."as_needed", 'asNeededReason', v_row."as_needed_reason", 'maxPerDay', v_row."max_per_day", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'prescriber', v_row."prescriber", 'source', v_row."source", 'externalId', v_row."external_id", 'requiresDoubleCheck', v_row."requires_double_check", 'status', v_row."status", 'stoppedReason', v_row."stopped_reason", 'signatureId', v_row."signature_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."stop_medication_order"(uuid, text) from public, anon;
@@ -964,7 +1005,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'medicationId', x."medication_id", 'dose', x."dose", 'doseUnit', x."dose_unit", 'route', x."route", 'schedule', x."schedule", 'asNeeded', x."as_needed", 'asNeededReason', x."as_needed_reason", 'maxPerDay', x."max_per_day", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'prescriber', x."prescriber", 'source', x."source", 'externalId', x."external_id", 'requiresDoubleCheck', x."requires_double_check", 'status', x."status", 'stoppedReason', x."stopped_reason", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) || jsonb_build_object('medication', jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'name', y."name", 'codeSystem', y."code_system", 'code', y."code", 'form', y."form", 'strength', y."strength", 'unit', y."unit", 'highRisk', y."high_risk", 'archivedAt', y."archived_at", 'createdAt', y."created_at", 'updatedAt', y."updated_at")) order by x."starts_on" desc, x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'medicationId', x."medication_id", 'dose', x."dose", 'doseUnit', x."dose_unit", 'route', x."route", 'schedule', x."schedule", 'asNeeded', x."as_needed", 'asNeededReason', x."as_needed_reason", 'maxPerDay', x."max_per_day", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'prescriber', x."prescriber", 'source', x."source", 'externalId', x."external_id", 'requiresDoubleCheck', x."requires_double_check", 'status', x."status", 'stoppedReason', x."stopped_reason", 'signatureId', x."signature_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) || jsonb_build_object('medication', jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'name', y."name", 'codeSystem', y."code_system", 'code', y."code", 'form', y."form", 'strength', y."strength", 'unit', y."unit", 'highRisk', y."high_risk", 'archivedAt', y."archived_at", 'createdAt', y."created_at", 'updatedAt', y."updated_at")) order by x."starts_on" desc, x."id"), '[]'::jsonb)
   from "better_supabase"."medication_orders" x
   join "better_supabase"."medications" y on y."tenant_id" = x."tenant_id" and y."id" = x."medication_id"
   where x."subject_type" = medication_orders_of.subject_type
@@ -1043,7 +1084,10 @@ grant execute on function "better_supabase"."plan_medication_administrations"(uu
 -- Records a planned or missed dose as given, refused or skipped. refused and
 -- skipped need a reason. A dose of a high-risk medication, or of an order that
 -- requires it, needs checked_by: another member who may administer.
-create or replace function "better_supabase"."record_medication_administration"(administration_id uuid, status text, dose numeric default null, reason text default null, checked_by uuid default null, note text default null)
+drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text);
+drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, jsonb);
+drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, uuid, jsonb);
+create or replace function "better_supabase"."record_medication_administration"(administration_id uuid, status text, dose numeric default null, reason text default null, checked_by uuid default null, note text default null, signature_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1100,6 +1144,9 @@ begin
     end if;
   end if;
   end if;
+  if record_medication_administration.signature_id is not null then
+    raise exception 'signing a medication record needs the signatures module' using errcode = '22023', hint = 'MEDICATION_SIGNATURE_INVALID';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_medication_administration_record"(uuid, text)');
   begin
@@ -1114,7 +1161,8 @@ begin
     "dose" = case when v_status = 'given' then v_dose else x."dose" end,
     "performer_id" = (select auth.uid()),
     "checked_by" = case when v_status = 'given' then record_medication_administration.checked_by end,
-    "reason" = v_reason, "note" = nullif(trim(record_medication_administration.note), '')
+    "reason" = v_reason, "note" = nullif(trim(record_medication_administration.note), ''),
+    "signature_id" = record_medication_administration.signature_id
   where x."id" = v_row."id"
   returning x.* into v_row;
   null;
@@ -1126,14 +1174,15 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'orderId', v_row."order_id", 'scheduledAt', v_row."scheduled_at", 'administeredAt', v_row."administered_at", 'status', v_row."status", 'dose', v_row."dose", 'performerId', v_row."performer_id", 'checkedBy', v_row."checked_by", 'reason', v_row."reason", 'note', v_row."note");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'orderId', v_row."order_id", 'scheduledAt', v_row."scheduled_at", 'administeredAt', v_row."administered_at", 'status', v_row."status", 'dose', v_row."dose", 'performerId', v_row."performer_id", 'checkedBy', v_row."checked_by", 'reason', v_row."reason", 'note', v_row."note", 'signatureId', v_row."signature_id");
 end;
 $$;
-revoke execute on function "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text) from public, anon;
-grant execute on function "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, uuid) to authenticated, service_role;
 
 -- Records a dose of an as-needed order, with the reason it was given. The
 -- doses given in the last 24 hours plus this one stay within max_per_day.
+drop function if exists "better_supabase"."record_as_needed_administration"(uuid, numeric, text, uuid, text, jsonb);
 create or replace function "better_supabase"."record_as_needed_administration"(order_id uuid, dose numeric default null, reason text default null, checked_by uuid default null, note text default null)
 returns jsonb
 language plpgsql
@@ -1213,7 +1262,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'orderId', v_row."order_id", 'scheduledAt', v_row."scheduled_at", 'administeredAt', v_row."administered_at", 'status', v_row."status", 'dose', v_row."dose", 'performerId', v_row."performer_id", 'checkedBy', v_row."checked_by", 'reason', v_row."reason", 'note', v_row."note");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'orderId', v_row."order_id", 'scheduledAt', v_row."scheduled_at", 'administeredAt', v_row."administered_at", 'status', v_row."status", 'dose', v_row."dose", 'performerId', v_row."performer_id", 'checkedBy', v_row."checked_by", 'reason', v_row."reason", 'note', v_row."note", 'signatureId', v_row."signature_id");
 end;
 $$;
 revoke execute on function "better_supabase"."record_as_needed_administration"(uuid, numeric, text, uuid, text) from public, anon;
@@ -1268,7 +1317,7 @@ as $$
     'since', b.since,
     'until', b.until,
     'orders', coalesce((
-      select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'medicationId', x."medication_id", 'dose', x."dose", 'doseUnit', x."dose_unit", 'route', x."route", 'schedule', x."schedule", 'asNeeded', x."as_needed", 'asNeededReason', x."as_needed_reason", 'maxPerDay', x."max_per_day", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'prescriber', x."prescriber", 'source', x."source", 'externalId', x."external_id", 'requiresDoubleCheck', x."requires_double_check", 'status', x."status", 'stoppedReason', x."stopped_reason", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) || jsonb_build_object('medication', jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'name', y."name", 'codeSystem', y."code_system", 'code', y."code", 'form', y."form", 'strength', y."strength", 'unit', y."unit", 'highRisk', y."high_risk", 'archivedAt', y."archived_at", 'createdAt', y."created_at", 'updatedAt', y."updated_at")) order by x."starts_on", x."id")
+      select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'medicationId', x."medication_id", 'dose', x."dose", 'doseUnit', x."dose_unit", 'route', x."route", 'schedule', x."schedule", 'asNeeded', x."as_needed", 'asNeededReason', x."as_needed_reason", 'maxPerDay', x."max_per_day", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'prescriber', x."prescriber", 'source', x."source", 'externalId', x."external_id", 'requiresDoubleCheck', x."requires_double_check", 'status', x."status", 'stoppedReason', x."stopped_reason", 'signatureId', x."signature_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) || jsonb_build_object('medication', jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'name', y."name", 'codeSystem', y."code_system", 'code', y."code", 'form', y."form", 'strength', y."strength", 'unit', y."unit", 'highRisk', y."high_risk", 'archivedAt', y."archived_at", 'createdAt', y."created_at", 'updatedAt', y."updated_at")) order by x."starts_on", x."id")
       from "better_supabase"."medication_orders" x
       join "better_supabase"."medications" y on y."tenant_id" = x."tenant_id" and y."id" = x."medication_id"
       where x."subject_type" = medication_chart.subject_type
@@ -1277,7 +1326,7 @@ as $$
         and (x."ends_on" is null or x."ends_on" >= (b.since at time zone 'UTC')::date)
     ), '[]'::jsonb),
     'administrations', coalesce((
-      select jsonb_agg(jsonb_build_object('id', z."id", 'organizationId', z."tenant_id", 'orderId', z."order_id", 'scheduledAt', z."scheduled_at", 'administeredAt', z."administered_at", 'status', z."status", 'dose', z."dose", 'performerId', z."performer_id", 'checkedBy', z."checked_by", 'reason', z."reason", 'note', z."note") order by coalesce(z."scheduled_at", z."administered_at"), z."id")
+      select jsonb_agg(jsonb_build_object('id', z."id", 'organizationId', z."tenant_id", 'orderId', z."order_id", 'scheduledAt', z."scheduled_at", 'administeredAt', z."administered_at", 'status', z."status", 'dose', z."dose", 'performerId', z."performer_id", 'checkedBy', z."checked_by", 'reason', z."reason", 'note', z."note", 'signatureId', z."signature_id") order by coalesce(z."scheduled_at", z."administered_at"), z."id")
       from "better_supabase"."medication_administrations" z
       join "better_supabase"."medication_orders" x on x."tenant_id" = z."tenant_id" and x."id" = z."order_id"
       where x."subject_type" = medication_chart.subject_type

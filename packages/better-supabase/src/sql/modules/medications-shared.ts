@@ -10,6 +10,18 @@ const WHERE = "blocks.medications.options";
 /** Keys the order JSON uses, which extra columns can't take. */
 export const ORDER_RESERVED = ["fields", "medication"] as const;
 
+/**
+ * Keys the medication and administration JSON use, which extra columns can't
+ * take.
+ */
+export const ROW_RESERVED = ["fields"] as const;
+
+/** The option that adds extra columns to the medications table. */
+export const MEDICATION_EXTRA = "medicationExtraColumns";
+
+/** The option that adds extra columns to the administrations table. */
+export const ADMINISTRATION_EXTRA = "administrationExtraColumns";
+
 export const CODE_SYSTEMS = ["gtin", "hpk", "atc", "rxnorm", "custom"] as const;
 
 export const ORDER_SOURCES = ["prescriber", "pharmacy", "import"] as const;
@@ -120,7 +132,7 @@ export function medicationJson(ctx: BlockSqlContext, row: string): string {
   const field = (column: string): string =>
     optionalField(ctx, "medications", row, column);
 
-  return `jsonb_build_object('id', ${m("id")}, 'organizationId', ${m("tenant")}, 'name', ${m("name")}, 'codeSystem', ${m("codeSystem")}, 'code', ${m("code")}, 'form', ${field("form")}, 'strength', ${field("strength")}, 'unit', ${m("unit")}, 'highRisk', ${m("highRisk")}, 'archivedAt', ${m("archivedAt")}, 'createdAt', ${field("createdAt")}, 'updatedAt', ${field("updatedAt")})`;
+  return `jsonb_build_object('id', ${m("id")}, 'organizationId', ${m("tenant")}, 'name', ${m("name")}, 'codeSystem', ${m("codeSystem")}, 'code', ${m("code")}, 'form', ${field("form")}, 'strength', ${field("strength")}, 'unit', ${m("unit")}, 'highRisk', ${m("highRisk")}, 'archivedAt', ${m("archivedAt")}, 'createdAt', ${field("createdAt")}, 'updatedAt', ${field("updatedAt")}${extraFieldsJson(row, ctx.extraColumns("medications", ROW_RESERVED, MEDICATION_EXTRA))})`;
 }
 
 /** The JSON of a medication order row. */
@@ -130,7 +142,7 @@ export function orderJson(ctx: BlockSqlContext, row: string): string {
   const field = (column: string): string =>
     optionalField(ctx, "orders", row, column);
 
-  return `jsonb_build_object('id', ${o("id")}, 'organizationId', ${o("tenant")}, 'subjectType', ${o("subjectType")}, 'subjectId', ${o("subjectId")}, 'medicationId', ${o("medication")}, 'dose', ${o("dose")}, 'doseUnit', ${o("doseUnit")}, 'route', ${o("route")}, 'schedule', ${o("schedule")}, 'asNeeded', ${o("asNeeded")}, 'asNeededReason', ${o("asNeededReason")}, 'maxPerDay', ${o("maxPerDay")}, 'startsOn', ${o("startsOn")}, 'endsOn', ${o("endsOn")}, 'prescriber', ${field("prescriber")}, 'source', ${o("source")}, 'externalId', ${o("externalId")}, 'requiresDoubleCheck', ${o("requiresDoubleCheck")}, 'status', ${o("status")}, 'stoppedReason', ${o("stoppedReason")}, 'createdBy', ${field("createdBy")}, 'createdAt', ${field("createdAt")}, 'updatedAt', ${field("updatedAt")}${extraFieldsJson(row, ctx.extraColumns("orders", ORDER_RESERVED))})`;
+  return `jsonb_build_object('id', ${o("id")}, 'organizationId', ${o("tenant")}, 'subjectType', ${o("subjectType")}, 'subjectId', ${o("subjectId")}, 'medicationId', ${o("medication")}, 'dose', ${o("dose")}, 'doseUnit', ${o("doseUnit")}, 'route', ${o("route")}, 'schedule', ${o("schedule")}, 'asNeeded', ${o("asNeeded")}, 'asNeededReason', ${o("asNeededReason")}, 'maxPerDay', ${o("maxPerDay")}, 'startsOn', ${o("startsOn")}, 'endsOn', ${o("endsOn")}, 'prescriber', ${field("prescriber")}, 'source', ${o("source")}, 'externalId', ${o("externalId")}, 'requiresDoubleCheck', ${o("requiresDoubleCheck")}, 'status', ${o("status")}, 'stoppedReason', ${o("stoppedReason")}, 'signatureId', ${field("signature")}, 'createdBy', ${field("createdBy")}, 'createdAt', ${field("createdAt")}, 'updatedAt', ${field("updatedAt")}${extraFieldsJson(row, ctx.extraColumns("orders", ORDER_RESERVED))})`;
 }
 
 /** The JSON of a medication administration row. */
@@ -138,7 +150,7 @@ export function administrationJson(ctx: BlockSqlContext, row: string): string {
   const a = (column: string): string =>
     `${row}.${ctx.col("administrations", column)}`;
 
-  return `jsonb_build_object('id', ${a("id")}, 'organizationId', ${a("tenant")}, 'orderId', ${a("order")}, 'scheduledAt', ${a("scheduledAt")}, 'administeredAt', ${a("administeredAt")}, 'status', ${a("status")}, 'dose', ${a("dose")}, 'performerId', ${a("performer")}, 'checkedBy', ${a("checkedBy")}, 'reason', ${a("reason")}, 'note', ${optionalField(ctx, "administrations", row, "note")})`;
+  return `jsonb_build_object('id', ${a("id")}, 'organizationId', ${a("tenant")}, 'orderId', ${a("order")}, 'scheduledAt', ${a("scheduledAt")}, 'administeredAt', ${a("administeredAt")}, 'status', ${a("status")}, 'dose', ${a("dose")}, 'performerId', ${a("performer")}, 'checkedBy', ${a("checkedBy")}, 'reason', ${a("reason")}, 'note', ${optionalField(ctx, "administrations", row, "note")}, 'signatureId', ${optionalField(ctx, "administrations", row, "signature")}${extraFieldsJson(row, ctx.extraColumns("administrations", ROW_RESERVED, ADMINISTRATION_EXTRA))})`;
 }
 
 /**
@@ -293,5 +305,46 @@ export function scheduleCheck(schedule: string): string {
     )) then
       ${invalid("schedule weekdays are 1 (Monday) to 7 (Sunday)")}
     end if;
+  end if;`;
+}
+
+/**
+ * PL/pgSQL that refuses `signature` (a uuid expression) unless it is null or
+ * the caller's completed signature on the record `type`/`id` in `tenant`. The
+ * signatures block must be installed to sign.
+ */
+export function signatureCheck(
+  ctx: BlockSqlContext,
+  options: {
+    readonly signature: string;
+    readonly tenant: string;
+    readonly type: string;
+    readonly id: string;
+  },
+): string {
+  const invalid = (message: string): string =>
+    fail("MEDICATION_SIGNATURE_INVALID", message, "22023");
+
+  if (!ctx.installed("signatures") || ctx.of("signatures").mode === "custom") {
+    return `if ${options.signature} is not null then
+    ${invalid("signing a medication record needs the signatures module")}
+  end if;`;
+  }
+
+  const signatures = ctx.of("signatures");
+  const s = (column: string): string => signatures.col("signatures", column);
+  const r = (column: string): string => signatures.col("requests", column);
+
+  return `if ${options.signature} is not null and not exists (
+    select 1 from ${signatures.table("signatures")} sg
+    join ${signatures.table("requests")} sr on sr.${r("id")} = sg.${s("request")}
+    where sg.${s("id")} = ${options.signature}
+      and sg.${s("signer")} = (select auth.uid())
+      and sr.${r("status")} = 'completed'
+      and sr.${r("tenant")} = ${options.tenant}
+      and sr.${r("subjectType")} = ${options.type}
+      and sr.${r("subjectId")} = ${options.id}
+  ) then
+    ${invalid("the signature isn't your completed signature on this record")}
   end if;`;
 }

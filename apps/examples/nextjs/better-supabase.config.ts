@@ -484,7 +484,7 @@ export default defineConfig({
     // Medication charts on customers: orders with a dose and schedule,
     // planned doses recorded as given or refused, missed doses notified and
     // opened as incident cases.
-    medications: { options: { missedCaseKind: "incident" } },
+    medications: { options: { missedCaseKind: "incident", guestRead: true } },
     // Care plans keep each customer's problems, goals and actions; a
     // restrictive measure waits for an approval before it starts.
     "care-plans": {},
