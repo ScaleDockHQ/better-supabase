@@ -603,7 +603,8 @@ $$;
 ${userGrant(`${fn("update_work_items")}(jsonb)`)}
 
 -- Replaces an item's assignees. Each one watches the item, and those who
--- weren't assigned before are notified.
+-- weren't assigned before are notified. work_item.assigned is recorded only
+-- when the call adds someone, with addedIds.
 create or replace function ${fn("set_work_item_assignees")}(work_item uuid, users uuid[])
 returns integer
 language plpgsql
@@ -612,7 +613,8 @@ set search_path = ''
 as $$
 declare
   v_row ${t("items")};
-  v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);${notify === "" ? "" : "\n  v_new uuid[];\n  v_claims text;"}${watch === "" ? "" : "\n  v_user uuid;"}
+  v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);
+  v_added uuid[];${notify === "" ? "" : "\n  v_new uuid[];\n  v_claims text;"}${watch === "" ? "" : "\n  v_user uuid;"}
 begin
   select * into v_row from ${t("items")} x where x.${w("id")} = set_work_item_assignees.work_item and ${editable("x")};
   if v_row.${w("id")} is null then
@@ -624,6 +626,8 @@ begin
   v_new := array(select x from unnest(v_users) x where x is distinct from auth.uid() and not exists (
     select 1 from ${t("assignees")} y where y.${a("item")} = v_row.${w("id")} and y.${a("user")} = x));`
   }
+  v_added := array(select x from unnest(v_users) x where not exists (
+    select 1 from ${t("assignees")} y where y.${a("item")} = v_row.${w("id")} and y.${a("user")} = x));
   delete from ${t("assignees")} y where y.${a("item")} = v_row.${w("id")} and not (y.${a("user")} = any (v_users));
   insert into ${t("assignees")} (${a("tenant")}, ${a("item")}, ${a("user")})
   select v_row.${w("tenant")}, v_row.${w("id")}, x from unnest(v_users) x
@@ -635,7 +639,9 @@ begin
     ${watch}
   end loop;`
   }${notify}
-  ${record("work_item.assigned", "v_row", ", 'assigneeIds', to_jsonb(v_users)")}
+  if cardinality(v_added) > 0 then
+    ${record("work_item.assigned", "v_row", ", 'assigneeIds', to_jsonb(v_users), 'addedIds', to_jsonb(v_added)")}
+  end if;
   return cardinality(v_users);
 end;
 $$;

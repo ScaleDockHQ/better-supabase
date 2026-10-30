@@ -238,14 +238,36 @@ const deposit = await invoices
 const final = await invoices.fromQuote(quoteId).orThrow();
 ```
 
-The quote must be accepted (`INVOICE_QUOTE_NOT_ACCEPTED`). A deposit invoice has one line for that share of the quote's subtotal at the quote's average tax rate, or of its total when the quote's prices include tax. The final invoice copies the lines the customer accepted (required lines and the optional lines they selected), adds one `Discount` line per tax rate for the quote's document discount, and subtracts each deposit invoice already issued; it is made once per quote, so calling it again returns the same draft. It takes the quote's `pricesIncludeTax`, so its totals and tax match the accepted quote.
+The quote must be accepted (`INVOICE_QUOTE_NOT_ACCEPTED`). A deposit invoice has one line for that share of the quote's subtotal at the quote's average tax rate, or of its total when the quote's prices include tax. The final invoice copies the lines the customer accepted (required lines and the optional lines they selected), adds one `Discount` line per tax rate for the quote's document discount, and subtracts each deposit invoice already issued; it is made once per quote, so calling it again returns the same draft. It takes the quote's `pricesIncludeTax`, so its totals and tax match the accepted quote. An invoice that credit notes fully credited, or that the opt-in `archivedAt` column marks, no longer counts as the final invoice, so the next call makes a new one.
 
-`fromQuote(quoteId, { depositAmount })` makes a deposit invoice for a fixed amount, tax included, at most the quote's total; a share and an amount together answer `INVOICE_DEPOSIT_INVALID`. Both invoices copy the line extra columns (`lineExtraColumns`) and the header extra columns (`extraColumns`) the quote has under the same name, such as a unit, a line type or a VAT regime.
+`fromQuote(quoteId, { depositAmount })` makes a deposit invoice for a fixed amount, tax included, at most the quote's total; a share and an amount together answer `INVOICE_DEPOSIT_INVALID`. Both invoices copy the line extra columns (`lineExtraColumns`) and the header extra columns (`extraColumns`) the quote has under the same name, such as a unit, a line type or a VAT regime. A line's product goes along too, also when the quote's line table has only a product id column and the invoice's line table has no product type.
+
+A line extra column value the invoice's column can't take, such as a pricing mode only quotes have, is left out, so the column's default applies. `options.quoteLineValues` maps quote values to invoice values first:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  invoices: {
+    options: {
+      quoteLineValues: { pricing_mode: { subscription: "unit" } },
+      depositLine: { description: "Deposit {identifier}", fields: { line_type: "deposit" } },
+    },
+  },
+}
+```
+
+The final invoice takes each issued deposit off per tax rate of the deposit's lines: one line per deposit and rate, so a deposit with 21% and 9% lines gives two lines at those rates. A deposit whose `pricesIncludeTax` differs from the final invoice's is converted per rate, so the deduction is on the final invoice's basis. A deposit that credit notes fully credited, or that `archivedAt` marks, is not deducted. `options.depositLine.description` names these lines (`{identifier}` is the deposit invoice's, default `Deposit {identifier}`), and `options.depositLine.fields` sets line extra columns on every deposit line `fromQuote` writes, such as a `not null` line type. Pass `depositDescription` to translate the description per call:
+
+```ts
+const final = await invoices
+  .fromQuote(quoteId, { depositDescription: "Anzahlung {identifier}" })
+  .orThrow();
+```
 
 These columns of the invoices table are opt-in: name them in `columns.invoices` to use them, and the block adds them to its own table. An app table made before them keeps working without them.
 
 | Column           | What it does                                                                                    |
 | ---------------- | ----------------------------------------------------------------------------------------------- |
+| `archivedAt`     | a timestamp your app sets to archive an invoice; `fromQuote` skips an archived invoice          |
 | `depositAmount`  | holds a fixed deposit invoice's amount and marks it as a deposit; `create` and `update` take it |
 | `discountBps`    | a percentage off the whole invoice, counted like a quote's document discount                    |
 | `discountAmount` | an amount off the whole invoice, after `discountBps`                                            |

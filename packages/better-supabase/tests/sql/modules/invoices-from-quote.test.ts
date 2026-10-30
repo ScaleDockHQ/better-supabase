@@ -157,6 +157,70 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("deducts a deposit on the final invoice's tax basis and skips a credited one", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_quote uuid;
+  v_gross jsonb;
+  v_credited jsonb;
+  v_final jsonb;
+begin
+  ${SERVICE}
+  ${accepted('{"title": "Work", "currency": "EUR"}')}
+  v_gross := better_supabase.invoice_from_quote(v_quote, null, 6050);
+  v_credited := better_supabase.invoice_from_quote(v_quote, null, 1210);
+  update better_supabase.invoices set prices_include_tax = true where id = (v_gross ->> 'id')::uuid;
+  perform better_supabase.issue_invoice((v_gross ->> 'id')::uuid, current_date);
+  perform better_supabase.issue_invoice((v_credited ->> 'id')::uuid, current_date);
+  update better_supabase.invoices set credited_total = total where id = (v_credited ->> 'id')::uuid;
+  v_final := better_supabase.invoice_from_quote(v_quote, null);
+  if (select string_agg(unit_amount::text || ':' || tax_rate_bps, ',' order by position)
+      from better_supabase.invoice_lines where parent_id = (v_final ->> 'id')::uuid and unit_amount < 0)
+    <> '-4132:2100' then
+    raise exception 'deductions %', v_final;
+  end if;
+end;
+$$;`,
+        SHARED,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("makes a new final invoice after the first is archived", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_quote uuid;
+  v_first jsonb;
+  v_second jsonb;
+begin
+  ${SERVICE}
+  ${accepted('{"title": "Work", "currency": "EUR"}')}
+  v_first := better_supabase.invoice_from_quote(v_quote, null);
+  update better_supabase.invoices set archived_at = now() where id = (v_first ->> 'id')::uuid;
+  v_second := better_supabase.invoice_from_quote(v_quote, null);
+  if v_second ->> 'id' = v_first ->> 'id' then
+    raise exception 'archived invoice returned';
+  end if;
+  if better_supabase.invoice_from_quote(v_quote, null) ->> 'id' <> v_second ->> 'id' then
+    raise exception 'the final invoice is made once';
+  end if;
+end;
+$$;`,
+        {
+          ...SHARED,
+          invoices: {
+            ...SHARED["invoices"],
+            columns: { invoices: { ...OPT_IN, archivedAt: "archived_at" } },
+          },
+        },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("finds deposits by their kind and the quote link", async () => {
     await expect(
       run(

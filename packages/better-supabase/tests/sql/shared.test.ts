@@ -33,7 +33,7 @@ describe("insertExtraColumns", () => {
 
     expect(insert.columns).toBe(', "kind", "note"');
     expect(insert.values).toBe(
-      `, case when f ? 'kind' then (jsonb_populate_record(null::t, jsonb_build_object('kind', f -> 'kind')))."kind" else 'line' end, (jsonb_populate_record(null::t, jsonb_build_object('note', f -> 'note')))."note"`,
+      `, case when f ? 'kind' then (jsonb_populate_record(null::t, jsonb_build_object('kind', f -> 'kind')))."kind" else 'line' end, case when f ? 'note' then (jsonb_populate_record(null::t, jsonb_build_object('note', f -> 'note')))."note" else better_supabase.column_default('t', 'note', (null::t)."note") end`,
     );
   });
 });

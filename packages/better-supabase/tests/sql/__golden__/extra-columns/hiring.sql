@@ -1,10 +1,35 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:0274cc63ce135b7b4142430d242cb253707da33002370ac89717a261c3a70c91
+-- @bsb-hash sha256:cf9f7fe6a5e9055fd6e53b9a100130f512897e7a0659e2672d5cca0c417dbf51
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -247,7 +272,7 @@ begin
       insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status", "app_note")
       values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
         save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
-        coalesce(save_job.attrs ->> 'status', 'draft'), (jsonb_populate_record(null::"better_supabase"."job_openings", jsonb_build_object('app_note', save_job.attrs -> 'fields' -> 'app_note')))."app_note")
+        coalesce(save_job.attrs ->> 'status', 'draft'), case when save_job.attrs -> 'fields' ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."job_openings", jsonb_build_object('app_note', save_job.attrs -> 'fields' -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."job_openings"', 'app_note', (null::"better_supabase"."job_openings")."app_note") end)
       returning * into v_job;
     else
       update "better_supabase"."job_openings" x set

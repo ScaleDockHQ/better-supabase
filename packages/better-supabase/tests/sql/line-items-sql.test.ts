@@ -72,7 +72,7 @@ describe("line tables of the app's", () => {
       `alter table "public"."${lines}" add column if not exists "organization_id"`,
     );
     expect(sql).toContain(
-      `insert into "public"."${lines}" ("organization_id", "record_id", `,
+      `insert into "public"."${lines}" as l ("organization_id", "record_id", `,
     );
   });
 
@@ -84,12 +84,8 @@ describe("line tables of the app's", () => {
     expect(sql).toContain(
       `alter table "better_supabase"."quote_lines" add column if not exists "sku" text;`,
     );
-    expect(sql).toContain(
-      "for v_line in select x.value -> 'fields' as fields, x.ordinality::integer as position",
-    );
-    expect(sql).toContain(
-      `update "better_supabase"."quote_lines" x set "sku" =`,
-    );
+    expect(sql).not.toContain("for v_line in select");
+    expect(sql).toContain(`"position", "sku")`);
     expect(sql).toContain(`'fields', jsonb_build_object('sku', ql."sku")`);
   });
 

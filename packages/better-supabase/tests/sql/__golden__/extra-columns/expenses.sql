@@ -1,10 +1,35 @@
 -- ==== schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:9f2b4813427706893ed4e2894971dbc0adace9227d13a4485ab50ddd953bc347
+-- @bsb-hash sha256:0d55eb66163cd554b6bd046b79a6beccd91d41e1576e72fb2b3ac30fbfc27734
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -317,7 +342,7 @@ begin
   end if;
   insert into "better_supabase"."expense_reports" ("tenant_id", "user_id", "title", "currency", "note", "app_note")
   values (create_expense_report.tenant, auth.uid(), trim(create_expense_report.title), create_expense_report.currency,
-    nullif(trim(create_expense_report.note), ''), (jsonb_populate_record(null::"better_supabase"."expense_reports", jsonb_build_object('app_note', coalesce(create_expense_report.fields, '{}'::jsonb) -> 'app_note')))."app_note")
+    nullif(trim(create_expense_report.note), ''), case when coalesce(create_expense_report.fields, '{}'::jsonb) ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."expense_reports", jsonb_build_object('app_note', coalesce(create_expense_report.fields, '{}'::jsonb) -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."expense_reports"', 'app_note', (null::"better_supabase"."expense_reports")."app_note") end)
   returning * into v_row;
   null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'title', v_row."title", 'currency', v_row."currency", 'note', v_row."note", 'status', (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)::text, 'approvalId', v_row."approval_id", 'submittedAt', v_row."submitted_at", 'approvedAt', v_row."approved_at", 'approvalTransactionId', v_row."approval_transaction_id", 'reimbursedAt', v_row."reimbursed_at", 'reimbursementTransactionId', v_row."reimbursement_transaction_id", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"),

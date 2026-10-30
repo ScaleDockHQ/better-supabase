@@ -392,6 +392,14 @@ function tenantPoliciesSql(
 
   const { manage, read } = helpers.permissions;
   const platform = platformPoliciesOn(ctx);
+  const platformKey = ctx.config.permissions["platform"];
+
+  const platformManage =
+    platformKey === undefined ? manage : sqlString(platformKey);
+
+  const platformRead =
+    platformKey === undefined ? read : sqlString(platformKey);
+
   const payload = approvalConditions(ctx) === "payload";
 
   const rules =
@@ -412,7 +420,7 @@ function tenantPoliciesSql(
   // platform policies (no tenant).
   const manages = (tenant: string): string =>
     platform
-      ? `(case when ${tenant} is null then ${ctx.staff(manage)} else (${SERVICE_CALLER} or ${ctx.can("tenant", tenant, manage)}) end)`
+      ? `(case when ${tenant} is null then ${ctx.staff(platformManage)} else (${SERVICE_CALLER} or ${ctx.can("tenant", tenant, manage)}) end)`
       : `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, manage)})`;
 
   const json = (row: string): string =>
@@ -643,7 +651,7 @@ as $$
 begin
   if not ${
     platform
-      ? `(case when list_approval_policies.tenant is null then ${ctx.staff(read)} else (${SERVICE_CALLER} or ${ctx.can("tenant", "list_approval_policies.tenant", read)}) end)`
+      ? `(case when list_approval_policies.tenant is null then ${ctx.staff(platformRead)} else (${SERVICE_CALLER} or ${ctx.can("tenant", "list_approval_policies.tenant", read)}) end)`
       : `(${SERVICE_CALLER} or ${ctx.can("tenant", "list_approval_policies.tenant", read)})`
   } then
     ${fail("APPROVAL_FORBIDDEN", "reading approval policies needs approvals.read")}

@@ -278,7 +278,11 @@ export interface Invoices<F extends object = Record<never, never>> {
    */
   fromQuote(
     quoteId: string,
-    options?: { readonly depositBps?: number; readonly depositAmount?: Money },
+    options?: {
+      readonly depositBps?: number;
+      readonly depositAmount?: Money;
+      readonly depositDescription?: string;
+    },
   ): AsyncResult<Invoice<F>>;
 }
 
@@ -644,6 +648,9 @@ export function createInvoices<
         ...(fromQuote.depositAmount === undefined
           ? {}
           : { deposit_amount: amountText(fromQuote.depositAmount) }),
+        ...(fromQuote.depositDescription === undefined
+          ? {}
+          : { deposit_description: fromQuote.depositDescription }),
       }),
   };
 

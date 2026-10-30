@@ -1,10 +1,35 @@
 -- ==== schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:87c2bb172fdad5f544c179a96f8e3dbc087bebf9babd0ef642d1828c64c7bcc6
+-- @bsb-hash sha256:dcb971058cdd1dff10d4bbf1e830879a4e01ca5c96a16e395d0a534ec9d4dd60
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -273,7 +298,7 @@ begin
       raise exception 'create the employee, then offboard them' using errcode = '22023', hint = 'EMPLOYEE_STATUS_INVALID';
     end if;
     insert into "better_supabase"."employees" ("tenant_id", "name", "email", "user_id", "job_title", "team_id", "manager_id", "employment_type", "start_date", "end_date", "status", "origin_type", "origin_id", "created_by", "app_note")
-    values (create_employee.tenant, trim(create_employee.attrs -> 'name' #>> '{}'), nullif(trim(create_employee.attrs -> 'email' #>> '{}'), ''), (create_employee.attrs -> 'userId' #>> '{}')::uuid, nullif(trim(create_employee.attrs -> 'jobTitle' #>> '{}'), ''), (create_employee.attrs -> 'teamId' #>> '{}')::uuid, (create_employee.attrs -> 'managerId' #>> '{}')::uuid, coalesce(nullif(trim(create_employee.attrs -> 'employmentType' #>> '{}'), ''), (array['employee', 'contractor', 'intern', 'temporary']::text[])[1]), (create_employee.attrs -> 'startDate' #>> '{}')::date, (create_employee.attrs -> 'endDate' #>> '{}')::date, v_status, create_employee.attrs -> 'origin' ->> 'type', create_employee.attrs -> 'origin' ->> 'id', auth.uid(), (jsonb_populate_record(null::"better_supabase"."employees", jsonb_build_object('app_note', create_employee.attrs -> 'app_note')))."app_note")
+    values (create_employee.tenant, trim(create_employee.attrs -> 'name' #>> '{}'), nullif(trim(create_employee.attrs -> 'email' #>> '{}'), ''), (create_employee.attrs -> 'userId' #>> '{}')::uuid, nullif(trim(create_employee.attrs -> 'jobTitle' #>> '{}'), ''), (create_employee.attrs -> 'teamId' #>> '{}')::uuid, (create_employee.attrs -> 'managerId' #>> '{}')::uuid, coalesce(nullif(trim(create_employee.attrs -> 'employmentType' #>> '{}'), ''), (array['employee', 'contractor', 'intern', 'temporary']::text[])[1]), (create_employee.attrs -> 'startDate' #>> '{}')::date, (create_employee.attrs -> 'endDate' #>> '{}')::date, v_status, create_employee.attrs -> 'origin' ->> 'type', create_employee.attrs -> 'origin' ->> 'id', auth.uid(), case when create_employee.attrs ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."employees", jsonb_build_object('app_note', create_employee.attrs -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."employees"', 'app_note', (null::"better_supabase"."employees")."app_note") end)
     returning * into v_row;
   exception
     when unique_violation then

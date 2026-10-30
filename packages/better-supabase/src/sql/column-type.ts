@@ -75,10 +75,37 @@ export function tryColumnType(
   return `better_supabase.try_column_type(${value}, (null::${table}).${sqlIdent(column)})`;
 }
 
+function columnDefaultFunction(): string {
+  return `${SCHEMA}
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;`;
+}
+
 const FUNCTIONS: readonly (readonly [string, () => string])[] = [
   ["as_column_type", columnTypeFunction],
   ["try_column_type", tryColumnTypeFunction],
   ["value_unsupported", valueUnsupportedFunction],
+  ["column_default", columnDefaultFunction],
 ];
 
 /**

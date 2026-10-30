@@ -2,7 +2,7 @@
 -- contract. Ann (…a1) owns Acme (…0001); Carl (…a3) owns Globex (…0002) and
 -- is not an Acme member (supabase/seed.sql).
 begin;
-select plan(13);
+select plan(15);
 
 select has_table('better_supabase', 'work_item_checklist_items', 'the checklist table exists');
 select has_column('better_supabase', 'work_items', 'recurs_from', 'a repeated item points at the item it repeats');
@@ -64,6 +64,25 @@ select is(
   api.list_work_item_watchers(current_setting('test.item')::uuid),
   '[{"userId": "00000000-0000-4000-8000-0000000000a1", "level": "all"}]'::jsonb,
   'and is its only watcher'
+);
+
+select api.set_work_item_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid]);
+select api.set_work_item_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid]);
+select api.set_work_item_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid, '00000000-0000-4000-8000-0000000000a2'::uuid]);
+
+reset role;
+select is(
+  (select count(*)::int from better_supabase.outbox_events
+    where type = 'work_item.assigned' and payload ->> 'workItemId' = current_setting('test.item')),
+  2,
+  'work_item.assigned is recorded only when a call adds someone'
+);
+select is(
+  (select payload -> 'addedIds' from better_supabase.outbox_events
+    where type = 'work_item.assigned' and payload ->> 'workItemId' = current_setting('test.item')
+    order by position desc limit 1),
+  '["00000000-0000-4000-8000-0000000000a2"]'::jsonb,
+  'with the people that call added'
 );
 
 -- Globex owner, outside Acme.

@@ -189,6 +189,8 @@ export interface WorkItemEventData extends SubjectEventData {
   readonly fields?: readonly string[];
   /** For `work_item.assigned`: everyone assigned now. */
   readonly assigneeIds?: readonly string[];
+  /** For `work_item.assigned`: the people this change assigned. */
+  readonly addedIds?: readonly string[];
   /** For `work_item.closed`: `completed` or `canceled`, and why. */
   readonly state?: string;
   readonly closeReason?: string;

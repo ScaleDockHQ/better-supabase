@@ -1319,7 +1319,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:875060b5202adadcd21cd0b509569af67bf8599dd6cb716769fa936963d6ceac
+-- @bsb-hash sha256:f32d95978e5b4adf975e7532c3c3f400d846dcaf30421b4226d52e5289eca661
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2587,9 +2587,12 @@ grant execute on function "better_supabase"."invoice_aging"(uuid, text, date) to
 
 -- An invoice from an accepted quote. With deposit_bps (2000 for 20%) it is
 -- a deposit invoice for that share of the quote; without, the full invoice,
--- which subtracts the deposits already issued and is made once per quote.
+-- which subtracts the deposits already issued, one line per deposit and tax
+-- rate described by deposit_description ({identifier} is the deposit's), and
+-- is made once per quote.
 drop function if exists "better_supabase"."invoice_from_quote"(uuid, integer);
-create or replace function "better_supabase"."invoice_from_quote"(quote uuid, deposit_bps integer, deposit_amount bigint default null)
+drop function if exists "better_supabase"."invoice_from_quote"(uuid, integer, bigint);
+create or replace function "better_supabase"."invoice_from_quote"(quote uuid, deposit_bps integer, deposit_amount bigint default null, deposit_description text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2622,7 +2625,7 @@ begin
   if invoice_from_quote.deposit_bps is null then
     select * into v_row from "better_supabase"."invoices" x
     where x."origin_type" = 'quote' and x."origin_id"::text = v_quote."id"::text
-      and x."deposit_bps" is null and x."status" <> 'void' and x."kind" = 'invoice'
+      and x."deposit_bps" is null and x."status" <> 'void' and x."kind" = 'invoice' and not (x."total" > 0 and x."credited_total" >= x."total")
     limit 1;
     if v_row."id" is not null then
       return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
@@ -2644,11 +2647,16 @@ begin
         'taxRateBps', x."tax_rate_bps", 'taxCode', x."tax_code") order by x."tax_rate_bps"), '[]'::jsonb)
       into v_lines
     from "better_supabase"."quote_tax_lines" x where x."parent_id" = v_quote."id" and x."discount" <> 0;
-    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', 'Deposit ' || d."identifier", 'quantity', 1, 'unitAmount', (-(case when v_quote."prices_include_tax" then d."total" else d."subtotal" end))::text,
-        'taxRateBps', case when d."subtotal" = 0 then 0 else round(d."tax_total" * 10000.0 / d."subtotal")::integer end)), '[]'::jsonb)
+    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', replace(coalesce(nullif(trim(invoice_from_quote.deposit_description), ''), 'Deposit {identifier}'), '{identifier}', d."identifier"), 'quantity', 1, 'unitAmount', (-(case when d."prices_include_tax" = v_quote."prices_include_tax" then y.amount when d."prices_include_tax" then round(y.amount * 10000.0 / (10000 + y.rate))::bigint else round(y.amount * (10000 + y.rate) / 10000.0)::bigint end))::text,
+        'taxRateBps', y.rate) order by d."identifier", y.rate), '[]'::jsonb)
       into v_lines
     from "better_supabase"."invoices" d
-    where d."origin_type" = 'quote' and d."origin_id"::text = v_quote."id"::text and (d."deposit_bps" is not null) and d."status" not in ('draft', 'void');
+    cross join lateral (
+      select dl."tax_rate_bps" as rate, sum(round(dl."quantity" * dl."unit_amount") - round(round(dl."quantity" * dl."unit_amount") * dl."discount_bps" / 10000.0))::bigint as amount
+      from "better_supabase"."invoice_lines" dl where dl."parent_id" = d."id" and true
+      group by 1
+    ) y
+    where d."origin_type" = 'quote' and d."origin_id"::text = v_quote."id"::text and (d."deposit_bps" is not null) and d."status" not in ('draft', 'void') and not (d."total" > 0 and d."credited_total" >= d."total") and y.amount <> 0;
   else
     v_lines := jsonb_build_array(jsonb_build_object(
       'description', 'Deposit ' || (invoice_from_quote.deposit_bps / 100.0)::text || '% of ' || v_quote."identifier",
@@ -2664,8 +2672,8 @@ begin
     'origin', jsonb_build_object('type', 'quote', 'id', v_quote."id"::text)), v_lines);
 end;
 $$;
-revoke execute on function "better_supabase"."invoice_from_quote"(uuid, integer, bigint) from public, anon;
-grant execute on function "better_supabase"."invoice_from_quote"(uuid, integer, bigint) to authenticated, service_role;
+revoke execute on function "better_supabase"."invoice_from_quote"(uuid, integer, bigint, text) from public, anon;
+grant execute on function "better_supabase"."invoice_from_quote"(uuid, integer, bigint, text) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -5579,7 +5587,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:bc6fea7ca19af033e9187f1622d643a129b433ad2b44c323d858cecfcfa8242b
+-- @bsb-hash sha256:c618a3771df02568bcca9655fad2e0e6f6d507f2bfc9b9f46dc5c843dc8dbb26
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6093,7 +6101,7 @@ begin
   end if;
   delete from "better_supabase"."invoice_lines" l where l."parent_id" = v_parent and l."position" > jsonb_array_length(coalesce(set_invoice_lines.lines, '[]'));
   begin
-    insert into "better_supabase"."invoice_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
+    insert into "better_supabase"."invoice_lines" as l ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
     select v_tenant,
       v_parent,
       better_supabase.as_column_type(x.value -> 'product' ->> 'type', (null::"better_supabase"."invoice_lines")."product_type"),

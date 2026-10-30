@@ -207,7 +207,7 @@ export function quoteDecisions(
     update ${t("quotes")} x set ${q("status")} = ${sv("expired")}, ${q("updatedAt")} = now() where x.${q("id")} = v_row.${q("id")}
     returning * into v_row;
     ${record("quote.expired", "v_row")}
-    return jsonb_build_object('status', 'expired');
+    return ${a.customer ? "jsonb_build_object('status', 'expired')" : row("v_row")};
   end if;`
   }${
     a.customer
@@ -279,6 +279,12 @@ export function quoteDecisions(
   return ${k.publicJson("v_pub", "v_snap")} || jsonb_build_object('status', ${ctx.label("quotes", "status", `v_row.${q("status")}`)});`
     : `return ${k.publicJson("v_row")};`;
 
+  const keys = Object.values(n.answers);
+
+  const decideKey = keys.every((key) => key === n.decide)
+    ? editable("x", n.decide)
+    : `(case decide_quote.decision when 'accepted' then ${editable("x", n.answers.accepted)} when 'rejected' then ${editable("x", n.answers.rejected)} else ${editable("x", n.answers.changes_requested)} end)`;
+
   const readable = (alias: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${q("tenant")}`, n.read)})`;
 
@@ -290,7 +296,8 @@ export function quoteDecisions(
 -- selected lists the positions of the optional lines they took. actor is
 -- the customer when the app takes the answer in its own portal: id, name,
 -- email, ip and userAgent, kept with the answer and in the state machine's
--- history; a quote past its valid date then expires instead.
+-- history; a quote past its valid date then expires instead, and the expired
+-- quote is returned.
 drop function if exists ${fn("decide_quote")}(uuid, text, text, text);
 drop function if exists ${fn("decide_quote")}(uuid, text, text, text, jsonb);
 create or replace function ${fn("decide_quote")}(quote uuid, decision text, note text, by text, selected jsonb default null, actor jsonb default null)
@@ -303,7 +310,7 @@ declare
   v_row ${t("quotes")};
   v_claims text;${restoreVars}
 begin
-  select * into v_row from ${t("quotes")} x where x.${q("id")} = decide_quote.quote and ${editable("x", n.decide)} for update;
+  select * into v_row from ${t("quotes")} x where x.${q("id")} = decide_quote.quote and ${decideKey} for update;
   if v_row.${q("id")} is null then
     ${fail("QUOTE_NOT_FOUND", "no such quote you can edit", "P0002")}
   end if;${answer({ name: "decide_quote", by: "coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email')", customer: false, expires: "decide_quote.actor is not null", actor: "decide_quote.actor", deposit: false })}

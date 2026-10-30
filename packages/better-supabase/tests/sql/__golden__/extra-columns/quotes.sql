@@ -1,10 +1,35 @@
 -- ==== schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:252de504c27d9279e4ece2eb7b18b9304b6ca9fc442e01748e6f2777c575da97
+-- @bsb-hash sha256:0ffe98393ab1c4376ab921b879902df0a0acee4c9e966aef6008a8e8a3a9f61a
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -252,7 +277,7 @@ begin
       coalesce((create_quote.attrs ->> 'validUntil')::date, current_date + 30),
       create_quote.attrs ->> 'terms', create_quote.attrs ->> 'note',
       create_quote.attrs -> 'origin' ->> 'type', create_quote.attrs -> 'origin' ->> 'id',
-      coalesce((create_quote.attrs ->> 'pricesIncludeTax')::boolean, false), coalesce((create_quote.attrs ->> 'discountBps')::integer, 0), coalesce((create_quote.attrs ->> 'discountAmount')::bigint, 0), (create_quote.attrs ->> 'depositBps')::integer, (create_quote.attrs ->> 'depositAmount')::bigint, coalesce((create_quote.attrs ->> 'depositRequired')::boolean, false), auth.uid(), (jsonb_populate_record(null::"better_supabase"."quotes", jsonb_build_object('app_note', coalesce(create_quote.attrs -> 'fields', '{}'::jsonb) -> 'app_note')))."app_note")
+      coalesce((create_quote.attrs ->> 'pricesIncludeTax')::boolean, false), coalesce((create_quote.attrs ->> 'discountBps')::integer, 0), coalesce((create_quote.attrs ->> 'discountAmount')::bigint, 0), (create_quote.attrs ->> 'depositBps')::integer, (create_quote.attrs ->> 'depositAmount')::bigint, coalesce((create_quote.attrs ->> 'depositRequired')::boolean, false), auth.uid(), case when coalesce(create_quote.attrs -> 'fields', '{}'::jsonb) ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."quotes", jsonb_build_object('app_note', coalesce(create_quote.attrs -> 'fields', '{}'::jsonb) -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."quotes"', 'app_note', (null::"better_supabase"."quotes")."app_note") end)
     returning * into v_row;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a quote field has an invalid value' using errcode = '22023', hint = 'QUOTE_ATTRS_INVALID';
@@ -734,7 +759,8 @@ grant execute on function "better_supabase"."withdraw_quote"(uuid, jsonb, text) 
 -- selected lists the positions of the optional lines they took. actor is
 -- the customer when the app takes the answer in its own portal: id, name,
 -- email, ip and userAgent, kept with the answer and in the state machine's
--- history; a quote past its valid date then expires instead.
+-- history; a quote past its valid date then expires instead, and the expired
+-- quote is returned.
 drop function if exists "better_supabase"."decide_quote"(uuid, text, text, text);
 drop function if exists "better_supabase"."decide_quote"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."decide_quote"(quote uuid, decision text, note text, by text, selected jsonb default null, actor jsonb default null)
@@ -775,7 +801,7 @@ begin
     update "better_supabase"."quotes" x set "status" = 'expired', "updated_at" = now() where x."id" = v_row."id"
     returning * into v_row;
     null;
-    return jsonb_build_object('status', 'expired');
+    return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb), 'fields', jsonb_build_object('app_note', v_row."app_note"));
   end if;
   if decide_quote.decision = 'accepted' then
     if decide_quote.selected is not null then

@@ -63,14 +63,22 @@ export interface InvoiceNames {
   readonly appTotals: boolean;
   /** `options.depositKind`: the kind value that marks a deposit invoice. */
   readonly depositKind: string | undefined;
+  readonly depositLine: {
+    readonly description: string;
+    readonly fields: Readonly<Record<string, unknown>>;
+  };
+  readonly quoteLineValues: Readonly<
+    Record<string, Readonly<Record<string, string>>>
+  >;
 }
 
 /**
  * Invoice columns a config opts into by naming them in
  * `blocks.invoices.columns.invoices`, so app tables made before them keep
- * working: a fixed deposit and a header discount.
+ * working: an archive mark, a fixed deposit and a header discount.
  */
 export const OPT_IN: readonly string[] = [
+  "archivedAt",
   "depositAmount",
   "discountBps",
   "discountAmount",

@@ -1,10 +1,35 @@
 -- ==== schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:169090627a5afd7b4d8db524a22c30883c0d3773b7e81a27d10ad2321c960e75
+-- @bsb-hash sha256:938cba6726999002109771ed3f12d5198e94d92f4442bdd575ff26f8ab8ad21e
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -294,7 +319,7 @@ begin
     end if;
   end;
   insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "billable", "rate", "rate_currency", "note", "app_note")
-  values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."billable", v_row."rate", v_row."rate_currency", v_row."note", (jsonb_populate_record(null::"better_supabase"."time_entries", jsonb_build_object('app_note', coalesce(start_timer.fields, '{}'::jsonb) -> 'app_note')))."app_note")
+  values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."billable", v_row."rate", v_row."rate_currency", v_row."note", case when coalesce(start_timer.fields, '{}'::jsonb) ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."time_entries", jsonb_build_object('app_note', coalesce(start_timer.fields, '{}'::jsonb) -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."time_entries"', 'app_note', (null::"better_supabase"."time_entries")."app_note") end)
   returning * into v_row;
   null;
   declare
@@ -454,7 +479,7 @@ begin
     end if;
   end;
   insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "ended_at", "billable", "rate", "rate_currency", "note", "app_note")
-  values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."ended_at", v_row."billable", v_row."rate", v_row."rate_currency", v_row."note", (jsonb_populate_record(null::"better_supabase"."time_entries", jsonb_build_object('app_note', coalesce(log_time.fields, '{}'::jsonb) -> 'app_note')))."app_note")
+  values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."ended_at", v_row."billable", v_row."rate", v_row."rate_currency", v_row."note", case when coalesce(log_time.fields, '{}'::jsonb) ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."time_entries", jsonb_build_object('app_note', coalesce(log_time.fields, '{}'::jsonb) -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."time_entries"', 'app_note', (null::"better_supabase"."time_entries")."app_note") end)
   returning * into v_row;
   null;
   declare

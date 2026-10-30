@@ -3755,6 +3755,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "discountBps": "discount_bps",
               "discountAmount": "discount_amount",
               "pricesIncludeTax": "prices_include_tax",
+              "archivedAt": "archived_at",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",

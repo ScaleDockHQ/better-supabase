@@ -5357,7 +5357,9 @@
               },
               "depositKind": {
                 "type": "string"
-              }
+              },
+              "depositLine": {},
+              "quoteLineValues": {}
             }
           }
         }

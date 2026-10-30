@@ -41,7 +41,7 @@ const EVENTS: BlockSqlEvents<TasksEvents> = {
   "work_item.updated": { subject: "work-items", payload: [...ITEM, "fields"] },
   "work_item.assigned": {
     subject: "work-items",
-    payload: [...ITEM, "assigneeIds"],
+    payload: [...ITEM, "assigneeIds", "addedIds"],
   },
   "work_item.closed": {
     subject: "work-items",

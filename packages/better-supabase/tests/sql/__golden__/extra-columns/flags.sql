@@ -1,10 +1,35 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:51b114d3f18d7af349546d48347c50d09631412f626ad1551622bdf2d50fe0c9
+-- @bsb-hash sha256:471ff88a860cd8a01a9e44bbad9c281c989e9ce77d2dd01b55b63a364fbf25c6
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -444,7 +469,7 @@ begin
     coalesce(d -> 'rules', '[]'::jsonb),
     coalesce((d ->> 'rollout_percentage')::numeric, 0),
     coalesce(d -> 'rollout_variants', '[]'::jsonb),
-    nullif(d -> 'rollout_schedule', 'null'::jsonb), (jsonb_populate_record(null::"better_supabase"."flags", jsonb_build_object('app_note', coalesce(d -> 'fields', '{}'::jsonb) -> 'app_note')))."app_note"
+    nullif(d -> 'rollout_schedule', 'null'::jsonb), case when coalesce(d -> 'fields', '{}'::jsonb) ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."flags", jsonb_build_object('app_note', coalesce(d -> 'fields', '{}'::jsonb) -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."flags"', 'app_note', (null::"better_supabase"."flags")."app_note") end
   )
   on conflict ("key") do update set
     "type" = case when d ? 'type' then excluded."type" else x."type" end,

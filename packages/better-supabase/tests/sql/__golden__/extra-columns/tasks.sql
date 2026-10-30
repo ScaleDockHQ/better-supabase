@@ -1,10 +1,35 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:1e630937c73b3964856c810714d2dfed1dab06235fa6215b5d558649dd8cdd4f
+-- @bsb-hash sha256:396eea8ec1971540d9ebb8785e6d0f932a7e4650b7db5290dfc89ebc93ddc029
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -325,7 +350,7 @@ begin
       (create_work_item.attrs ->> 'iterationId')::uuid, coalesce((create_work_item.attrs ->> 'priority')::smallint, 0),
       (create_work_item.attrs ->> 'estimate')::numeric, (create_work_item.attrs ->> 'progress')::smallint,
       (create_work_item.attrs ->> 'startAt')::timestamptz, (create_work_item.attrs ->> 'endAt')::timestamptz, (create_work_item.attrs ->> 'dueAt')::timestamptz,
-      (create_work_item.attrs ->> 'pipelineId')::uuid, (create_work_item.attrs ->> 'stageId')::uuid, auth.uid(), (jsonb_populate_record(null::"better_supabase"."work_items", jsonb_build_object('app_note', (create_work_item.attrs -> 'fields') -> 'app_note')))."app_note")
+      (create_work_item.attrs ->> 'pipelineId')::uuid, (create_work_item.attrs ->> 'stageId')::uuid, auth.uid(), case when (create_work_item.attrs -> 'fields') ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."work_items", jsonb_build_object('app_note', (create_work_item.attrs -> 'fields') -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."work_items"', 'app_note', (null::"better_supabase"."work_items")."app_note") end)
     returning "id" into v_id;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range or foreign_key_violation then
     raise exception 'a work item field has an invalid value' using errcode = '22023', hint = 'WORK_ITEM_ATTRS_INVALID';
@@ -461,7 +486,8 @@ revoke execute on function "better_supabase"."update_work_items"(jsonb) from pub
 grant execute on function "better_supabase"."update_work_items"(jsonb) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
--- weren't assigned before are notified.
+-- weren't assigned before are notified. work_item.assigned is recorded only
+-- when the call adds someone, with addedIds.
 create or replace function "better_supabase"."set_work_item_assignees"(work_item uuid, users uuid[])
 returns integer
 language plpgsql
@@ -471,6 +497,7 @@ as $$
 declare
   v_row "better_supabase"."work_items";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);
+  v_added uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -479,11 +506,15 @@ begin
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
+  v_added := array(select x from unnest(v_users) x where not exists (
+    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
   delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
   insert into "better_supabase"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
   select v_row."tenant_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
-  null;
+  if cardinality(v_added) > 0 then
+    null;
+  end if;
   return cardinality(v_users);
 end;
 $$;

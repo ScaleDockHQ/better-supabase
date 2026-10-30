@@ -4467,7 +4467,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:533af37fc03047ff140bd018269f4725f10d877a359c4cdab053b510bb7a9bc9
+-- @bsb-hash sha256:20fe0196f56166b29d008ca45434d243be2d6fd7722b181954e5736cdb512f91
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5251,7 +5251,7 @@ begin
   end if;
   delete from "better_supabase"."deal_lines" l where l."parent_id" = v_parent and l."position" > jsonb_array_length(coalesce(set_deal_lines.lines, '[]'));
   begin
-    insert into "better_supabase"."deal_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
+    insert into "better_supabase"."deal_lines" as l ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
     select v_tenant,
       v_parent,
       better_supabase.as_column_type(x.value -> 'product' ->> 'type', (null::"better_supabase"."deal_lines")."product_type"),

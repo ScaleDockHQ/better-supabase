@@ -12,6 +12,7 @@ const REQUESTER = "33333333-3333-4333-8333-333333333333";
 const ANN = "44444444-4444-4444-8444-444444444444";
 const BEN = "55555555-5555-4555-8555-555555555555";
 const STAFF = "66666666-6666-4666-8666-666666666666";
+const OWNER = "77777777-7777-4777-8777-777777777777";
 
 const ROLES = `
 do $$
@@ -50,7 +51,8 @@ insert into authz.grants values
   ('${ADMIN}', '${TENANT}', 'approvals.request'),
   ('${STAFF}', null, 'approvals.manage'),
   ('${STAFF}', null, 'approvals.read'),
-  ('${STAFF}', null, 'approvals.escalation');
+  ('${STAFF}', null, 'approvals.escalation'),
+  ('${OWNER}', null, 'platform.approvalPolicy.manage');
 `;
 
 const PROVIDER: BlockSqlAccessProvider = {
@@ -264,6 +266,55 @@ $$;`);
     });
   },
 );
+
+describe("platform policies under their own key", BOOT, () => {
+  const PLATFORM_KEY: AnyBlocksConfig = {
+    ...BLOCKS,
+    approvals: {
+      ...BLOCKS["approvals"],
+      permissions: { platform: "platform.approvalPolicy.manage" },
+    },
+  };
+
+  const save = (user: string, tenant = "null"): string => `do $$
+begin
+  ${as(user)}
+  perform better_supabase.save_approval_policy(${tenant}, jsonb_build_object('subjectType', 'report', 'action', 'export',
+    'name', 'Exports', 'mode', 'confirm', 'steps', '[]'::jsonb));
+  if jsonb_array_length(better_supabase.list_approval_policies(null)) <> 1 then
+    raise exception 'platform policies %', better_supabase.list_approval_policies(null);
+  end if;
+end;
+$$;`;
+
+  it("lets a holder of the platform key save and list platform policies", async () => {
+    await expect(run(save(OWNER), PLATFORM_KEY)).resolves.toBeUndefined();
+  });
+
+  it("refuses platform staff with only approvals.manage and an organization manager", async () => {
+    await expect(run(save(STAFF), PLATFORM_KEY)).rejects.toThrow(
+      /needs approvals.manage/,
+    );
+    await expect(run(save(ADMIN), PLATFORM_KEY)).rejects.toThrow(
+      /needs approvals.manage/,
+    );
+    await expect(
+      run(
+        `do $$
+begin
+  ${as(STAFF)}
+  perform better_supabase.list_approval_policies(null);
+end;
+$$;`,
+        PLATFORM_KEY,
+      ),
+    ).rejects.toThrow(/needs approvals.read/);
+  });
+
+  it("keeps approvals.manage for platform policies by default", async () => {
+    await expect(run(save(OWNER))).rejects.toThrow(/needs approvals.manage/);
+  });
+});
 
 describe(
   "approvers, escalation, deciders and tenantless requests",

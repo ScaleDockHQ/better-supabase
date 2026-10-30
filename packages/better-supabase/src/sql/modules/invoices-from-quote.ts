@@ -2,9 +2,11 @@ import type { BlockSqlContext } from "../context.ts";
 import type { InvoiceNames } from "./invoices-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { tryColumnType } from "../column-type.ts";
 import {
   countedLine,
   declared,
+  lineAmount,
   lineColumn,
   lineExtraColumns,
 } from "../line-items-sql.ts";
@@ -104,10 +106,44 @@ export function invoiceFromQuote(
     invoiceLineExtras.has(extra.name),
   );
 
+  const copiedField = (name: string, ident: string): string => {
+    const map = Object.entries(n.quoteLineValues[name] ?? {});
+
+    const text =
+      map.length === 0
+        ? `x.${ident}::text`
+        : `case x.${ident}::text ${map.map(([from, to]) => `when ${sqlString(from)} then ${sqlString(to)}`).join(" ")} else x.${ident}::text end`;
+
+    const value = map.length === 0 ? `x.${ident}` : text;
+
+    return `case when x.${ident} is null or ${tryColumnType(t("lines"), name, text)} is not null then jsonb_build_object(${sqlString(name)}, ${value}) else '{}'::jsonb end`;
+  };
+
   const lineFieldsSql =
     lineFields.length === 0
       ? ""
-      : `, 'fields', jsonb_build_object(${lineFields.map((extra) => `${sqlString(extra.name)}, x.${extra.ident}`).join(", ")})`;
+      : `, 'fields', ${lineFields.map((extra) => copiedField(extra.name, extra.ident)).join(" || ")}`;
+
+  const depositFields =
+    Object.keys(n.depositLine.fields).length === 0
+      ? ""
+      : `, 'fields', ${sqlString(JSON.stringify(n.depositLine.fields))}::jsonb`;
+
+  const depositDescription = `coalesce(nullif(trim(invoice_from_quote.deposit_description), ''), ${sqlString(n.depositLine.description)})`;
+
+  const product = declared(quotes, "lines", "productType")
+    ? `case when ${lineColumn(quotes, "lines", "x", "productType")} is null then null else jsonb_build_object('type', ${lineColumn(quotes, "lines", "x", "productType")}, 'id', ${lineColumn(quotes, "lines", "x", "productId")}) end`
+    : declared(quotes, "lines", "productId") &&
+        !declared(ctx, "lines", "productType")
+      ? `case when x.${ql("productId")} is null then null else jsonb_build_object('type', null, 'id', x.${ql("productId")}::text) end`
+      : "null";
+
+  const dl = (column: string): string => n.c("lines", column);
+  const depositList = lineAmount(ctx, "lines", "dl");
+
+  const depositNet = ctx.has("lines", "discountBps")
+    ? `${depositList} - round(${depositList} * ${lineColumn(ctx, "lines", "dl", "discountBps")} / 10000.0)`
+    : depositList;
 
   const invoiceExtras = new Set(n.extras.map((extra) => extra.name));
 
@@ -139,8 +175,19 @@ export function invoiceFromQuote(
 
   const headerDiscount = quoteDiscounts.length > 0 && quoteDiscounts.every(has);
 
+  const live = (alias: string): string =>
+    `${has("archivedAt") ? `${alias}.${i("archivedAt")} is null and ` : ""}not (${alias}.${i("total")} > 0 and ${alias}.${i("creditedTotal")} >= ${alias}.${i("total")})`;
+
   const issuedDeposits = (alias: string): string =>
-    `${originIs(alias)} and ${isDeposit(alias) === "" ? "false" : `(${isDeposit(alias)})`} and ${st(`${alias}.${i("status")}`, ["draft", "void"], true)}`;
+    `${originIs(alias)} and ${isDeposit(alias) === "" ? "false" : `(${isDeposit(alias)})`} and ${st(`${alias}.${i("status")}`, ["draft", "void"], true)} and ${live(alias)}`;
+
+  const depositInclusive = has("pricesIncludeTax")
+    ? `d.${i("pricesIncludeTax")}`
+    : "false";
+
+  const deducted = has("pricesIncludeTax")
+    ? `case when ${depositInclusive} = ${inclusive} then y.amount when ${depositInclusive} then round(y.amount * 10000.0 / (10000 + y.rate))::bigint else round(y.amount * (10000 + y.rate) / 10000.0)::bigint end`
+    : "y.amount";
 
   // With the block's totals and deposits to deduct, a header discount
   // would also take its share off the deductions, so the discount
@@ -173,30 +220,35 @@ export function invoiceFromQuote(
       'quantity', 1,
       'unitAmount', (case when ${inclusive} or v_quote.${q("total")} = 0 then invoice_from_quote.deposit_amount
         else round(invoice_from_quote.deposit_amount::numeric * v_quote.${q("subtotal")} / v_quote.${q("total")})::bigint end)::text,
-      'taxRateBps', ${blendedRate}));`
+      'taxRateBps', ${blendedRate}${depositFields}));`
     : "";
 
   const body = (): string => `
   if invoice_from_quote.deposit_bps is null${amountDeposits ? " and invoice_from_quote.deposit_amount is null" : ""} then
     select * into v_row from ${t("invoices")} x
     where ${originIs("x")}
-      and ${notDeposit("x")}${st(`x.${i("status")}`, ["void"], true)} and ${kd(`x.${i("kind")}`, ["invoice"])}
+      and ${notDeposit("x")}${st(`x.${i("status")}`, ["void"], true)} and ${kd(`x.${i("kind")}`, ["invoice"])} and ${live("x")}
     limit 1;
     if v_row.${i("id")} is not null then
       return ${row("v_row")};
     end if;
     select coalesce(jsonb_agg(jsonb_build_object('description', x.${ql("description")}, 'quantity', x.${ql("quantity")}${declared(quotes, "lines", "periods") ? ` * coalesce(x.${ql("periods")}, 1)` : ""}, 'unitAmount', x.${ql("unitAmount")}::text,
         'discountBps', ${lineColumn(quotes, "lines", "x", "discountBps")}, 'taxRateBps', ${lineColumn(quotes, "lines", "x", "taxRateBps")}, 'taxCode', ${lineColumn(quotes, "lines", "x", "taxCode")},
-        'product', case when ${lineColumn(quotes, "lines", "x", "productType")} is null then null else jsonb_build_object('type', ${lineColumn(quotes, "lines", "x", "productType")}, 'id', ${lineColumn(quotes, "lines", "x", "productId")}) end${lineFieldsSql}
+        'product', ${product}${lineFieldsSql}
       ) order by x.${ql("position")}), '[]'::jsonb) into v_lines
     from ${quotes.table("lines")} x where x.${ql("parent")} = v_quote.${q("id")} and ${countedLine(quotes, "lines", "x")};${discount}${
       deposits
         ? `
-    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', 'Deposit ' || d.${i("identifier")}, 'quantity', 1, 'unitAmount', (-(case when ${inclusive} then d.${i("total")} else d.${i("subtotal")} end))::text,
-        'taxRateBps', case when d.${i("subtotal")} = 0 then 0 else round(d.${i("taxTotal")} * 10000.0 / d.${i("subtotal")})::integer end)), '[]'::jsonb)
+    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', replace(${depositDescription}, '{identifier}', d.${i("identifier")}), 'quantity', 1, 'unitAmount', (-(${deducted}))::text,
+        'taxRateBps', y.rate${depositFields}) order by d.${i("identifier")}, y.rate), '[]'::jsonb)
       into v_lines
     from ${t("invoices")} d
-    where ${issuedDeposits("d")};`
+    cross join lateral (
+      select ${lineColumn(ctx, "lines", "dl", "taxRateBps")} as rate, sum(${depositNet})::bigint as amount
+      from ${t("lines")} dl where dl.${dl("parent")} = d.${i("id")} and ${countedLine(ctx, "lines", "dl")}
+      group by 1
+    ) y
+    where ${issuedDeposits("d")} and y.amount <> 0;`
         : ""
     }${amountLine}
   else
@@ -204,7 +256,7 @@ export function invoiceFromQuote(
       'description', 'Deposit ' || (invoice_from_quote.deposit_bps / 100.0)::text || '% of ' || v_quote.${q("identifier")},
       'quantity', 1,
       'unitAmount', round(${base("v_quote")}::numeric * invoice_from_quote.deposit_bps / 10000)::bigint::text,
-      'taxRateBps', ${blendedRate}));
+      'taxRateBps', ${blendedRate}${depositFields}));
   end if;
   v_row := null;${
     kind === undefined
@@ -222,9 +274,12 @@ export function invoiceFromQuote(
   return `
 -- An invoice from an accepted quote. With deposit_bps (2000 for 20%) it is
 -- a deposit invoice for that share of the quote${amountDeposits ? ", and with deposit_amount\n-- one for that amount, tax included" : ""}; without, the full invoice,
--- which subtracts the deposits already issued and is made once per quote.${headerDiscount ? "\n-- The quote's document discount stays on the invoice's header." : ""}
+-- which subtracts the deposits already issued, one line per deposit and tax
+-- rate described by deposit_description ({identifier} is the deposit's), and
+-- is made once per quote.${headerDiscount ? "\n-- The quote's document discount stays on the invoice's header." : ""}
 drop function if exists ${fn("invoice_from_quote")}(uuid, integer);
-create or replace function ${fn("invoice_from_quote")}(quote uuid, deposit_bps integer, deposit_amount bigint default null)
+drop function if exists ${fn("invoice_from_quote")}(uuid, integer, bigint);
+create or replace function ${fn("invoice_from_quote")}(quote uuid, deposit_bps integer, deposit_amount bigint default null, deposit_description text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -258,6 +313,6 @@ begin
   }
 end;
 $$;
-${userGrant(`${fn("invoice_from_quote")}(uuid, integer, bigint)`)}
+${userGrant(`${fn("invoice_from_quote")}(uuid, integer, bigint, text)`)}
 `;
 }

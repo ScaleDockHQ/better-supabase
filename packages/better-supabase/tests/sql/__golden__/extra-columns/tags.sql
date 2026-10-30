@@ -1,10 +1,35 @@
 -- ==== schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:72b1b86e8f4951eb12c4c07199fd4839089328345b6ee665e11b8eae74cb9a2c
+-- @bsb-hash sha256:083625aadf1b7e7cfe4cb3e3e63c5c7fc42c6446c5b243344d4081136689c4e7
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -124,7 +149,7 @@ begin
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
   insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "rank", "created_at", "app_note")
-  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now(), (jsonb_populate_record(null::"better_supabase"."tags", jsonb_build_object('app_note', create_tag.fields -> 'app_note')))."app_note")
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now(), case when create_tag.fields ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."tags", jsonb_build_object('app_note', create_tag.fields -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."tags"', 'app_note', (null::"better_supabase"."tags")."app_note") end)
   returning "id" into v_id;
   update "better_supabase"."tags" x set "app_note" = case when create_tag.fields ? 'app_note' then r."app_note" else x."app_note" end
   from jsonb_populate_record(null::"better_supabase"."tags", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(create_tag.fields) e where e.key in ('app_note'))) r

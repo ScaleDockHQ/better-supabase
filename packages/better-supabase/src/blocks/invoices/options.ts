@@ -47,6 +47,13 @@ export type InvoicesSqlOptions = {
    * invoice and finds the deposits to deduct by it and the quote link.
    */
   readonly depositKind?: string;
+  readonly depositLine?: {
+    readonly description?: string;
+    readonly fields?: Readonly<Record<string, unknown>>;
+  };
+  readonly quoteLineValues?: Readonly<
+    Record<string, Readonly<Record<string, string>>>
+  >;
 };
 
 export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
@@ -66,4 +73,8 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
     linePositionKey: option.boolean({ default: true }),
     paymentsAfterWriteOff: option.boolean({ default: false }),
     depositKind: option.string(),
+    depositLine:
+      option.unknown<NonNullable<InvoicesSqlOptions["depositLine"]>>(),
+    quoteLineValues:
+      option.unknown<NonNullable<InvoicesSqlOptions["quoteLineValues"]>>(),
   });
