@@ -1622,6 +1622,7 @@
               "comments",
               "compliance",
               "connectors",
+              "consents",
               "contacts",
               "content",
               "contracts",
@@ -1782,6 +1783,7 @@
                   "comments",
                   "compliance",
                   "connectors",
+                  "consents",
                   "contacts",
                   "content",
                   "contracts",
@@ -1994,6 +1996,9 @@
             },
             "connectors": {
               "$ref": "#/$defs/blocks/connectors"
+            },
+            "consents": {
+              "$ref": "#/$defs/blocks/consents"
             },
             "contacts": {
               "$ref": "#/$defs/blocks/contacts"
@@ -4467,6 +4472,17 @@
                 }
               }
             }
+          }
+        }
+      },
+      "consents": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

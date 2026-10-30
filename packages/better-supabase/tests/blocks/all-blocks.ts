@@ -27,6 +27,7 @@ import type { collectionsBlock } from "../../src/blocks/collections/manifest.ts"
 import type { commentsBlock } from "../../src/blocks/comments/manifest.ts";
 import type { complianceBlock } from "../../src/blocks/compliance/manifest.ts";
 import type { connectorsBlock } from "../../src/blocks/connectors/manifest.ts";
+import type { consentsBlock } from "../../src/blocks/consents/manifest.ts";
 import type { contactsBlock } from "../../src/blocks/contacts/manifest.ts";
 import type { contentBlock } from "../../src/blocks/content/manifest.ts";
 import type { contractsBlock } from "../../src/blocks/contracts/manifest.ts";
@@ -228,6 +229,7 @@ export type AllBlocks = {
   readonly content: typeof contentBlock;
   readonly qualifications: typeof qualificationsBlock;
   readonly shifts: typeof shiftsBlock;
+  readonly consents: typeof consentsBlock;
   readonly jsonbSchemas: typeof jsonbSchemasBlock;
   readonly knowledge: typeof knowledgeBlock;
   readonly leave: typeof leaveBlock;

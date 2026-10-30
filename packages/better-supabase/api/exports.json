@@ -9126,6 +9126,39 @@
       "ShiftTemplateInput"
     ]
   },
+  "./blocks/consents": {
+    "values": [
+      "consentPurposeInputSchema",
+      "consentsBlock",
+      "consentsEvents",
+      "createConsents",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Consent",
+      "ConsentEventData",
+      "ConsentEvidence",
+      "ConsentGivenBy",
+      "ConsentPurpose",
+      "ConsentPurposeEventData",
+      "ConsentPurposeInput",
+      "Consents",
+      "ConsentsEvents",
+      "ConsentsOptions",
+      "ConsentStatus",
+      "LegalBasis",
+      "RecordConsentInput",
+      "RpcClient"
+    ]
+  },
   "./blocks/contracts": {
     "values": [
       "contractChangesSchema",

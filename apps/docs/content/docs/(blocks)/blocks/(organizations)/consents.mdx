@@ -1,0 +1,206 @@
+---
+title: Consents
+description: Consent per record and purpose, with the lawful basis, who decided, the evidence behind it, withdrawal and expiry.
+---
+
+The `consents` block records whether a person or organization agreed to
+something: marketing email, a photo on the website, sharing data with a
+partner. An organization saves the purposes it asks consent for, each with a
+lawful basis and a version. A decision on a purpose is stored for one record
+(a customer, a contact person, a patient), with who made it, when, until when
+it holds and the signature or form behind it. Before processing, the app asks
+`isActive`.
+
+```bash
+better-supabase add consents   # adds tenant, access, memberships, permissions and subjects
+```
+
+| Permission        | Lets a member                                  | Default roles          |
+| ----------------- | ---------------------------------------------- | ---------------------- |
+| `consents.read`   | read the consents of the records they can read | `admin` (`consents.*`) |
+| `consents.record` | record and withdraw decisions                  | `admin` (`consents.*`) |
+| `consents.manage` | save and archive the organization's purposes   | `admin` (`consents.*`) |
+
+Members get none of them by default; grant them to the roles that handle
+consent. A record is any type in [`config.subjects`](/docs/blocks/subjects),
+and a member also needs to read the record itself.
+
+The block works with other blocks when they are installed.
+[Signatures](/docs/blocks/signatures), [forms](/docs/blocks/forms) and
+[attachments](/docs/blocks/attachments) hold the evidence a decision points
+at. [Contacts](/docs/blocks/contacts) and [relations](/docs/blocks/relations)
+name the person who decided for someone else, and
+[guests](/docs/blocks/guests) let that person decide from a portal. The
+[outbox](/docs/blocks/outbox) and [audit](/docs/blocks/audit) blocks record
+every change.
+
+## Purposes
+
+```ts
+const email = await db.consents
+  .savePurpose({
+    key: "marketing.email",
+    title: "Marketing email",
+    description: "News and offers, at most twice a month.",
+    validMonths: 24,
+  })
+  .orThrow();
+
+const purposes = await db.consents.purposes().orThrow();
+```
+
+`savePurpose` creates a purpose version or changes the one with the same key
+and version. A key is lowercase letters, digits, `_`, `-` and `.`, such as
+`marketing.email`. `legalBasis` is one of `consent` (the default), `contract`,
+`legal_obligation`, `vital_interest`, `public_task` and
+`legitimate_interest`. `requiresSignature` makes a grant need a signature,
+and `validMonths` (1 to 1200) makes a grant end after that many months.
+`consentPurposeInputSchema` validates the input.
+
+Saving a new `version` of a key changes what is asked: consents on the old
+version stay in the history, but `isActive` looks at the current version
+only, so every record is asked again. `archivePurpose(id)` stops new
+decisions on a purpose and keeps the ones given. With the service role,
+`system: true` saves a purpose without an organization that every
+organization uses, such as your own terms of service.
+
+## Record a decision
+
+```ts
+const subject = { type: "customer", id: customerId };
+
+await db.consents
+  .record({
+    subject,
+    purposeKey: "marketing.email",
+    status: "granted",
+    scope: { channels: ["email"] },
+    evidence: { submissionId },
+  })
+  .orThrow();
+
+if (await db.consents.isActive(subject, "marketing.email").orThrow()) {
+  await sendNewsletter(customerId);
+}
+```
+
+`record` stores a `granted` or `refused` decision on the current version of
+the purpose with that key, the organization's own before a system one. A new
+decision replaces the grant before it: that grant becomes `withdrawn` with
+the reason `superseded`. `givenBy` is `self` (the default) or
+`representative`; a representative names the contact person who decided in
+`givenByContactId`, who must act for the record through a `represents`
+relation when the relations block is installed. `validUntil` defaults to now
+plus the purpose's `validMonths`. `scope` holds what the consent covers
+within the purpose, and `evidence` points at a `signatureId`, `submissionId`
+or `attachmentId` of the same organization.
+
+`isActive(subject, purposeKey)` is true when the record has a granted,
+unexpired consent on the current version. It returns false for a record the
+caller can't read, so it never tells a caller more than the record does.
+`list(subject)` returns the latest decision per purpose, and
+`list(subject, { includeHistory: true })` every decision, newest first.
+
+## Withdraw and expire
+
+```ts
+await db.consents.withdraw(consentId, "asked by phone").orThrow();
+```
+
+`withdraw` ends a granted consent. The person who recorded it, a member with
+`consents.record` or the record's guest may withdraw it. The block's `expire`
+timer (daily at 03:00) marks the grants past `validUntil` as `expired`:
+schedule it with the other [block timers](/docs/blocks/queue#block-timers)
+and run it with the service role's client.
+
+```ts title="src/lib/jobs.ts"
+const run = blockTickHandler({ "consents.expire": () => consents.expire() });
+```
+
+## Guests and representatives
+
+A [guest](/docs/blocks/guests) whose party is the record records and
+withdraws their own consent from a portal, always as `self`. A guest whose
+contact person represents the record with `act` authority records as
+`representative`, with their person filled in; one with `inform` authority
+reads the consents and can't change them. See
+[Representatives](/docs/blocks/contacts#representatives).
+
+## Marketing consent in a CRM
+
+A CRM asks each contact person before sending a newsletter. Save the purpose
+once, record the answer from the signup form, and check it when sending:
+
+```ts title="src/features/newsletter/subscribe.ts"
+await db.consents
+  .record({
+    subject: { type: "person", id: personId },
+    purposeKey: "marketing.email",
+    status: subscribed ? "granted" : "refused",
+    evidence: { submissionId: submission.id },
+  })
+  .orThrow();
+```
+
+```ts title="src/features/newsletter/send.ts"
+const recipients = [];
+
+for (const person of people) {
+  const allowed = await db.consents
+    .isActive({ type: "person", id: person.id }, "marketing.email")
+    .orThrow();
+
+  if (allowed) {
+    recipients.push(person);
+  }
+}
+```
+
+The `consent.withdrawn` event tells the mailing tool to unsubscribe the
+person the moment they withdraw.
+
+## Options
+
+The block has no options. The
+`before_consent_record`, `after_consent_record`, `before_consent_withdraw`
+and `after_consent_withdraw` hooks run around every decision and withdrawal.
+
+## Events
+
+The block writes `consent.granted`, `consent.refused`, `consent.withdrawn`,
+`consent.expired`, `consent_purpose.created` and `consent_purpose.updated`
+to the [outbox](/docs/blocks/outbox). See [Events](/docs/extending/events).
+
+| Error code                   | When                                                           |
+| ---------------------------- | -------------------------------------------------------------- |
+| `CONSENT_FORBIDDEN`          | the caller lacks the permission or can't act for the record    |
+| `CONSENT_INVALID`            | a key, title, status, date, scope or evidence doesn't validate |
+| `CONSENT_NOT_FOUND`          | there is no such consent, or the caller can't read it          |
+| `CONSENT_PURPOSE_NOT_FOUND`  | no purpose has the key                                         |
+| `CONSENT_PURPOSE_ARCHIVED`   | the purpose is archived                                        |
+| `CONSENT_SIGNATURE_REQUIRED` | the purpose needs a signature to grant                         |
+| `CONSENT_ALREADY_WITHDRAWN`  | the consent was already withdrawn                              |
+
+The [consent register](/docs/registry/ui-recipes/consent-register) recipe
+lists an organization's purposes.
+
+## Without the client
+
+`db.consents` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createConsents, rpcTransport } from "better-supabase/blocks/consents";
+
+const consents = createConsents({
+  transport: rpcTransport(supabase),
+  tenant: organizationId,
+});
+
+await consents
+  .record({
+    subject: { type: "customer", id: customerId },
+    purposeKey: "marketing.email",
+    status: "granted",
+  })
+  .orThrow();
+```

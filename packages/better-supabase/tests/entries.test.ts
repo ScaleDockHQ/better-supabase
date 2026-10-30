@@ -74,6 +74,7 @@ const PURE_BARRELS = [
   "blocks/qualifications",
   "blocks/risks",
   "blocks/shifts",
+  "blocks/consents",
   "blocks/security-events",
   "blocks/reminders",
   "blocks/imports",

@@ -465,6 +465,20 @@ export interface BlockNameRegistry {
     };
     readonly primary: "server";
   };
+  readonly "consents": {
+    readonly tables: {
+      readonly "purposes": "id" | "tenant" | "key" | "title" | "description" | "legalBasis" | "version" | "requiresSignature" | "validMonths" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "consents": "id" | "tenant" | "purpose" | "subjectType" | "subjectId" | "givenBy" | "givenByContact" | "givenByUser" | "status" | "scope" | "grantedAt" | "validUntil" | "withdrawnAt" | "withdrawnReason" | "signature" | "submission" | "attachment" | "createdBy" | "createdAt";
+    };
+    readonly functions: "archive_consent_purpose" | "consent_active" | "expire_consents" | "list_consent_purposes" | "list_consents" | "record_consent" | "save_consent_purpose" | "withdraw_consent";
+    readonly actions: "read" | "record" | "manage";
+    readonly hooks: "before_consent_record" | "after_consent_record" | "before_consent_withdraw" | "after_consent_withdraw";
+    readonly entities: {
+      readonly "consent": "id" | "tenant_id" | "purpose_id" | "subject_type" | "subject_id" | "given_by" | "given_by_contact_id" | "given_by_user_id" | "status" | "scope" | "granted_at" | "valid_until" | "withdrawn_at" | "withdrawn_reason" | "signature_id" | "submission_id" | "attachment_id" | "created_by" | "created_at";
+      readonly "consent_purpose": "id" | "tenant_id" | "key" | "title" | "description" | "legal_basis" | "version" | "requires_signature" | "valid_months" | "archived_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "consent";
+  };
   readonly "contacts": {
     readonly tables: {
       readonly "companies": "id" | "tenant" | "name" | "domain" | "website" | "vatId" | "lifecycle" | "owner" | "address" | "mergedInto" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";

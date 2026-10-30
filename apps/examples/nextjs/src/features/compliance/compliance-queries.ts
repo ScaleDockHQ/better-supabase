@@ -1,5 +1,6 @@
 import "server-only";
 import type { ControlPosture } from "better-supabase/blocks/compliance";
+import type { LegalBasis } from "better-supabase/blocks/consents";
 import type { MoneyJson } from "better-supabase/commerce";
 
 import { moneyToJson } from "better-supabase/commerce";
@@ -124,4 +125,44 @@ async function loadPosture(): Promise<Posture | null> {
 /** The status rollup per framework and the overdue evidence tasks. */
 export function getPosture(): Promise<Loaded<Posture>> {
   return settle(loadPosture);
+}
+
+/** A consent purpose version as the register shows it, serializable. */
+export interface PurposeRow {
+  readonly id: string;
+  readonly key: string;
+  readonly title: string;
+  readonly version: string;
+  readonly legalBasis: LegalBasis;
+  readonly requiresSignature: boolean;
+  readonly validMonths: number | null;
+  /** A system purpose every organization shares. */
+  readonly system: boolean;
+}
+
+async function loadPurposes(): Promise<readonly PurposeRow[] | null> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+
+  if (!tenantOf(session)) {
+    return null;
+  }
+
+  const purposes = await db.consents.purposes().orThrow();
+
+  return purposes.map((purpose) => ({
+    id: purpose.id,
+    key: purpose.key,
+    title: purpose.title,
+    version: purpose.version,
+    legalBasis: purpose.legalBasis,
+    requiresSignature: purpose.requiresSignature,
+    validMonths: purpose.validMonths ?? null,
+    system: purpose.organizationId === null,
+  }));
+}
+
+/** The purposes the organization asks consent for, and the system ones. */
+export function getPurposes(): Promise<Loaded<readonly PurposeRow[]>> {
+  return settle(loadPurposes);
 }

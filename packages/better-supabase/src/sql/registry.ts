@@ -40,6 +40,7 @@ import { COLLECTIONS } from "./modules/collections.ts";
 import { COMMENTS } from "./modules/comments.ts";
 import { COMPLIANCE } from "./modules/compliance.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
+import { CONSENTS } from "./modules/consents.ts";
 import { PARTIES } from "./modules/contacts.ts";
 import { CONTENT } from "./modules/content.ts";
 import { CONTRACTS } from "./modules/contracts.ts";
@@ -390,6 +391,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(SHIFTS),
       built(ACCOUNTING),
       built(ACKNOWLEDGEMENTS),
+      built(CONSENTS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

@@ -39,6 +39,7 @@ import {
   DatabaseZapIcon,
   DoorOpenIcon,
   EyeIcon,
+  FileCheckIcon,
   FileKeyIcon,
   FileLockIcon,
   FileSearchIcon,
@@ -308,6 +309,7 @@ export const BLOCK_ICONS = {
   metrics: ChartLineIcon,
   contracts: FileSignatureIcon,
   compliance: ClipboardCheckIcon,
+  consents: FileCheckIcon,
   incidents: SirenIcon,
   risks: Grid3x3Icon,
   // Database primitives
