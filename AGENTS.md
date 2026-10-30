@@ -254,6 +254,11 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0139: Manufacturing versions bills of materials, runs production orders over `move_stock` with `consumption` and `production` reasons, and keeps lot genealogy in `stock_lot_links`.
 - 0138: Shifts are their own block; every assignment, request approval and swap runs one SQL check for overlap, approved leave, qualifications and rest.
 - 0140: Drive keeps extracted text in `drive_node_texts`, searched through the `drive_node_search` view and filled from the outbox; `quota` checks `within_quota` on upload.
+- 0141: Imports write through `import_upsert_batch` onto an external record map with content hashes; an import mode skips or tags events and audit and guards side effects.
+- 0142: Legal entities live inside one organization as an opt-in `legal_entity_id` with a settings fallback; contacts stay shared.
+- 0143: A `tax` block owns tax codes, rate history, `compute_document_tax` (margin, credit restriction), invoice tax lines, returns and the EU sales list (breaking).
+- 0144: `accounting` grows into a general ledger (levels, locks, opening balances, open items, payment batches); `better-supabase/audit-files` exchanges SAF-T and XAF.
+- 0145: Document templates read a typed variable contract, look up per legal entity and language, and use tenant-editable text blocks.
 
 ## Pre-release pins
 

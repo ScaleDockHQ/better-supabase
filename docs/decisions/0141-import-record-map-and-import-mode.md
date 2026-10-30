@@ -1,0 +1,72 @@
+# 0141: Import through an external record map and an import mode
+
+- Status: accepted
+- Date: 2026-10-30
+
+## Context
+
+The `imports` module (ADR 0029) is a run log: `import_runs` holds a kind,
+a status, a mapping, counts and errors, and `start_import` and `finish_import`
+open and close a run. Deduplication happens in TypeScript (`defineImport`,
+`appTableImport`), so a second run of the same input can write again, and
+nothing records which source key became which row. Moving an organization from
+a legacy system needs the opposite: the same input twice writes nothing, a
+newer input changes only the records that changed, a record a user edited
+afterwards is reported instead of overwritten, and a migration does not fire
+workflows, webhooks, stock movements or audit rows for every historical row.
+Drive sync (`drive_sync_batch`) already solves a small version of this with a
+`(drive, source, external_id)` key and no content hash.
+
+## Decision
+
+- **A record map.** `import_records` keeps one row per
+  `(tenant_id, source, scope, entity, external_key, role)` with the subject it
+  became, a content hash, the first and last run that saw it and a
+  `missing_since` marker. `role` lets one source record map to several
+  subjects. `scope` separates administrations of the same source and defaults
+  to an empty string.
+- **Targets by contribution.** A new contribution kind `importTarget` in
+  `sql/contributions.ts` registers `{ entity, subjectType, write }`. Blocks add
+  targets in their own PRs, and app tables get a generic one from their config.
+  `import_upsert_batch(run, entity, items)` is the single write path: an
+  unknown key inserts, an equal hash counts as `unchanged` and writes nothing,
+  a changed hash updates unless a user changed the row after the last import,
+  which counts as `conflicted` and leaves the row alone. Dry runs roll back to
+  a savepoint and return counts only. A scope alias lets a cloned
+  administration reuse the subjects of another scope when the hash matches.
+- **Runs reshape (breaking).** `import_runs.kind` becomes `source`, with
+  `dry_run`, `full`, `input_checksum`, `correlation_id`, `scope_aliases`,
+  timestamps and per-entity counts. One active run per organization and
+  source, enforced by a partial unique index and a lease. A full run marks
+  missing keys and never deletes.
+- **Import mode.** `better_supabase.begin_import_session(run)` is service only
+  and sets a transaction-local run ID. `better_supabase.import_run()` returns
+  it only for `service_role`, so a user session can't turn the mode on. In the
+  mode the outbox skips or tags events (`imports.events`), row audit is
+  tagged `integration` with the run's correlation ID or reduced to one summary
+  event (`imports.audit`), the state machine accepts any declared status on
+  insert and writes one history row with the reason `imported`, and a new
+  `ctx.importing()` guards stock consumption, ledger and `accounting` posting,
+  notifications, workflows and webhooks. Every SQL function that writes reads
+  `import_run()`.
+- **Drive sync moves onto the map** in a later PR, keeping its signature and
+  adding content hashes and a `drive.sync.prune` option with `mark` and
+  `delete` (default `delete`).
+
+## Alternatives considered
+
+- **Keep deduplication in TypeScript.** Each importer would need its own key
+  table, and the audit and side effect problems would stay unsolved.
+- **A column `external_id` on every table.** It can't hold several sources,
+  scopes or roles per row, and it changes every block table.
+- **Disable triggers during import.** It skips guards that must still run
+  (tenant scope, constraints) and needs a privilege no app should hold.
+
+## Consequences
+
+- A repeated import is cheap and visible: counts per entity, a conflict list
+  and no audit rows for unchanged records.
+- Breaking for anything reading `import_runs.kind` or `counts`; the upgrade
+  guide and a codemod step cover it.
+- Every new write path has to honor `ctx.importing()`; the docs list each
+  guarded hook. Revisit the hash rule if a target needs field-level merging.
