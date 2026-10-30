@@ -16,6 +16,7 @@ import {
   schemaPreamble,
 } from "../shared.ts";
 import { tableMoves } from "../table-renames.ts";
+import { copyActionItems } from "./incidents-data.ts";
 import { incidentsFunctions } from "./incidents-functions.ts";
 import {
   INCIDENT_RESERVED,
@@ -543,4 +544,5 @@ export const INCIDENTS: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  data: copyActionItems,
 };
