@@ -253,6 +253,27 @@ $$;`,
     expect(stack.url).not.toBe("");
   });
 
+  it("refuses to close a case without an owner for a member without cases.close", async () => {
+    await expect(
+      run(`do $$
+declare
+  v_case uuid;
+  v_hint text;
+begin
+  ${SERVICE}
+  insert into auth.users (id, email) values ('22222222-2222-4222-8222-222222222222', 'ada@example.com');
+  insert into better_supabase.memberships (organization_id, user_id, role)
+  values ('${TENANT}', '22222222-2222-4222-8222-222222222222', 'member');
+  v_case := (better_supabase.open_case('${TENANT}', 'observation', 'Fire door propped open', null, null, 'internal', null, null, null, null) ->> 'id')::uuid;
+  perform set_config('request.jwt.claims', '{"role":"authenticated","sub":"22222222-2222-4222-8222-222222222222"}', true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claim.sub', '22222222-2222-4222-8222-222222222222', true);
+  ${expectHint("perform better_supabase.close_case(v_case, null)", "CASE_FORBIDDEN")}
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
+
   it("refuses an unknown severity", async () => {
     await expect(
       run(`do $$

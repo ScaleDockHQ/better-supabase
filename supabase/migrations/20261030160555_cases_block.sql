@@ -2261,7 +2261,7 @@ begin
   if not found then
     raise exception 'no such case' using errcode = 'P0002', hint = 'CASE_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.close'), false))) or (v_row."owner_id" = (select auth.uid()) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.close'), false))) or (coalesce(v_row."owner_id" = (select auth.uid()), false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
     raise exception 'not allowed to close this case' using errcode = '42501', hint = 'CASE_FORBIDDEN';
   end if;
   if v_row."status" <> 'open' then
@@ -2474,7 +2474,7 @@ begin
   if not found then
     raise exception 'no such case' using errcode = 'P0002', hint = 'CASE_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.write'), false))) or (v_row."owner_id" = (select auth.uid()) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.write'), false))) or (coalesce(v_row."owner_id" = (select auth.uid()), false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
     raise exception 'not allowed to change this case' using errcode = '42501', hint = 'CASE_FORBIDDEN';
   end if;
   if v_row."status" <> 'open' then
@@ -7086,7 +7086,7 @@ begin
   if not found then
     raise exception 'no such case' using errcode = 'P0002', hint = 'CASE_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.write'), false))) or (v_row."owner_id" = (select auth.uid()) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.write'), false))) or (coalesce(v_row."owner_id" = (select auth.uid()), false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
     raise exception 'not allowed to change this case' using errcode = '42501', hint = 'CASE_FORBIDDEN';
   end if;
   if v_row."status" <> 'open' then
@@ -11548,7 +11548,7 @@ begin
   if not found then
     raise exception 'no such case' using errcode = 'P0002', hint = 'CASE_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.write'), false))) or (v_row."owner_id" = (select auth.uid()) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.write'), false))) or (coalesce(v_row."owner_id" = (select auth.uid()), false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
     raise exception 'not allowed to change this case' using errcode = '42501', hint = 'CASE_FORBIDDEN';
   end if;
   if v_row."status" <> 'open' then
@@ -11603,7 +11603,7 @@ begin
   if not found then
     raise exception 'no such case' using errcode = 'P0002', hint = 'CASE_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.write'), false))) or (v_row."owner_id" = (select auth.uid()) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.write'), false))) or (coalesce(v_row."owner_id" = (select auth.uid()), false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
     raise exception 'not allowed to change this case' using errcode = '42501', hint = 'CASE_FORBIDDEN';
   end if;
   if v_row."status" <> 'open' then
@@ -12699,7 +12699,7 @@ begin
     raise exception 'no such case action' using errcode = 'P0002', hint = 'CASE_ACTION_NOT_FOUND';
   end if;
   select * into v_row from "better_supabase"."cases" x where x."id" = v_action."case_id" for update;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.write'), false))) or (v_row."owner_id" = (select auth.uid()) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.write'), false))) or (coalesce(v_row."owner_id" = (select auth.uid()), false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
     raise exception 'not allowed to change this case' using errcode = '42501', hint = 'CASE_FORBIDDEN';
   end if;
   if v_row."status" <> 'open' then
@@ -16800,7 +16800,7 @@ begin
     raise exception 'no such case' using errcode = 'P0002', hint = 'CASE_NOT_FOUND';
   end if;
   v_old := v_row;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.write'), false))) or (v_row."owner_id" = (select auth.uid()) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.write'), false))) or (coalesce(v_row."owner_id" = (select auth.uid()), false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) then
     raise exception 'not allowed to change this case' using errcode = '42501', hint = 'CASE_FORBIDDEN';
   end if;
   if jsonb_typeof(update_case.changes) is distinct from 'object' then
@@ -16821,7 +16821,7 @@ begin
   if v_stage is distinct from v_row."stage_id" then
     v_outcome := (select s."outcome" from "better_supabase"."pipeline_stages" s where s."id" = v_stage);
     if (coalesce(v_outcome, 'open') <> 'open' or v_row."status" <> 'open') and not (
-      case when v_outcome = 'success' and v_row."status" = 'open' then ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.close'), false))) or (v_row."owner_id" = (select auth.uid()) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) else (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.close'), false))) end
+      case when v_outcome = 'success' and v_row."status" = 'open' then ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.close'), false))) or (coalesce(v_row."owner_id" = (select auth.uid()), false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false))))) else (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.close'), false))) end
     ) then
       raise exception 'not allowed to close, cancel or reopen cases' using errcode = '42501', hint = 'CASE_FORBIDDEN';
     end if;

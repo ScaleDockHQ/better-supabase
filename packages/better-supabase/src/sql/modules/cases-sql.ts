@@ -385,7 +385,7 @@ export function casesSql(ctx: BlockSqlContext): CasesSql {
     manage: ctx.permission("manage", OPERATIONS["cases.manage"]),
     allowed,
     ownerOr: (row, permission) =>
-      `(${allowed(`${row}.${c("tenant")}`, permission)} or (${row}.${c("owner")} = (select auth.uid()) and ${allowed(`${row}.${c("tenant")}`, read)}))`,
+      `(${allowed(`${row}.${c("tenant")}`, permission)} or (coalesce(${row}.${c("owner")} = (select auth.uid()), false) and ${allowed(`${row}.${c("tenant")}`, read)}))`,
     invalid: (message) => fail("CASE_INVALID", message, "22023"),
     forbidden: (message) => fail("CASE_FORBIDDEN", message),
     missing: fail("CASE_NOT_FOUND", "no such case", "P0002"),
