@@ -1,12 +1,12 @@
 {
   ".": 81415,
-  "./config": 118998,
+  "./config": 119011,
   "./preset": 101751,
-  "./create": 1880700,
-  "./create/lite": 1929144,
+  "./create": 1880749,
+  "./create/lite": 1929194,
   "./create/oauth": 1576,
   "./create/supabase": 4625,
-  "./cli": 683307,
+  "./cli": 683646,
   "./client": 63377,
   "./client/native": 63258,
   "./react": 85333,
@@ -191,8 +191,8 @@
   "./spec": 83201,
   "./otel": 7784,
   "./lint": 14097,
-  "./sql": 1803491,
-  "./testing": 314603,
+  "./sql": 1803525,
+  "./testing": 314619,
   "./sqlite": 42573,
   "./tanstack-db": 8366,
   "./blocks/push": 33398,
@@ -220,6 +220,6 @@
   "./blocks/leases": 38435,
   "./blocks/expenses": 38851,
   "./blocks/donations": 41279,
-  "better-supabase CLI (startup)": 32320,
-  "content mapper (startup)": 124493
+  "better-supabase CLI (startup)": 32319,
+  "content mapper (startup)": 124498
 }
