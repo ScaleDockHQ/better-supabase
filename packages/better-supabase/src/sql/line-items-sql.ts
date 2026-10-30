@@ -567,7 +567,7 @@ begin
               .join(", ")}${extras
               .map(
                 (extra) =>
-                  `, ${extra.ident} = case when ${fieldsOf(`${name}.lines -> (excluded.${c("position")} - 1)`)} ? ${sqlString(extra.name)} then excluded.${extra.ident} else l.${extra.ident} end`,
+                  `, ${extra.ident} = case when ${fieldsOf(`${name}.lines -> (excluded.${c("position")}::integer - 1)`)} ? ${sqlString(extra.name)} then excluded.${extra.ident} else l.${extra.ident} end`,
               )
               .join("")}`
           : `\n    where not exists (select 1 from ${t} l where l.${c("parent")} = v_parent and l.${c("position")} = x.ordinality)`

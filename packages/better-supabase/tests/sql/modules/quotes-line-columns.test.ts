@@ -77,7 +77,7 @@ create table public.quote_lines (
   quantity numeric(18, 4) not null,
   unit_amount bigint not null,
   tax_rate_bps integer not null default 0,
-  position integer not null,
+  position numeric not null,
   pricing_mode text not null default 'unit',
   discount_kind text not null default 'none',
   check (pricing_mode <> 'fixed' or quantity = 1)
