@@ -11,6 +11,7 @@ import {
 } from "./modules/permissions-model.ts";
 import { hasPlatformRoles } from "./modules/permissions-platform.ts";
 import { MODULE_PERMISSION_SCOPES } from "./modules/permissions-scopes.ts";
+import { hasPlatformRoles } from "./modules/platform-roles.ts";
 import { OPTIONAL_MODULE_PERMISSIONS } from "./optional-permissions.ts";
 import { SQL_MODULES, checkModules, resolveBlocks } from "./registry.ts";
 
