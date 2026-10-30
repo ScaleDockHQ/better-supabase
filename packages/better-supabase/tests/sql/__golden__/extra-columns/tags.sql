@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:bf0fd85c76d419b1d08da079e75e149910ee5072b486754cf67e0986d07d69a9
+-- @bsb-hash sha256:083625aadf1b7e7cfe4cb3e3e63c5c7fc42c6446c5b243344d4081136689c4e7
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,8 +29,7 @@ begin
   return result;
 end;
 $$;
-revoke execute on function better_supabase.column_default(text, text, anyelement) from public;
-grant execute on function better_supabase.column_default(text, text, anyelement) to anon, authenticated, service_role;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean

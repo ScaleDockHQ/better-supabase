@@ -98,8 +98,7 @@ begin
   return result;
 end;
 $$;
-revoke execute on function better_supabase.column_default(text, text, anyelement) from public;
-grant execute on function better_supabase.column_default(text, text, anyelement) to anon, authenticated, service_role;`;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;`;
 }
 
 const FUNCTIONS: readonly (readonly [string, () => string])[] = [

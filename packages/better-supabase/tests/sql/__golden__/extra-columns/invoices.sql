@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:6532f687d7c1a478260481acc0f8db0dbc0ef3647310890eb17cb33a914a63c2
+-- @bsb-hash sha256:73bf5ffb23dd60a45010d4a147bf01801bc436450471f875e40a3f1a0d0a8625
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,8 +29,7 @@ begin
   return result;
 end;
 $$;
-revoke execute on function better_supabase.column_default(text, text, anyelement) from public;
-grant execute on function better_supabase.column_default(text, text, anyelement) to anon, authenticated, service_role;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean

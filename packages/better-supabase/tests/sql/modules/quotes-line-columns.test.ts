@@ -282,6 +282,72 @@ $$;`),
   },
 );
 
+const ANON_CALL = `perform set_config('request.jwt.claims', '{"role":"anon"}', true);
+  perform set_config('request.jwt.claim.role', 'anon', true);
+  perform set_config('request.jwt.claim.sub', '', true);`;
+
+describe("column defaults stay inside the block's functions", BOOT, () => {
+  it("gives a member's new line the column default", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_id uuid;
+begin
+  ${MEMBER_CALL}
+  set local role authenticated;
+  v_id := ${create(`{"description": "Hours", "quantity": 3, "unitAmount": "5000", "fields": {"pricing_mode": "hourly"}}`)};
+  reset role;
+  if (select string_agg(pricing_mode || ':' || discount_kind, ',') from public.quote_lines where quote_id = v_id) <> 'hourly:none'
+    or (select create_order_on_accept from public.quotes where id = v_id) is distinct from false then
+    raise exception 'defaults %', (select jsonb_agg(l) from public.quote_lines l);
+  end if;
+end;
+$$;`,
+        canWithout("none"),
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it.each([
+    ["authenticated", MEMBER_CALL],
+    ["anon", ANON_CALL],
+  ])("refuses %s a direct call", async (role, claims) => {
+    await expect(
+      run(`do $$
+begin
+  ${claims}
+  set local role ${role};
+  perform better_supabase.column_default('public.quote_lines', 'discount_kind', null::text);
+end;
+$$;`),
+    ).rejects.toThrow(/permission denied for function column_default/);
+  });
+
+  it("grants it to no API role and wraps it in no API function", () => {
+    const sql = renderBlocks(["quotes", "invoices"], {
+      modules: {
+        ...BLOCKS,
+        quotes: { ...BLOCKS["quotes"], api: "api" },
+        invoices: { ...BLOCKS["invoices"], api: "api" },
+      },
+      subjects: SUBJECTS,
+      ownTables: OWN,
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      "revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;",
+    );
+    expect(sql).not.toMatch(
+      /grant execute on function better_supabase\.column_default/u,
+    );
+    expect(sql).not.toContain('"api"."column_default"');
+    expect(sql).toContain('"api"."set_quote_lines"');
+  });
+});
+
 describe("quote answers under their own keys", BOOT, () => {
   it("lets a member reject and ask changes without the accept key", async () => {
     await expect(

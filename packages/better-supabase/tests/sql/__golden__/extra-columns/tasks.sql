@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:4d29bb0655be4222b4bcc11e09ea823d59c1320eefae21008d8c4d96a6b8cf69
+-- @bsb-hash sha256:f8cc81b069c072139314e16f3013854488d1a90a09b61dc674514220862b5ea4
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,8 +29,7 @@ begin
   return result;
 end;
 $$;
-revoke execute on function better_supabase.column_default(text, text, anyelement) from public;
-grant execute on function better_supabase.column_default(text, text, anyelement) to anon, authenticated, service_role;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean

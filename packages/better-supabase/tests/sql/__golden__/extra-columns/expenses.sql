@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:38be82304650bb80309c5b7b0147bd399bb4d9cb050ba21e6d019503ed1dee0e
+-- @bsb-hash sha256:0d55eb66163cd554b6bd046b79a6beccd91d41e1576e72fb2b3ac30fbfc27734
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,8 +29,7 @@ begin
   return result;
 end;
 $$;
-revoke execute on function better_supabase.column_default(text, text, anyelement) from public;
-grant execute on function better_supabase.column_default(text, text, anyelement) to anon, authenticated, service_role;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean

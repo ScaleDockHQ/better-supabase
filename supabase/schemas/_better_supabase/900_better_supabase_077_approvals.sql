@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:859e985d9de5cd91a42ee1b256c9138edb591eb19403895da8d10f214a5205e6
+-- @bsb-hash sha256:d2082f41d06ee7fe9af967c9a5c264932e82f33ac894d38e76391658fbe7e99a
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,8 +28,7 @@ begin
   return result;
 end;
 $$;
-revoke execute on function better_supabase.column_default(text, text, anyelement) from public;
-grant execute on function better_supabase.column_default(text, text, anyelement) to anon, authenticated, service_role;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1709,15 +1708,6 @@ drop function if exists "api"."request_approval"(uuid, text, text, text, text, j
 drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb, text);
 drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text, jsonb, uuid);
 drop function if exists "api"."decide_approval"(uuid, text, text);
-
-create or replace function "api"."column_default"(relation text, name text, target anyelement)
-returns anyelement
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."column_default"($1, $2, $3) $$;
-revoke execute on function "api"."column_default"(text, text, anyelement) from public;
-grant execute on function "api"."column_default"(text, text, anyelement) to anon, authenticated, service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean

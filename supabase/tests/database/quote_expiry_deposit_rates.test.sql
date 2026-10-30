@@ -2,7 +2,7 @@
 -- and the final invoice takes a deposit off per tax rate of its lines.
 -- Ann (…a1) owns Acme (…0001); Carl (…a3) owns Globex (…0002).
 begin;
-select plan(7);
+select plan(10);
 
 select set_config(
   'request.jwt.claims',
@@ -91,6 +91,20 @@ select is(
   (select min(description) from better_supabase.invoice_lines where parent_id = current_setting('test.final')::uuid and unit_amount < 0),
   (select 'Deposit ' || identifier from better_supabase.invoices where id = current_setting('test.deposit')::uuid),
   'the deduction keeps the default description'
+);
+
+select ok(
+  not has_function_privilege('anon', 'better_supabase.column_default(text, text, anyelement)', 'execute'),
+  'anon cannot evaluate column defaults'
+);
+select ok(
+  not has_function_privilege('authenticated', 'better_supabase.column_default(text, text, anyelement)', 'execute'),
+  'authenticated cannot evaluate column defaults'
+);
+select is(
+  to_regprocedure('api.column_default(text, text, anyelement)'),
+  null,
+  'the Data API has no column_default wrapper'
 );
 
 select * from finish();

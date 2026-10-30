@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@2 managed tasks
--- @bsb-hash sha256:15b94384467fe2a61692bf5782a5174526a3412ff6bd4d4d48d9bede531c74b8
+-- @bsb-hash sha256:e171b9645e65287d10a6554df7dcf8491edaaf35b645ba81c6b8b341e1f977db
 -- @bsb-names maintenance work_item=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -29,8 +29,7 @@ begin
   return result;
 end;
 $$;
-revoke execute on function better_supabase.column_default(text, text, anyelement) from public;
-grant execute on function better_supabase.column_default(text, text, anyelement) to anon, authenticated, service_role;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -937,15 +936,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_request_
 -- blocks.tasks.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."column_default"(relation text, name text, target anyelement)
-returns anyelement
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."column_default"($1, $2, $3) $$;
-revoke execute on function "api"."column_default"(text, text, anyelement) from public;
-grant execute on function "api"."column_default"(text, text, anyelement) to anon, authenticated, service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean
