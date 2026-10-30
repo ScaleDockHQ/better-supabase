@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:0b5cbd41e88871e34be2664ec031538a0a72663e17ae0b48d7bfc11814eefe24
+-- @bsb-hash sha256:2b3aeb1bf786331413c2f61c46a0b6bd68223fb0d5d956e6c60b68308cbdabff
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -939,7 +939,7 @@ begin
         select 1 from "better_supabase"."drive_nodes" s
         where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then (coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false))
+          when 'read' then ((coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)) or "better_supabase"."is_subject_member"('drive_node', s."id"::text))
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.manage'), false)
           when 'comment' then coalesce("better_supabase"."drive_can_comment"(s."id"), false)
           when 'fields' then coalesce("better_supabase"."drive_node_writable"(s."id"), false)
@@ -1463,7 +1463,18 @@ begin
         select 1 from "better_supabase"."drive_nodes" s
         where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
           and case can_subject_for.action
-          when 'read' then false
+          when 'read' then (false or exists (
+            select 1 from "better_supabase"."subject_members" m
+            where m."subject_type" = 'drive_node'
+              and m."subject_id" = s."id"::text
+              and m."tenant_id" = s."tenant_id"
+              and (m."user_id" = can_subject_for.member or (m."team_id" is not null and exists (
+          select 1 from "better_supabase"."team_members" tm
+          where tm."team_id" = m."team_id"
+            and tm."user_id" = can_subject_for.member)))
+        and (m."starts_on" is null or m."starts_on" <= current_date)
+        and (m."ends_on" is null or m."ends_on" >= current_date)
+        and (m."ends_at" is null or m."ends_at" > now())))
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'drive.manage'), false)
           when 'comment' then false
           when 'fields' then false
@@ -1537,7 +1548,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (add_subject_member.subject_type = any (array['customer']::text[])) then
+  if not (add_subject_member.subject_type = any (array['customer', 'drive_node']::text[])) then
     raise exception 'this subject type has no record team (subjects.<type>.team)' using errcode = '22023', hint = 'SUBJECT_MEMBER_INVALID';
   end if;
   if (add_subject_member.user_id is null) = (add_subject_member.team_id is null) then
@@ -1554,6 +1565,9 @@ begin
     when 'customer' then
       select s."organization_id" into v_tenant from "public"."customers" s
       where s."id" = (add_subject_member.subject_id)::uuid and s."archived_at" is null;
+    when 'drive_node' then
+      select s."tenant_id" into v_tenant from "better_supabase"."drive_nodes" s
+      where s."id" = (add_subject_member.subject_id)::uuid and s."deleted_at" is null;
       else
         v_tenant := null;
     end case;
@@ -1774,6 +1788,9 @@ begin
     when 'customer' then
       select s."organization_id" into v_tenant from "public"."customers" s
       where s."id" = (record_team_tenant.subject_id)::uuid and s."archived_at" is null;
+    when 'drive_node' then
+      select s."tenant_id" into v_tenant from "better_supabase"."drive_nodes" s
+      where s."id" = (record_team_tenant.subject_id)::uuid and s."deleted_at" is null;
     else
       v_tenant := null;
   end case;

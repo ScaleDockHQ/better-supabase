@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
+import { createAccessRequests } from "../../src/blocks/access-requests/index.ts";
 import { createApprovals } from "../../src/blocks/approvals/index.ts";
 import { createDrive, driveSubject } from "../../src/blocks/drive/index.ts";
 import { createTags } from "../../src/blocks/tags/index.ts";
@@ -604,6 +605,77 @@ describe.skipIf(!live)("drive", () => {
           [file],
         ),
       ).toBe(0);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("grants a requested node to a member and moves ownership on offboarding", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(
+        [
+          ...MODULES,
+          "subjects",
+          "notifications",
+          "approvals",
+          "access-requests",
+        ],
+        { subjects: { drive_node: driveSubject({ accessRequests: true }) } },
+      );
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const tenant = await s.organization(owner, { member });
+      const transport = sqlTransport(s.sql);
+
+      const drive = createDrive({
+        transport,
+        recordAccess: createAccessRequests({ transport }),
+      });
+
+      const approvals = createApprovals({ transport, tenant });
+
+      await s.asRole(owner);
+
+      const folder = await s.value<Node>(
+        "better_supabase.drive_create_folder($1, null, 'Budgets')",
+        [tenant],
+      );
+
+      await s.as(member);
+      expect(await drive.get(folder.id).then((result) => result.ok)).toBe(
+        false,
+      );
+
+      const request = await drive
+        .requestAccess(folder.id, { reason: "Quarter close" })
+        .orThrow();
+
+      expect(request).toMatchObject({ action: "read", status: "pending" });
+
+      await s.as(owner);
+      expect(
+        (await drive.accessRequests(folder.id).orThrow()).map(
+          (entry) => entry.userId,
+        ),
+      ).toEqual([member.id]);
+      await approvals.approve(request.approvalId!).orThrow();
+
+      await s.as(member);
+      expect(await drive.get(folder.id).orThrow()).toMatchObject({
+        role: "viewer",
+      });
+
+      await s.as(owner);
+      expect(
+        await drive.transferOwnership(tenant, owner.id, member.id).orThrow(),
+      ).toEqual({ nodes: 1, drives: 0 });
+
+      await s.as(member);
+      expect(await drive.get(folder.id).orThrow()).toMatchObject({
+        role: "owner",
+      });
     } finally {
       await s.close();
     }
