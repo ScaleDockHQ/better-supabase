@@ -35,7 +35,8 @@ export interface DataExporterOptions extends BlockTemporalOptions {
   /**
    * `ndjson` (default) writes one JSON object per line; `csv` writes RFC 4180
    * CSV with a header row, nested values as JSON and formula-looking text
-   * prefixed with `'`, for people who open exports in a spreadsheet.
+   * prefixed with `'`, for people who open exports in a spreadsheet. A record
+   * export's own `format` wins over this.
    */
   readonly format?: "ndjson" | "csv";
   readonly concurrency?: number;
@@ -87,7 +88,7 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
     signal: AbortSignal | undefined,
   ): Promise<Result<readonly string[]>> => {
     const bucket = options.storage.from(claimed.bucket);
-    const csv = options.format === "csv";
+    const csv = (claimed.format ?? options.format) === "csv";
 
     const exportTable = async (table: string): Promise<Result<string>> => {
       const lines: string[] = [];

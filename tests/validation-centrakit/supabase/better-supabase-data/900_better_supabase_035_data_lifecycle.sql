@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block-data data-lifecycle
--- @bsb-hash sha256:f5b3e1b63eb0f0eee30fc84a1ce265c8fa794402a5f303dbb3ab73aa65c4df57
+-- @bsb-hash sha256:2aaeb774923f87ce4066af2206504066d85675dc8ae1205d19bfd05e8d53c33f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -11,6 +11,6 @@ values ('data-exports', 'data-exports', false)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('data-lifecycle', 6, 'managed')
+values ('data-lifecycle', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

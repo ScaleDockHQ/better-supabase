@@ -125,7 +125,7 @@ describe.skipIf(!live)("sso", () => {
       expect(resolved).toEqual([`_better-supabase.${name}`]);
       expect(
         await s.rows<{ type: string }>(
-          "select type from better_supabase.outbox_events where organization_id = $1 and type like 'organization.domain%'",
+          "select type from better_supabase.outbox_events where organization_id = $1 and type like 'organization.domain%' order by position",
           [tenant],
         ),
       ).toEqual([

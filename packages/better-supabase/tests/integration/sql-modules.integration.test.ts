@@ -270,7 +270,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     await postgres.end();
   });
 
-  it("is idempotent", async () => {
+  // Reapplying every module passes the 5 second default on a shared CI runner.
+  it("is idempotent", { timeout: 30_000 }, async () => {
     await installSchemaModules(pool);
   });
 
