@@ -183,6 +183,8 @@ const SUBJECT_EVENTS = [
   "sequence_enrollment.resumed",
   "sequence_enrollment.exited",
   "sequence_enrollment.completed",
+  "subject_member.added",
+  "subject_member.ended",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**

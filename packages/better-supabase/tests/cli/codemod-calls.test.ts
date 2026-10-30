@@ -47,6 +47,19 @@ describe("rewriteCliCalls", () => {
 `);
   });
 
+  it("rewrites a call that ends the text and skips a bin without arguments", () => {
+    expect(rewriteCliCalls("bsb \nbsb doctor --strict", migrateCliCall)).toBe(
+      "bsb \nbsb doctor --fail-on warning",
+    );
+  });
+
+  it("returns the text unchanged when no call moved", () => {
+    const source = "better-supabase gen && bsb doctor\n";
+
+    expect(rewriteCliCalls(source, migrateCliCall)).toBe(source);
+    expect(cliCallHints(source, migrateCliCall)).toEqual([]);
+  });
+
   it("lists calls in other shell files with the new spelling", () => {
     expect(
       cliCallHints(

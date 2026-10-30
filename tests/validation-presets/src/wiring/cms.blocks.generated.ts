@@ -15,6 +15,7 @@ import type { MessagingEvents } from "better-supabase/blocks/messaging";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
+import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TagsEvents } from "better-supabase/blocks/tags";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { VersionsEvents } from "better-supabase/blocks/versions";
@@ -284,6 +285,9 @@ export const permissions = {
     update: "settings.update",
     platform: "settings.manage",
   },
+  subjects: {
+    manage: "subjects.manage",
+  },
   tags: {
     manage: "tags.manage",
     read: "tags.read",
@@ -306,13 +310,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "content.publish" | "content.read" | "content.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "content.publish" | "content.read" | "content.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & ContentEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TagsEvents & TeamsEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & ContentEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & SubjectsEvents & TagsEvents & TeamsEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -402,6 +406,8 @@ export const blockEvents: Events<BlockEvents> = {
     "platform_setting.updated",
     "subject.tagged",
     "subject.untagged",
+    "subject_member.added",
+    "subject_member.ended",
     "tag.created",
     "tag.deleted",
     "tag.updated",
@@ -504,6 +510,8 @@ export const blockEventSchemas = {
   "platform_setting.updated": true,
   "subject.tagged": true,
   "subject.untagged": true,
+  "subject_member.added": true,
+  "subject_member.ended": true,
   "tag.created": true,
   "tag.deleted": true,
   "tag.updated": true,

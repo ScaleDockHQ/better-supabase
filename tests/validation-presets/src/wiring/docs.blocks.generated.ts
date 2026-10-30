@@ -15,6 +15,7 @@ import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { ReactionsEvents } from "better-supabase/blocks/reactions";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { ShareLinksEvents } from "better-supabase/blocks/share-links";
+import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { TemplatesEvents } from "better-supabase/blocks/templates";
 import type { VersionsEvents } from "better-supabase/blocks/versions";
@@ -282,6 +283,9 @@ export const permissions = {
     create: "share_links.create",
     read: "share_links.read",
   },
+  subjects: {
+    manage: "subjects.manage",
+  },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
@@ -307,13 +311,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reactions.create" | "reactions.manage" | "reactions.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reactions.create" | "reactions.manage" | "reactions.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "subjects.manage" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & DocumentsEvents & EnrollmentsEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & ReactionsEvents & SettingsEvents & ShareLinksEvents & TeamsEvents & TemplatesEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & DocumentsEvents & EnrollmentsEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & ReactionsEvents & SettingsEvents & ShareLinksEvents & SubjectsEvents & TeamsEvents & TemplatesEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -388,6 +392,8 @@ export const blockEvents: Events<BlockEvents> = {
     "share_link.created",
     "share_link.revoked",
     "subject.viewed",
+    "subject_member.added",
+    "subject_member.ended",
     "team.archived",
     "team.created",
     "team.deleted",
@@ -474,6 +480,8 @@ export const blockEventSchemas = {
   "share_link.created": true,
   "share_link.revoked": true,
   "subject.viewed": true,
+  "subject_member.added": true,
+  "subject_member.ended": true,
   "team.archived": true,
   "team.created": true,
   "team.deleted": true,

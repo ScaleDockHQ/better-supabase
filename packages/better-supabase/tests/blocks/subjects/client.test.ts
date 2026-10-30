@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { ResolvedSubject } from "../../../src/blocks/subjects/subjects.ts";
+import type {
+  ResolvedSubject,
+  Subjects,
+} from "../../../src/blocks/subjects/subjects.ts";
 import type { RecordRef } from "../../../src/schema/types.ts";
 
 import {
@@ -18,9 +21,13 @@ import {
 const summary = () => resolved(undefined);
 const myWork = () => resolved([]);
 
+// SAFETY: batchSubjects passes members through without calling them.
+const members = {} as Subjects["members"];
+
 const resolver = () => ({
   summary: vi.fn(summary),
   myWork: vi.fn(myWork),
+  members,
   resolve: vi.fn((refs: readonly RecordRef[]) =>
     resolved<Readonly<Record<string, ResolvedSubject>>>(
       Object.fromEntries(
@@ -55,6 +62,7 @@ describe("batchSubjects", () => {
     const batched = batchSubjects({
       summary,
       myWork,
+      members,
       resolve: () => failed<Readonly<Record<string, ResolvedSubject>>>("down"),
     });
 
@@ -70,6 +78,7 @@ describe("batchSubjects", () => {
     const batched = batchSubjects({
       summary,
       myWork,
+      members,
       resolve: () => resolved<Readonly<Record<string, ResolvedSubject>>>({}),
     });
 
@@ -97,6 +106,12 @@ describe("batchSubjects", () => {
     await batchSubjects(inner).myWork({ pageSize: 5 });
 
     expect(inner.myWork).toHaveBeenCalledWith({ pageSize: 5 });
+  });
+
+  it("keeps the source's members", () => {
+    const inner = resolver();
+
+    expect(batchSubjects(inner).members).toBe(members);
   });
 });
 

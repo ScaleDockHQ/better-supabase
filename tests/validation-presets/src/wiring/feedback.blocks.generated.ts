@@ -17,6 +17,7 @@ import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
 import type { ReactionsEvents } from "better-supabase/blocks/reactions";
 import type { RelationsEvents } from "better-supabase/blocks/relations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
+import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TagsEvents } from "better-supabase/blocks/tags";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { TasksEvents } from "better-supabase/blocks/tasks";
@@ -300,6 +301,9 @@ export const permissions = {
     update: "settings.update",
     platform: "settings.manage",
   },
+  subjects: {
+    manage: "subjects.manage",
+  },
   tags: {
     manage: "tags.manage",
     read: "tags.read",
@@ -325,13 +329,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "work_items.manage" | "work_items.read" | "work_items.write";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "work_items.manage" | "work_items.read" | "work_items.write";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & ModerationEvents & EnrollmentsEvents & PostsEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & ReactionsEvents & RelationsEvents & SettingsEvents & TagsEvents & TeamsEvents & TasksEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & ModerationEvents & EnrollmentsEvents & PostsEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & ReactionsEvents & RelationsEvents & SettingsEvents & SubjectsEvents & TagsEvents & TeamsEvents & TasksEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -420,6 +424,8 @@ export const blockEvents: Events<BlockEvents> = {
     "subject.tagged",
     "subject.unlinked",
     "subject.untagged",
+    "subject_member.added",
+    "subject_member.ended",
     "tag.created",
     "tag.deleted",
     "tag.updated",
@@ -525,6 +531,8 @@ export const blockEventSchemas = {
   "subject.tagged": true,
   "subject.unlinked": true,
   "subject.untagged": true,
+  "subject_member.added": true,
+  "subject_member.ended": true,
   "tag.created": true,
   "tag.deleted": true,
   "tag.updated": true,
