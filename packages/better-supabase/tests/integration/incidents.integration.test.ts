@@ -2,14 +2,35 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createIncidents } from "../../src/blocks/incidents/index.ts";
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
 const MODULES = ["organizations", "outbox", "incidents"];
+
+const WITH_TASKS = [
+  "organizations",
+  "outbox",
+  "notifications",
+  "subjects",
+  "rank",
+  "relations",
+  "pipelines",
+  "tasks",
+  "incidents",
+];
+
+// The shared stack's work_items table references `work_projects` (the Next.js
+// example renames it), and `create table if not exists` keeps that table.
+const TASKS_LAYOUT: BlockSqlLayout = {
+  subjects: withBlockSubjects({}, ["tasks"], {}),
+  modules: { tasks: { tables: { projects: "work_projects" } } },
+};
 
 const hint = (result: Result<unknown>): string =>
   result.ok ? "ok" : (result.error.hint ?? result.error.message);
@@ -128,6 +149,7 @@ describe.skipIf(!live)("incidents", () => {
         .savePostmortem(incident.id, {
           summary: "Replica lag caused failed writes.",
           rootCause: "A replica on an undersized disk",
+          // oxlint-disable-next-line typescript/no-deprecated -- the install without tasks still writes the deprecated list.
           actionItems: [{ title: "Alert on replica lag" }],
         })
         .orThrow();
@@ -203,6 +225,99 @@ describe.skipIf(!live)("incidents", () => {
         "incident_postmortem.published",
         "status_component.changed",
       ]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("keeps postmortem action items as tasks", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      const responder = await s.user("responder");
+      const outsider = await s.user("outsider");
+      await s.install(WITH_TASKS, TASKS_LAYOUT);
+      const org = await s.organization(owner, { member: responder });
+      const incidents = createIncidents({ transport: sqlTransport(s.sql) });
+
+      await s.as(owner);
+
+      const incident = await incidents
+        .open(org, { title: "Queue backlog", severity: "sev3" })
+        .orThrow();
+
+      const postmortem = await incidents
+        .savePostmortem(incident.id, { summary: "Workers stalled" })
+        .orThrow();
+
+      expect(
+        await incidents
+          // oxlint-disable-next-line typescript/no-deprecated -- checks that the deprecated key is refused with tasks.
+          .savePostmortem(incident.id, { actionItems: [{ title: "Old" }] })
+          .then(hint),
+      ).toBe("INCIDENTS_INVALID");
+
+      const due = Temporal.Instant.from("2026-11-01T09:00:00Z");
+
+      const action = await incidents
+        .addPostmortemAction(postmortem.id, {
+          title: "Alert on queue depth",
+          assigneeId: responder.id,
+          dueAt: due,
+        })
+        .orThrow();
+
+      expect(action).toMatchObject({
+        postmortemId: postmortem.id,
+        title: "Alert on queue depth",
+      });
+      expect(action.dueAt?.equals(due)).toBe(true);
+      await incidents
+        .addPostmortemAction(postmortem.id, { title: "Runbook" })
+        .orThrow();
+
+      await s.service();
+      expect(
+        await s.rows<{ title: string; tenant_id: string }>(
+          "select title, tenant_id from better_supabase.work_items where id = $1",
+          [action.taskId],
+        ),
+      ).toEqual([{ title: "Alert on queue depth", tenant_id: org }]);
+
+      await s.asRole(responder);
+      const detail = await incidents.get(incident.id).orThrow();
+      expect(detail?.postmortem?.actions.map((item) => item.title)).toEqual([
+        "Alert on queue depth",
+        "Runbook",
+      ]);
+      // oxlint-disable-next-line typescript/no-deprecated -- checks that the deprecated list stays empty with tasks.
+      expect(detail?.postmortem?.actionItems).toEqual([]);
+
+      await s.asRole(outsider);
+      expect(await incidents.removePostmortemAction(action.id).then(hint)).toBe(
+        "INCIDENTS_FORBIDDEN",
+      );
+      expect(
+        await incidents
+          .addPostmortemAction(postmortem.id, { title: "Sneaky" })
+          .then(hint),
+      ).toBe("INCIDENTS_FORBIDDEN");
+
+      await s.asRole(owner);
+      const after = await incidents.removePostmortemAction(action.id).orThrow();
+      expect(after.actions.map((item) => item.title)).toEqual(["Runbook"]);
+      expect(await incidents.removePostmortemAction(action.id).then(hint)).toBe(
+        "INCIDENT_POSTMORTEM_ACTION_NOT_FOUND",
+      );
+
+      await s.service();
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.work_items where id = $1)",
+          [action.taskId],
+        ),
+      ).toBe(1);
     } finally {
       await s.close();
     }

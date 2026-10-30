@@ -141,10 +141,9 @@ export interface BlockNameRegistry {
       readonly "files": "id" | "tenant" | "owner" | "chat" | "project" | "bucket" | "path" | "mediaType" | "filename" | "size" | "sha256" | "status" | "source" | "createdAt" | "uploadedAt" | "expiresAt";
       readonly "providerFiles": "file" | "provider" | "reference" | "expiresAt" | "createdAt";
       readonly "documents": "id" | "tenant" | "owner" | "chat" | "kind" | "title" | "version" | "createdAt" | "updatedAt";
-      readonly "versions": "document" | "version" | "content" | "storagePath" | "message" | "createdBy" | "createdAt";
       readonly "suggestions": "id" | "document" | "version" | "original" | "suggested" | "description" | "createdBy" | "createdAt" | "resolvedAt" | "accepted";
     };
-    readonly functions: "ai_file_object_allowed" | "confirm_ai_file" | "create_ai_document" | "delete_ai_document" | "delete_ai_file" | "expiring_ai_provider_files" | "get_ai_document" | "get_ai_file" | "get_ai_file_by_path" | "get_ai_provider_file" | "list_ai_document_versions" | "list_ai_files" | "list_ai_suggestions" | "purge_ai_files" | "reserve_ai_file" | "resolve_ai_suggestion" | "rollback_ai_document" | "set_ai_provider_file" | "store_ai_file" | "suggest_ai_document_edit" | "update_ai_document";
+    readonly functions: "ai_document_purge_versions" | "ai_file_object_allowed" | "confirm_ai_file" | "create_ai_document" | "delete_ai_document" | "delete_ai_file" | "expiring_ai_provider_files" | "get_ai_document" | "get_ai_file" | "get_ai_file_by_path" | "get_ai_provider_file" | "list_ai_document_versions" | "list_ai_files" | "list_ai_suggestions" | "purge_ai_files" | "reserve_ai_file" | "resolve_ai_suggestion" | "rollback_ai_document" | "set_ai_provider_file" | "store_ai_file" | "suggest_ai_document_edit" | "update_ai_document";
     readonly actions: "upload" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -1034,6 +1033,7 @@ export interface BlockNameRegistry {
       readonly "updates": "id" | "tenant" | "incident" | "status" | "body" | "public" | "author" | "createdAt";
       readonly "impacts": "tenant" | "incident" | "component" | "impact";
       readonly "postmortems": "id" | "tenant" | "incident" | "summary" | "impact" | "rootCause" | "resolution" | "actionItems" | "status" | "publishedAt" | "author" | "createdAt" | "updatedAt";
+      readonly "actions": "id" | "tenant" | "postmortem" | "task" | "createdAt";
       readonly "pages": "id" | "tenant" | "slug" | "title" | "description" | "published" | "createdAt" | "updatedAt";
     };
     readonly functions: "delete_status_component" | "get_incident" | "get_status_page" | "incident_apply_impacts" | "incident_refresh_components" | "list_incidents" | "list_status_components" | "open_incident" | "post_incident_update" | "public_status_page" | "publish_incident_postmortem" | "save_incident_postmortem" | "save_status_component" | "save_status_page" | "set_incident_impacts" | "update_incident";

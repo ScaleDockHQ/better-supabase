@@ -201,6 +201,20 @@ const NAMES: BlockSqlNames = {
       ],
       typed: ["status"],
     },
+    // With the tasks block: a postmortem's action items, one task each.
+    actions: {
+      name: "incident_postmortem_actions",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        postmortem: "postmortem_id",
+        task: "task_id",
+        createdAt: "created_at",
+      },
+      optional: ["createdAt"],
+    },
     pages: {
       name: "status_pages",
       app: {},
@@ -376,7 +390,7 @@ create table if not exists ${postmortems} (
 create index if not exists ${name("postmortems", "tenant_idx")} on ${postmortems} (${pm("tenant")}, ${pm("incident")});
 ${lockTable(postmortems, { read: true })}
 ${readPolicy("postmortems", pm("tenant"))}
-
+${actionsTable(ctx, readPolicy, appKey)}
 -- One status page per organization. Anonymous visitors read it only through
 -- public_status_page(slug), never through these tables.
 create table if not exists ${pages} (
@@ -398,6 +412,37 @@ create table if not exists ${pages} (
 );${appKey("pages", "tenant", g("tenant"))}${appKey("pages", "slug", g("slug"))}
 ${lockTable(pages, { read: true })}
 ${readPolicy("pages", g("tenant"))}
+`;
+}
+
+/** The postmortem action items, a task each, with the tasks module. */
+function actionsTable(
+  ctx: BlockSqlContext,
+  readPolicy: (logical: string, tenant: string) => string,
+  appKey: (logical: string, what: string, columns: string) => string,
+): string {
+  if (!ctx.installed("tasks")) {
+    return "";
+  }
+
+  const actions = ctx.table("actions");
+  const a = (column: string): string => ctx.col("actions", column);
+  const tasks = ctx.of("tasks");
+
+  return `
+-- A postmortem's action items: each one is a task, so it is assigned, due
+-- and closed in the tasks block.
+create table if not exists ${actions} (
+  ${a("id")} uuid primary key default gen_random_uuid(),
+  ${a("tenant")} ${ctx.idType} not null,
+  ${a("postmortem")} uuid not null references ${ctx.table("postmortems")} (${ctx.col("postmortems", "id")}) on delete cascade,
+  ${a("task")} uuid not null references ${tasks.table("items")} (${tasks.col("items", "id")}) on delete cascade,${ctx.has("actions", "createdAt") ? `\n  ${a("createdAt")} timestamptz not null default now(),` : ""}
+  unique (${a("postmortem")}, ${a("task")})
+);${appKey("actions", "postmortem_task", `${a("postmortem")}, ${a("task")}`)}
+create index if not exists ${sqlIdent(`${ctx.tableName("actions").name}_task_idx`)} on ${actions} (${a("task")});
+create index if not exists ${sqlIdent(`${ctx.tableName("actions").name}_tenant_idx`)} on ${actions} (${a("tenant")});
+${lockTable(actions, { read: true })}
+${readPolicy("actions", a("tenant"))}
 `;
 }
 
@@ -453,6 +498,20 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "publish_incident_postmortem", args: ["uuid"], returns: "jsonb" },
+    ...(ctx.installed("tasks")
+      ? [
+          {
+            name: "add_incident_postmortem_action",
+            args: ["uuid", "text", "uuid", "timestamptz"],
+            returns: "jsonb",
+          },
+          {
+            name: "remove_incident_postmortem_action",
+            args: ["uuid"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
     {
       name: "save_status_page",
       args: ["{id}", "text", "text", "text", "boolean"],
@@ -464,14 +523,18 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 }
 
 export const INCIDENTS: BlockSqlDefinition = {
-  internal: ["incident_apply_impacts", "incident_refresh_components"],
+  internal: [
+    "incident_apply_impacts",
+    "incident_postmortem_action_list",
+    "incident_refresh_components",
+  ],
   name: "incidents",
   scopes: ["tenant"],
   title: "Incidents",
   description:
     "Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.",
   requires: ["memberships", "permissions"],
-  integrates: ["notifications", "outbox", "audit"],
+  integrates: ["notifications", "outbox", "audit", "tasks"],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,

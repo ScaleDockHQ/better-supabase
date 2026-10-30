@@ -1011,7 +1011,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "ai",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "versions"
       ],
       "integrates": [
         "ai-chat"
@@ -2067,7 +2068,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "audit",
-        "share-links"
+        "share-links",
+        "ai-files"
       ],
       "manifest": "versions",
       "scopes": [
@@ -5857,7 +5859,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "notifications",
         "outbox",
-        "audit"
+        "audit",
+        "tasks"
       ],
       "manifest": "incidents",
       "scopes": [
