@@ -117,6 +117,7 @@ describe("createBillableTime", () => {
           subject_type: "customer",
           subject_id: "c1",
           effective_from: "2026-09-01",
+          cost_amount: null,
         },
       ],
     ]);
@@ -401,5 +402,162 @@ describe("billable-time block", () => {
     expect(
       validate(timeInvoiceSectionInputSchema, { groupBy: "week" }).issues,
     ).toBeDefined();
+  });
+});
+
+describe("project costing", () => {
+  const COSTS = {
+    projectId: "p1",
+    organizationId: "org-1",
+    hours: 5,
+    uncostedHours: 0.5,
+    budgetAmount: "50000",
+    budgetCurrency: "EUR",
+    budgetHours: 10,
+    totals: [
+      {
+        currency: "EUR",
+        timeCost: "30000",
+        billed: "50000",
+        expenses: "4000",
+        income: "0",
+        margin: "16000",
+      },
+      {
+        currency: "USD",
+        timeCost: "0",
+        billed: "1000",
+        expenses: "0",
+        income: "0",
+        margin: "1000",
+      },
+    ],
+  };
+
+  it("reads a project with no time, no totals and no budget", async () => {
+    const fake = fakeTransport({
+      project_costs: { projectId: "p1", organizationId: "org-1" },
+    });
+
+    const time = createBillableTime({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const costs = await time.projectCosts("p1").orThrow();
+
+    expect(costs).toEqual({
+      projectId: "p1",
+      organizationId: "org-1",
+      hours: 0,
+      uncostedHours: 0,
+      totals: [],
+      budgetUsed: {},
+    });
+  });
+
+  it("counts no spend when the budget's currency has no totals", async () => {
+    const fake = fakeTransport({
+      project_costs: { ...COSTS, totals: [COSTS.totals[1]] },
+    });
+
+    const time = createBillableTime({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const costs = await time.projectCosts("p1").orThrow();
+
+    expect(costs.budgetUsed).toEqual({ hours: 0.5, amount: 0 });
+  });
+
+  it("sends a rate's cost and reads it back", async () => {
+    const fake = fakeTransport({
+      set_time_rate: { ...ORG_RATE, cost: "6000" },
+    });
+
+    const time = createBillableTime({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const rate = await time
+      .setRate({ rate: money(10_000n, "EUR"), cost: money(6000n, "EUR") })
+      .orThrow();
+
+    expect(fake.calls[0]?.[1]).toMatchObject({ cost_amount: "6000" });
+    expect(rate.cost).toEqual(money(6000n, "EUR"));
+  });
+
+  it("refuses a cost in another currency than the rate", async () => {
+    const fake = fakeTransport({});
+    const time = createBillableTime({ transport: fake.transport });
+
+    const result = await time.setRate({
+      rate: money(10_000n, "EUR"),
+      cost: money(6000n, "USD"),
+    });
+
+    expect(result.ok ? undefined : result.error.hint).toBe("CURRENCY_MISMATCH");
+    expect(fake.calls).toEqual([]);
+  });
+
+  it("reads a project's totals per currency and works out the budget use", async () => {
+    const fake = fakeTransport({ project_costs: COSTS });
+    const time = createBillableTime({ transport: fake.transport });
+
+    const costs = await time.projectCosts("p1").orThrow();
+
+    expect(fake.calls).toEqual([["project_costs", { project_id: "p1" }]]);
+    expect(costs).toMatchObject({
+      projectId: "p1",
+      hours: 5,
+      uncostedHours: 0.5,
+      budget: money(50_000n, "EUR"),
+      budgetHours: 10,
+      budgetUsed: { hours: 0.5, amount: 0.68 },
+    });
+    expect(costs.totals[0]?.margin).toEqual(money(16_000n, "EUR"));
+    expect(costs.totals[1]?.billed).toEqual(money(1000n, "USD"));
+  });
+
+  it("leaves the budget use out without a budget", async () => {
+    const fake = fakeTransport({
+      project_costs: {
+        projectId: "p1",
+        organizationId: "org-1",
+        hours: 0,
+        uncostedHours: 0,
+        budgetAmount: null,
+        budgetCurrency: null,
+        budgetHours: null,
+        totals: [],
+      },
+    });
+
+    const time = createBillableTime({ transport: fake.transport });
+
+    const costs = await time.projectCosts("p1").orThrow();
+
+    expect(costs).toEqual({
+      projectId: "p1",
+      organizationId: "org-1",
+      hours: 0,
+      uncostedHours: 0,
+      totals: [],
+      budgetUsed: {},
+    });
+  });
+
+  it("counts no spend when no total is in the budget's currency", async () => {
+    const fake = fakeTransport({
+      project_costs: { ...COSTS, budgetHours: 0, totals: [COSTS.totals[1]] },
+    });
+
+    const time = createBillableTime({ transport: fake.transport });
+
+    expect((await time.projectCosts("p1").orThrow()).budgetUsed).toEqual({
+      amount: 0,
+    });
   });
 });

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:32a8040058574438f09880ebe7411f6832d78813a8000514640c266468e2505c
+-- @bsb-hash sha256:23acd5719dddb225bbcf30f45d7bf8f042888129921a38dcaca71949d3cdc93e
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -82,6 +82,8 @@ create table if not exists "better_supabase"."time_rates" (
   check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
+-- What an hour costs the organization, in the rate's currency (project costing).
+alter table "better_supabase"."time_rates" add column if not exists "cost_amount" bigint check ("cost_amount" >= 0);
 create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
@@ -165,9 +167,11 @@ create trigger bsb_billable_time_release
   execute function "better_supabase"."billable_time_release"();
 
 -- Sets the hourly rate for a member, a record, both, or the organization
--- (neither), from effective_from (today by default). The same key and day
+-- (neither), from effective_from (today by default), with what the hour costs
+-- the organization (cost_amount, for project costing). The same key and day
 -- replaces the rate.
-create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null)
+drop function if exists "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
+create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language plpgsql
 security definer
@@ -189,6 +193,9 @@ begin
   if set_time_rate.currency is null or set_time_rate.currency !~ '^[A-Z]{3}$' then
     raise exception 'currency must be a three-letter currency code' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
+  if set_time_rate.cost_amount < 0 then
+    raise exception 'a cost is 0 or more minor units per hour' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  end if;
   if (set_time_rate.subject_type is null) <> (set_time_rate.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
@@ -201,17 +208,17 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'TIME_RATE_MEMBER_INVALID';
   end if;
-  insert into "better_supabase"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "created_by")
+  insert into "better_supabase"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "cost_amount", "created_by")
   values (set_time_rate.tenant, set_time_rate.user_id, set_time_rate.subject_type, set_time_rate.subject_id, set_time_rate.rate, set_time_rate.currency,
-    coalesce(set_time_rate.effective_from, current_date), auth.uid())
+    coalesce(set_time_rate.effective_from, current_date), set_time_rate.cost_amount, auth.uid())
   on conflict ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
-  do update set "rate" = excluded."rate", "currency" = excluded."currency", "created_by" = excluded."created_by"
+  do update set "rate" = excluded."rate", "currency" = excluded."currency", "cost_amount" = excluded."cost_amount", "created_by" = excluded."created_by"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) from public, anon;
-grant execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) from public, anon;
+grant execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_time_rate"(rate_id uuid)
 returns jsonb
@@ -230,7 +237,7 @@ begin
     raise exception 'no such rate you can change' using errcode = 'P0002', hint = 'TIME_RATE_NOT_FOUND';
   end if;
   delete from "better_supabase"."time_rates" x where x."id" = v_row."id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."delete_time_rate"(uuid) from public, anon;
@@ -250,7 +257,7 @@ begin
     raise exception 'not allowed to read the rate card' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'rate', q."rate"::text, 'currency', q."currency", 'effectiveFrom', q."effective_from", 'createdBy', q."created_by", 'createdAt', q."created_at") order by q."subject_type" nulls first, q."subject_id" nulls first, q."user_id" nulls first, q."effective_from" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'rate', q."rate"::text, 'currency', q."currency", 'effectiveFrom', q."effective_from", 'cost', q."cost_amount"::text, 'createdBy', q."created_by", 'createdAt', q."created_at") order by q."subject_type" nulls first, q."subject_id" nulls first, q."user_id" nulls first, q."effective_from" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."time_rates" x
       where x."tenant_id" = list_time_rates.tenant
@@ -279,7 +286,7 @@ begin
     raise exception 'not allowed to read the rate card' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
   end if;
   return (
-    select jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'userId', c."user_id", 'subjectType', c."subject_type", 'subjectId', c."subject_id", 'rate', c."rate"::text, 'currency', c."currency", 'effectiveFrom', c."effective_from", 'createdBy', c."created_by", 'createdAt', c."created_at") from "better_supabase"."time_rates" c
+    select jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'userId', c."user_id", 'subjectType', c."subject_type", 'subjectId', c."subject_id", 'rate', c."rate"::text, 'currency', c."currency", 'effectiveFrom', c."effective_from", 'cost', c."cost_amount"::text, 'createdBy', c."created_by", 'createdAt', c."created_at") from "better_supabase"."time_rates" c
     where c."tenant_id" = time_rate.tenant
       and (c."user_id" is null or c."user_id" = time_rate.user_id)
       and (c."subject_type" is null or (c."subject_type" = time_rate.subject_type and c."subject_id" = time_rate.subject_id))
@@ -695,7 +702,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:5c4133d1db4d3ce8dffb4a15ba9b68c5a7c2d3a1b7243c9b65743a444f02cb36
+-- @bsb-hash sha256:c378f6e2b4c3a84fa1f503d75b967273d8249b64fdd7d7a41c5454b7a354ce45
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -776,6 +783,8 @@ create table if not exists "better_supabase"."time_rates" (
   check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
+-- What an hour costs the organization, in the rate's currency (project costing).
+alter table "better_supabase"."time_rates" add column if not exists "cost_amount" bigint check ("cost_amount" >= 0);
 create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
@@ -859,9 +868,11 @@ create trigger bsb_billable_time_release
   execute function "better_supabase"."billable_time_release"();
 
 -- Sets the hourly rate for a member, a record, both, or the organization
--- (neither), from effective_from (today by default). The same key and day
+-- (neither), from effective_from (today by default), with what the hour costs
+-- the organization (cost_amount, for project costing). The same key and day
 -- replaces the rate.
-create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null)
+drop function if exists "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
+create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language plpgsql
 security definer
@@ -883,6 +894,9 @@ begin
   if set_time_rate.currency is null or set_time_rate.currency !~ '^[A-Z]{3}$' then
     raise exception 'currency must be a three-letter currency code' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
+  if set_time_rate.cost_amount < 0 then
+    raise exception 'a cost is 0 or more minor units per hour' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  end if;
   if (set_time_rate.subject_type is null) <> (set_time_rate.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
@@ -895,17 +909,17 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'TIME_RATE_MEMBER_INVALID';
   end if;
-  insert into "better_supabase"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "created_by")
+  insert into "better_supabase"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "cost_amount", "created_by")
   values (set_time_rate.tenant, set_time_rate.user_id, set_time_rate.subject_type, set_time_rate.subject_id, set_time_rate.rate, set_time_rate.currency,
-    coalesce(set_time_rate.effective_from, current_date), auth.uid())
+    coalesce(set_time_rate.effective_from, current_date), set_time_rate.cost_amount, auth.uid())
   on conflict ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
-  do update set "rate" = excluded."rate", "currency" = excluded."currency", "created_by" = excluded."created_by"
+  do update set "rate" = excluded."rate", "currency" = excluded."currency", "cost_amount" = excluded."cost_amount", "created_by" = excluded."created_by"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) from public, anon;
-grant execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) from public, anon;
+grant execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_time_rate"(rate_id uuid)
 returns jsonb
@@ -924,7 +938,7 @@ begin
     raise exception 'no such rate you can change' using errcode = 'P0002', hint = 'TIME_RATE_NOT_FOUND';
   end if;
   delete from "better_supabase"."time_rates" x where x."id" = v_row."id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."delete_time_rate"(uuid) from public, anon;
@@ -944,7 +958,7 @@ begin
     raise exception 'not allowed to read the rate card' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'rate', q."rate"::text, 'currency', q."currency", 'effectiveFrom', q."effective_from", 'createdBy', q."created_by", 'createdAt', q."created_at") order by q."subject_type" nulls first, q."subject_id" nulls first, q."user_id" nulls first, q."effective_from" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'rate', q."rate"::text, 'currency', q."currency", 'effectiveFrom', q."effective_from", 'cost', q."cost_amount"::text, 'createdBy', q."created_by", 'createdAt', q."created_at") order by q."subject_type" nulls first, q."subject_id" nulls first, q."user_id" nulls first, q."effective_from" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."time_rates" x
       where x."tenant_id" = list_time_rates.tenant
@@ -973,7 +987,7 @@ begin
     raise exception 'not allowed to read the rate card' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
   end if;
   return (
-    select jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'userId', c."user_id", 'subjectType', c."subject_type", 'subjectId', c."subject_id", 'rate', c."rate"::text, 'currency', c."currency", 'effectiveFrom', c."effective_from", 'createdBy', c."created_by", 'createdAt', c."created_at") from "better_supabase"."time_rates" c
+    select jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'userId', c."user_id", 'subjectType', c."subject_type", 'subjectId', c."subject_id", 'rate', c."rate"::text, 'currency', c."currency", 'effectiveFrom', c."effective_from", 'cost', c."cost_amount"::text, 'createdBy', c."created_by", 'createdAt', c."created_at") from "better_supabase"."time_rates" c
     where c."tenant_id" = time_rate.tenant
       and (c."user_id" is null or c."user_id" = time_rate.user_id)
       and (c."subject_type" is null or (c."subject_type" = time_rate.subject_type and c."subject_id" = time_rate.subject_id))
@@ -1310,6 +1324,97 @@ $$;
 revoke execute on function "better_supabase"."list_invoiced_time"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_invoiced_time"(uuid, integer) to authenticated, service_role;
 
+-- What a project cost and earned, per currency: its time at the rate card's
+-- cost (on the project and its work items), the time billed on invoices at
+-- the billed rate and, with accounting, the posted expense and income lines
+-- on its project dimension (expense claims and purchase bills). The margin is
+-- the billed time and income less the time cost and expenses; budget use
+-- compares the hours and, in the budget's currency, the cost to the budget.
+create or replace function "better_supabase"."project_costs"(project_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_project "better_supabase"."projects"%rowtype;
+  v_result jsonb;
+begin
+  select * into v_project from "better_supabase"."projects" x where x."id" = project_costs.project_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_project."tenant_id", 'billable_time.read'), false)) then
+    raise exception 'project not found' using errcode = 'P0002', hint = 'WORK_ITEM_PROJECT_NOT_FOUND';
+  end if;
+  with spent as (
+    select extract(epoch from x."ended_at" - x."started_at") as seconds, card.cost, card.currency,
+      d."rate" as billed_rate, d."currency"::text as billed_currency, d."seconds" as billed_seconds
+    from "better_supabase"."time_entries" x
+    left join lateral (
+      select c."cost_amount" as cost, c."currency"::text as currency
+      from "better_supabase"."time_rates" c
+      where c."tenant_id" = x."tenant_id"
+        and (c."user_id" is null or c."user_id" = x."user_id")
+        and (c."subject_type" is null or (c."subject_type" = x."subject_type" and c."subject_id" = x."subject_id"))
+        and c."effective_from" <= (x."started_at" at time zone 'UTC')::date
+      order by (c."subject_type" is not null) desc, (c."user_id" is not null) desc, c."effective_from" desc
+      limit 1
+    ) card on true
+    left join "better_supabase"."time_invoice_entries" d on d."entry_id" = x."id"
+    where x."tenant_id" = v_project."tenant_id"
+      and x."ended_at" is not null
+      and ((x."subject_type" = 'project' and x."subject_id" = v_project."id"::text) or (x."subject_type" = 'work_item' and x."subject_id" in (
+        select y."id"::text from "better_supabase"."work_items" y where y."project_id" = v_project."id"
+      )))
+  ),
+  totals as (
+    select u.currency, sum(u.time_cost)::bigint as time_cost, sum(u.billed)::bigint as billed,
+      sum(u.expenses)::bigint as expenses, sum(u.income)::bigint as income
+    from (
+      select s.currency, round(s.seconds / 3600.0 * s.cost)::bigint as time_cost, 0::bigint as billed, 0::bigint as expenses, 0::bigint as income
+      from spent s where s.cost is not null
+      union all
+      select s.billed_currency, 0, round(s.billed_seconds / 3600.0 * s.billed_rate)::bigint, 0, 0
+      from spent s where s.billed_rate is not null
+      union all
+      select q.currency, 0, 0, q.expenses, q.income from (select l."currency"::text as currency,
+        coalesce(sum(l."debit" - l."credit") filter (where a."type" = 'expense'), 0)::bigint as expenses,
+        coalesce(sum(l."credit" - l."debit") filter (where a."type" = 'income'), 0)::bigint as income
+      from "better_supabase"."accounting_entry_lines" l
+      join "better_supabase"."accounting_entries" n on n."id" = l."entry_id"
+      join "better_supabase"."accounting_accounts" a on a."id" = l."account_id"
+      where l."tenant_id" = v_project."tenant_id"
+        and n."status" in ('posted', 'reversed')
+        and l."dimensions" ->> 'project' = v_project."id"::text
+      group by l."currency") q
+    ) u
+    group by u.currency
+  )
+  select jsonb_build_object(
+    'projectId', v_project."id",
+    'organizationId', v_project."tenant_id",
+    'hours', (select round(coalesce(sum(s.seconds), 0) / 3600.0, 2) from spent s),
+    'uncostedHours', (select round(coalesce(sum(s.seconds) filter (where s.cost is null), 0) / 3600.0, 2) from spent s),
+    'budgetAmount', v_project."budget_amount"::text,
+    'budgetCurrency', v_project."budget_currency",
+    'budgetHours', v_project."budget_hours",
+    'totals', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+          'currency', t.currency,
+          'timeCost', t.time_cost::text,
+          'billed', t.billed::text,
+          'expenses', t.expenses::text,
+          'income', t.income::text,
+          'margin', (t.billed + t.income - t.time_cost - t.expenses)::text
+        ) order by t.currency), '[]'::jsonb)
+      from totals t))
+  into v_result;
+  return v_result;
+end;
+$$;
+revoke execute on function "better_supabase"."project_costs"(uuid) from public, anon;
+grant execute on function "better_supabase"."project_costs"(uuid) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1398,7 +1503,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:2714d4ac2ba618d26c41bfb7ff9bc50cb8e9def48028da8b0dd198f9a755a091
+-- @bsb-hash sha256:7100db5bc6d9a8d1b244a16ffc40228c55f15d623f59c96694709209b3fd0c13
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1484,6 +1589,8 @@ create table if not exists "app_private"."time_rates" (
   check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
+-- What an hour costs the organization, in the rate's currency (project costing).
+alter table "app_private"."time_rates" add column if not exists "cost_amount" bigint check ("cost_amount" >= 0);
 create index if not exists "time_rates_lookup_idx" on "app_private"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "app_private"."time_rates" enable row level security;
 revoke all on "app_private"."time_rates" from public, anon, authenticated;
@@ -1567,9 +1674,11 @@ create trigger bsb_billable_time_release
   execute function "app_private"."billable_time_release"();
 
 -- Sets the hourly rate for a member, a record, both, or the organization
--- (neither), from effective_from (today by default). The same key and day
+-- (neither), from effective_from (today by default), with what the hour costs
+-- the organization (cost_amount, for project costing). The same key and day
 -- replaces the rate.
-create or replace function "app_private"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null)
+drop function if exists "app_private"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
+create or replace function "app_private"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1591,6 +1700,9 @@ begin
   if set_time_rate.currency is null or set_time_rate.currency !~ '^[A-Z]{3}$' then
     raise exception 'currency must be a three-letter currency code' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
+  if set_time_rate.cost_amount < 0 then
+    raise exception 'a cost is 0 or more minor units per hour' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  end if;
   if (set_time_rate.subject_type is null) <> (set_time_rate.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
@@ -1603,17 +1715,17 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'TIME_RATE_MEMBER_INVALID';
   end if;
-  insert into "app_private"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "created_by")
+  insert into "app_private"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "cost_amount", "created_by")
   values (set_time_rate.tenant, set_time_rate.user_id, set_time_rate.subject_type, set_time_rate.subject_id, set_time_rate.rate, set_time_rate.currency,
-    coalesce(set_time_rate.effective_from, current_date), auth.uid())
+    coalesce(set_time_rate.effective_from, current_date), set_time_rate.cost_amount, auth.uid())
   on conflict ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
-  do update set "rate" = excluded."rate", "currency" = excluded."currency", "created_by" = excluded."created_by"
+  do update set "rate" = excluded."rate", "currency" = excluded."currency", "cost_amount" = excluded."cost_amount", "created_by" = excluded."created_by"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "app_private"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) from public, anon;
-grant execute on function "app_private"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) to authenticated, service_role;
+revoke execute on function "app_private"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) from public, anon;
+grant execute on function "app_private"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) to authenticated, service_role;
 
 create or replace function "app_private"."delete_time_rate"(rate_id uuid)
 returns jsonb
@@ -1632,7 +1744,7 @@ begin
     raise exception 'no such rate you can change' using errcode = 'P0002', hint = 'TIME_RATE_NOT_FOUND';
   end if;
   delete from "app_private"."time_rates" x where x."id" = v_row."id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "app_private"."delete_time_rate"(uuid) from public, anon;
@@ -1652,7 +1764,7 @@ begin
     raise exception 'not allowed to read the rate card' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'rate', q."rate"::text, 'currency', q."currency", 'effectiveFrom', q."effective_from", 'createdBy', q."created_by", 'createdAt', q."created_at") order by q."subject_type" nulls first, q."subject_id" nulls first, q."user_id" nulls first, q."effective_from" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'rate', q."rate"::text, 'currency', q."currency", 'effectiveFrom', q."effective_from", 'cost', q."cost_amount"::text, 'createdBy', q."created_by", 'createdAt', q."created_at") order by q."subject_type" nulls first, q."subject_id" nulls first, q."user_id" nulls first, q."effective_from" desc), '[]'::jsonb)
     from (
       select * from "app_private"."time_rates" x
       where x."tenant_id" = list_time_rates.tenant
@@ -1681,7 +1793,7 @@ begin
     raise exception 'not allowed to read the rate card' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
   end if;
   return (
-    select jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'userId', c."user_id", 'subjectType', c."subject_type", 'subjectId', c."subject_id", 'rate', c."rate"::text, 'currency', c."currency", 'effectiveFrom', c."effective_from", 'createdBy', c."created_by", 'createdAt', c."created_at") from "app_private"."time_rates" c
+    select jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'userId', c."user_id", 'subjectType', c."subject_type", 'subjectId', c."subject_id", 'rate', c."rate"::text, 'currency', c."currency", 'effectiveFrom', c."effective_from", 'cost', c."cost_amount"::text, 'createdBy', c."created_by", 'createdAt', c."created_at") from "app_private"."time_rates" c
     where c."tenant_id" = time_rate.tenant
       and (c."user_id" is null or c."user_id" = time_rate.user_id)
       and (c."subject_type" is null or (c."subject_type" = time_rate.subject_type and c."subject_id" = time_rate.subject_id))
@@ -2097,7 +2209,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:25bab17f80793a0394d10e03d3e061a0d2f2b44902ff68dec06925f75f03fef1
+-- @bsb-hash sha256:ef8dccb0eed2c51ec2e0d4766d02a6e272cfb0792f9ae51bb1f12353de5ee575
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2178,6 +2290,8 @@ create table if not exists "better_supabase"."time_rates" (
   check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
+-- What an hour costs the organization, in the rate's currency (project costing).
+alter table "better_supabase"."time_rates" add column if not exists "cost_amount" bigint check ("cost_amount" >= 0);
 create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
@@ -2261,9 +2375,11 @@ create trigger bsb_billable_time_release
   execute function "better_supabase"."billable_time_release"();
 
 -- Sets the hourly rate for a member, a record, both, or the organization
--- (neither), from effective_from (today by default). The same key and day
+-- (neither), from effective_from (today by default), with what the hour costs
+-- the organization (cost_amount, for project costing). The same key and day
 -- replaces the rate.
-create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null)
+drop function if exists "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
+create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2285,6 +2401,9 @@ begin
   if set_time_rate.currency is null or set_time_rate.currency !~ '^[A-Z]{3}$' then
     raise exception 'currency must be a three-letter currency code' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
+  if set_time_rate.cost_amount < 0 then
+    raise exception 'a cost is 0 or more minor units per hour' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  end if;
   if (set_time_rate.subject_type is null) <> (set_time_rate.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
@@ -2297,17 +2416,17 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'TIME_RATE_MEMBER_INVALID';
   end if;
-  insert into "better_supabase"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "created_by")
+  insert into "better_supabase"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "cost_amount", "created_by")
   values (set_time_rate.tenant, set_time_rate.user_id, set_time_rate.subject_type, set_time_rate.subject_id, set_time_rate.rate, set_time_rate.currency,
-    coalesce(set_time_rate.effective_from, current_date), auth.uid())
+    coalesce(set_time_rate.effective_from, current_date), set_time_rate.cost_amount, auth.uid())
   on conflict ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
-  do update set "rate" = excluded."rate", "currency" = excluded."currency", "created_by" = excluded."created_by"
+  do update set "rate" = excluded."rate", "currency" = excluded."currency", "cost_amount" = excluded."cost_amount", "created_by" = excluded."created_by"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) from public, anon;
-grant execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) from public, anon;
+grant execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_time_rate"(rate_id uuid)
 returns jsonb
@@ -2326,7 +2445,7 @@ begin
     raise exception 'no such rate you can change' using errcode = 'P0002', hint = 'TIME_RATE_NOT_FOUND';
   end if;
   delete from "better_supabase"."time_rates" x where x."id" = v_row."id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."delete_time_rate"(uuid) from public, anon;
@@ -2346,7 +2465,7 @@ begin
     raise exception 'not allowed to read the rate card' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'rate', q."rate"::text, 'currency', q."currency", 'effectiveFrom', q."effective_from", 'createdBy', q."created_by", 'createdAt', q."created_at") order by q."subject_type" nulls first, q."subject_id" nulls first, q."user_id" nulls first, q."effective_from" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'rate', q."rate"::text, 'currency', q."currency", 'effectiveFrom', q."effective_from", 'cost', q."cost_amount"::text, 'createdBy', q."created_by", 'createdAt', q."created_at") order by q."subject_type" nulls first, q."subject_id" nulls first, q."user_id" nulls first, q."effective_from" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."time_rates" x
       where x."tenant_id" = list_time_rates.tenant
@@ -2375,7 +2494,7 @@ begin
     raise exception 'not allowed to read the rate card' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
   end if;
   return (
-    select jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'userId', c."user_id", 'subjectType', c."subject_type", 'subjectId', c."subject_id", 'rate', c."rate"::text, 'currency', c."currency", 'effectiveFrom', c."effective_from", 'createdBy', c."created_by", 'createdAt', c."created_at") from "better_supabase"."time_rates" c
+    select jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'userId', c."user_id", 'subjectType', c."subject_type", 'subjectId', c."subject_id", 'rate', c."rate"::text, 'currency', c."currency", 'effectiveFrom', c."effective_from", 'cost', c."cost_amount"::text, 'createdBy', c."created_by", 'createdAt', c."created_at") from "better_supabase"."time_rates" c
     where c."tenant_id" = time_rate.tenant
       and (c."user_id" is null or c."user_id" = time_rate.user_id)
       and (c."subject_type" is null or (c."subject_type" = time_rate.subject_type and c."subject_id" = time_rate.subject_id))
@@ -2765,6 +2884,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -2783,14 +2904,14 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null)
+create or replace function "api"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."set_time_rate"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) from public, anon;
-grant execute on function "api"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) to authenticated, service_role;
+as $$ select "better_supabase"."set_time_rate"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) from public, anon;
+grant execute on function "api"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) to authenticated, service_role;
 
 create or replace function "api"."delete_time_rate"(rate_id uuid)
 returns jsonb
@@ -2876,7 +2997,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:5d31d6cd25ab7418aed3099264820dbc771873521e4d87041278de9152da4977
+-- @bsb-hash sha256:a118a8d80f3b644b25dd6215b6623219a832651a87dc1ef159ddfc41a2285316
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2954,6 +3075,8 @@ alter table "better_supabase"."time_rates" add column if not exists "effective_f
 alter table "better_supabase"."time_rates" add column if not exists "created_by" uuid;
 alter table "better_supabase"."time_rates" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_time_rates_rate_key" on "better_supabase"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from") nulls not distinct;
+-- What an hour costs the organization, in the rate's currency (project costing).
+alter table "better_supabase"."time_rates" add column if not exists "cost_amount" bigint check ("cost_amount" >= 0);
 create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 grant select on "better_supabase"."time_rates" to authenticated;
@@ -3034,9 +3157,11 @@ create trigger bsb_billable_time_release
   execute function "better_supabase"."billable_time_release"();
 
 -- Sets the hourly rate for a member, a record, both, or the organization
--- (neither), from effective_from (today by default). The same key and day
+-- (neither), from effective_from (today by default), with what the hour costs
+-- the organization (cost_amount, for project costing). The same key and day
 -- replaces the rate.
-create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null)
+drop function if exists "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
+create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3058,6 +3183,9 @@ begin
   if set_time_rate.currency is null or set_time_rate.currency !~ '^[A-Z]{3}$' then
     raise exception 'currency must be a three-letter currency code' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
+  if set_time_rate.cost_amount < 0 then
+    raise exception 'a cost is 0 or more minor units per hour' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  end if;
   if (set_time_rate.subject_type is null) <> (set_time_rate.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
@@ -3070,17 +3198,17 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'TIME_RATE_MEMBER_INVALID';
   end if;
-  insert into "better_supabase"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "created_by")
+  insert into "better_supabase"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "cost_amount", "created_by")
   values (set_time_rate.tenant, set_time_rate.user_id, set_time_rate.subject_type, set_time_rate.subject_id, set_time_rate.rate, set_time_rate.currency,
-    coalesce(set_time_rate.effective_from, current_date), auth.uid())
+    coalesce(set_time_rate.effective_from, current_date), set_time_rate.cost_amount, auth.uid())
   on conflict ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
-  do update set "rate" = excluded."rate", "currency" = excluded."currency", "created_by" = excluded."created_by"
+  do update set "rate" = excluded."rate", "currency" = excluded."currency", "cost_amount" = excluded."cost_amount", "created_by" = excluded."created_by"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) from public, anon;
-grant execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) from public, anon;
+grant execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_time_rate"(rate_id uuid)
 returns jsonb
@@ -3099,7 +3227,7 @@ begin
     raise exception 'no such rate you can change' using errcode = 'P0002', hint = 'TIME_RATE_NOT_FOUND';
   end if;
   delete from "better_supabase"."time_rates" x where x."id" = v_row."id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."delete_time_rate"(uuid) from public, anon;
@@ -3119,7 +3247,7 @@ begin
     raise exception 'not allowed to read the rate card' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'rate', q."rate"::text, 'currency', q."currency", 'effectiveFrom', q."effective_from", 'createdBy', q."created_by", 'createdAt', q."created_at") order by q."subject_type" nulls first, q."subject_id" nulls first, q."user_id" nulls first, q."effective_from" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'rate', q."rate"::text, 'currency', q."currency", 'effectiveFrom', q."effective_from", 'cost', q."cost_amount"::text, 'createdBy', q."created_by", 'createdAt', q."created_at") order by q."subject_type" nulls first, q."subject_id" nulls first, q."user_id" nulls first, q."effective_from" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."time_rates" x
       where x."tenant_id" = list_time_rates.tenant
@@ -3148,7 +3276,7 @@ begin
     raise exception 'not allowed to read the rate card' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
   end if;
   return (
-    select jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'userId', c."user_id", 'subjectType', c."subject_type", 'subjectId', c."subject_id", 'rate', c."rate"::text, 'currency', c."currency", 'effectiveFrom', c."effective_from", 'createdBy', c."created_by", 'createdAt', c."created_at") from "better_supabase"."time_rates" c
+    select jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'userId', c."user_id", 'subjectType', c."subject_type", 'subjectId', c."subject_id", 'rate', c."rate"::text, 'currency', c."currency", 'effectiveFrom', c."effective_from", 'cost', c."cost_amount"::text, 'createdBy', c."created_by", 'createdAt', c."created_at") from "better_supabase"."time_rates" c
     where c."tenant_id" = time_rate.tenant
       and (c."user_id" is null or c."user_id" = time_rate.user_id)
       and (c."subject_type" is null or (c."subject_type" = time_rate.subject_type and c."subject_id" = time_rate.subject_id))
@@ -3564,7 +3692,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:54ab5540906a6222a22921b44bec210107f78b555a7998cf3fba544d7a737b46
+-- @bsb-hash sha256:067fdd77d63e2f35c560dbfb05d1d4e667193ab34d3e321b697564ba40eec2a5
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3645,6 +3773,8 @@ create table if not exists "better_supabase"."time_rates" (
   check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("org_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
+-- What an hour costs the organization, in the rate's currency (project costing).
+alter table "better_supabase"."time_rates" add column if not exists "cost_amount" bigint check ("cost_amount" >= 0);
 create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("org_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
@@ -3728,9 +3858,11 @@ create trigger bsb_billable_time_release
   execute function "better_supabase"."billable_time_release"();
 
 -- Sets the hourly rate for a member, a record, both, or the organization
--- (neither), from effective_from (today by default). The same key and day
+-- (neither), from effective_from (today by default), with what the hour costs
+-- the organization (cost_amount, for project costing). The same key and day
 -- replaces the rate.
-create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null)
+drop function if exists "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
+create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3752,6 +3884,9 @@ begin
   if set_time_rate.currency is null or set_time_rate.currency !~ '^[A-Z]{3}$' then
     raise exception 'currency must be a three-letter currency code' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
+  if set_time_rate.cost_amount < 0 then
+    raise exception 'a cost is 0 or more minor units per hour' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  end if;
   if (set_time_rate.subject_type is null) <> (set_time_rate.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
@@ -3764,17 +3899,17 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'TIME_RATE_MEMBER_INVALID';
   end if;
-  insert into "better_supabase"."time_rates" ("org_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "created_by")
+  insert into "better_supabase"."time_rates" ("org_id", "user_id", "subject_type", "subject_id", "rate", "currency", "effective_from", "cost_amount", "created_by")
   values (set_time_rate.tenant, set_time_rate.user_id, set_time_rate.subject_type, set_time_rate.subject_id, set_time_rate.rate, set_time_rate.currency,
-    coalesce(set_time_rate.effective_from, current_date), auth.uid())
+    coalesce(set_time_rate.effective_from, current_date), set_time_rate.cost_amount, auth.uid())
   on conflict ("org_id", "user_id", "subject_type", "subject_id", "effective_from")
-  do update set "rate" = excluded."rate", "currency" = excluded."currency", "created_by" = excluded."created_by"
+  do update set "rate" = excluded."rate", "currency" = excluded."currency", "cost_amount" = excluded."cost_amount", "created_by" = excluded."created_by"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) from public, anon;
-grant execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) from public, anon;
+grant execute on function "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date, bigint) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_time_rate"(rate_id uuid)
 returns jsonb
@@ -3793,7 +3928,7 @@ begin
     raise exception 'no such rate you can change' using errcode = 'P0002', hint = 'TIME_RATE_NOT_FOUND';
   end if;
   delete from "better_supabase"."time_rates" x where x."id" = v_row."id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."delete_time_rate"(uuid) from public, anon;
@@ -3813,7 +3948,7 @@ begin
     raise exception 'not allowed to read the rate card' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."org_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'rate', q."rate"::text, 'currency', q."currency", 'effectiveFrom', q."effective_from", 'createdBy', q."created_by", 'createdAt', q."created_at") order by q."subject_type" nulls first, q."subject_id" nulls first, q."user_id" nulls first, q."effective_from" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."org_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'rate', q."rate"::text, 'currency', q."currency", 'effectiveFrom', q."effective_from", 'cost', q."cost_amount"::text, 'createdBy', q."created_by", 'createdAt', q."created_at") order by q."subject_type" nulls first, q."subject_id" nulls first, q."user_id" nulls first, q."effective_from" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."time_rates" x
       where x."org_id" = list_time_rates.tenant
@@ -3842,7 +3977,7 @@ begin
     raise exception 'not allowed to read the rate card' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
   end if;
   return (
-    select jsonb_build_object('id', c."id", 'organizationId', c."org_id", 'userId', c."user_id", 'subjectType', c."subject_type", 'subjectId', c."subject_id", 'rate', c."rate"::text, 'currency', c."currency", 'effectiveFrom', c."effective_from", 'createdBy', c."created_by", 'createdAt', c."created_at") from "better_supabase"."time_rates" c
+    select jsonb_build_object('id', c."id", 'organizationId', c."org_id", 'userId', c."user_id", 'subjectType', c."subject_type", 'subjectId', c."subject_id", 'rate', c."rate"::text, 'currency', c."currency", 'effectiveFrom', c."effective_from", 'cost', c."cost_amount"::text, 'createdBy', c."created_by", 'createdAt', c."created_at") from "better_supabase"."time_rates" c
     where c."org_id" = time_rate.tenant
       and (c."user_id" is null or c."user_id" = time_rate.user_id)
       and (c."subject_type" is null or (c."subject_type" = time_rate.subject_type and c."subject_id" = time_rate.subject_id))
