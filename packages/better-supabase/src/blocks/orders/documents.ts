@@ -3,7 +3,7 @@ import type { BlockCall } from "../shared.ts";
 import type { Address, Order } from "./codecs.ts";
 
 import { AsyncResult } from "../../core/result.ts";
-import { recordOf } from "../shared.ts";
+import { recordOf, textOf } from "../shared.ts";
 import { orderOf } from "./codecs.ts";
 
 /** One line of an order staff enter, such as a phone or wholesale order. */
@@ -69,6 +69,20 @@ export interface OrderDocuments<F extends object = Record<never, never>> {
     quoteId: string,
     input?: OrderDocumentInput,
   ): AsyncResult<OrderFromDocument<F>>;
+  /**
+   * A draft inventory purchase order for a drop ship: the order's lines from
+   * one supplier, delivered to the order's shipping address (`shipTo`). Needs
+   * the inventory block and `inventory.purchase`; a blocked supplier is refused
+   * with `PURCHASE_ORDER_SUPPLIER_BLOCKED`.
+   */
+  purchaseOrderFromOrder(
+    orderId: string,
+    supplier: { readonly type?: string; readonly id: string },
+    options?: {
+      /** Where the purchase order books. Default: the order's location. */
+      readonly locationId?: string;
+    },
+  ): AsyncResult<{ readonly id: string; readonly orderId: string }>;
 }
 
 const amountOf = (value: Money | undefined): string | undefined =>
@@ -135,6 +149,21 @@ export function orderDocuments<F extends object>(
           },
           of("order_from_lines"),
         ),
+      ),
+    purchaseOrderFromOrder: (orderId, supplier, options = {}) =>
+      call(
+        "purchase_order_from_order",
+        {
+          order_id: orderId,
+          supplier_id: supplier.id,
+          supplier_type: supplier.type ?? "company",
+          location: options.locationId ?? null,
+        },
+        (value) => {
+          const row = recordOf(value, "purchase_order_from_order");
+
+          return { id: textOf(row["id"]), orderId: textOf(row["orderId"]) };
+        },
       ),
     fromQuote: (quoteId, input = {}) =>
       created(

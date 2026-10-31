@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:a94d3dbabb47df06431d8f5c125be1a9ec2a95989a65f96d94441c2928191a02
+-- @bsb-hash sha256:386e3454b0cb61ad9405996e8624228b92d365530f29d66ac3688be81e9424aa
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -331,6 +331,8 @@ as $$
     when 'invitations.revoke' then 'members.invite'
     when 'invitations.view' then 'members.invite'
     when 'invoices.manage' then 'invoices.manage'
+    when 'invoices.overrideMatch' then 'invoices.override_match'
+    when 'invoices.purchase' then 'invoices.purchase'
     when 'invoices.read' then 'invoices.read'
     when 'invoices.write' then 'invoices.write'
     when 'knowledge.manage' then 'knowledge.manage'
@@ -374,6 +376,7 @@ as $$
     when 'onboarding.complete' then 'onboarding.complete'
     when 'onboarding.read' then 'onboarding.read'
     when 'orders.manage' then 'orders.manage'
+    when 'orders.overrideCredit' then 'orders.override_credit'
     when 'orders.prepare' then 'orders.prepare'
     when 'orders.read' then 'orders.read'
     when 'organizations.delete' then 'organization.delete'

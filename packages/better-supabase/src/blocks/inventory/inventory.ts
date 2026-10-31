@@ -6,6 +6,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../queue/types.ts";
 import type { BlockOptions } from "../shared.ts";
+import type { InventoryProcurement } from "./procurement.ts";
 import type { InventoryTracking } from "./tracking.ts";
 
 import { detailArg } from "../../commerce/stock-detail.ts";
@@ -24,6 +25,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { inventoryProcurement } from "./procurement.ts";
 import { inventoryTracking } from "./tracking.ts";
 
 export const LOCATION_KINDS = ["warehouse", "store", "virtual"] as const;
@@ -172,12 +174,13 @@ export interface Receipt {
   readonly status: PurchaseOrderStatus;
   /** Units ordered and not yet received across the order. */
   readonly backordered: number;
+  /** The goods receipt this delivery wrote. */
+  readonly receiptId?: string;
 }
 
 /** `F` types the locations' extra columns, from the `fields` schema. */
-export interface Inventory<
-  F extends object = Record<never, never>,
-> extends InventoryTracking {
+export interface Inventory<F extends object = Record<never, never>>
+  extends InventoryTracking, InventoryProcurement {
   saveLocation(
     organizationId: string,
     input: LocationInput<F>,
@@ -369,6 +372,7 @@ export function createInventory<
     deleteLocation: (locationId) =>
       call("delete_location", { location: locationId }, isTrue),
     ...inventoryTracking(call),
+    ...inventoryProcurement(call),
     adjustStock: (variantId, locationId, quantity, reason, note, detail) =>
       call(
         "adjust_stock",
@@ -512,6 +516,9 @@ export function createInventory<
               "purchase order status",
             ),
             backordered: Number(row["backordered"]),
+            ...(typeof row["receiptId"] === "string"
+              ? { receiptId: row["receiptId"] }
+              : {}),
           };
         },
       ),

@@ -5,7 +5,7 @@ description: Invoices an organization sends its own customers, with drafts and l
 
 `invoices` is accounts receivable: the invoices an organization sends its own customers for work, licences or goods. It is not [billing](/docs/blocks/billing), which charges your organizations for your app through Stripe. An invoice starts as a draft with lines, gets its number when you issue it, collects payments until its balance is zero, and can be credited, voided or written off. With the [quotes](/docs/blocks/quotes) module installed, an accepted quote becomes a deposit invoice and a final invoice.
 
-Reading needs `invoices.read`, creating, issuing, recording payments and credit notes needs `invoices.write`, and voiding and writing off needs `invoices.manage`; [a key per action](#a-key-per-action) splits them further. Admins get every permission, and members get `invoices.read`.
+Reading needs `invoices.read`, creating, issuing, recording payments and credit notes needs `invoices.write`, and voiding and writing off needs `invoices.manage`; [a key per action](#a-key-per-action) splits them further. Every write on a [purchase bill](#purchase-bills) needs `invoices.purchase`, and paying a bill that doesn't match its purchase order needs `invoices.override_match`. Admins get every permission, and members get `invoices.read`.
 
 ```bash
 better-supabase add invoices
@@ -294,6 +294,79 @@ const deposit = await invoices
 
 An invoice with `pricesIncludeTax: true` counts tax out of its unit amounts instead of adding it. `create` takes it, a credit note copies it, and `invoice.pricesIncludeTax` reads it. An invoices table of yours without the `prices_include_tax` column refuses it (`INVOICE_PRICING_UNSUPPORTED`).
 
+## Purchase bills
+
+The same table keeps the bills an organization receives from its suppliers.
+An invoice created with `direction: "purchase"` is a purchase bill: the
+`company` or `contact` is the supplier, `supplierReference` keeps the
+supplier's own invoice number, and `purchaseOrderId` links an
+[inventory](/docs/blocks/inventory#purchase-orders) purchase order. Every
+write on a bill needs `invoices.purchase` instead of the sales keys, and
+reading needs `invoices.read`.
+
+```ts
+const bill = await db.invoices
+  .create(
+    organizationId,
+    {
+      title: "Parts, October",
+      direction: "purchase",
+      company: { type: "company", id: supplierId },
+      supplierReference: "ACME-2026-1187",
+      purchaseOrderId: order.id,
+      dimensions: { project: "PRJ-12" },
+    },
+    [
+      {
+        description: "Bearings",
+        product: { type: "product_variant", id: variantId },
+        quantity: 60,
+        unitAmount: money(450n, "EUR"),
+      },
+    ],
+  )
+  .orThrow();
+
+await db.invoices.issue(bill.id).orThrow(); // books the bill: BILL-1
+const match = await db.invoices.match(bill.id).orThrow();
+// { status: "matched", lines: [{ variantId, quantity: "60", receivedQuantity: "60", ... }] }
+```
+
+`issue` books a bill the way it numbers an invoice, from a sequence of its
+own: `BILL-1` and, for a credit note on a bill, `BCN-1`
+(`options.purchasePrefix` and `options.purchaseCreditPrefix`). The unique
+number index covers the direction, so a sales invoice and a bill can share a
+number. `aging(organizationId, currency, asOf, "purchase")` sums what the
+organization owes its suppliers.
+
+### The three-way match
+
+`match(billId)` (`purchase_bill_match` in SQL) compares each product line of
+a bill with its purchase order line and the received quantities in the
+inventory receipts, and records `invoice.match_checked`. The worst line
+decides the status:
+
+| Status              | When                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------- |
+| `matched`           | every line is within the tolerance                                                     |
+| `price_variance`    | a line's amount differs from quantity times the order's unit cost beyond the tolerance |
+| `quantity_variance` | the order's bills charge more of a variant than arrived                                |
+| `not_received`      | nothing of a billed variant arrived yet                                                |
+| `not_applicable`    | the bill has no purchase order                                                         |
+
+The tolerance is `options.matchTolerance`, `{ bps: 100, amount: 500 }` by
+default: a difference of 1 percent or 500 minor units, whichever is larger.
+Recording a payment on a bill with a purchase order that doesn't match fails
+with `INVOICE_MATCH_FAILED`, unless the caller holds `invoices.override_match`.
+
+### Credit limits
+
+With the [contacts](/docs/blocks/contacts) block installed, issuing a sales
+invoice adds its total to what the customer already owes in that currency and
+compares the sum with the party's `credit_limit`. Over the limit, `issue`
+fails with `INVOICE_CREDIT_LIMIT_EXCEEDED` unless the caller holds
+`orders.override_credit`. The limit counts only in its own `credit_currency`.
+
 ## In the books
 
 With the [accounting](/docs/blocks/accounting#postings-from-other-blocks)
@@ -302,9 +375,17 @@ journal (the receivable against revenue and tax per rate), each payment or
 refund books in the bank journal, and voiding an invoice reverses its entry,
 in the same transaction. Charges and write-offs aren't booked yet.
 
+A purchase bill books in the purchase journal: the supplier's payable against
+expense and deductible tax, with the bill's `dimensions` on the expense lines,
+so [project costing](/docs/blocks/billable-time#project-costing) counts a bill with a `project`
+dimension. With inventory installed, a product line of a bill with a purchase
+order debits the payable the stock receipt already booked instead of an
+expense, so received stock isn't counted twice. Paying a bill credits the bank
+and debits the payable.
+
 ## Aging
 
-`aging(organizationId, currency, asOf?)` sums what is owed in one currency by days past due: not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90, with the total outstanding and the number of overdue invoices.
+`aging(organizationId, currency, asOf?, direction?)` sums what is owed in one currency by days past due: not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90, with the total outstanding and the number of overdue invoices. `direction` is `sales` by default; `purchase` sums the open bills.
 
 ## Events
 
@@ -324,37 +405,43 @@ The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invo
 
 ## Errors
 
-| Hint                           | Cause                                                                                       |
-| ------------------------------ | ------------------------------------------------------------------------------------------- |
-| `INVOICE_FORBIDDEN`            | the caller lacks `invoices.write`                                                           |
-| `INVOICE_ATTRS_INVALID`        | a missing title or a field with a bad value                                                 |
-| `INVOICE_NOT_FOUND`            | no invoice the caller can edit (or manage, for void)                                        |
-| `INVOICE_NOT_DRAFT`            | the invoice was already issued, so it no longer changes and isn't deleted                   |
-| `INVOICE_EMPTY`                | an invoice without lines can't be issued                                                    |
-| `INVOICE_NOT_PAYABLE`          | only an issued invoice takes payments, or a written-off one with `paymentsAfterWriteOff`    |
-| `INVOICE_PAYMENT_INVALID`      | a payment needs an amount                                                                   |
-| `INVOICE_CURRENCY_MISMATCH`    | a payment isn't in the invoice's currency                                                   |
-| `INVOICE_REFUND_TOO_LARGE`     | a refund is more than was paid                                                              |
-| `INVOICE_NOT_CREDITABLE`       | only an issued invoice is credited                                                          |
-| `INVOICE_CREDIT_TOO_LARGE`     | the credit is more than the total less earlier credits                                      |
-| `INVOICE_DUE_INVALID`          | the due date is before the issue date                                                       |
-| `INVOICE_PAYMENT_NOT_FOUND`    | no such payment on an invoice the caller can manage                                         |
-| `INVOICE_PAYMENT_PROVIDER`     | the payment came from a payment provider and is refunded there                              |
-| `INVOICE_PAYMENT_REVERSED`     | the payment is a reversal or is already reversed                                            |
-| `INVOICE_CHARGE_NOT_FOUND`     | no such charge on an invoice the caller can edit                                            |
-| `INVOICE_NOT_VOIDABLE`         | an invoice with payments or credits is credited instead                                     |
-| `INVOICE_NOT_OPEN`             | only an open invoice is written off                                                         |
-| `INVOICE_QUOTE_NOT_ACCEPTED`   | the quote isn't accepted                                                                    |
-| `INVOICE_DEPOSIT_INVALID`      | a deposit is between 0 and 100 percent, or an amount up to the quote's total, not both      |
-| `INVOICE_DEPOSIT_UNSUPPORTED`  | the invoices table has no column for that deposit                                           |
-| `INVOICE_DISCOUNT_UNSUPPORTED` | the invoices table has no column for a header discount                                      |
-| `INVOICE_ORIGIN_NOT_FOUND`     | no quote the caller can invoice                                                             |
-| `INVOICE_NOT_CHARGEABLE`       | only an issued invoice takes charges                                                        |
-| `INVOICE_CHARGE_INVALID`       | a charge has a positive amount                                                              |
-| `INVOICE_COMPANY_UNSUPPORTED`  | the invoices table takes only the fixed company type                                        |
-| `CURRENCY_MISMATCH`            | a line, credit or payment isn't in the record's currency; returned before any database call |
-| `CURRENCY_INVALID`             | the currency isn't an ISO 4217 code                                                         |
-| `LINES_CURRENCY`               | a line sent straight to SQL isn't in the record's currency                                  |
+| Hint                               | Cause                                                                                                 |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `INVOICE_FORBIDDEN`                | the caller lacks `invoices.write`                                                                     |
+| `INVOICE_ATTRS_INVALID`            | a missing title or a field with a bad value                                                           |
+| `INVOICE_NOT_FOUND`                | no invoice the caller can edit (or manage, for void)                                                  |
+| `INVOICE_NOT_DRAFT`                | the invoice was already issued, so it no longer changes and isn't deleted                             |
+| `INVOICE_EMPTY`                    | an invoice without lines can't be issued                                                              |
+| `INVOICE_NOT_PAYABLE`              | only an issued invoice takes payments, or a written-off one with `paymentsAfterWriteOff`              |
+| `INVOICE_PAYMENT_INVALID`          | a payment needs an amount                                                                             |
+| `INVOICE_CURRENCY_MISMATCH`        | a payment isn't in the invoice's currency                                                             |
+| `INVOICE_REFUND_TOO_LARGE`         | a refund is more than was paid                                                                        |
+| `INVOICE_NOT_CREDITABLE`           | only an issued invoice is credited                                                                    |
+| `INVOICE_CREDIT_TOO_LARGE`         | the credit is more than the total less earlier credits                                                |
+| `INVOICE_DUE_INVALID`              | the due date is before the issue date                                                                 |
+| `INVOICE_PAYMENT_NOT_FOUND`        | no such payment on an invoice the caller can manage                                                   |
+| `INVOICE_PAYMENT_PROVIDER`         | the payment came from a payment provider and is refunded there                                        |
+| `INVOICE_PAYMENT_REVERSED`         | the payment is a reversal or is already reversed                                                      |
+| `INVOICE_CHARGE_NOT_FOUND`         | no such charge on an invoice the caller can edit                                                      |
+| `INVOICE_NOT_VOIDABLE`             | an invoice with payments or credits is credited instead                                               |
+| `INVOICE_NOT_OPEN`                 | only an open invoice is written off                                                                   |
+| `INVOICE_QUOTE_NOT_ACCEPTED`       | the quote isn't accepted                                                                              |
+| `INVOICE_DEPOSIT_INVALID`          | a deposit is between 0 and 100 percent, or an amount up to the quote's total, not both                |
+| `INVOICE_DEPOSIT_UNSUPPORTED`      | the invoices table has no column for that deposit                                                     |
+| `INVOICE_DISCOUNT_UNSUPPORTED`     | the invoices table has no column for a header discount                                                |
+| `INVOICE_ORIGIN_NOT_FOUND`         | no quote the caller can invoice                                                                       |
+| `INVOICE_NOT_CHARGEABLE`           | only an issued invoice takes charges                                                                  |
+| `INVOICE_CHARGE_INVALID`           | a charge has a positive amount                                                                        |
+| `INVOICE_COMPANY_UNSUPPORTED`      | the invoices table takes only the fixed company type                                                  |
+| `INVOICE_MATCH_FAILED`             | a payment on a purchase bill that doesn't match its purchase order, without `invoices.override_match` |
+| `INVOICE_NOT_PURCHASE_BILL`        | only a purchase bill is matched                                                                       |
+| `INVOICE_PURCHASE_ORDER_NOT_FOUND` | no such purchase order in the bill's organization                                                     |
+| `INVOICE_PURCHASE_ORDER_INVALID`   | only a purchase bill refers to a purchase order                                                       |
+| `INVOICE_DIRECTION_UNSUPPORTED`    | the invoices table has no `direction` column for purchase bills                                       |
+| `INVOICE_CREDIT_LIMIT_EXCEEDED`    | issuing the sales invoice takes the customer over their credit limit                                  |
+| `CURRENCY_MISMATCH`                | a line, credit or payment isn't in the record's currency; returned before any database call           |
+| `CURRENCY_INVALID`                 | the currency isn't an ISO 4217 code                                                                   |
+| `LINES_CURRENCY`                   | a line sent straight to SQL isn't in the record's currency                                            |
 
 ## Without the client
 

@@ -432,6 +432,9 @@ overrides:
   # body-parser 2.0 to 2.3 reads past a compressed body (high); it arrives
   # through express and @modelcontextprotocol/sdk.
   "body-parser@>=2.0.0 <2.4.0": ^2.4.0
+  # node-forge <=1.4.0 has a PEM decoding denial of service and PKCS#12 MAC
+  # forgery (high); it arrives through @expo/cli and listhen.
+  node-forge: ">=1.4.2"
 
 # eslint-plugin-turbo peers on eslint but imports nothing from it at runtime;
 # Oxlint loads its rules as a JS plugin. An optional peer keeps pnpm from
@@ -484,10 +487,6 @@ auditConfig:
     # shadcn in apps/marketing (dev tooling, never shipped). Remove it once a
     # fixed braces ships or shadcn drops micromatch (ADR 0002).
     - GHSA-vfj7-8cjw-p6xm
-    # node-forge <=1.4.0 has no patched release. It reaches the tree only
-    # through @expo/cli in apps/examples/expo-powersync (dev tooling, never
-    # shipped). Remove it once a fixed node-forge ships (ADR 0002).
-    - GHSA-86w9-cpqp-85rv
     # zod <4.6.6 has no patched 3.x release. The override above lifts every
     # zod 4; zod 3 stays only for @expo/cli in apps/examples/expo-powersync
     # (dev tooling, never shipped). Remove it once @expo/cli moves to zod 4.

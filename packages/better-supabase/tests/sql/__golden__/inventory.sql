@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:0265818912795e54867c27a0a617ce8373282a38211de96d9e86f82ef4996d16
--- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
+-- @bsb-hash sha256:248671fc3fb935706c3f47140070446240b06eb5a984ee7a7871099a9d7d1daf
+-- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -101,6 +101,38 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_items";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_items";
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_items";
@@ -155,7 +187,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Stock per catalog variant and location in a unit with decimals: movements
 -- posted to the ledger in base units, lots, serial numbers, expiry, bins,
 -- weighted average cost, reservations with expiry, allocations with
--- backorders, transfers and purchase orders with receiving.
+-- backorders, transfers, purchase requisitions and purchase orders with
+-- receiving into goods receipts.
 
 create table if not exists "better_supabase"."inventory_locations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -280,6 +313,9 @@ create table if not exists "better_supabase"."purchase_orders" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "placed_at" timestamptz,
+  "ship_to" jsonb check ("ship_to" is null or jsonb_typeof("ship_to") = 'object'),
+  "origin_type" text,
+  "origin_id" text,
   check (("supplier_type" is null) = ("supplier_id" is null))
 );
 create index if not exists purchase_orders_location_idx on "better_supabase"."purchase_orders" ("location_id");
@@ -310,6 +346,97 @@ grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "better_supabase"."purchase_order_lines";
 create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."purchase_requisitions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "supplier_type" text,
+  "supplier_id" text,
+  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected', 'ordered', 'cancelled')),
+  "reason" text check (length("reason") <= 2000),
+  "requested_by" uuid default auth.uid(),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "approval_id" uuid,
+  "purchase_order_id" uuid references "better_supabase"."purchase_orders" ("id") on delete set null,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  check (("supplier_type" is null) = ("supplier_id" is null))
+);
+create index if not exists purchase_requisitions_status_idx on "better_supabase"."purchase_requisitions" ("tenant_id", "status");
+create index if not exists purchase_requisitions_location_idx on "better_supabase"."purchase_requisitions" ("location_id");
+create index if not exists purchase_requisitions_purchase_order_idx on "better_supabase"."purchase_requisitions" ("purchase_order_id");
+alter table "better_supabase"."purchase_requisitions" enable row level security;
+revoke all on "better_supabase"."purchase_requisitions" from public, anon, authenticated;
+grant select on "better_supabase"."purchase_requisitions" to authenticated;
+grant all on "better_supabase"."purchase_requisitions" to service_role;
+drop policy if exists purchase_requisitions_read on "better_supabase"."purchase_requisitions";
+create policy purchase_requisitions_read on "better_supabase"."purchase_requisitions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."purchase_requisition_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "requisition_id" uuid not null references "better_supabase"."purchase_requisitions" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "unit_cost" bigint check ("unit_cost" >= 0),
+  unique ("requisition_id", "variant_id")
+);
+create index if not exists purchase_requisition_lines_variant_idx on "better_supabase"."purchase_requisition_lines" ("variant_id");
+alter table "better_supabase"."purchase_requisition_lines" enable row level security;
+revoke all on "better_supabase"."purchase_requisition_lines" from public, anon, authenticated;
+grant select on "better_supabase"."purchase_requisition_lines" to authenticated;
+grant all on "better_supabase"."purchase_requisition_lines" to service_role;
+drop policy if exists purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines";
+create policy purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."inventory_receipts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "inspection_id" uuid,
+  "received_by" uuid default auth.uid(),
+  "received_at" timestamptz not null default now()
+);
+create index if not exists inventory_receipts_purchase_order_idx on "better_supabase"."inventory_receipts" ("purchase_order_id");
+create index if not exists inventory_receipts_location_idx on "better_supabase"."inventory_receipts" ("location_id");
+alter table "better_supabase"."inventory_receipts" enable row level security;
+revoke all on "better_supabase"."inventory_receipts" from public, anon, authenticated;
+grant select on "better_supabase"."inventory_receipts" to authenticated;
+grant all on "better_supabase"."inventory_receipts" to service_role;
+drop policy if exists inventory_receipts_read on "better_supabase"."inventory_receipts";
+create policy inventory_receipts_read on "better_supabase"."inventory_receipts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."inventory_receipt_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "receipt_id" uuid not null references "better_supabase"."inventory_receipts" ("id") on delete cascade,
+  "purchase_order_line_id" uuid not null references "better_supabase"."purchase_order_lines" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "unit_cost" bigint not null check ("unit_cost" >= 0),
+  "detail" jsonb
+);
+create index if not exists inventory_receipt_lines_receipt_idx on "better_supabase"."inventory_receipt_lines" ("receipt_id");
+create index if not exists inventory_receipt_lines_order_line_idx on "better_supabase"."inventory_receipt_lines" ("purchase_order_line_id");
+create index if not exists inventory_receipt_lines_variant_idx on "better_supabase"."inventory_receipt_lines" ("variant_id");
+alter table "better_supabase"."inventory_receipt_lines" enable row level security;
+revoke all on "better_supabase"."inventory_receipt_lines" from public, anon, authenticated;
+grant select on "better_supabase"."inventory_receipt_lines" to authenticated;
+grant all on "better_supabase"."inventory_receipt_lines" to service_role;
+drop policy if exists inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines";
+create policy inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -2106,7 +2233,8 @@ grant execute on function "better_supabase"."place_purchase_order"(uuid) to auth
 -- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
--- the quantity still on backorder.
+-- the quantity still on backorder, plus receiptId: the goods receipt of
+-- this delivery.
 create or replace function "better_supabase"."receive_purchase_order"(purchase_order uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -2118,6 +2246,7 @@ declare
   v_line record;
   v_backordered numeric;
   v_status text;
+  v_receipt uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2144,6 +2273,9 @@ begin
     or (select count(distinct e ->> 'lineId') from jsonb_array_elements(receive_purchase_order.lines) e) <> jsonb_array_length(receive_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique lineId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
   end if;
+  insert into "better_supabase"."inventory_receipts" ("tenant_id", "purchase_order_id", "location_id")
+  values (v_row.tenant, receive_purchase_order.purchase_order, v_row.location)
+  returning "id" into v_receipt;
   for v_line in
     select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
@@ -2161,6 +2293,8 @@ begin
     update "better_supabase"."stock_levels" x set "incoming" = greatest(x."incoming" - v_line.quantity, 0), "updated_at" = now()
     where x."variant_id" = v_line.variant and x."location_id" = v_row.location;
     perform "better_supabase"."move_stock"(v_row.tenant, v_line.variant, v_row.location, v_line.quantity, 'receipt', 'purchase_order', receive_purchase_order.purchase_order::text, null, v_line.detail || jsonb_build_object('unitCost', v_line.unit_cost::text, 'currency', v_row.currency::text));
+    insert into "better_supabase"."inventory_receipt_lines" ("tenant_id", "receipt_id", "purchase_order_line_id", "variant_id", "quantity", "unit_cost", "detail")
+    values (v_row.tenant, v_receipt, v_line.id, v_line.variant, v_line.quantity, v_line.unit_cost, nullif(v_line.detail, '{}'::jsonb));
   end loop;
   select coalesce(sum(y."quantity_ordered" - y."quantity_received"), 0) into v_backordered
   from "better_supabase"."purchase_order_lines" y where y."purchase_order_id" = receive_purchase_order.purchase_order;
@@ -2168,7 +2302,8 @@ begin
   update "better_supabase"."purchase_orders" x set "status" = v_status, "updated_at" = now()
   where x."id" = receive_purchase_order.purchase_order;
   null;
-  return jsonb_build_object('status', v_status, 'backordered', v_backordered);
+  null;
+  return jsonb_build_object('status', v_status, 'backordered', v_backordered, 'receiptId', v_receipt);
 end;
 $$;
 revoke execute on function "better_supabase"."receive_purchase_order"(uuid, jsonb) from public, anon;
@@ -2214,6 +2349,226 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_purchase_order"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_purchase_order"(uuid) to authenticated, service_role;
+
+-- Asks to buy stock for a location. lines: [{ "variantId": uuid, "quantity": n,
+-- "unitCost"?: "minor units" }]. A pending requisition waits for its
+-- decision: a holder of inventory.purchase approves or rejects it.
+create or replace function "better_supabase"."request_purchase"(tenant uuid, location uuid, lines jsonb, supplier_type text default null, supplier_id text default null, currency text default null, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', request_purchase.tenant, 'inventory.read'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = request_purchase.location and x."tenant_id" = request_purchase.tenant) then
+    raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  if (request_purchase.supplier_type is null) <> (request_purchase.supplier_id is null) then
+    raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
+  end if;
+  if request_purchase.currency is not null and "better_supabase"."currency_minor_units"(request_purchase.currency) is null then
+    raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
+  end if;
+  if jsonb_typeof(request_purchase.lines) is distinct from 'array' or jsonb_array_length(request_purchase.lines) = 0
+    or exists (
+      select 1 from jsonb_array_elements(request_purchase.lines) e
+      where jsonb_typeof(e) <> 'object'
+        or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
+        or (e ? 'unitCost' and coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$')
+    )
+    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(request_purchase.lines) e) <> jsonb_array_length(request_purchase.lines) then
+    raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(request_purchase.lines) e
+    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = request_purchase.tenant)
+  ) then
+    raise exception 'a line names a variant outside this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."purchase_requisitions" ("tenant_id", "location_id", "supplier_type", "supplier_id", "currency", "reason")
+  values (request_purchase.tenant, request_purchase.location, request_purchase.supplier_type, request_purchase.supplier_id,
+    request_purchase.currency, nullif(trim(request_purchase.reason), ''))
+  returning * into v_row;
+  insert into "better_supabase"."purchase_requisition_lines" ("tenant_id", "requisition_id", "variant_id", "quantity", "unit_cost")
+  select request_purchase.tenant, v_row."id", (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
+  from jsonb_array_elements(request_purchase.lines) e;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id",
+      'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id", 'currency', v_row."currency",
+      'status', v_row."status", 'reason', v_row."reason", 'requestedBy', v_row."requested_by",
+      'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'approvalId', v_row."approval_id",
+      'createdAt', v_row."created_at",
+      'purchaseOrderId', v_row."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) to authenticated, service_role;
+
+-- Settles a pending requisition: approved or rejected. Approvals calls it; it
+-- isn't granted to anyone.
+create or replace function "better_supabase"."purchase_requisition_decided"(requisition uuid, approved boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  update "better_supabase"."purchase_requisitions" x set "status" = case when purchase_requisition_decided.approved then 'approved' else 'rejected' end,
+    "decided_by" = auth.uid(), "decided_at" = now(), "updated_at" = now()
+  where x."id" = purchase_requisition_decided.requisition and x."status" = 'pending'
+  returning * into v_row;
+  if found and purchase_requisition_decided.approved then
+    null;
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_requisition_decided"(uuid, boolean) from public, anon, authenticated;
+
+-- Approves (approve true) or rejects a pending requisition. Needs
+-- inventory.purchase.
+create or replace function "better_supabase"."decide_purchase_requisition"(requisition uuid, approve boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  select * into v_row from "better_supabase"."purchase_requisitions" x where x."id" = decide_purchase_requisition.requisition for update;
+  if not found then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inventory.purchase'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'pending' then
+    raise exception 'only a pending requisition is decided' using errcode = '55000', hint = 'INVENTORY_REQUISITION_STATUS';
+  end if;
+  perform "better_supabase"."purchase_requisition_decided"(v_row."id", coalesce(decide_purchase_requisition.approve, false));
+  return (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id",
+      'supplierType', x."supplier_type", 'supplierId', x."supplier_id", 'currency', x."currency",
+      'status', x."status", 'reason', x."reason", 'requestedBy', x."requested_by",
+      'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'approvalId', x."approval_id",
+      'createdAt', x."created_at",
+      'purchaseOrderId', x."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = x."id"), '[]'::jsonb)) from "better_supabase"."purchase_requisitions" x where x."id" = v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_purchase_requisition"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."decide_purchase_requisition"(uuid, boolean) to authenticated, service_role;
+
+-- A draft purchase order from approved requisitions of one location: their
+-- lines summed per variant, at the highest unit cost a requisition names
+-- (0 when none does; edit the draft before placing it). The supplier and
+-- currency default to the ones the requisitions share. The requisitions
+-- become ordered.
+create or replace function "better_supabase"."purchase_order_from_requisitions"(requisitions uuid[], supplier_type text default null, supplier_id text default null, currency text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_location uuid;
+  v_supplier_type text := purchase_order_from_requisitions.supplier_type;
+  v_supplier_id text := purchase_order_from_requisitions.supplier_id;
+  v_currency text := upper(purchase_order_from_requisitions.currency);
+  v_lines jsonb;
+  v_order jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if coalesce(cardinality(purchase_order_from_requisitions.requisitions), 0) = 0 then
+    raise exception 'name at least one requisition' using errcode = '22023', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  perform 1 from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions) for update;
+  if (select count(*) from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions))
+    <> (select count(distinct r) from unnest(purchase_order_from_requisitions.requisitions) r) then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if (select count(distinct x."tenant_id") + count(distinct x."location_id") from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)) <> 2 then
+    raise exception 'requisitions on one purchase order share an organization and a location' using errcode = '22023', hint = 'INVENTORY_REQUISITION_MIXED';
+  end if;
+  select x."tenant_id", x."location_id" into v_tenant, v_location
+  from "better_supabase"."purchase_requisitions" x where x."id" = purchase_order_from_requisitions.requisitions[1];
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.purchase'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions) and x."status" <> 'approved') then
+    raise exception 'only approved requisitions become a purchase order' using errcode = '55000', hint = 'INVENTORY_REQUISITION_STATUS';
+  end if;
+  if v_supplier_id is null then
+    select min(x."supplier_type"), min(x."supplier_id") into v_supplier_type, v_supplier_id
+    from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)
+    having count(distinct coalesce(x."supplier_type", '') || ':' || coalesce(x."supplier_id", '')) = 1;
+  end if;
+  if v_currency is null then
+    select min(x."currency") into v_currency
+    from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)
+    having count(distinct x."currency") = 1;
+  end if;
+  select jsonb_agg(jsonb_build_object('variantId', y.variant, 'quantity', y.quantity::text, 'unitCost', y.unit_cost::text)) into v_lines
+  from (
+    select l."variant_id" as variant, sum(l."quantity") as quantity, coalesce(max(l."unit_cost"), 0) as unit_cost
+    from "better_supabase"."purchase_requisition_lines" l where l."requisition_id" = any (purchase_order_from_requisitions.requisitions)
+    group by 1
+  ) y;
+  v_order := "better_supabase"."save_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
+  update "better_supabase"."purchase_requisitions" x set "status" = 'ordered', "purchase_order_id" = (v_order ->> 'id')::uuid, "updated_at" = now()
+  where x."id" = any (purchase_order_from_requisitions.requisitions);
+  return v_order;
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_order_from_requisitions"(uuid[], text, text, text) from public, anon;
+grant execute on function "better_supabase"."purchase_order_from_requisitions"(uuid[], text, text, text) to authenticated, service_role;
+
+-- A requisition with its lines, readable by a holder of inventory.read.
+create or replace function "better_supabase"."get_purchase_requisition"(requisition uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  select * into v_row from "better_supabase"."purchase_requisitions" x where x."id" = get_purchase_requisition.requisition;
+  if not found then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inventory.read'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id",
+      'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id", 'currency', v_row."currency",
+      'status', v_row."status", 'reason', v_row."reason", 'requestedBy', v_row."requested_by",
+      'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'approvalId', v_row."approval_id",
+      'createdAt', v_row."created_at",
+      'purchaseOrderId', v_row."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."get_purchase_requisition"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_purchase_requisition"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2377,6 +2732,90 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_ord
 create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisitions";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisitions" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_requisitions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisition_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_receipts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_receipts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_receipts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_receipts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipt_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_items";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_items";
 create policy bsb_tenant_scope_select on "better_supabase"."stock_items" as restrictive
@@ -2534,8 +2973,8 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:e06d4faa39f70340b90417c53279ec7abf5a184f8c7fb26de13466b17f2788dd
--- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
+-- @bsb-hash sha256:fd2b47e1231a4146bfcbc5e896811f2f30dcf8ceace142c8927f7e0d9dd40c6c
+-- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2634,6 +3073,38 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_items";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_items";
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_items";
@@ -2688,7 +3159,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Stock per catalog variant and location in a unit with decimals: movements
 -- posted to the ledger in base units, lots, serial numbers, expiry, bins,
 -- weighted average cost, reservations with expiry, allocations with
--- backorders, transfers and purchase orders with receiving.
+-- backorders, transfers, purchase requisitions and purchase orders with
+-- receiving into goods receipts.
 
 create table if not exists "better_supabase"."inventory_locations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2813,6 +3285,9 @@ create table if not exists "better_supabase"."purchase_orders" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "placed_at" timestamptz,
+  "ship_to" jsonb check ("ship_to" is null or jsonb_typeof("ship_to") = 'object'),
+  "origin_type" text,
+  "origin_id" text,
   check (("supplier_type" is null) = ("supplier_id" is null))
 );
 create index if not exists purchase_orders_location_idx on "better_supabase"."purchase_orders" ("location_id");
@@ -2843,6 +3318,97 @@ grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "better_supabase"."purchase_order_lines";
 create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."purchase_requisitions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "supplier_type" text,
+  "supplier_id" text,
+  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected', 'ordered', 'cancelled')),
+  "reason" text check (length("reason") <= 2000),
+  "requested_by" uuid default auth.uid(),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "approval_id" uuid,
+  "purchase_order_id" uuid references "better_supabase"."purchase_orders" ("id") on delete set null,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  check (("supplier_type" is null) = ("supplier_id" is null))
+);
+create index if not exists purchase_requisitions_status_idx on "better_supabase"."purchase_requisitions" ("tenant_id", "status");
+create index if not exists purchase_requisitions_location_idx on "better_supabase"."purchase_requisitions" ("location_id");
+create index if not exists purchase_requisitions_purchase_order_idx on "better_supabase"."purchase_requisitions" ("purchase_order_id");
+alter table "better_supabase"."purchase_requisitions" enable row level security;
+revoke all on "better_supabase"."purchase_requisitions" from public, anon, authenticated;
+grant select on "better_supabase"."purchase_requisitions" to authenticated;
+grant all on "better_supabase"."purchase_requisitions" to service_role;
+drop policy if exists purchase_requisitions_read on "better_supabase"."purchase_requisitions";
+create policy purchase_requisitions_read on "better_supabase"."purchase_requisitions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."purchase_requisition_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "requisition_id" uuid not null references "better_supabase"."purchase_requisitions" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "unit_cost" bigint check ("unit_cost" >= 0),
+  unique ("requisition_id", "variant_id")
+);
+create index if not exists purchase_requisition_lines_variant_idx on "better_supabase"."purchase_requisition_lines" ("variant_id");
+alter table "better_supabase"."purchase_requisition_lines" enable row level security;
+revoke all on "better_supabase"."purchase_requisition_lines" from public, anon, authenticated;
+grant select on "better_supabase"."purchase_requisition_lines" to authenticated;
+grant all on "better_supabase"."purchase_requisition_lines" to service_role;
+drop policy if exists purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines";
+create policy purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."inventory_receipts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "inspection_id" uuid,
+  "received_by" uuid default auth.uid(),
+  "received_at" timestamptz not null default now()
+);
+create index if not exists inventory_receipts_purchase_order_idx on "better_supabase"."inventory_receipts" ("purchase_order_id");
+create index if not exists inventory_receipts_location_idx on "better_supabase"."inventory_receipts" ("location_id");
+alter table "better_supabase"."inventory_receipts" enable row level security;
+revoke all on "better_supabase"."inventory_receipts" from public, anon, authenticated;
+grant select on "better_supabase"."inventory_receipts" to authenticated;
+grant all on "better_supabase"."inventory_receipts" to service_role;
+drop policy if exists inventory_receipts_read on "better_supabase"."inventory_receipts";
+create policy inventory_receipts_read on "better_supabase"."inventory_receipts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."inventory_receipt_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "receipt_id" uuid not null references "better_supabase"."inventory_receipts" ("id") on delete cascade,
+  "purchase_order_line_id" uuid not null references "better_supabase"."purchase_order_lines" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "unit_cost" bigint not null check ("unit_cost" >= 0),
+  "detail" jsonb
+);
+create index if not exists inventory_receipt_lines_receipt_idx on "better_supabase"."inventory_receipt_lines" ("receipt_id");
+create index if not exists inventory_receipt_lines_order_line_idx on "better_supabase"."inventory_receipt_lines" ("purchase_order_line_id");
+create index if not exists inventory_receipt_lines_variant_idx on "better_supabase"."inventory_receipt_lines" ("variant_id");
+alter table "better_supabase"."inventory_receipt_lines" enable row level security;
+revoke all on "better_supabase"."inventory_receipt_lines" from public, anon, authenticated;
+grant select on "better_supabase"."inventory_receipt_lines" to authenticated;
+grant all on "better_supabase"."inventory_receipt_lines" to service_role;
+drop policy if exists inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines";
+create policy inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -4553,6 +5119,9 @@ begin
   if (save_purchase_order.supplier_type is null) <> (save_purchase_order.supplier_id is null) then
     raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
   end if;
+  if save_purchase_order.supplier_id is not null and exists (select 1 from (select p."supplier_status" from "better_supabase"."companies" p where p."id"::text = save_purchase_order.supplier_id and p."tenant_id" = save_purchase_order.tenant and p."merged_into" is null union all select p."supplier_status" from "better_supabase"."people" p where p."id"::text = save_purchase_order.supplier_id and p."tenant_id" = save_purchase_order.tenant and p."merged_into" is null) s(status) where s.status = 'blocked') then
+    raise exception 'the supplier is blocked and can''t get a purchase order' using errcode = '55000', hint = 'PURCHASE_ORDER_SUPPLIER_BLOCKED';
+  end if;
   if save_purchase_order.currency is null or "better_supabase"."currency_minor_units"(save_purchase_order.currency) is null then
     raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
   end if;
@@ -4626,6 +5195,9 @@ begin
   if v_row.status <> 'draft' then
     raise exception 'the purchase order can''t do this in its current status' using errcode = '55000', hint = 'INVENTORY_PURCHASE_ORDER_STATUS';
   end if;
+  if v_row.supplier_id is not null and exists (select 1 from (select p."supplier_status" from "better_supabase"."companies" p where p."id"::text = v_row.supplier_id and p."tenant_id" = v_row.tenant and p."merged_into" is null union all select p."supplier_status" from "better_supabase"."people" p where p."id"::text = v_row.supplier_id and p."tenant_id" = v_row.tenant and p."merged_into" is null) s(status) where s.status = 'blocked') then
+    raise exception 'the supplier is blocked and can''t get a purchase order' using errcode = '55000', hint = 'PURCHASE_ORDER_SUPPLIER_BLOCKED';
+  end if;
   insert into "better_supabase"."stock_levels" as x ("tenant_id", "variant_id", "location_id", "incoming")
   select v_row.tenant, y."variant_id", v_row.location, y."quantity_ordered"
   from "better_supabase"."purchase_order_lines" y where y."purchase_order_id" = place_purchase_order.purchase_order
@@ -4645,7 +5217,8 @@ grant execute on function "better_supabase"."place_purchase_order"(uuid) to auth
 -- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
--- the quantity still on backorder.
+-- the quantity still on backorder, plus receiptId: the goods receipt of
+-- this delivery.
 create or replace function "better_supabase"."receive_purchase_order"(purchase_order uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -4657,6 +5230,7 @@ declare
   v_line record;
   v_backordered numeric;
   v_status text;
+  v_receipt uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4683,6 +5257,9 @@ begin
     or (select count(distinct e ->> 'lineId') from jsonb_array_elements(receive_purchase_order.lines) e) <> jsonb_array_length(receive_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique lineId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
   end if;
+  insert into "better_supabase"."inventory_receipts" ("tenant_id", "purchase_order_id", "location_id")
+  values (v_row.tenant, receive_purchase_order.purchase_order, v_row.location)
+  returning "id" into v_receipt;
   for v_line in
     select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
@@ -4700,6 +5277,8 @@ begin
     update "better_supabase"."stock_levels" x set "incoming" = greatest(x."incoming" - v_line.quantity, 0), "updated_at" = now()
     where x."variant_id" = v_line.variant and x."location_id" = v_row.location;
     perform "better_supabase"."move_stock"(v_row.tenant, v_line.variant, v_row.location, v_line.quantity, 'receipt', 'purchase_order', receive_purchase_order.purchase_order::text, null, v_line.detail || jsonb_build_object('unitCost', v_line.unit_cost::text, 'currency', v_row.currency::text));
+    insert into "better_supabase"."inventory_receipt_lines" ("tenant_id", "receipt_id", "purchase_order_line_id", "variant_id", "quantity", "unit_cost", "detail")
+    values (v_row.tenant, v_receipt, v_line.id, v_line.variant, v_line.quantity, v_line.unit_cost, nullif(v_line.detail, '{}'::jsonb));
   end loop;
   select coalesce(sum(y."quantity_ordered" - y."quantity_received"), 0) into v_backordered
   from "better_supabase"."purchase_order_lines" y where y."purchase_order_id" = receive_purchase_order.purchase_order;
@@ -4707,7 +5286,8 @@ begin
   update "better_supabase"."purchase_orders" x set "status" = v_status, "updated_at" = now()
   where x."id" = receive_purchase_order.purchase_order;
   perform "better_supabase".emit_event('purchase_order.received', jsonb_build_object('organizationId', v_row.tenant, 'id', receive_purchase_order.purchase_order, 'locationId', v_row.location, 'status', v_status, 'supplierType', v_row.supplier_type, 'supplierId', v_row.supplier_id), 'purchase-orders/' || receive_purchase_order.purchase_order::text, (v_row.tenant)::text, null, 'better-supabase/inventory');
-  return jsonb_build_object('status', v_status, 'backordered', v_backordered);
+  perform "better_supabase".emit_event('inventory_receipt.created', jsonb_build_object('organizationId', v_row.tenant, 'id', v_receipt, 'purchaseOrderId', receive_purchase_order.purchase_order, 'locationId', v_row.location, 'inspectionId', null), 'inventory-receipts/' || v_receipt::text, (v_row.tenant)::text, null, 'better-supabase/inventory');
+  return jsonb_build_object('status', v_status, 'backordered', v_backordered, 'receiptId', v_receipt);
 end;
 $$;
 revoke execute on function "better_supabase"."receive_purchase_order"(uuid, jsonb) from public, anon;
@@ -4754,6 +5334,241 @@ $$;
 revoke execute on function "better_supabase"."cancel_purchase_order"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_purchase_order"(uuid) to authenticated, service_role;
 
+-- Asks to buy stock for a location. lines: [{ "variantId": uuid, "quantity": n,
+-- "unitCost"?: "minor units" }]. A pending requisition waits for its
+-- decision: approvals opens a request under the organization's policy for
+-- purchase_requisition approve, or one a holder of inventory.purchase decides.
+create or replace function "better_supabase"."request_purchase"(tenant uuid, location uuid, lines jsonb, supplier_type text default null, supplier_id text default null, currency text default null, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+  v_payload jsonb;
+  v_approval jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', request_purchase.tenant, 'inventory.read'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = request_purchase.location and x."tenant_id" = request_purchase.tenant) then
+    raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  if (request_purchase.supplier_type is null) <> (request_purchase.supplier_id is null) then
+    raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
+  end if;
+  if request_purchase.currency is not null and "better_supabase"."currency_minor_units"(request_purchase.currency) is null then
+    raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
+  end if;
+  if jsonb_typeof(request_purchase.lines) is distinct from 'array' or jsonb_array_length(request_purchase.lines) = 0
+    or exists (
+      select 1 from jsonb_array_elements(request_purchase.lines) e
+      where jsonb_typeof(e) <> 'object'
+        or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
+        or (e ? 'unitCost' and coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$')
+    )
+    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(request_purchase.lines) e) <> jsonb_array_length(request_purchase.lines) then
+    raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(request_purchase.lines) e
+    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = request_purchase.tenant)
+  ) then
+    raise exception 'a line names a variant outside this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."purchase_requisitions" ("tenant_id", "location_id", "supplier_type", "supplier_id", "currency", "reason")
+  values (request_purchase.tenant, request_purchase.location, request_purchase.supplier_type, request_purchase.supplier_id,
+    request_purchase.currency, nullif(trim(request_purchase.reason), ''))
+  returning * into v_row;
+  insert into "better_supabase"."purchase_requisition_lines" ("tenant_id", "requisition_id", "variant_id", "quantity", "unit_cost")
+  select request_purchase.tenant, v_row."id", (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
+  from jsonb_array_elements(request_purchase.lines) e;
+  perform "better_supabase".emit_event('purchase_requisition.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'locationId', v_row."location_id", 'status', v_row."status", 'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id"), 'purchase-requisitions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/inventory');
+  v_payload := jsonb_build_object('locationId', v_row."location_id", 'reason', v_row."reason",
+    'total', (select coalesce(sum(round(y."quantity" * coalesce(y."unit_cost", 0))), 0)::text from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = v_row."id"),
+    'currency', v_row."currency");
+  v_approval := "better_supabase"."open_approval"(
+    v_row."tenant_id", 'purchase_requisition', v_row."id"::text, 'approve',
+    coalesce("better_supabase"."approval_effective_policy"(v_row."tenant_id", 'purchase_requisition', 'approve', v_payload), '{"steps":[{"approvers":{"permission":"inventory.purchase"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb),
+    v_row."reason", v_payload
+  );
+  update "better_supabase"."purchase_requisitions" x set "approval_id" = (v_approval ->> 'id')::uuid where x."id" = v_row."id"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id",
+      'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id", 'currency', v_row."currency",
+      'status', v_row."status", 'reason', v_row."reason", 'requestedBy', v_row."requested_by",
+      'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'approvalId', v_row."approval_id",
+      'createdAt', v_row."created_at",
+      'purchaseOrderId', v_row."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) to authenticated, service_role;
+
+-- Settles a pending requisition: approved or rejected. Approvals calls it; it
+-- isn't granted to anyone.
+create or replace function "better_supabase"."purchase_requisition_decided"(requisition uuid, approved boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  update "better_supabase"."purchase_requisitions" x set "status" = case when purchase_requisition_decided.approved then 'approved' else 'rejected' end,
+    "decided_by" = auth.uid(), "decided_at" = now(), "updated_at" = now()
+  where x."id" = purchase_requisition_decided.requisition and x."status" = 'pending'
+  returning * into v_row;
+  if found and purchase_requisition_decided.approved then
+    perform "better_supabase".emit_event('purchase_requisition.approved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'locationId', v_row."location_id", 'status', v_row."status", 'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id"), 'purchase-requisitions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/inventory');
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_requisition_decided"(uuid, boolean) from public, anon, authenticated;
+
+-- Approves (approve true) or rejects a pending requisition. Needs
+-- inventory.purchase. A requisition with an approval request is decided there.
+create or replace function "better_supabase"."decide_purchase_requisition"(requisition uuid, approve boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  select * into v_row from "better_supabase"."purchase_requisitions" x where x."id" = decide_purchase_requisition.requisition for update;
+  if not found then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inventory.purchase'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'pending' then
+    raise exception 'only a pending requisition is decided' using errcode = '55000', hint = 'INVENTORY_REQUISITION_STATUS';
+  end if;
+  if v_row."approval_id" is not null then
+    raise exception 'this requisition is decided through its approval request' using errcode = '55000', hint = 'INVENTORY_REQUISITION_APPROVAL_PENDING';
+  end if;
+  perform "better_supabase"."purchase_requisition_decided"(v_row."id", coalesce(decide_purchase_requisition.approve, false));
+  return (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id",
+      'supplierType', x."supplier_type", 'supplierId', x."supplier_id", 'currency', x."currency",
+      'status', x."status", 'reason', x."reason", 'requestedBy', x."requested_by",
+      'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'approvalId', x."approval_id",
+      'createdAt', x."created_at",
+      'purchaseOrderId', x."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = x."id"), '[]'::jsonb)) from "better_supabase"."purchase_requisitions" x where x."id" = v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_purchase_requisition"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."decide_purchase_requisition"(uuid, boolean) to authenticated, service_role;
+
+-- A draft purchase order from approved requisitions of one location: their
+-- lines summed per variant, at the highest unit cost a requisition names
+-- (0 when none does; edit the draft before placing it). The supplier and
+-- currency default to the ones the requisitions share. The requisitions
+-- become ordered.
+create or replace function "better_supabase"."purchase_order_from_requisitions"(requisitions uuid[], supplier_type text default null, supplier_id text default null, currency text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_location uuid;
+  v_supplier_type text := purchase_order_from_requisitions.supplier_type;
+  v_supplier_id text := purchase_order_from_requisitions.supplier_id;
+  v_currency text := upper(purchase_order_from_requisitions.currency);
+  v_lines jsonb;
+  v_order jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if coalesce(cardinality(purchase_order_from_requisitions.requisitions), 0) = 0 then
+    raise exception 'name at least one requisition' using errcode = '22023', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  perform 1 from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions) for update;
+  if (select count(*) from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions))
+    <> (select count(distinct r) from unnest(purchase_order_from_requisitions.requisitions) r) then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if (select count(distinct x."tenant_id") + count(distinct x."location_id") from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)) <> 2 then
+    raise exception 'requisitions on one purchase order share an organization and a location' using errcode = '22023', hint = 'INVENTORY_REQUISITION_MIXED';
+  end if;
+  select x."tenant_id", x."location_id" into v_tenant, v_location
+  from "better_supabase"."purchase_requisitions" x where x."id" = purchase_order_from_requisitions.requisitions[1];
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.purchase'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions) and x."status" <> 'approved') then
+    raise exception 'only approved requisitions become a purchase order' using errcode = '55000', hint = 'INVENTORY_REQUISITION_STATUS';
+  end if;
+  if v_supplier_id is null then
+    select min(x."supplier_type"), min(x."supplier_id") into v_supplier_type, v_supplier_id
+    from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)
+    having count(distinct coalesce(x."supplier_type", '') || ':' || coalesce(x."supplier_id", '')) = 1;
+  end if;
+  if v_currency is null then
+    select min(x."currency") into v_currency
+    from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)
+    having count(distinct x."currency") = 1;
+  end if;
+  select jsonb_agg(jsonb_build_object('variantId', y.variant, 'quantity', y.quantity::text, 'unitCost', y.unit_cost::text)) into v_lines
+  from (
+    select l."variant_id" as variant, sum(l."quantity") as quantity, coalesce(max(l."unit_cost"), 0) as unit_cost
+    from "better_supabase"."purchase_requisition_lines" l where l."requisition_id" = any (purchase_order_from_requisitions.requisitions)
+    group by 1
+  ) y;
+  v_order := "better_supabase"."save_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
+  update "better_supabase"."purchase_requisitions" x set "status" = 'ordered', "purchase_order_id" = (v_order ->> 'id')::uuid, "updated_at" = now()
+  where x."id" = any (purchase_order_from_requisitions.requisitions);
+  return v_order;
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_order_from_requisitions"(uuid[], text, text, text) from public, anon;
+grant execute on function "better_supabase"."purchase_order_from_requisitions"(uuid[], text, text, text) to authenticated, service_role;
+
+-- A requisition with its lines, readable by a holder of inventory.read.
+create or replace function "better_supabase"."get_purchase_requisition"(requisition uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  select * into v_row from "better_supabase"."purchase_requisitions" x where x."id" = get_purchase_requisition.requisition;
+  if not found then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inventory.read'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id",
+      'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id", 'currency', v_row."currency",
+      'status', v_row."status", 'reason', v_row."reason", 'requestedBy', v_row."requested_by",
+      'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'approvalId', v_row."approval_id",
+      'createdAt', v_row."created_at",
+      'purchaseOrderId', v_row."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."get_purchase_requisition"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_purchase_requisition"(uuid) to authenticated, service_role;
 -- The entry of a stock movement's value for accounting: inventory against the
 -- supplier, cost of goods sold or expense.
 create or replace function "better_supabase"."accounting_stock_movement_lines"(source_id text)
@@ -4945,6 +5760,90 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_ord
 create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisitions";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisitions" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_requisitions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisition_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_receipts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_receipts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_receipts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_receipts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipt_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_items";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_items";
 create policy bsb_tenant_scope_select on "better_supabase"."stock_items" as restrictive
@@ -5102,8 +6001,8 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:dbe9986598ea38c90c66b933fefa34730e8dcc9fd6daae6b90628a4fdf6186f5
--- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
+-- @bsb-hash sha256:6505ce75c72cda5220eb80726b87f102a12be5c5f27e5ef89b53962139b17f6c
+-- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -5202,6 +6101,38 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "app_private"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."purchase_requisitions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."purchase_requisition_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."inventory_receipts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."inventory_receipt_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "app_private"."stock_items";
     drop policy if exists bsb_tenant_scope_select on "app_private"."stock_items";
     drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_items";
@@ -5261,7 +6192,8 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Stock per catalog variant and location in a unit with decimals: movements
 -- posted to the ledger in base units, lots, serial numbers, expiry, bins,
 -- weighted average cost, reservations with expiry, allocations with
--- backorders, transfers and purchase orders with receiving.
+-- backorders, transfers, purchase requisitions and purchase orders with
+-- receiving into goods receipts.
 
 create table if not exists "app_private"."inventory_locations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -5386,6 +6318,9 @@ create table if not exists "app_private"."purchase_orders" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "placed_at" timestamptz,
+  "ship_to" jsonb check ("ship_to" is null or jsonb_typeof("ship_to") = 'object'),
+  "origin_type" text,
+  "origin_id" text,
   check (("supplier_type" is null) = ("supplier_id" is null))
 );
 create index if not exists purchase_orders_location_idx on "app_private"."purchase_orders" ("location_id");
@@ -5416,6 +6351,97 @@ grant select on "app_private"."purchase_order_lines" to authenticated;
 grant all on "app_private"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "app_private"."purchase_order_lines";
 create policy purchase_order_lines_read on "app_private"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "app_private"."purchase_requisitions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "location_id" uuid not null references "app_private"."inventory_locations" ("id") on delete cascade,
+  "supplier_type" text,
+  "supplier_id" text,
+  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected', 'ordered', 'cancelled')),
+  "reason" text check (length("reason") <= 2000),
+  "requested_by" uuid default auth.uid(),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "approval_id" uuid,
+  "purchase_order_id" uuid references "app_private"."purchase_orders" ("id") on delete set null,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  check (("supplier_type" is null) = ("supplier_id" is null))
+);
+create index if not exists purchase_requisitions_status_idx on "app_private"."purchase_requisitions" ("tenant_id", "status");
+create index if not exists purchase_requisitions_location_idx on "app_private"."purchase_requisitions" ("location_id");
+create index if not exists purchase_requisitions_purchase_order_idx on "app_private"."purchase_requisitions" ("purchase_order_id");
+alter table "app_private"."purchase_requisitions" enable row level security;
+revoke all on "app_private"."purchase_requisitions" from public, anon, authenticated;
+grant select on "app_private"."purchase_requisitions" to authenticated;
+grant all on "app_private"."purchase_requisitions" to service_role;
+drop policy if exists purchase_requisitions_read on "app_private"."purchase_requisitions";
+create policy purchase_requisitions_read on "app_private"."purchase_requisitions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "app_private"."purchase_requisition_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "requisition_id" uuid not null references "app_private"."purchase_requisitions" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "unit_cost" bigint check ("unit_cost" >= 0),
+  unique ("requisition_id", "variant_id")
+);
+create index if not exists purchase_requisition_lines_variant_idx on "app_private"."purchase_requisition_lines" ("variant_id");
+alter table "app_private"."purchase_requisition_lines" enable row level security;
+revoke all on "app_private"."purchase_requisition_lines" from public, anon, authenticated;
+grant select on "app_private"."purchase_requisition_lines" to authenticated;
+grant all on "app_private"."purchase_requisition_lines" to service_role;
+drop policy if exists purchase_requisition_lines_read on "app_private"."purchase_requisition_lines";
+create policy purchase_requisition_lines_read on "app_private"."purchase_requisition_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "app_private"."inventory_receipts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "purchase_order_id" uuid not null references "app_private"."purchase_orders" ("id") on delete cascade,
+  "location_id" uuid not null references "app_private"."inventory_locations" ("id") on delete cascade,
+  "inspection_id" uuid,
+  "received_by" uuid default auth.uid(),
+  "received_at" timestamptz not null default now()
+);
+create index if not exists inventory_receipts_purchase_order_idx on "app_private"."inventory_receipts" ("purchase_order_id");
+create index if not exists inventory_receipts_location_idx on "app_private"."inventory_receipts" ("location_id");
+alter table "app_private"."inventory_receipts" enable row level security;
+revoke all on "app_private"."inventory_receipts" from public, anon, authenticated;
+grant select on "app_private"."inventory_receipts" to authenticated;
+grant all on "app_private"."inventory_receipts" to service_role;
+drop policy if exists inventory_receipts_read on "app_private"."inventory_receipts";
+create policy inventory_receipts_read on "app_private"."inventory_receipts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "app_private"."inventory_receipt_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "receipt_id" uuid not null references "app_private"."inventory_receipts" ("id") on delete cascade,
+  "purchase_order_line_id" uuid not null references "app_private"."purchase_order_lines" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "unit_cost" bigint not null check ("unit_cost" >= 0),
+  "detail" jsonb
+);
+create index if not exists inventory_receipt_lines_receipt_idx on "app_private"."inventory_receipt_lines" ("receipt_id");
+create index if not exists inventory_receipt_lines_order_line_idx on "app_private"."inventory_receipt_lines" ("purchase_order_line_id");
+create index if not exists inventory_receipt_lines_variant_idx on "app_private"."inventory_receipt_lines" ("variant_id");
+alter table "app_private"."inventory_receipt_lines" enable row level security;
+revoke all on "app_private"."inventory_receipt_lines" from public, anon, authenticated;
+grant select on "app_private"."inventory_receipt_lines" to authenticated;
+grant all on "app_private"."inventory_receipt_lines" to service_role;
+drop policy if exists inventory_receipt_lines_read on "app_private"."inventory_receipt_lines";
+create policy inventory_receipt_lines_read on "app_private"."inventory_receipt_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7212,7 +8238,8 @@ grant execute on function "app_private"."place_purchase_order"(uuid) to authenti
 -- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
--- the quantity still on backorder.
+-- the quantity still on backorder, plus receiptId: the goods receipt of
+-- this delivery.
 create or replace function "app_private"."receive_purchase_order"(purchase_order uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -7224,6 +8251,7 @@ declare
   v_line record;
   v_backordered numeric;
   v_status text;
+  v_receipt uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -7250,6 +8278,9 @@ begin
     or (select count(distinct e ->> 'lineId') from jsonb_array_elements(receive_purchase_order.lines) e) <> jsonb_array_length(receive_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique lineId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
   end if;
+  insert into "app_private"."inventory_receipts" ("tenant_id", "purchase_order_id", "location_id")
+  values (v_row.tenant, receive_purchase_order.purchase_order, v_row.location)
+  returning "id" into v_receipt;
   for v_line in
     select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
@@ -7267,6 +8298,8 @@ begin
     update "app_private"."stock_levels" x set "incoming" = greatest(x."incoming" - v_line.quantity, 0), "updated_at" = now()
     where x."variant_id" = v_line.variant and x."location_id" = v_row.location;
     perform "app_private"."move_stock"(v_row.tenant, v_line.variant, v_row.location, v_line.quantity, 'receipt', 'purchase_order', receive_purchase_order.purchase_order::text, null, v_line.detail || jsonb_build_object('unitCost', v_line.unit_cost::text, 'currency', v_row.currency::text));
+    insert into "app_private"."inventory_receipt_lines" ("tenant_id", "receipt_id", "purchase_order_line_id", "variant_id", "quantity", "unit_cost", "detail")
+    values (v_row.tenant, v_receipt, v_line.id, v_line.variant, v_line.quantity, v_line.unit_cost, nullif(v_line.detail, '{}'::jsonb));
   end loop;
   select coalesce(sum(y."quantity_ordered" - y."quantity_received"), 0) into v_backordered
   from "app_private"."purchase_order_lines" y where y."purchase_order_id" = receive_purchase_order.purchase_order;
@@ -7274,7 +8307,8 @@ begin
   update "app_private"."purchase_orders" x set "status" = v_status, "updated_at" = now()
   where x."id" = receive_purchase_order.purchase_order;
   null;
-  return jsonb_build_object('status', v_status, 'backordered', v_backordered);
+  null;
+  return jsonb_build_object('status', v_status, 'backordered', v_backordered, 'receiptId', v_receipt);
 end;
 $$;
 revoke execute on function "app_private"."receive_purchase_order"(uuid, jsonb) from public, anon;
@@ -7320,6 +8354,226 @@ end;
 $$;
 revoke execute on function "app_private"."cancel_purchase_order"(uuid) from public, anon;
 grant execute on function "app_private"."cancel_purchase_order"(uuid) to authenticated, service_role;
+
+-- Asks to buy stock for a location. lines: [{ "variantId": uuid, "quantity": n,
+-- "unitCost"?: "minor units" }]. A pending requisition waits for its
+-- decision: a holder of inventory.purchase approves or rejects it.
+create or replace function "app_private"."request_purchase"(tenant uuid, location uuid, lines jsonb, supplier_type text default null, supplier_id text default null, currency text default null, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."purchase_requisitions";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', request_purchase.tenant, 'inventory.read'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if not exists (select 1 from "app_private"."inventory_locations" x where x."id" = request_purchase.location and x."tenant_id" = request_purchase.tenant) then
+    raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  if (request_purchase.supplier_type is null) <> (request_purchase.supplier_id is null) then
+    raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
+  end if;
+  if request_purchase.currency is not null and "better_supabase"."currency_minor_units"(request_purchase.currency) is null then
+    raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
+  end if;
+  if jsonb_typeof(request_purchase.lines) is distinct from 'array' or jsonb_array_length(request_purchase.lines) = 0
+    or exists (
+      select 1 from jsonb_array_elements(request_purchase.lines) e
+      where jsonb_typeof(e) <> 'object'
+        or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
+        or (e ? 'unitCost' and coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$')
+    )
+    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(request_purchase.lines) e) <> jsonb_array_length(request_purchase.lines) then
+    raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(request_purchase.lines) e
+    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = request_purchase.tenant)
+  ) then
+    raise exception 'a line names a variant outside this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
+  end if;
+  insert into "app_private"."purchase_requisitions" ("tenant_id", "location_id", "supplier_type", "supplier_id", "currency", "reason")
+  values (request_purchase.tenant, request_purchase.location, request_purchase.supplier_type, request_purchase.supplier_id,
+    request_purchase.currency, nullif(trim(request_purchase.reason), ''))
+  returning * into v_row;
+  insert into "app_private"."purchase_requisition_lines" ("tenant_id", "requisition_id", "variant_id", "quantity", "unit_cost")
+  select request_purchase.tenant, v_row."id", (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
+  from jsonb_array_elements(request_purchase.lines) e;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id",
+      'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id", 'currency', v_row."currency",
+      'status', v_row."status", 'reason', v_row."reason", 'requestedBy', v_row."requested_by",
+      'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'approvalId', v_row."approval_id",
+      'createdAt', v_row."created_at",
+      'purchaseOrderId', v_row."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "app_private"."purchase_requisition_lines" y where y."requisition_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "app_private"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) from public, anon;
+grant execute on function "app_private"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) to authenticated, service_role;
+
+-- Settles a pending requisition: approved or rejected. Approvals calls it; it
+-- isn't granted to anyone.
+create or replace function "app_private"."purchase_requisition_decided"(requisition uuid, approved boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."purchase_requisitions";
+begin
+  update "app_private"."purchase_requisitions" x set "status" = case when purchase_requisition_decided.approved then 'approved' else 'rejected' end,
+    "decided_by" = auth.uid(), "decided_at" = now(), "updated_at" = now()
+  where x."id" = purchase_requisition_decided.requisition and x."status" = 'pending'
+  returning * into v_row;
+  if found and purchase_requisition_decided.approved then
+    null;
+  end if;
+end;
+$$;
+revoke execute on function "app_private"."purchase_requisition_decided"(uuid, boolean) from public, anon, authenticated;
+
+-- Approves (approve true) or rejects a pending requisition. Needs
+-- inventory.purchase.
+create or replace function "app_private"."decide_purchase_requisition"(requisition uuid, approve boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."purchase_requisitions";
+begin
+  select * into v_row from "app_private"."purchase_requisitions" x where x."id" = decide_purchase_requisition.requisition for update;
+  if not found then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inventory.purchase'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'pending' then
+    raise exception 'only a pending requisition is decided' using errcode = '55000', hint = 'INVENTORY_REQUISITION_STATUS';
+  end if;
+  perform "app_private"."purchase_requisition_decided"(v_row."id", coalesce(decide_purchase_requisition.approve, false));
+  return (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id",
+      'supplierType', x."supplier_type", 'supplierId', x."supplier_id", 'currency', x."currency",
+      'status', x."status", 'reason', x."reason", 'requestedBy', x."requested_by",
+      'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'approvalId', x."approval_id",
+      'createdAt', x."created_at",
+      'purchaseOrderId', x."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "app_private"."purchase_requisition_lines" y where y."requisition_id" = x."id"), '[]'::jsonb)) from "app_private"."purchase_requisitions" x where x."id" = v_row."id");
+end;
+$$;
+revoke execute on function "app_private"."decide_purchase_requisition"(uuid, boolean) from public, anon;
+grant execute on function "app_private"."decide_purchase_requisition"(uuid, boolean) to authenticated, service_role;
+
+-- A draft purchase order from approved requisitions of one location: their
+-- lines summed per variant, at the highest unit cost a requisition names
+-- (0 when none does; edit the draft before placing it). The supplier and
+-- currency default to the ones the requisitions share. The requisitions
+-- become ordered.
+create or replace function "app_private"."purchase_order_from_requisitions"(requisitions uuid[], supplier_type text default null, supplier_id text default null, currency text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_location uuid;
+  v_supplier_type text := purchase_order_from_requisitions.supplier_type;
+  v_supplier_id text := purchase_order_from_requisitions.supplier_id;
+  v_currency text := upper(purchase_order_from_requisitions.currency);
+  v_lines jsonb;
+  v_order jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if coalesce(cardinality(purchase_order_from_requisitions.requisitions), 0) = 0 then
+    raise exception 'name at least one requisition' using errcode = '22023', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  perform 1 from "app_private"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions) for update;
+  if (select count(*) from "app_private"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions))
+    <> (select count(distinct r) from unnest(purchase_order_from_requisitions.requisitions) r) then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if (select count(distinct x."tenant_id") + count(distinct x."location_id") from "app_private"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)) <> 2 then
+    raise exception 'requisitions on one purchase order share an organization and a location' using errcode = '22023', hint = 'INVENTORY_REQUISITION_MIXED';
+  end if;
+  select x."tenant_id", x."location_id" into v_tenant, v_location
+  from "app_private"."purchase_requisitions" x where x."id" = purchase_order_from_requisitions.requisitions[1];
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.purchase'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if exists (select 1 from "app_private"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions) and x."status" <> 'approved') then
+    raise exception 'only approved requisitions become a purchase order' using errcode = '55000', hint = 'INVENTORY_REQUISITION_STATUS';
+  end if;
+  if v_supplier_id is null then
+    select min(x."supplier_type"), min(x."supplier_id") into v_supplier_type, v_supplier_id
+    from "app_private"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)
+    having count(distinct coalesce(x."supplier_type", '') || ':' || coalesce(x."supplier_id", '')) = 1;
+  end if;
+  if v_currency is null then
+    select min(x."currency") into v_currency
+    from "app_private"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)
+    having count(distinct x."currency") = 1;
+  end if;
+  select jsonb_agg(jsonb_build_object('variantId', y.variant, 'quantity', y.quantity::text, 'unitCost', y.unit_cost::text)) into v_lines
+  from (
+    select l."variant_id" as variant, sum(l."quantity") as quantity, coalesce(max(l."unit_cost"), 0) as unit_cost
+    from "app_private"."purchase_requisition_lines" l where l."requisition_id" = any (purchase_order_from_requisitions.requisitions)
+    group by 1
+  ) y;
+  v_order := "app_private"."save_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
+  update "app_private"."purchase_requisitions" x set "status" = 'ordered', "purchase_order_id" = (v_order ->> 'id')::uuid, "updated_at" = now()
+  where x."id" = any (purchase_order_from_requisitions.requisitions);
+  return v_order;
+end;
+$$;
+revoke execute on function "app_private"."purchase_order_from_requisitions"(uuid[], text, text, text) from public, anon;
+grant execute on function "app_private"."purchase_order_from_requisitions"(uuid[], text, text, text) to authenticated, service_role;
+
+-- A requisition with its lines, readable by a holder of inventory.read.
+create or replace function "app_private"."get_purchase_requisition"(requisition uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."purchase_requisitions";
+begin
+  select * into v_row from "app_private"."purchase_requisitions" x where x."id" = get_purchase_requisition.requisition;
+  if not found then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inventory.read'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id",
+      'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id", 'currency', v_row."currency",
+      'status', v_row."status", 'reason', v_row."reason", 'requestedBy', v_row."requested_by",
+      'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'approvalId', v_row."approval_id",
+      'createdAt', v_row."created_at",
+      'purchaseOrderId', v_row."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "app_private"."purchase_requisition_lines" y where y."requisition_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "app_private"."get_purchase_requisition"(uuid) from public, anon;
+grant execute on function "app_private"."get_purchase_requisition"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -7483,6 +8737,90 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."purchase_order_l
 create policy bsb_tenant_scope_delete on "app_private"."purchase_order_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."purchase_requisitions";
+drop policy if exists bsb_tenant_scope_select on "app_private"."purchase_requisitions";
+create policy bsb_tenant_scope_select on "app_private"."purchase_requisitions" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."purchase_requisitions";
+create policy bsb_tenant_scope_insert on "app_private"."purchase_requisitions" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."purchase_requisitions";
+create policy bsb_tenant_scope_update on "app_private"."purchase_requisitions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."purchase_requisitions";
+create policy bsb_tenant_scope_delete on "app_private"."purchase_requisitions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."purchase_requisition_lines";
+drop policy if exists bsb_tenant_scope_select on "app_private"."purchase_requisition_lines";
+create policy bsb_tenant_scope_select on "app_private"."purchase_requisition_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."purchase_requisition_lines";
+create policy bsb_tenant_scope_insert on "app_private"."purchase_requisition_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."purchase_requisition_lines";
+create policy bsb_tenant_scope_update on "app_private"."purchase_requisition_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."purchase_requisition_lines";
+create policy bsb_tenant_scope_delete on "app_private"."purchase_requisition_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."inventory_receipts";
+drop policy if exists bsb_tenant_scope_select on "app_private"."inventory_receipts";
+create policy bsb_tenant_scope_select on "app_private"."inventory_receipts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."inventory_receipts";
+create policy bsb_tenant_scope_insert on "app_private"."inventory_receipts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."inventory_receipts";
+create policy bsb_tenant_scope_update on "app_private"."inventory_receipts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."inventory_receipts";
+create policy bsb_tenant_scope_delete on "app_private"."inventory_receipts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."inventory_receipt_lines";
+drop policy if exists bsb_tenant_scope_select on "app_private"."inventory_receipt_lines";
+create policy bsb_tenant_scope_select on "app_private"."inventory_receipt_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."inventory_receipt_lines";
+create policy bsb_tenant_scope_insert on "app_private"."inventory_receipt_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."inventory_receipt_lines";
+create policy bsb_tenant_scope_update on "app_private"."inventory_receipt_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."inventory_receipt_lines";
+create policy bsb_tenant_scope_delete on "app_private"."inventory_receipt_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."stock_items";
 drop policy if exists bsb_tenant_scope_select on "app_private"."stock_items";
 create policy bsb_tenant_scope_select on "app_private"."stock_items" as restrictive
@@ -7640,8 +8978,8 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:f7bdb2d166b611b3ea1b2fcd3955ecafeaf8c77e25871ad9ccae0e6c5f2d2c00
--- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
+-- @bsb-hash sha256:e62cd2c6545f9b14f6a259daa5af5aa8e5e93211c9944a8d8a18fc5130d8645a
+-- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -7740,6 +9078,38 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_items";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_items";
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_items";
@@ -7794,7 +9164,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Stock per catalog variant and location in a unit with decimals: movements
 -- posted to the ledger in base units, lots, serial numbers, expiry, bins,
 -- weighted average cost, reservations with expiry, allocations with
--- backorders, transfers and purchase orders with receiving.
+-- backorders, transfers, purchase requisitions and purchase orders with
+-- receiving into goods receipts.
 
 create table if not exists "better_supabase"."inventory_locations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -7919,6 +9290,9 @@ create table if not exists "better_supabase"."purchase_orders" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "placed_at" timestamptz,
+  "ship_to" jsonb check ("ship_to" is null or jsonb_typeof("ship_to") = 'object'),
+  "origin_type" text,
+  "origin_id" text,
   check (("supplier_type" is null) = ("supplier_id" is null))
 );
 create index if not exists purchase_orders_location_idx on "better_supabase"."purchase_orders" ("location_id");
@@ -7949,6 +9323,97 @@ grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "better_supabase"."purchase_order_lines";
 create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."purchase_requisitions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "supplier_type" text,
+  "supplier_id" text,
+  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected', 'ordered', 'cancelled')),
+  "reason" text check (length("reason") <= 2000),
+  "requested_by" uuid default auth.uid(),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "approval_id" uuid,
+  "purchase_order_id" uuid references "better_supabase"."purchase_orders" ("id") on delete set null,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  check (("supplier_type" is null) = ("supplier_id" is null))
+);
+create index if not exists purchase_requisitions_status_idx on "better_supabase"."purchase_requisitions" ("tenant_id", "status");
+create index if not exists purchase_requisitions_location_idx on "better_supabase"."purchase_requisitions" ("location_id");
+create index if not exists purchase_requisitions_purchase_order_idx on "better_supabase"."purchase_requisitions" ("purchase_order_id");
+alter table "better_supabase"."purchase_requisitions" enable row level security;
+revoke all on "better_supabase"."purchase_requisitions" from public, anon, authenticated;
+grant select on "better_supabase"."purchase_requisitions" to authenticated;
+grant all on "better_supabase"."purchase_requisitions" to service_role;
+drop policy if exists purchase_requisitions_read on "better_supabase"."purchase_requisitions";
+create policy purchase_requisitions_read on "better_supabase"."purchase_requisitions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."purchase_requisition_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "requisition_id" uuid not null references "better_supabase"."purchase_requisitions" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "unit_cost" bigint check ("unit_cost" >= 0),
+  unique ("requisition_id", "variant_id")
+);
+create index if not exists purchase_requisition_lines_variant_idx on "better_supabase"."purchase_requisition_lines" ("variant_id");
+alter table "better_supabase"."purchase_requisition_lines" enable row level security;
+revoke all on "better_supabase"."purchase_requisition_lines" from public, anon, authenticated;
+grant select on "better_supabase"."purchase_requisition_lines" to authenticated;
+grant all on "better_supabase"."purchase_requisition_lines" to service_role;
+drop policy if exists purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines";
+create policy purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."inventory_receipts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "inspection_id" uuid,
+  "received_by" uuid default auth.uid(),
+  "received_at" timestamptz not null default now()
+);
+create index if not exists inventory_receipts_purchase_order_idx on "better_supabase"."inventory_receipts" ("purchase_order_id");
+create index if not exists inventory_receipts_location_idx on "better_supabase"."inventory_receipts" ("location_id");
+alter table "better_supabase"."inventory_receipts" enable row level security;
+revoke all on "better_supabase"."inventory_receipts" from public, anon, authenticated;
+grant select on "better_supabase"."inventory_receipts" to authenticated;
+grant all on "better_supabase"."inventory_receipts" to service_role;
+drop policy if exists inventory_receipts_read on "better_supabase"."inventory_receipts";
+create policy inventory_receipts_read on "better_supabase"."inventory_receipts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."inventory_receipt_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "receipt_id" uuid not null references "better_supabase"."inventory_receipts" ("id") on delete cascade,
+  "purchase_order_line_id" uuid not null references "better_supabase"."purchase_order_lines" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "unit_cost" bigint not null check ("unit_cost" >= 0),
+  "detail" jsonb
+);
+create index if not exists inventory_receipt_lines_receipt_idx on "better_supabase"."inventory_receipt_lines" ("receipt_id");
+create index if not exists inventory_receipt_lines_order_line_idx on "better_supabase"."inventory_receipt_lines" ("purchase_order_line_id");
+create index if not exists inventory_receipt_lines_variant_idx on "better_supabase"."inventory_receipt_lines" ("variant_id");
+alter table "better_supabase"."inventory_receipt_lines" enable row level security;
+revoke all on "better_supabase"."inventory_receipt_lines" from public, anon, authenticated;
+grant select on "better_supabase"."inventory_receipt_lines" to authenticated;
+grant all on "better_supabase"."inventory_receipt_lines" to service_role;
+drop policy if exists inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines";
+create policy inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -9745,7 +11210,8 @@ grant execute on function "better_supabase"."place_purchase_order"(uuid) to auth
 -- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
--- the quantity still on backorder.
+-- the quantity still on backorder, plus receiptId: the goods receipt of
+-- this delivery.
 create or replace function "better_supabase"."receive_purchase_order"(purchase_order uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -9757,6 +11223,7 @@ declare
   v_line record;
   v_backordered numeric;
   v_status text;
+  v_receipt uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -9783,6 +11250,9 @@ begin
     or (select count(distinct e ->> 'lineId') from jsonb_array_elements(receive_purchase_order.lines) e) <> jsonb_array_length(receive_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique lineId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
   end if;
+  insert into "better_supabase"."inventory_receipts" ("tenant_id", "purchase_order_id", "location_id")
+  values (v_row.tenant, receive_purchase_order.purchase_order, v_row.location)
+  returning "id" into v_receipt;
   for v_line in
     select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
@@ -9800,6 +11270,8 @@ begin
     update "better_supabase"."stock_levels" x set "incoming" = greatest(x."incoming" - v_line.quantity, 0), "updated_at" = now()
     where x."variant_id" = v_line.variant and x."location_id" = v_row.location;
     perform "better_supabase"."move_stock"(v_row.tenant, v_line.variant, v_row.location, v_line.quantity, 'receipt', 'purchase_order', receive_purchase_order.purchase_order::text, null, v_line.detail || jsonb_build_object('unitCost', v_line.unit_cost::text, 'currency', v_row.currency::text));
+    insert into "better_supabase"."inventory_receipt_lines" ("tenant_id", "receipt_id", "purchase_order_line_id", "variant_id", "quantity", "unit_cost", "detail")
+    values (v_row.tenant, v_receipt, v_line.id, v_line.variant, v_line.quantity, v_line.unit_cost, nullif(v_line.detail, '{}'::jsonb));
   end loop;
   select coalesce(sum(y."quantity_ordered" - y."quantity_received"), 0) into v_backordered
   from "better_supabase"."purchase_order_lines" y where y."purchase_order_id" = receive_purchase_order.purchase_order;
@@ -9807,7 +11279,8 @@ begin
   update "better_supabase"."purchase_orders" x set "status" = v_status, "updated_at" = now()
   where x."id" = receive_purchase_order.purchase_order;
   null;
-  return jsonb_build_object('status', v_status, 'backordered', v_backordered);
+  null;
+  return jsonb_build_object('status', v_status, 'backordered', v_backordered, 'receiptId', v_receipt);
 end;
 $$;
 revoke execute on function "better_supabase"."receive_purchase_order"(uuid, jsonb) from public, anon;
@@ -9853,6 +11326,226 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_purchase_order"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_purchase_order"(uuid) to authenticated, service_role;
+
+-- Asks to buy stock for a location. lines: [{ "variantId": uuid, "quantity": n,
+-- "unitCost"?: "minor units" }]. A pending requisition waits for its
+-- decision: a holder of inventory.purchase approves or rejects it.
+create or replace function "better_supabase"."request_purchase"(tenant uuid, location uuid, lines jsonb, supplier_type text default null, supplier_id text default null, currency text default null, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', request_purchase.tenant, 'inventory.read'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = request_purchase.location and x."tenant_id" = request_purchase.tenant) then
+    raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  if (request_purchase.supplier_type is null) <> (request_purchase.supplier_id is null) then
+    raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
+  end if;
+  if request_purchase.currency is not null and "better_supabase"."currency_minor_units"(request_purchase.currency) is null then
+    raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
+  end if;
+  if jsonb_typeof(request_purchase.lines) is distinct from 'array' or jsonb_array_length(request_purchase.lines) = 0
+    or exists (
+      select 1 from jsonb_array_elements(request_purchase.lines) e
+      where jsonb_typeof(e) <> 'object'
+        or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
+        or (e ? 'unitCost' and coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$')
+    )
+    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(request_purchase.lines) e) <> jsonb_array_length(request_purchase.lines) then
+    raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(request_purchase.lines) e
+    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = request_purchase.tenant)
+  ) then
+    raise exception 'a line names a variant outside this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."purchase_requisitions" ("tenant_id", "location_id", "supplier_type", "supplier_id", "currency", "reason")
+  values (request_purchase.tenant, request_purchase.location, request_purchase.supplier_type, request_purchase.supplier_id,
+    request_purchase.currency, nullif(trim(request_purchase.reason), ''))
+  returning * into v_row;
+  insert into "better_supabase"."purchase_requisition_lines" ("tenant_id", "requisition_id", "variant_id", "quantity", "unit_cost")
+  select request_purchase.tenant, v_row."id", (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
+  from jsonb_array_elements(request_purchase.lines) e;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id",
+      'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id", 'currency', v_row."currency",
+      'status', v_row."status", 'reason', v_row."reason", 'requestedBy', v_row."requested_by",
+      'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'approvalId', v_row."approval_id",
+      'createdAt', v_row."created_at",
+      'purchaseOrderId', v_row."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) to authenticated, service_role;
+
+-- Settles a pending requisition: approved or rejected. Approvals calls it; it
+-- isn't granted to anyone.
+create or replace function "better_supabase"."purchase_requisition_decided"(requisition uuid, approved boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  update "better_supabase"."purchase_requisitions" x set "status" = case when purchase_requisition_decided.approved then 'approved' else 'rejected' end,
+    "decided_by" = auth.uid(), "decided_at" = now(), "updated_at" = now()
+  where x."id" = purchase_requisition_decided.requisition and x."status" = 'pending'
+  returning * into v_row;
+  if found and purchase_requisition_decided.approved then
+    null;
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_requisition_decided"(uuid, boolean) from public, anon, authenticated;
+
+-- Approves (approve true) or rejects a pending requisition. Needs
+-- inventory.purchase.
+create or replace function "better_supabase"."decide_purchase_requisition"(requisition uuid, approve boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  select * into v_row from "better_supabase"."purchase_requisitions" x where x."id" = decide_purchase_requisition.requisition for update;
+  if not found then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inventory.purchase'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'pending' then
+    raise exception 'only a pending requisition is decided' using errcode = '55000', hint = 'INVENTORY_REQUISITION_STATUS';
+  end if;
+  perform "better_supabase"."purchase_requisition_decided"(v_row."id", coalesce(decide_purchase_requisition.approve, false));
+  return (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id",
+      'supplierType', x."supplier_type", 'supplierId', x."supplier_id", 'currency', x."currency",
+      'status', x."status", 'reason', x."reason", 'requestedBy', x."requested_by",
+      'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'approvalId', x."approval_id",
+      'createdAt', x."created_at",
+      'purchaseOrderId', x."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = x."id"), '[]'::jsonb)) from "better_supabase"."purchase_requisitions" x where x."id" = v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_purchase_requisition"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."decide_purchase_requisition"(uuid, boolean) to authenticated, service_role;
+
+-- A draft purchase order from approved requisitions of one location: their
+-- lines summed per variant, at the highest unit cost a requisition names
+-- (0 when none does; edit the draft before placing it). The supplier and
+-- currency default to the ones the requisitions share. The requisitions
+-- become ordered.
+create or replace function "better_supabase"."purchase_order_from_requisitions"(requisitions uuid[], supplier_type text default null, supplier_id text default null, currency text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_location uuid;
+  v_supplier_type text := purchase_order_from_requisitions.supplier_type;
+  v_supplier_id text := purchase_order_from_requisitions.supplier_id;
+  v_currency text := upper(purchase_order_from_requisitions.currency);
+  v_lines jsonb;
+  v_order jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if coalesce(cardinality(purchase_order_from_requisitions.requisitions), 0) = 0 then
+    raise exception 'name at least one requisition' using errcode = '22023', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  perform 1 from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions) for update;
+  if (select count(*) from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions))
+    <> (select count(distinct r) from unnest(purchase_order_from_requisitions.requisitions) r) then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if (select count(distinct x."tenant_id") + count(distinct x."location_id") from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)) <> 2 then
+    raise exception 'requisitions on one purchase order share an organization and a location' using errcode = '22023', hint = 'INVENTORY_REQUISITION_MIXED';
+  end if;
+  select x."tenant_id", x."location_id" into v_tenant, v_location
+  from "better_supabase"."purchase_requisitions" x where x."id" = purchase_order_from_requisitions.requisitions[1];
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.purchase'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions) and x."status" <> 'approved') then
+    raise exception 'only approved requisitions become a purchase order' using errcode = '55000', hint = 'INVENTORY_REQUISITION_STATUS';
+  end if;
+  if v_supplier_id is null then
+    select min(x."supplier_type"), min(x."supplier_id") into v_supplier_type, v_supplier_id
+    from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)
+    having count(distinct coalesce(x."supplier_type", '') || ':' || coalesce(x."supplier_id", '')) = 1;
+  end if;
+  if v_currency is null then
+    select min(x."currency") into v_currency
+    from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)
+    having count(distinct x."currency") = 1;
+  end if;
+  select jsonb_agg(jsonb_build_object('variantId', y.variant, 'quantity', y.quantity::text, 'unitCost', y.unit_cost::text)) into v_lines
+  from (
+    select l."variant_id" as variant, sum(l."quantity") as quantity, coalesce(max(l."unit_cost"), 0) as unit_cost
+    from "better_supabase"."purchase_requisition_lines" l where l."requisition_id" = any (purchase_order_from_requisitions.requisitions)
+    group by 1
+  ) y;
+  v_order := "better_supabase"."save_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
+  update "better_supabase"."purchase_requisitions" x set "status" = 'ordered', "purchase_order_id" = (v_order ->> 'id')::uuid, "updated_at" = now()
+  where x."id" = any (purchase_order_from_requisitions.requisitions);
+  return v_order;
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_order_from_requisitions"(uuid[], text, text, text) from public, anon;
+grant execute on function "better_supabase"."purchase_order_from_requisitions"(uuid[], text, text, text) to authenticated, service_role;
+
+-- A requisition with its lines, readable by a holder of inventory.read.
+create or replace function "better_supabase"."get_purchase_requisition"(requisition uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  select * into v_row from "better_supabase"."purchase_requisitions" x where x."id" = get_purchase_requisition.requisition;
+  if not found then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inventory.read'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id",
+      'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id", 'currency', v_row."currency",
+      'status', v_row."status", 'reason', v_row."reason", 'requestedBy', v_row."requested_by",
+      'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'approvalId', v_row."approval_id",
+      'createdAt', v_row."created_at",
+      'purchaseOrderId', v_row."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."get_purchase_requisition"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_purchase_requisition"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -10014,6 +11707,90 @@ create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_lines
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisitions";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisitions" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_requisitions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisition_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_receipts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_receipts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_receipts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_receipts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipt_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_items";
@@ -10441,6 +12218,42 @@ as $$ select "better_supabase"."cancel_purchase_order"($1) $$;
 revoke execute on function "api"."cancel_purchase_order"(uuid) from public, anon;
 grant execute on function "api"."cancel_purchase_order"(uuid) to authenticated, service_role;
 
+create or replace function "api"."request_purchase"(tenant uuid, location uuid, lines jsonb, supplier_type text default null, supplier_id text default null, currency text default null, reason text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."request_purchase"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) from public, anon;
+grant execute on function "api"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) to authenticated, service_role;
+
+create or replace function "api"."decide_purchase_requisition"(requisition uuid, approve boolean)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."decide_purchase_requisition"($1, $2) $$;
+revoke execute on function "api"."decide_purchase_requisition"(uuid, boolean) from public, anon;
+grant execute on function "api"."decide_purchase_requisition"(uuid, boolean) to authenticated, service_role;
+
+create or replace function "api"."purchase_order_from_requisitions"(requisitions uuid[], supplier_type text default null, supplier_id text default null, currency text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."purchase_order_from_requisitions"($1, $2, $3, $4) $$;
+revoke execute on function "api"."purchase_order_from_requisitions"(uuid[], text, text, text) from public, anon;
+grant execute on function "api"."purchase_order_from_requisitions"(uuid[], text, text, text) to authenticated, service_role;
+
+create or replace function "api"."get_purchase_requisition"(requisition uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_purchase_requisition"($1) $$;
+revoke execute on function "api"."get_purchase_requisition"(uuid) from public, anon;
+grant execute on function "api"."get_purchase_requisition"(uuid) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -10471,8 +12284,8 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:25edb514485199b69148321e0063945697965865c84812160939cc6858046161
--- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
+-- @bsb-hash sha256:dcb9791dc6af0ed21d3f8dcb37831d794705168dc41ecc6b7ddfced028b9d5db
+-- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -10587,6 +12400,38 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_items";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_items";
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_items";
@@ -10641,7 +12486,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Stock per catalog variant and location in a unit with decimals: movements
 -- posted to the ledger in base units, lots, serial numbers, expiry, bins,
 -- weighted average cost, reservations with expiry, allocations with
--- backorders, transfers and purchase orders with receiving.
+-- backorders, transfers, purchase requisitions and purchase orders with
+-- receiving into goods receipts.
 
 -- better_supabase.inventory_locations is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."inventory_locations" add column if not exists "id" uuid default gen_random_uuid();
@@ -10751,6 +12597,9 @@ alter table "better_supabase"."purchase_orders" add column if not exists "note" 
 alter table "better_supabase"."purchase_orders" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."purchase_orders" add column if not exists "updated_at" timestamptz not null default now();
 alter table "better_supabase"."purchase_orders" add column if not exists "placed_at" timestamptz;
+alter table "better_supabase"."purchase_orders" add column if not exists "ship_to" jsonb check ("ship_to" is null or jsonb_typeof("ship_to") = 'object');
+alter table "better_supabase"."purchase_orders" add column if not exists "origin_type" text;
+alter table "better_supabase"."purchase_orders" add column if not exists "origin_id" text;
 create index if not exists purchase_orders_location_idx on "better_supabase"."purchase_orders" ("location_id");
 create index if not exists purchase_orders_status_idx on "better_supabase"."purchase_orders" ("tenant_id", "status");
 alter table "better_supabase"."purchase_orders" enable row level security;
@@ -10775,6 +12624,87 @@ grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists bsb_purchase_order_lines_select on "better_supabase"."purchase_order_lines";
 create policy bsb_purchase_order_lines_select on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- better_supabase.purchase_requisitions is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."purchase_requisitions" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."purchase_requisitions" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."purchase_requisitions" add column if not exists "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete cascade;
+alter table "better_supabase"."purchase_requisitions" add column if not exists "supplier_type" text;
+alter table "better_supabase"."purchase_requisitions" add column if not exists "supplier_id" text;
+alter table "better_supabase"."purchase_requisitions" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."purchase_requisitions" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected', 'ordered', 'cancelled'));
+alter table "better_supabase"."purchase_requisitions" add column if not exists "reason" text check (length("reason") <= 2000);
+alter table "better_supabase"."purchase_requisitions" add column if not exists "requested_by" uuid default auth.uid();
+alter table "better_supabase"."purchase_requisitions" add column if not exists "decided_by" uuid;
+alter table "better_supabase"."purchase_requisitions" add column if not exists "decided_at" timestamptz;
+alter table "better_supabase"."purchase_requisitions" add column if not exists "approval_id" uuid;
+alter table "better_supabase"."purchase_requisitions" add column if not exists "purchase_order_id" uuid references "better_supabase"."purchase_orders" ("id") on delete set null;
+alter table "better_supabase"."purchase_requisitions" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."purchase_requisitions" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists purchase_requisitions_status_idx on "better_supabase"."purchase_requisitions" ("tenant_id", "status");
+create index if not exists purchase_requisitions_location_idx on "better_supabase"."purchase_requisitions" ("location_id");
+create index if not exists purchase_requisitions_purchase_order_idx on "better_supabase"."purchase_requisitions" ("purchase_order_id");
+alter table "better_supabase"."purchase_requisitions" enable row level security;
+grant select on "better_supabase"."purchase_requisitions" to authenticated;
+grant all on "better_supabase"."purchase_requisitions" to service_role;
+drop policy if exists bsb_purchase_requisitions_select on "better_supabase"."purchase_requisitions";
+create policy bsb_purchase_requisitions_select on "better_supabase"."purchase_requisitions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- better_supabase.purchase_requisition_lines is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."purchase_requisition_lines" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."purchase_requisition_lines" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."purchase_requisition_lines" add column if not exists "requisition_id" uuid references "better_supabase"."purchase_requisitions" ("id") on delete cascade;
+alter table "better_supabase"."purchase_requisition_lines" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
+alter table "better_supabase"."purchase_requisition_lines" add column if not exists "quantity" numeric(20, 6) check ("quantity" > 0);
+alter table "better_supabase"."purchase_requisition_lines" add column if not exists "unit_cost" bigint check ("unit_cost" >= 0);
+create index if not exists purchase_requisition_lines_variant_idx on "better_supabase"."purchase_requisition_lines" ("variant_id");
+alter table "better_supabase"."purchase_requisition_lines" enable row level security;
+grant select on "better_supabase"."purchase_requisition_lines" to authenticated;
+grant all on "better_supabase"."purchase_requisition_lines" to service_role;
+drop policy if exists bsb_purchase_requisition_lines_select on "better_supabase"."purchase_requisition_lines";
+create policy bsb_purchase_requisition_lines_select on "better_supabase"."purchase_requisition_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- better_supabase.inventory_receipts is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."inventory_receipts" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."inventory_receipts" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."inventory_receipts" add column if not exists "purchase_order_id" uuid references "better_supabase"."purchase_orders" ("id") on delete cascade;
+alter table "better_supabase"."inventory_receipts" add column if not exists "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete cascade;
+alter table "better_supabase"."inventory_receipts" add column if not exists "inspection_id" uuid;
+alter table "better_supabase"."inventory_receipts" add column if not exists "received_by" uuid default auth.uid();
+alter table "better_supabase"."inventory_receipts" add column if not exists "received_at" timestamptz not null default now();
+create index if not exists inventory_receipts_purchase_order_idx on "better_supabase"."inventory_receipts" ("purchase_order_id");
+create index if not exists inventory_receipts_location_idx on "better_supabase"."inventory_receipts" ("location_id");
+alter table "better_supabase"."inventory_receipts" enable row level security;
+grant select on "better_supabase"."inventory_receipts" to authenticated;
+grant all on "better_supabase"."inventory_receipts" to service_role;
+drop policy if exists bsb_inventory_receipts_select on "better_supabase"."inventory_receipts";
+create policy bsb_inventory_receipts_select on "better_supabase"."inventory_receipts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- better_supabase.inventory_receipt_lines is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."inventory_receipt_lines" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."inventory_receipt_lines" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."inventory_receipt_lines" add column if not exists "receipt_id" uuid references "better_supabase"."inventory_receipts" ("id") on delete cascade;
+alter table "better_supabase"."inventory_receipt_lines" add column if not exists "purchase_order_line_id" uuid references "better_supabase"."purchase_order_lines" ("id") on delete cascade;
+alter table "better_supabase"."inventory_receipt_lines" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
+alter table "better_supabase"."inventory_receipt_lines" add column if not exists "quantity" numeric(20, 6) check ("quantity" > 0);
+alter table "better_supabase"."inventory_receipt_lines" add column if not exists "unit_cost" bigint check ("unit_cost" >= 0);
+alter table "better_supabase"."inventory_receipt_lines" add column if not exists "detail" jsonb;
+create index if not exists inventory_receipt_lines_receipt_idx on "better_supabase"."inventory_receipt_lines" ("receipt_id");
+create index if not exists inventory_receipt_lines_order_line_idx on "better_supabase"."inventory_receipt_lines" ("purchase_order_line_id");
+create index if not exists inventory_receipt_lines_variant_idx on "better_supabase"."inventory_receipt_lines" ("variant_id");
+alter table "better_supabase"."inventory_receipt_lines" enable row level security;
+grant select on "better_supabase"."inventory_receipt_lines" to authenticated;
+grant all on "better_supabase"."inventory_receipt_lines" to service_role;
+drop policy if exists bsb_inventory_receipt_lines_select on "better_supabase"."inventory_receipt_lines";
+create policy bsb_inventory_receipt_lines_select on "better_supabase"."inventory_receipt_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -12551,7 +14481,8 @@ grant execute on function "better_supabase"."place_purchase_order"(uuid) to auth
 -- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
--- the quantity still on backorder.
+-- the quantity still on backorder, plus receiptId: the goods receipt of
+-- this delivery.
 create or replace function "better_supabase"."receive_purchase_order"(purchase_order uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -12563,6 +14494,7 @@ declare
   v_line record;
   v_backordered numeric;
   v_status text;
+  v_receipt uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -12589,6 +14521,9 @@ begin
     or (select count(distinct e ->> 'lineId') from jsonb_array_elements(receive_purchase_order.lines) e) <> jsonb_array_length(receive_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique lineId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
   end if;
+  insert into "better_supabase"."inventory_receipts" ("tenant_id", "purchase_order_id", "location_id")
+  values (v_row.tenant, receive_purchase_order.purchase_order, v_row.location)
+  returning "id" into v_receipt;
   for v_line in
     select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
@@ -12606,6 +14541,8 @@ begin
     update "better_supabase"."stock_levels" x set "incoming" = greatest(x."incoming" - v_line.quantity, 0), "updated_at" = now()
     where x."variant_id" = v_line.variant and x."location_id" = v_row.location;
     perform "better_supabase"."move_stock"(v_row.tenant, v_line.variant, v_row.location, v_line.quantity, 'receipt', 'purchase_order', receive_purchase_order.purchase_order::text, null, v_line.detail || jsonb_build_object('unitCost', v_line.unit_cost::text, 'currency', v_row.currency::text));
+    insert into "better_supabase"."inventory_receipt_lines" ("tenant_id", "receipt_id", "purchase_order_line_id", "variant_id", "quantity", "unit_cost", "detail")
+    values (v_row.tenant, v_receipt, v_line.id, v_line.variant, v_line.quantity, v_line.unit_cost, nullif(v_line.detail, '{}'::jsonb));
   end loop;
   select coalesce(sum(y."quantity_ordered" - y."quantity_received"), 0) into v_backordered
   from "better_supabase"."purchase_order_lines" y where y."purchase_order_id" = receive_purchase_order.purchase_order;
@@ -12613,7 +14550,8 @@ begin
   update "better_supabase"."purchase_orders" x set "status" = better_supabase.as_column_type(v_status, (null::"better_supabase"."purchase_orders")."status"), "updated_at" = now()
   where x."id" = receive_purchase_order.purchase_order;
   null;
-  return jsonb_build_object('status', v_status, 'backordered', v_backordered);
+  null;
+  return jsonb_build_object('status', v_status, 'backordered', v_backordered, 'receiptId', v_receipt);
 end;
 $$;
 revoke execute on function "better_supabase"."receive_purchase_order"(uuid, jsonb) from public, anon;
@@ -12659,6 +14597,226 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_purchase_order"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_purchase_order"(uuid) to authenticated, service_role;
+
+-- Asks to buy stock for a location. lines: [{ "variantId": uuid, "quantity": n,
+-- "unitCost"?: "minor units" }]. A pending requisition waits for its
+-- decision: a holder of inventory.purchase approves or rejects it.
+create or replace function "better_supabase"."request_purchase"(tenant uuid, location uuid, lines jsonb, supplier_type text default null, supplier_id text default null, currency text default null, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', request_purchase.tenant, 'inventory.read'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = request_purchase.location and x."tenant_id" = request_purchase.tenant) then
+    raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  if (request_purchase.supplier_type is null) <> (request_purchase.supplier_id is null) then
+    raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
+  end if;
+  if request_purchase.currency is not null and "better_supabase"."currency_minor_units"(request_purchase.currency) is null then
+    raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
+  end if;
+  if jsonb_typeof(request_purchase.lines) is distinct from 'array' or jsonb_array_length(request_purchase.lines) = 0
+    or exists (
+      select 1 from jsonb_array_elements(request_purchase.lines) e
+      where jsonb_typeof(e) <> 'object'
+        or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
+        or (e ? 'unitCost' and coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$')
+    )
+    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(request_purchase.lines) e) <> jsonb_array_length(request_purchase.lines) then
+    raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(request_purchase.lines) e
+    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = request_purchase.tenant)
+  ) then
+    raise exception 'a line names a variant outside this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."purchase_requisitions" ("tenant_id", "location_id", "supplier_type", "supplier_id", "currency", "reason")
+  values (request_purchase.tenant, request_purchase.location, request_purchase.supplier_type, request_purchase.supplier_id,
+    request_purchase.currency, nullif(trim(request_purchase.reason), ''))
+  returning * into v_row;
+  insert into "better_supabase"."purchase_requisition_lines" ("tenant_id", "requisition_id", "variant_id", "quantity", "unit_cost")
+  select request_purchase.tenant, v_row."id", (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
+  from jsonb_array_elements(request_purchase.lines) e;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id",
+      'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id", 'currency', v_row."currency",
+      'status', v_row."status", 'reason', v_row."reason", 'requestedBy', v_row."requested_by",
+      'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'approvalId', v_row."approval_id",
+      'createdAt', v_row."created_at",
+      'purchaseOrderId', v_row."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) to authenticated, service_role;
+
+-- Settles a pending requisition: approved or rejected. Approvals calls it; it
+-- isn't granted to anyone.
+create or replace function "better_supabase"."purchase_requisition_decided"(requisition uuid, approved boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  update "better_supabase"."purchase_requisitions" x set "status" = case when purchase_requisition_decided.approved then 'approved' else 'rejected' end,
+    "decided_by" = auth.uid(), "decided_at" = now(), "updated_at" = now()
+  where x."id" = purchase_requisition_decided.requisition and x."status" = 'pending'
+  returning * into v_row;
+  if found and purchase_requisition_decided.approved then
+    null;
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_requisition_decided"(uuid, boolean) from public, anon, authenticated;
+
+-- Approves (approve true) or rejects a pending requisition. Needs
+-- inventory.purchase.
+create or replace function "better_supabase"."decide_purchase_requisition"(requisition uuid, approve boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  select * into v_row from "better_supabase"."purchase_requisitions" x where x."id" = decide_purchase_requisition.requisition for update;
+  if not found then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inventory.purchase'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'pending' then
+    raise exception 'only a pending requisition is decided' using errcode = '55000', hint = 'INVENTORY_REQUISITION_STATUS';
+  end if;
+  perform "better_supabase"."purchase_requisition_decided"(v_row."id", coalesce(decide_purchase_requisition.approve, false));
+  return (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id",
+      'supplierType', x."supplier_type", 'supplierId', x."supplier_id", 'currency', x."currency",
+      'status', x."status", 'reason', x."reason", 'requestedBy', x."requested_by",
+      'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'approvalId', x."approval_id",
+      'createdAt', x."created_at",
+      'purchaseOrderId', x."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = x."id"), '[]'::jsonb)) from "better_supabase"."purchase_requisitions" x where x."id" = v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_purchase_requisition"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."decide_purchase_requisition"(uuid, boolean) to authenticated, service_role;
+
+-- A draft purchase order from approved requisitions of one location: their
+-- lines summed per variant, at the highest unit cost a requisition names
+-- (0 when none does; edit the draft before placing it). The supplier and
+-- currency default to the ones the requisitions share. The requisitions
+-- become ordered.
+create or replace function "better_supabase"."purchase_order_from_requisitions"(requisitions uuid[], supplier_type text default null, supplier_id text default null, currency text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_location uuid;
+  v_supplier_type text := purchase_order_from_requisitions.supplier_type;
+  v_supplier_id text := purchase_order_from_requisitions.supplier_id;
+  v_currency text := upper(purchase_order_from_requisitions.currency);
+  v_lines jsonb;
+  v_order jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if coalesce(cardinality(purchase_order_from_requisitions.requisitions), 0) = 0 then
+    raise exception 'name at least one requisition' using errcode = '22023', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  perform 1 from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions) for update;
+  if (select count(*) from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions))
+    <> (select count(distinct r) from unnest(purchase_order_from_requisitions.requisitions) r) then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if (select count(distinct x."tenant_id") + count(distinct x."location_id") from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)) <> 2 then
+    raise exception 'requisitions on one purchase order share an organization and a location' using errcode = '22023', hint = 'INVENTORY_REQUISITION_MIXED';
+  end if;
+  select x."tenant_id", x."location_id" into v_tenant, v_location
+  from "better_supabase"."purchase_requisitions" x where x."id" = purchase_order_from_requisitions.requisitions[1];
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.purchase'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions) and x."status" <> 'approved') then
+    raise exception 'only approved requisitions become a purchase order' using errcode = '55000', hint = 'INVENTORY_REQUISITION_STATUS';
+  end if;
+  if v_supplier_id is null then
+    select min(x."supplier_type"), min(x."supplier_id") into v_supplier_type, v_supplier_id
+    from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)
+    having count(distinct coalesce(x."supplier_type", '') || ':' || coalesce(x."supplier_id", '')) = 1;
+  end if;
+  if v_currency is null then
+    select min(x."currency") into v_currency
+    from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)
+    having count(distinct x."currency") = 1;
+  end if;
+  select jsonb_agg(jsonb_build_object('variantId', y.variant, 'quantity', y.quantity::text, 'unitCost', y.unit_cost::text)) into v_lines
+  from (
+    select l."variant_id" as variant, sum(l."quantity") as quantity, coalesce(max(l."unit_cost"), 0) as unit_cost
+    from "better_supabase"."purchase_requisition_lines" l where l."requisition_id" = any (purchase_order_from_requisitions.requisitions)
+    group by 1
+  ) y;
+  v_order := "better_supabase"."save_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
+  update "better_supabase"."purchase_requisitions" x set "status" = 'ordered', "purchase_order_id" = (v_order ->> 'id')::uuid, "updated_at" = now()
+  where x."id" = any (purchase_order_from_requisitions.requisitions);
+  return v_order;
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_order_from_requisitions"(uuid[], text, text, text) from public, anon;
+grant execute on function "better_supabase"."purchase_order_from_requisitions"(uuid[], text, text, text) to authenticated, service_role;
+
+-- A requisition with its lines, readable by a holder of inventory.read.
+create or replace function "better_supabase"."get_purchase_requisition"(requisition uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  select * into v_row from "better_supabase"."purchase_requisitions" x where x."id" = get_purchase_requisition.requisition;
+  if not found then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inventory.read'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id",
+      'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id", 'currency', v_row."currency",
+      'status', v_row."status", 'reason', v_row."reason", 'requestedBy', v_row."requested_by",
+      'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'approvalId', v_row."approval_id",
+      'createdAt', v_row."created_at",
+      'purchaseOrderId', v_row."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."get_purchase_requisition"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_purchase_requisition"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -12822,6 +14980,90 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_ord
 create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisitions";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisitions" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_requisitions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisition_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_receipts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_receipts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_receipts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_receipts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipt_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_items";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_items";
 create policy bsb_tenant_scope_select on "better_supabase"."stock_items" as restrictive
@@ -12979,8 +15221,8 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:5cc0c51d80ac5780949cdf47f1bf0bedd5c5e607bf979d6b6fa57f19456ffedd
--- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
+-- @bsb-hash sha256:2e1044d50401570997079b3ed33a997199ce83b074103b3bf0d47ef53287418b
+-- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -13079,6 +15321,38 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisitions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_items";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_items";
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_items";
@@ -13133,7 +15407,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Stock per catalog variant and location in a unit with decimals: movements
 -- posted to the ledger in base units, lots, serial numbers, expiry, bins,
 -- weighted average cost, reservations with expiry, allocations with
--- backorders, transfers and purchase orders with receiving.
+-- backorders, transfers, purchase requisitions and purchase orders with
+-- receiving into goods receipts.
 
 create table if not exists "better_supabase"."inventory_locations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -13258,6 +15533,9 @@ create table if not exists "better_supabase"."purchase_orders" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "placed_at" timestamptz,
+  "ship_to" jsonb check ("ship_to" is null or jsonb_typeof("ship_to") = 'object'),
+  "origin_type" text,
+  "origin_id" text,
   check (("supplier_type" is null) = ("supplier_id" is null))
 );
 create index if not exists purchase_orders_location_idx on "better_supabase"."purchase_orders" ("location_id");
@@ -13288,6 +15566,97 @@ grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "better_supabase"."purchase_order_lines";
 create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."purchase_requisitions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "supplier_type" text,
+  "supplier_id" text,
+  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected', 'ordered', 'cancelled')),
+  "reason" text check (length("reason") <= 2000),
+  "requested_by" uuid default auth.uid(),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "approval_id" uuid,
+  "purchase_order_id" uuid references "better_supabase"."purchase_orders" ("id") on delete set null,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  check (("supplier_type" is null) = ("supplier_id" is null))
+);
+create index if not exists purchase_requisitions_status_idx on "better_supabase"."purchase_requisitions" ("org_id", "status");
+create index if not exists purchase_requisitions_location_idx on "better_supabase"."purchase_requisitions" ("location_id");
+create index if not exists purchase_requisitions_purchase_order_idx on "better_supabase"."purchase_requisitions" ("purchase_order_id");
+alter table "better_supabase"."purchase_requisitions" enable row level security;
+revoke all on "better_supabase"."purchase_requisitions" from public, anon, authenticated;
+grant select on "better_supabase"."purchase_requisitions" to authenticated;
+grant all on "better_supabase"."purchase_requisitions" to service_role;
+drop policy if exists purchase_requisitions_read on "better_supabase"."purchase_requisitions";
+create policy purchase_requisitions_read on "better_supabase"."purchase_requisitions"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."purchase_requisition_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "requisition_id" uuid not null references "better_supabase"."purchase_requisitions" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "unit_cost" bigint check ("unit_cost" >= 0),
+  unique ("requisition_id", "variant_id")
+);
+create index if not exists purchase_requisition_lines_variant_idx on "better_supabase"."purchase_requisition_lines" ("variant_id");
+alter table "better_supabase"."purchase_requisition_lines" enable row level security;
+revoke all on "better_supabase"."purchase_requisition_lines" from public, anon, authenticated;
+grant select on "better_supabase"."purchase_requisition_lines" to authenticated;
+grant all on "better_supabase"."purchase_requisition_lines" to service_role;
+drop policy if exists purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines";
+create policy purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."inventory_receipts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "inspection_id" uuid,
+  "received_by" uuid default auth.uid(),
+  "received_at" timestamptz not null default now()
+);
+create index if not exists inventory_receipts_purchase_order_idx on "better_supabase"."inventory_receipts" ("purchase_order_id");
+create index if not exists inventory_receipts_location_idx on "better_supabase"."inventory_receipts" ("location_id");
+alter table "better_supabase"."inventory_receipts" enable row level security;
+revoke all on "better_supabase"."inventory_receipts" from public, anon, authenticated;
+grant select on "better_supabase"."inventory_receipts" to authenticated;
+grant all on "better_supabase"."inventory_receipts" to service_role;
+drop policy if exists inventory_receipts_read on "better_supabase"."inventory_receipts";
+create policy inventory_receipts_read on "better_supabase"."inventory_receipts"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+create table if not exists "better_supabase"."inventory_receipt_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "receipt_id" uuid not null references "better_supabase"."inventory_receipts" ("id") on delete cascade,
+  "purchase_order_line_id" uuid not null references "better_supabase"."purchase_order_lines" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "unit_cost" bigint not null check ("unit_cost" >= 0),
+  "detail" jsonb
+);
+create index if not exists inventory_receipt_lines_receipt_idx on "better_supabase"."inventory_receipt_lines" ("receipt_id");
+create index if not exists inventory_receipt_lines_order_line_idx on "better_supabase"."inventory_receipt_lines" ("purchase_order_line_id");
+create index if not exists inventory_receipt_lines_variant_idx on "better_supabase"."inventory_receipt_lines" ("variant_id");
+alter table "better_supabase"."inventory_receipt_lines" enable row level security;
+revoke all on "better_supabase"."inventory_receipt_lines" from public, anon, authenticated;
+grant select on "better_supabase"."inventory_receipt_lines" to authenticated;
+grant all on "better_supabase"."inventory_receipt_lines" to service_role;
+drop policy if exists inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines";
+create policy inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -15084,7 +17453,8 @@ grant execute on function "better_supabase"."place_purchase_order"(uuid) to auth
 -- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
--- the quantity still on backorder.
+-- the quantity still on backorder, plus receiptId: the goods receipt of
+-- this delivery.
 create or replace function "better_supabase"."receive_purchase_order"(purchase_order uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -15096,6 +17466,7 @@ declare
   v_line record;
   v_backordered numeric;
   v_status text;
+  v_receipt uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -15122,6 +17493,9 @@ begin
     or (select count(distinct e ->> 'lineId') from jsonb_array_elements(receive_purchase_order.lines) e) <> jsonb_array_length(receive_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique lineId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
   end if;
+  insert into "better_supabase"."inventory_receipts" ("org_id", "purchase_order_id", "location_id")
+  values (v_row.tenant, receive_purchase_order.purchase_order, v_row.location)
+  returning "id" into v_receipt;
   for v_line in
     select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
@@ -15139,6 +17513,8 @@ begin
     update "better_supabase"."stock_levels" x set "incoming" = greatest(x."incoming" - v_line.quantity, 0), "updated_at" = now()
     where x."variant_id" = v_line.variant and x."location_id" = v_row.location;
     perform "better_supabase"."move_stock"(v_row.tenant, v_line.variant, v_row.location, v_line.quantity, 'receipt', 'purchase_order', receive_purchase_order.purchase_order::text, null, v_line.detail || jsonb_build_object('unitCost', v_line.unit_cost::text, 'currency', v_row.currency::text));
+    insert into "better_supabase"."inventory_receipt_lines" ("org_id", "receipt_id", "purchase_order_line_id", "variant_id", "quantity", "unit_cost", "detail")
+    values (v_row.tenant, v_receipt, v_line.id, v_line.variant, v_line.quantity, v_line.unit_cost, nullif(v_line.detail, '{}'::jsonb));
   end loop;
   select coalesce(sum(y."quantity_ordered" - y."quantity_received"), 0) into v_backordered
   from "better_supabase"."purchase_order_lines" y where y."purchase_order_id" = receive_purchase_order.purchase_order;
@@ -15146,7 +17522,8 @@ begin
   update "better_supabase"."purchase_orders" x set "status" = v_status, "updated_at" = now()
   where x."id" = receive_purchase_order.purchase_order;
   null;
-  return jsonb_build_object('status', v_status, 'backordered', v_backordered);
+  null;
+  return jsonb_build_object('status', v_status, 'backordered', v_backordered, 'receiptId', v_receipt);
 end;
 $$;
 revoke execute on function "better_supabase"."receive_purchase_order"(uuid, jsonb) from public, anon;
@@ -15192,6 +17569,226 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_purchase_order"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_purchase_order"(uuid) to authenticated, service_role;
+
+-- Asks to buy stock for a location. lines: [{ "variantId": uuid, "quantity": n,
+-- "unitCost"?: "minor units" }]. A pending requisition waits for its
+-- decision: a holder of inventory.purchase approves or rejects it.
+create or replace function "better_supabase"."request_purchase"(tenant uuid, location uuid, lines jsonb, supplier_type text default null, supplier_id text default null, currency text default null, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', request_purchase.tenant, 'inventory.read'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = request_purchase.location and x."org_id" = request_purchase.tenant) then
+    raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  if (request_purchase.supplier_type is null) <> (request_purchase.supplier_id is null) then
+    raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
+  end if;
+  if request_purchase.currency is not null and "better_supabase"."currency_minor_units"(request_purchase.currency) is null then
+    raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
+  end if;
+  if jsonb_typeof(request_purchase.lines) is distinct from 'array' or jsonb_array_length(request_purchase.lines) = 0
+    or exists (
+      select 1 from jsonb_array_elements(request_purchase.lines) e
+      where jsonb_typeof(e) <> 'object'
+        or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
+        or (e ? 'unitCost' and coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$')
+    )
+    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(request_purchase.lines) e) <> jsonb_array_length(request_purchase.lines) then
+    raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(request_purchase.lines) e
+    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."org_id" = request_purchase.tenant)
+  ) then
+    raise exception 'a line names a variant outside this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."purchase_requisitions" ("org_id", "location_id", "supplier_type", "supplier_id", "currency", "reason")
+  values (request_purchase.tenant, request_purchase.location, request_purchase.supplier_type, request_purchase.supplier_id,
+    request_purchase.currency, nullif(trim(request_purchase.reason), ''))
+  returning * into v_row;
+  insert into "better_supabase"."purchase_requisition_lines" ("org_id", "requisition_id", "variant_id", "quantity", "unit_cost")
+  select request_purchase.tenant, v_row."id", (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
+  from jsonb_array_elements(request_purchase.lines) e;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'locationId', v_row."location_id",
+      'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id", 'currency', v_row."currency",
+      'status', v_row."status", 'reason', v_row."reason", 'requestedBy', v_row."requested_by",
+      'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'approvalId', v_row."approval_id",
+      'createdAt', v_row."created_at",
+      'purchaseOrderId', v_row."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."request_purchase"(uuid, uuid, jsonb, text, text, text, text) to authenticated, service_role;
+
+-- Settles a pending requisition: approved or rejected. Approvals calls it; it
+-- isn't granted to anyone.
+create or replace function "better_supabase"."purchase_requisition_decided"(requisition uuid, approved boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  update "better_supabase"."purchase_requisitions" x set "status" = case when purchase_requisition_decided.approved then 'approved' else 'rejected' end,
+    "decided_by" = auth.uid(), "decided_at" = now(), "updated_at" = now()
+  where x."id" = purchase_requisition_decided.requisition and x."status" = 'pending'
+  returning * into v_row;
+  if found and purchase_requisition_decided.approved then
+    null;
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_requisition_decided"(uuid, boolean) from public, anon, authenticated;
+
+-- Approves (approve true) or rejects a pending requisition. Needs
+-- inventory.purchase.
+create or replace function "better_supabase"."decide_purchase_requisition"(requisition uuid, approve boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  select * into v_row from "better_supabase"."purchase_requisitions" x where x."id" = decide_purchase_requisition.requisition for update;
+  if not found then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row."org_id", 'inventory.purchase'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'pending' then
+    raise exception 'only a pending requisition is decided' using errcode = '55000', hint = 'INVENTORY_REQUISITION_STATUS';
+  end if;
+  perform "better_supabase"."purchase_requisition_decided"(v_row."id", coalesce(decide_purchase_requisition.approve, false));
+  return (select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'locationId', x."location_id",
+      'supplierType', x."supplier_type", 'supplierId', x."supplier_id", 'currency', x."currency",
+      'status', x."status", 'reason', x."reason", 'requestedBy', x."requested_by",
+      'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'approvalId', x."approval_id",
+      'createdAt', x."created_at",
+      'purchaseOrderId', x."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = x."id"), '[]'::jsonb)) from "better_supabase"."purchase_requisitions" x where x."id" = v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_purchase_requisition"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."decide_purchase_requisition"(uuid, boolean) to authenticated, service_role;
+
+-- A draft purchase order from approved requisitions of one location: their
+-- lines summed per variant, at the highest unit cost a requisition names
+-- (0 when none does; edit the draft before placing it). The supplier and
+-- currency default to the ones the requisitions share. The requisitions
+-- become ordered.
+create or replace function "better_supabase"."purchase_order_from_requisitions"(requisitions uuid[], supplier_type text default null, supplier_id text default null, currency text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_location uuid;
+  v_supplier_type text := purchase_order_from_requisitions.supplier_type;
+  v_supplier_id text := purchase_order_from_requisitions.supplier_id;
+  v_currency text := upper(purchase_order_from_requisitions.currency);
+  v_lines jsonb;
+  v_order jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if coalesce(cardinality(purchase_order_from_requisitions.requisitions), 0) = 0 then
+    raise exception 'name at least one requisition' using errcode = '22023', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  perform 1 from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions) for update;
+  if (select count(*) from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions))
+    <> (select count(distinct r) from unnest(purchase_order_from_requisitions.requisitions) r) then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if (select count(distinct x."org_id") + count(distinct x."location_id") from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)) <> 2 then
+    raise exception 'requisitions on one purchase order share an organization and a location' using errcode = '22023', hint = 'INVENTORY_REQUISITION_MIXED';
+  end if;
+  select x."org_id", x."location_id" into v_tenant, v_location
+  from "better_supabase"."purchase_requisitions" x where x."id" = purchase_order_from_requisitions.requisitions[1];
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.purchase'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions) and x."status" <> 'approved') then
+    raise exception 'only approved requisitions become a purchase order' using errcode = '55000', hint = 'INVENTORY_REQUISITION_STATUS';
+  end if;
+  if v_supplier_id is null then
+    select min(x."supplier_type"), min(x."supplier_id") into v_supplier_type, v_supplier_id
+    from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)
+    having count(distinct coalesce(x."supplier_type", '') || ':' || coalesce(x."supplier_id", '')) = 1;
+  end if;
+  if v_currency is null then
+    select min(x."currency") into v_currency
+    from "better_supabase"."purchase_requisitions" x where x."id" = any (purchase_order_from_requisitions.requisitions)
+    having count(distinct x."currency") = 1;
+  end if;
+  select jsonb_agg(jsonb_build_object('variantId', y.variant, 'quantity', y.quantity::text, 'unitCost', y.unit_cost::text)) into v_lines
+  from (
+    select l."variant_id" as variant, sum(l."quantity") as quantity, coalesce(max(l."unit_cost"), 0) as unit_cost
+    from "better_supabase"."purchase_requisition_lines" l where l."requisition_id" = any (purchase_order_from_requisitions.requisitions)
+    group by 1
+  ) y;
+  v_order := "better_supabase"."save_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
+  update "better_supabase"."purchase_requisitions" x set "status" = 'ordered', "purchase_order_id" = (v_order ->> 'id')::uuid, "updated_at" = now()
+  where x."id" = any (purchase_order_from_requisitions.requisitions);
+  return v_order;
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_order_from_requisitions"(uuid[], text, text, text) from public, anon;
+grant execute on function "better_supabase"."purchase_order_from_requisitions"(uuid[], text, text, text) to authenticated, service_role;
+
+-- A requisition with its lines, readable by a holder of inventory.read.
+create or replace function "better_supabase"."get_purchase_requisition"(requisition uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."purchase_requisitions";
+begin
+  select * into v_row from "better_supabase"."purchase_requisitions" x where x."id" = get_purchase_requisition.requisition;
+  if not found then
+    raise exception 'purchase requisition not found' using errcode = 'P0002', hint = 'INVENTORY_REQUISITION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row."org_id", 'inventory.read'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'locationId', v_row."location_id",
+      'supplierType', v_row."supplier_type", 'supplierId', v_row."supplier_id", 'currency', v_row."currency",
+      'status', v_row."status", 'reason', v_row."reason", 'requestedBy', v_row."requested_by",
+      'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'approvalId', v_row."approval_id",
+      'createdAt', v_row."created_at",
+      'purchaseOrderId', v_row."purchase_order_id",
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
+        'unitCost', y."unit_cost"::text) order by y."variant_id") from "better_supabase"."purchase_requisition_lines" y where y."requisition_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."get_purchase_requisition"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_purchase_requisition"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -15353,6 +17950,90 @@ create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_lines
   with check ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisitions";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisitions" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_requisitions" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_requisitions" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_requisitions" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_requisition_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisition_lines" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_requisition_lines" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_requisition_lines" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_requisition_lines" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_receipts" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_receipts" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_receipts" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipts";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_receipts" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_receipt_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_receipt_lines" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_receipt_lines" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_receipt_lines" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_receipt_lines" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_items";

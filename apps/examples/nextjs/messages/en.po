@@ -13436,6 +13436,21 @@ msgctxt "shop.7t4Jbq"
 msgid "Create code"
 msgstr "Create code"
 
+#: src/features/shop/components/request-purchase-button.tsx
+msgctxt "shop.l4-R6R"
+msgid "Request purchase"
+msgstr "Request purchase"
+
+#: src/features/shop/components/request-purchase-button.tsx
+msgctxt "shop.UYH-bA"
+msgid "Request {quantity} of {label}"
+msgstr "Request {quantity} of {label}"
+
+#: src/features/shop/components/request-purchase-button.tsx
+msgctxt "shop.x11Lxx"
+msgid "Purchase requested"
+msgstr "Purchase requested"
+
 #: src/features/signing-keys/components/rotate-signing-key-button.tsx
 msgctxt "signingKeys.gHsayi"
 msgid "Create a signing key"

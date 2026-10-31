@@ -1,6 +1,6 @@
 ---
 title: Inventory
-description: Stock per catalog variant and location on the ledger block, in whole or fractional units, with lots, serials, expiry, bins, average cost, reservations, allocations with backorders, transfers and purchase orders.
+description: Stock per catalog variant and location on the ledger block, in whole or fractional units, with lots, serials, expiry, bins, average cost, reservations, allocations with backorders, transfers, purchase requisitions, and purchase orders with their receipts.
 ---
 
 `inventory` counts the stock of [catalog](/docs/blocks/catalog) variants at
@@ -26,12 +26,12 @@ The module needs `tenant`, `permissions` and `catalog`, and emits events when
 
 ## Permissions
 
-| Key                  | What it allows                                            |
-| -------------------- | --------------------------------------------------------- |
-| `inventory.read`     | Read locations, levels, movements and the other tables    |
-| `inventory.manage`   | Locations, adjustments, counts, reorder points, transfers |
-| `inventory.reserve`  | Reserve, commit and release stock                         |
-| `inventory.purchase` | Create, place, receive and cancel purchase orders         |
+| Key                  | What it allows                                                         |
+| -------------------- | ---------------------------------------------------------------------- |
+| `inventory.read`     | Read locations, levels, movements and the other tables                 |
+| `inventory.manage`   | Locations, adjustments, counts, reorder points, transfers              |
+| `inventory.reserve`  | Reserve, commit and release stock                                      |
+| `inventory.purchase` | Create, place, receive and cancel purchase orders; decide requisitions |
 
 The owner role holds `*`. Give the other roles the keys they need:
 
@@ -350,7 +350,77 @@ removes the units still owed from incoming.
 
 Unit costs are `bigint` minor units in the order's currency, checked against
 the catalog's ISO 4217 list. The supplier is a `config.subjects` type and id,
-such as a CRM company; the module stores the pair and doesn't check it.
+such as a CRM company. With the [contacts](/docs/blocks/contacts) block
+installed, a supplier whose `supplier_status` is `blocked` can't get a
+purchase order: saving or placing one fails with
+`PURCHASE_ORDER_SUPPLIER_BLOCKED`. Without contacts the module stores the pair
+and doesn't check it.
+
+### Receipts
+
+Every `receivePurchaseOrder` call writes one `inventory_receipts` row with an
+`inventory_receipt_lines` row per received line, and returns its id as
+`receiptId`. The [invoices](/docs/blocks/invoices#purchase-bills) block reads
+the received quantities from these lines when it matches a purchase bill.
+
+To inspect incoming goods, install the
+[inspections](/docs/blocks/inspections) block and set `receiptInspection` to
+one of its kinds. Each receipt then schedules an inspection of that kind with
+the receipt as its auditee, and stores its id on the receipt:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  inventory: { options: { receiptInspection: "inspection" } },
+},
+```
+
+A kind missing from the inspections block's `kinds` option fails when the SQL
+renders.
+
+### Requisitions
+
+A requisition asks to buy stock before anyone writes a purchase order. Any
+member with `inventory.read` can request one; it starts `pending`.
+
+```ts
+const requisition = await inventory
+  .requestPurchase(organizationId, {
+    locationId: warehouse.id,
+    lines: [{ variantId, quantity: 40, unitCost: money(450n, "EUR") }],
+    reason: "Restock before the spring sale",
+  })
+  .orThrow();
+
+await inventory.decidePurchaseRequisition(requisition.id, true).orThrow();
+
+const order = await inventory
+  .purchaseOrderFromRequisitions([requisition.id], {
+    supplier: { type: "company", id: supplierId },
+  })
+  .orThrow();
+```
+
+Without the [approvals](/docs/blocks/approvals) block, a holder of
+`inventory.purchase` approves or rejects a pending requisition with
+`decidePurchaseRequisition`. With approvals installed, `requestPurchase` opens
+an approval request for the `purchase_requisition` subject under the
+organization's policy (a holder of `inventory.purchase` by default), and the
+decision comes from that request: `decidePurchaseRequisition` then fails with
+`INVENTORY_REQUISITION_APPROVAL_PENDING`.
+
+`purchaseOrderFromRequisitions` turns approved requisitions of one
+organization and location into one draft purchase order, summing their lines
+per variant, and marks them `ordered`. Requisitions at different locations
+fail with `INVENTORY_REQUISITION_MIXED`, and one that isn't approved fails with
+`INVENTORY_REQUISITION_STATUS`. The supplier and currency default to the ones
+the requisitions share.
+
+### Drop ship
+
+`db.orders.purchaseOrderFromOrder(orderId, supplier)` drafts a purchase order
+for an order's catalog lines with the order's shipping address as the purchase
+order's `ship_to`, so the supplier ships to the customer. See
+[orders](/docs/blocks/orders#drop-ship).
 
 ## Events
 
@@ -363,6 +433,8 @@ such as a CRM company; the module stores the pair and doesn't check it.
 | `allocation.created`, `allocation.filled`, `allocation.released`               | `allocate`, a backorder filled, a release        |
 | `transfer.shipped`, `transfer.received`, `transfer.cancelled`                  | A transfer step                                  |
 | `purchase_order.placed`, `purchase_order.received`, `purchase_order.cancelled` | A purchase order step                            |
+| `purchase_requisition.created`, `purchase_requisition.approved`                | `requestPurchase`, an approval                   |
+| `inventory_receipt.created`                                                    | A receipt of a purchase order                    |
 
 `stock.reorder_point_reached` is a subject event on the `product_variant`
 subject, so the [watcher sink](/docs/blocks/notifications#watchers) notifies

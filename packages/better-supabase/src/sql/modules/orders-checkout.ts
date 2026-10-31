@@ -13,6 +13,7 @@ import {
 import { variantTracked } from "./catalog-tracking.ts";
 import { locationsOf, moveStock } from "./inventory-stock.ts";
 import { releaseAllocations } from "./orders-documents.ts";
+import { orderCreditSql } from "./orders-procurement.ts";
 import {
   amountOf,
   asService,
@@ -376,7 +377,7 @@ begin
       ${fail("ORDERS_TAX_INVALID", "the tax lines don't add up to totalTax", "22023")}
     end if;
   end if;
-  v_total := (v_priced ->> 'total')::bigint + case when v_inclusive then 0 else v_tax end;
+  v_total := (v_priced ->> 'total')::bigint + case when v_inclusive then 0 else v_tax end;${orderCreditSql(ctx)}
   ${assignNumber(ctx, "order", "v_cart.tenant", { seq: "v_seq", number: "v_number" })}
   insert into ${orders} (${o("tenant")}, ${o("number")}, ${o("sequence")}, ${o("cart")}, ${o("customer")}, ${email ? `${o("email")}, ` : ""}${o("currency")},
     ${o("subtotal")}, ${o("discountTotal")}, ${o("shippingTotal")}, ${o("taxTotal")}, ${o("total")}, ${o("taxInclusive")},

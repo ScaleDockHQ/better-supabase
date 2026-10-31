@@ -1,7 +1,7 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:073639601587b487bc545738ca70c81522e57999e6c8f609fbdef91c65f7e08e
--- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
+-- @bsb-hash sha256:769dddf2d13bc274cc7469b622f1cdb5cfc26eebfce76292fe66a88cbcb2fb4a
+-- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -71,8 +71,9 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
--- Invoices an organization sends its own customers: drafts with lines, a
--- number on issue, payments, credit notes, void and write-off, and aging.
+-- Invoices an organization sends its own customers and the bills its
+-- suppliers send it: drafts with lines, a number on issue, payments, credit
+-- notes, void and write-off, aging and the three-way match of a bill.
 
 create table if not exists "better_supabase"."invoices" (
   "id" uuid primary key default gen_random_uuid(),
@@ -101,6 +102,10 @@ create table if not exists "better_supabase"."invoices" (
   "origin_id" text,
   "deposit_bps" integer check ("deposit_bps" > 0 and "deposit_bps" < 10000),
   "prices_include_tax" boolean not null default false,
+  "direction" text not null default 'sales' check ("direction" in ('sales', 'purchase')),
+  "supplier_reference" text check (length("supplier_reference") <= 200),
+  "purchase_order_id" uuid,
+  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -109,7 +114,7 @@ create table if not exists "better_supabase"."invoices" (
   "subtotal" bigint not null default 0,
   "tax_total" bigint not null default 0,
   "total" bigint not null default 0,
-  unique ("tenant_id", "kind", "number"),
+  unique ("tenant_id", "direction", "kind", "number"),
   check (("kind" = 'credit_note') = ("original_id" is not null)),
   check ("status" <> 'draft' or "number" is null),
   check ("status" in ('draft', 'void') or "number" is not null),
@@ -122,6 +127,7 @@ create index if not exists invoices_tenant_status_idx on "better_supabase"."invo
 create index if not exists invoices_origin_idx on "better_supabase"."invoices" ("origin_type", "origin_id");
 create index if not exists invoices_original_idx on "better_supabase"."invoices" ("original_id");
 create index if not exists invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
+create index if not exists invoices_purchase_order_idx on "better_supabase"."invoices" ("purchase_order_id");
 alter table "better_supabase"."invoices" enable row level security;
 revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
@@ -172,11 +178,22 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', create_invoice.tenant, 'invoices.write'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', create_invoice.tenant, case when create_invoice.attrs ->> 'direction' = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) then
     raise exception 'not allowed to change invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
   if nullif(trim(create_invoice.attrs ->> 'title'), '') is null then
     raise exception 'an invoice needs a title' using errcode = '23502', hint = 'INVOICE_ATTRS_INVALID';
+  end if;
+  if create_invoice.attrs ->> 'purchaseOrderId' is not null then
+    if create_invoice.attrs ->> 'direction' is distinct from 'purchase' then
+      raise exception 'only a purchase bill refers to a purchase order' using errcode = '22023', hint = 'INVOICE_PURCHASE_ORDER_INVALID';
+    end if;
+    if not exists (select 1 from "better_supabase"."purchase_orders" y where y."id"::text = (create_invoice.attrs ->> 'purchaseOrderId') and y."tenant_id" = create_invoice.tenant) then
+      raise exception 'no such purchase order in this organization' using errcode = 'P0002', hint = 'INVOICE_PURCHASE_ORDER_NOT_FOUND';
+    end if;
+  end if;
+  if create_invoice.attrs ? 'dimensions' and jsonb_typeof(create_invoice.attrs -> 'dimensions') not in ('object', 'null') then
+    raise exception 'dimensions is an object of dimension keys and value codes' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
   end if;
   if v_company_id is not null and not (case v_company_type
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = create_invoice.tenant::text)
@@ -288,13 +305,13 @@ begin
   end if;
   begin
     insert into "better_supabase"."invoices" ("tenant_id", "title", "company_type", "company_id", "contact_type", "contact_id", "currency",
-      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "deposit_amount", "discount_bps", "discount_amount", "prices_include_tax", "created_by")
+      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "deposit_amount", "discount_bps", "discount_amount", "prices_include_tax", "direction", "supplier_reference", "purchase_order_id", "dimensions", "created_by")
     values (create_invoice.tenant, trim(create_invoice.attrs ->> 'title'),
       case when v_company_id is null then null else v_company_type end, v_company_id,
       case when v_contact_id is null then null else v_contact_type end, v_contact_id,
       upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR')), case when create_invoice.attrs ? 'termsDays' then (create_invoice.attrs ->> 'termsDays')::integer else 30 end,
       create_invoice.attrs ->> 'note', create_invoice.attrs -> 'origin' ->> 'type', create_invoice.attrs -> 'origin' ->> 'id',
-      (create_invoice.attrs ->> 'depositBps')::integer, (create_invoice.attrs ->> 'depositAmount')::bigint, coalesce((create_invoice.attrs ->> 'discountBps')::integer, 0), coalesce((create_invoice.attrs ->> 'discountAmount')::bigint, 0), coalesce((create_invoice.attrs ->> 'pricesIncludeTax')::boolean, false), auth.uid())
+      (create_invoice.attrs ->> 'depositBps')::integer, (create_invoice.attrs ->> 'depositAmount')::bigint, coalesce((create_invoice.attrs ->> 'discountBps')::integer, 0), coalesce((create_invoice.attrs ->> 'discountAmount')::bigint, 0), coalesce((create_invoice.attrs ->> 'pricesIncludeTax')::boolean, false), coalesce(create_invoice.attrs ->> 'direction', 'sales'), nullif(trim(create_invoice.attrs ->> 'supplierReference'), ''), (create_invoice.attrs ->> 'purchaseOrderId')::uuid, coalesce(nullif(create_invoice.attrs -> 'dimensions', 'null'::jsonb), '{}'::jsonb), auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation or numeric_value_out_of_range then
     raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
@@ -344,7 +361,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
   if v_row."id" is null then
     raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
@@ -354,6 +371,17 @@ begin
   if jsonb_typeof(update_invoice.attrs) is distinct from 'object'
     or (update_invoice.attrs ? 'title' and nullif(trim(update_invoice.attrs ->> 'title'), '') is null) then
     raise exception 'attrs is an object, and a title isn''t empty' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
+  end if;
+  if update_invoice.attrs ->> 'purchaseOrderId' is not null then
+    if v_row."direction" is distinct from 'purchase' then
+      raise exception 'only a purchase bill refers to a purchase order' using errcode = '22023', hint = 'INVOICE_PURCHASE_ORDER_INVALID';
+    end if;
+    if not exists (select 1 from "better_supabase"."purchase_orders" y where y."id"::text = (update_invoice.attrs ->> 'purchaseOrderId') and y."tenant_id" = v_row."tenant_id") then
+      raise exception 'no such purchase order in this organization' using errcode = 'P0002', hint = 'INVOICE_PURCHASE_ORDER_NOT_FOUND';
+    end if;
+  end if;
+  if update_invoice.attrs ? 'dimensions' and jsonb_typeof(update_invoice.attrs -> 'dimensions') not in ('object', 'null') then
+    raise exception 'dimensions is an object of dimension keys and value codes' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
   end if;
   if v_company_id is not null and not (case v_company_type
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_company_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -477,6 +505,9 @@ begin
       "deposit_amount" = case when update_invoice.attrs ? 'depositAmount' then (update_invoice.attrs ->> 'depositAmount')::bigint else x."deposit_amount" end,
       "discount_bps" = case when update_invoice.attrs ? 'discountBps' then coalesce((update_invoice.attrs ->> 'discountBps')::integer, 0) else x."discount_bps" end,
       "discount_amount" = case when update_invoice.attrs ? 'discountAmount' then coalesce((update_invoice.attrs ->> 'discountAmount')::bigint, 0) else x."discount_amount" end,
+      "supplier_reference" = case when update_invoice.attrs ? 'supplierReference' then nullif(trim(update_invoice.attrs ->> 'supplierReference'), '') else x."supplier_reference" end,
+      "purchase_order_id" = case when update_invoice.attrs ? 'purchaseOrderId' then (update_invoice.attrs ->> 'purchaseOrderId')::uuid else x."purchase_order_id" end,
+      "dimensions" = case when update_invoice.attrs ? 'dimensions' then coalesce(nullif(update_invoice.attrs -> 'dimensions', 'null'::jsonb), '{}'::jsonb) else x."dimensions" end,
       "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -514,7 +545,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
   if v_row."id" is null then
     raise exception 'no such invoice you can delete' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
@@ -697,7 +728,7 @@ begin
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false))) then
+  if not exists (select 1 from "better_supabase"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) then
     raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if jsonb_typeof(coalesce(set_invoice_lines.lines, '[]')) <> 'array' then
@@ -757,7 +788,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
   if v_row."id" is null then
     raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
@@ -794,13 +825,40 @@ begin
     if v_row."total" > v_original."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_original."id"), 0) - v_original."credited_total" then
       raise exception 'a credit note can''t exceed the invoice''s total less its earlier credits' using errcode = '23514', hint = 'INVOICE_CREDIT_TOO_LARGE';
     end if;
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':credit_note', 0));
-  select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
+    if v_row."direction" = 'purchase' then
+      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_credit_note', 0));
+  select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'purchase' and k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
+  v_identifier := 'BCN-' || v_seq::text;
+    else
+      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':credit_note', 0));
+  select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'sales' and k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'CN-' || v_seq::text;
+    end if;
   else
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':invoice', 0));
-  select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."kind" = 'invoice') x where x."tenant_id" = v_row."tenant_id";
+    if v_row."direction" = 'purchase' then
+      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_bill', 0));
+  select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'purchase' and k."kind" = 'invoice') x where x."tenant_id" = v_row."tenant_id";
+  v_identifier := 'BILL-' || v_seq::text;
+    else
+      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':invoice', 0));
+  select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'sales' and k."kind" = 'invoice') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'INV-' || v_seq::text;
+    end if;
+  end if;
+  if v_row."kind" = 'invoice' and not v_row."direction" = 'purchase' and coalesce(v_row."company_id"::text, v_row."contact_id"::text) is not null then
+    declare
+      v_limit bigint;
+    begin
+      select s.credit_limit into v_limit from (select p."credit_limit", p."credit_currency" from "better_supabase"."companies" p where p."id"::text = coalesce(v_row."company_id"::text, v_row."contact_id"::text) and p."tenant_id" = v_row."tenant_id" and p."merged_into" is null union all select p."credit_limit", p."credit_currency" from "better_supabase"."people" p where p."id"::text = coalesce(v_row."company_id"::text, v_row."contact_id"::text) and p."tenant_id" = v_row."tenant_id" and p."merged_into" is null) s(credit_limit, credit_currency)
+      where s.credit_limit is not null and coalesce(s.credit_currency, v_row."currency") = v_row."currency"
+      order by s.credit_limit limit 1;
+      if v_limit is not null and (select coalesce(sum((o."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = o."id"), 0) - o."credited_total" - o."paid_total")), 0) from "better_supabase"."invoices" o
+        where o."tenant_id" = v_row."tenant_id" and o."id" <> v_row."id" and o."currency" = v_row."currency"
+          and coalesce(o."company_id"::text, o."contact_id"::text) = coalesce(v_row."company_id"::text, v_row."contact_id"::text) and not o."direction" = 'purchase'
+          and o."kind" = 'invoice' and o."status" in ('issued', 'partially_paid')) + v_row."total" > v_limit and not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'orders.override_credit'), false)) then
+        raise exception 'this invoice takes the customer over their credit limit' using errcode = '55000', hint = 'INVOICE_CREDIT_LIMIT_EXCEEDED';
+      end if;
+    end;
   end if;
   update "better_supabase"."invoices" x set "status" = 'issued', "number" = v_seq, "identifier" = v_identifier,
     "issued_on" = v_issued_on,
@@ -879,7 +937,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
   if v_row."id" is null then
     raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
@@ -891,6 +949,11 @@ begin
   end if;
   if upper(record_invoice_payment.currency) is distinct from v_row."currency" then
     raise exception 'a payment must be in the invoice''s currency' using errcode = '22023', hint = 'INVOICE_CURRENCY_MISMATCH';
+  end if;
+  if v_row."direction" = 'purchase' and v_row."purchase_order_id" is not null and record_invoice_payment.amount > 0
+    and "better_supabase"."invoice_match_result"(v_row."id") ->> 'status' <> 'matched'
+    and not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.override_match'), false)) then
+    raise exception 'the bill doesn''t match its purchase order and receipts; someone with invoices.override_match can pay it' using errcode = '55000', hint = 'INVOICE_MATCH_FAILED';
   end if;
   if record_invoice_payment.actor is not null then
     if jsonb_typeof(record_invoice_payment.actor) <> 'object' then
@@ -939,7 +1002,7 @@ begin
       v_row."currency"::text, 0::smallint, 'invoices', v_row."id"::text,
       null, true, 'invoices.read', 'invoices', null), 'amount', -record_invoice_payment.amount),
       jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'cash',
-      'invoices:cash:' || v_row."currency", 'Invoice payments ' || v_row."currency",
+      case when v_row."direction" = 'purchase' then 'invoices:paid:' || v_row."currency" else 'invoices:cash:' || v_row."currency" end, 'Invoice payments ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null,
       null, true, 'invoices.read', 'invoices', null), 'amount', record_invoice_payment.amount)),
     'invoices', v_row."id"::text, null,
@@ -1023,7 +1086,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false));
+  select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false));
   if v_original."id" is null then
     raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
@@ -1031,10 +1094,10 @@ begin
     raise exception 'only an issued invoice is credited' using errcode = '55000', hint = 'INVOICE_NOT_CREDITABLE';
   end if;
   insert into "better_supabase"."invoices" ("tenant_id", "kind", "original_id", "title", "company_type", "company_id", "contact_type", "contact_id",
-    "currency", "terms_days", "note", "prices_include_tax", "created_by")
+    "currency", "terms_days", "note", "prices_include_tax", "direction", "supplier_reference", "purchase_order_id", "dimensions", "created_by")
   values (v_original."tenant_id", 'credit_note', v_original."id", 'Credit for ' || coalesce(v_original."identifier", v_original."title"),
     v_original."company_type", v_original."company_id", v_original."contact_type", v_original."contact_id",
-    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), v_original."prices_include_tax", auth.uid())
+    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), v_original."prices_include_tax", v_original."direction", v_original."supplier_reference", v_original."purchase_order_id", v_original."dimensions", auth.uid())
   returning * into v_row;
   if credit_invoice.lines is null then
     insert into "better_supabase"."invoice_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
@@ -1074,7 +1137,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.manage'), false)) for update;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) for update;
   if v_row."id" is null then
     raise exception 'no such invoice you can manage' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
@@ -1152,7 +1215,7 @@ begin
   perform set_config('better_supabase.transition_actor', coalesce(write_off_invoice.actor::text, ''), true);
   perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(write_off_invoice.reason), ''), ''), true);
   update "better_supabase"."invoices" x set "status" = 'uncollectible', "updated_at" = now()
-  where x."id" = write_off_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.manage'), false)) and x."status" in ('issued', 'partially_paid')
+  where x."id" = write_off_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) and x."status" in ('issued', 'partially_paid')
   returning * into v_row;
   if v_row."id" is null then
     raise exception 'only an open invoice you can manage is written off' using errcode = '55000', hint = 'INVOICE_NOT_OPEN';
@@ -1203,7 +1266,7 @@ begin
   end if;
   select y."metadata" into v_meta from "better_supabase"."ledger_transactions" y
   where y."id" = reverse_invoice_payment.payment and y."reference_type" = 'invoices';
-  select * into v_row from "better_supabase"."invoices" x where x."id" = (v_meta ->> 'invoiceId')::uuid and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.manage'), false)) for update;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = (v_meta ->> 'invoiceId')::uuid and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) for update;
   if v_meta is null or v_row."id" is null then
     raise exception 'no such payment on an invoice you can manage' using errcode = 'P0002', hint = 'INVOICE_PAYMENT_NOT_FOUND';
   end if;
@@ -1294,7 +1357,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
   if v_row."id" is null then
     raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
@@ -1374,7 +1437,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x.* into v_row from "better_supabase"."invoices" x join "better_supabase"."invoice_charges" c on c."invoice_id" = x."id"
-  where c."id" = remove_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false))
+  where c."id" = remove_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))
   for update of x;
   if v_row."id" is null then
     raise exception 'no such charge on an invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_CHARGE_NOT_FOUND';
@@ -1435,7 +1498,9 @@ grant execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb)
 
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
-create or replace function "better_supabase"."invoice_aging"(tenant uuid, currency text, as_of date)
+-- direction: sales (what customers owe) or purchase (what it owes suppliers).
+drop function if exists "better_supabase"."invoice_aging"(uuid, text, date);
+create or replace function "better_supabase"."invoice_aging"(tenant uuid, currency text, as_of date, direction text default 'sales')
 returns jsonb
 language sql
 stable
@@ -1446,7 +1511,7 @@ as $$
     select (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") as balance, coalesce(invoice_aging.as_of, current_date) - x."due_on" as late
     from "better_supabase"."invoices" x
     where x."tenant_id" = invoice_aging.tenant and x."currency" = upper(invoice_aging.currency)
-      and x."kind" = 'invoice' and x."status" in ('issued', 'partially_paid')
+      and x."kind" = 'invoice' and x."status" in ('issued', 'partially_paid') and x."direction" = coalesce(invoice_aging.direction, 'sales')
   )
   select jsonb_build_object(
     'currency', upper(invoice_aging.currency),
@@ -1460,8 +1525,8 @@ as $$
   )
   from open
 $$;
-revoke execute on function "better_supabase"."invoice_aging"(uuid, text, date) from public, anon;
-grant execute on function "better_supabase"."invoice_aging"(uuid, text, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."invoice_aging"(uuid, text, date, text) from public, anon;
+grant execute on function "better_supabase"."invoice_aging"(uuid, text, date, text) to authenticated, service_role;
 
 -- An invoice from an accepted quote. With deposit_bps (2000 for 20%) it is
 -- a deposit invoice for that share of the quote, and with deposit_amount
@@ -1564,8 +1629,99 @@ $$;
 revoke execute on function "better_supabase"."invoice_from_quote"(uuid, integer, bigint, text) from public, anon;
 grant execute on function "better_supabase"."invoice_from_quote"(uuid, integer, bigint, text) to authenticated, service_role;
 
+-- The three-way match of a purchase bill: each product line against its
+-- purchase order line (by variant) and what was received. A variant billed
+-- beyond what arrived, across the order's bills, is a quantity variance; a
+-- line whose amount differs from the order's unit cost by more than
+-- options.matchTolerance (100 basis points or 500 minor units, whichever
+-- is larger) is a price variance; nothing received is not_received. The
+-- worst line decides. A bill without a purchase order is not_applicable.
+create or replace function "better_supabase"."invoice_match_result"(invoice uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_result jsonb;
+begin
+  select * into v_row from "better_supabase"."invoices" x where x."id" = invoice_match_result.invoice;
+  if v_row."purchase_order_id" is null then
+    return jsonb_build_object('invoiceId', v_row."id", 'currency', v_row."currency", 'purchaseOrderId', null, 'status', 'not_applicable', 'lines', '[]'::jsonb);
+  end if;
+  with billed as (
+    select il."parent_id" as bill, (il."product_id")::text as variant, sum(il."quantity") as quantity,
+      sum(case when b."prices_include_tax" then round((round(il."quantity" * il."unit_amount") - round(round(il."quantity" * il."unit_amount") * il."discount_bps" / 10000.0)) * 10000.0 / (10000 + il."tax_rate_bps")) else round(il."quantity" * il."unit_amount") - round(round(il."quantity" * il."unit_amount") * il."discount_bps" / 10000.0) end) as net
+    from "better_supabase"."invoice_lines" il join "better_supabase"."invoices" b on b."id" = il."parent_id"
+    where b."purchase_order_id" = v_row."purchase_order_id" and b."direction" = 'purchase'
+      and b."kind" = 'invoice' and (b."id" = v_row."id" or b."status" in ('issued', 'partially_paid', 'paid'))
+      and il."product_id" is not null
+    group by 1, 2
+  ),
+  ordered as (
+    select y."variant_id"::text as variant, sum(y."quantity_ordered") as ordered, sum(y."quantity_received") as received,
+      sum(y."quantity_ordered" * y."unit_cost") / nullif(sum(y."quantity_ordered"), 0) as unit_cost
+    from "better_supabase"."purchase_order_lines" y where y."purchase_order_id" = v_row."purchase_order_id"
+    group by 1
+  ),
+  checked as (
+    select x.variant, x.quantity, x.net, coalesce(o.ordered, 0) as ordered, coalesce(o.received, 0) as received,
+      round(x.quantity * coalesce(o.unit_cost, 0)) as expected,
+      (select coalesce(sum(e.quantity), 0) from billed e where e.variant = x.variant) as billed_total
+    from billed x left join ordered o on o.variant = x.variant
+    where x.bill = v_row."id"
+  ),
+  rated as (
+    select c.*, case
+      when c.received <= 0 then 'not_received'
+      when c.billed_total > c.received then 'quantity_variance'
+      when abs(c.net - c.expected) > greatest(round(c.expected * 100 / 10000.0), 500) then 'price_variance'
+      else 'matched' end as status
+    from checked c
+  )
+  select jsonb_build_object('invoiceId', v_row."id", 'currency', v_row."currency", 'purchaseOrderId', v_row."purchase_order_id",
+    'status', coalesce((select r.status from rated r order by array_position(array['not_received', 'quantity_variance', 'price_variance', 'matched'], r.status) limit 1), 'matched'),
+    'lines', coalesce((select jsonb_agg(jsonb_build_object('variantId', r.variant, 'quantity', r.quantity::text, 'billedQuantity', r.billed_total::text,
+      'orderedQuantity', r.ordered::text, 'receivedQuantity', r.received::text, 'amount', r.net::bigint::text, 'expectedAmount', r.expected::bigint::text, 'status', r.status) order by r.variant) from rated r), '[]'::jsonb))
+  into v_result;
+  return v_result;
+end;
+$$;
+revoke all on function "better_supabase"."invoice_match_result"(uuid) from public, anon, authenticated;
+
+-- Runs the three-way match of a purchase bill the caller can read and
+-- records invoice.match_checked with its result.
+create or replace function "better_supabase"."purchase_bill_match"(invoice uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_result jsonb;
+begin
+  select * into v_row from "better_supabase"."invoices" x
+  where x."id" = purchase_bill_match.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false));
+  if v_row."id" is null then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."direction" <> 'purchase' or (v_row."kind" = 'invoice') is not true then
+    raise exception 'only a purchase bill is matched' using errcode = '22023', hint = 'INVOICE_NOT_PURCHASE_BILL';
+  end if;
+  v_result := "better_supabase"."invoice_match_result"(v_row."id");
+  perform "better_supabase".emit_event('invoice.match_checked', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'purchaseOrderId', v_row."purchase_order_id", 'status', v_result ->> 'status'), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
+  return v_result;
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_bill_match"(uuid) from public, anon;
+grant execute on function "better_supabase"."purchase_bill_match"(uuid) to authenticated, service_role;
+
 -- The entry of an issued invoice or credit note for accounting: the receivable
--- against revenue and tax per rate, mirrored for a credit note.
+-- against revenue and tax per rate, mirrored for a credit note. A purchase bill
+-- credits the supplier's payable against expense and deductible tax.
 create or replace function "better_supabase"."accounting_invoice_lines"(source_id text)
 returns jsonb
 language sql
@@ -1577,19 +1733,21 @@ as $$
     select x."id" as id, x."tenant_id" as tenant, x."issued_on" as issued_on, x."currency" as currency,
       x."identifier" as identifier, x."title" as title, x."subtotal" as subtotal, x."tax_total" as tax_total,
       x."total" as total, x."company_id"::text as party, x."prices_include_tax" as inclusive,
-      case when x."kind" = 'credit_note' then -1 else 1 end as sign
+      case when x."kind" = 'credit_note' then -1 else 1 end as sign,
+      x."direction" = 'purchase' as purchase, nullif(x."dimensions", '{}'::jsonb) as dimensions,
+      x."purchase_order_id" is not null as ordered
     from "better_supabase"."invoices" x
     where x."id"::text = source_id and x."status" not in ('draft', 'void')
   ),
   groups as (
-    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) as net,
+    select l."tax_rate_bps" as rate, l."tax_code" as code, (inv.purchase and inv.ordered and l."product_id" is not null) as clearing, sum(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) as net,
       sum((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / case when inv.inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end) as tax
     from "better_supabase"."invoice_lines" l cross join inv
     where l."parent_id" = inv.id and true
-    group by 1, 2
+    group by 1, 2, 3
   ),
   shares as (
-    select g.rate, g.code,
+    select g.rate, g.code, g.clearing,
       case when sum(g.net) over () = 0
         then case when row_number() over w = count(*) over () then inv.subtotal else 0 end
         else round(inv.subtotal * sum(g.net) over w / sum(g.net) over ()) - round(inv.subtotal * (sum(g.net) over w - g.net) / sum(g.net) over ())
@@ -1599,7 +1757,7 @@ as $$
         else round(inv.tax_total * sum(g.tax) over w / sum(g.tax) over ()) - round(inv.tax_total * (sum(g.tax) over w - g.tax) / sum(g.tax) over ())
       end as tax
     from groups g cross join inv
-    window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
+    window w as (order by g.rate, g.code nulls first, g.clearing rows between unbounded preceding and current row)
   )
   select jsonb_build_object(
     'organizationId', inv.tenant,
@@ -1607,16 +1765,19 @@ as $$
     'currency', inv.currency,
     'reference', inv.identifier,
     'memo', inv.title,
-    'lines', jsonb_build_array(jsonb_strip_nulls(jsonb_build_object('role', 'receivable', 'debit', (inv.sign * inv.total)::text, 'partyId', inv.party)))
+    'lines', case when inv.purchase then jsonb_build_array(jsonb_strip_nulls(jsonb_build_object('role', 'payable', 'credit', (inv.sign * inv.total)::text, 'partyId', inv.party)))
+      || coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('role', case when s.clearing then 'payable' else 'expense' end, 'debit', (inv.sign * s.net)::text, 'taxCode', s.code, 'taxRateBps', s.rate, 'dimensions', case when not s.clearing then inv.dimensions end))) from shares s where s.net <> 0), '[]'::jsonb)
+      || coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('role', 'tax_receivable', 'debit', (inv.sign * s.tax)::text, 'taxCode', s.code, 'taxRateBps', s.rate, 'partyId', inv.party))) from shares s where s.tax <> 0), '[]'::jsonb) else jsonb_build_array(jsonb_strip_nulls(jsonb_build_object('role', 'receivable', 'debit', (inv.sign * inv.total)::text, 'partyId', inv.party)))
       || coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('role', 'revenue', 'credit', (inv.sign * s.net)::text, 'taxCode', s.code, 'taxRateBps', s.rate, 'partyId', inv.party))) from shares s where s.net <> 0), '[]'::jsonb)
-      || coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('role', 'tax_payable', 'credit', (inv.sign * s.tax)::text, 'taxCode', s.code, 'taxRateBps', s.rate, 'partyId', inv.party))) from shares s where s.tax <> 0), '[]'::jsonb)
-  )
+      || coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('role', 'tax_payable', 'credit', (inv.sign * s.tax)::text, 'taxCode', s.code, 'taxRateBps', s.rate, 'partyId', inv.party))) from shares s where s.tax <> 0), '[]'::jsonb) end
+  ) || case when inv.purchase then jsonb_build_object('journal', 'purchase') else '{}'::jsonb end
   from inv
 $$;
 revoke execute on function "better_supabase"."accounting_invoice_lines"(text) from public, anon, authenticated;
 
 -- The entry of an invoice payment for accounting: bank against the receivable,
--- the other way round for a refund.
+-- the other way round for a refund. Paying a purchase bill debits the payable
+-- and credits bank.
 create or replace function "better_supabase"."accounting_invoice_payment_lines"(source_id text)
 returns jsonb
 language sql
@@ -1631,15 +1792,15 @@ as $$
     'reference', coalesce(y."metadata" ->> 'reference', inv."identifier"),
     'memo', 'Payment of ' || coalesce(inv."identifier", inv."title"),
     'lines', jsonb_build_array(
-      jsonb_build_object('role', 'bank', 'debit', p.amount::text),
-      jsonb_strip_nulls(jsonb_build_object('role', 'receivable', 'credit', p.amount::text, 'partyId', inv."company_id"::text)))
+      jsonb_build_object('role', 'bank', case when inv."direction" = 'purchase' then 'credit' else 'debit' end, p.amount::text),
+      jsonb_strip_nulls(jsonb_build_object('role', case when inv."direction" = 'purchase' then 'payable' else 'receivable' end, case when inv."direction" = 'purchase' then 'debit' else 'credit' end, p.amount::text, 'partyId', inv."company_id"::text)))
   )
   from "better_supabase"."ledger_transactions" y
   join "better_supabase"."invoices" inv on inv."id"::text = y."metadata" ->> 'invoiceId'
   cross join lateral (
     select sum(e."amount") as amount from "better_supabase"."ledger_entries" e
     join "better_supabase"."ledger_accounts" a on a."id" = e."account_id"
-    where e."transaction_id" = y."id" and a."code" = 'invoices:cash:' || inv."currency"
+    where e."transaction_id" = y."id" and a."code" = case when inv."direction" = 'purchase' then 'invoices:paid:' || inv."currency" else 'invoices:cash:' || inv."currency" end
   ) p
   where y."id"::text = source_id and y."reference_type" = 'invoices' and p.amount <> 0
 $$;
@@ -1741,6 +1902,7 @@ drop function if exists "api"."reverse_invoice_payment"(uuid, text);
 drop function if exists "api"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
 drop function if exists "api"."add_invoice_charge"(uuid, bigint, text, text);
 drop function if exists "api"."remove_invoice_charge"(uuid);
+drop function if exists "api"."invoice_aging"(uuid, text, date);
 drop function if exists "api"."invoice_from_quote"(uuid, integer);
 drop function if exists "api"."invoice_from_quote"(uuid, integer, bigint);
 
@@ -1879,14 +2041,14 @@ as $$ select "better_supabase"."remove_invoice_charge"($1, $2) $$;
 revoke execute on function "api"."remove_invoice_charge"(uuid, jsonb) from public, anon;
 grant execute on function "api"."remove_invoice_charge"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."invoice_aging"(tenant uuid, currency text, as_of date)
+create or replace function "api"."invoice_aging"(tenant uuid, currency text, as_of date, direction text default 'sales')
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."invoice_aging"($1, $2, $3) $$;
-revoke execute on function "api"."invoice_aging"(uuid, text, date) from public, anon;
-grant execute on function "api"."invoice_aging"(uuid, text, date) to authenticated, service_role;
+as $$ select "better_supabase"."invoice_aging"($1, $2, $3, $4) $$;
+revoke execute on function "api"."invoice_aging"(uuid, text, date, text) from public, anon;
+grant execute on function "api"."invoice_aging"(uuid, text, date, text) to authenticated, service_role;
 
 create or replace function "api"."invoice_from_quote"(quote uuid, deposit_bps integer, deposit_amount bigint default null, deposit_description text default null)
 returns jsonb
@@ -1896,6 +2058,15 @@ set search_path = ''
 as $$ select "better_supabase"."invoice_from_quote"($1, $2, $3, $4) $$;
 revoke execute on function "api"."invoice_from_quote"(uuid, integer, bigint, text) from public, anon;
 grant execute on function "api"."invoice_from_quote"(uuid, integer, bigint, text) to authenticated, service_role;
+
+create or replace function "api"."purchase_bill_match"(invoice uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."purchase_bill_match"($1) $$;
+revoke execute on function "api"."purchase_bill_match"(uuid) from public, anon;
+grant execute on function "api"."purchase_bill_match"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

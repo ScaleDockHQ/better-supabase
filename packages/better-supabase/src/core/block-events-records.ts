@@ -241,6 +241,13 @@ export interface InvoiceEventData extends SubjectEventData {
   readonly creditNoteId?: string;
   readonly chargeId?: string;
   readonly reason?: string | null;
+  /** For `invoice.match_checked`: the purchase order the bill matches. */
+  readonly purchaseOrderId?: string;
+  /**
+   * For `invoice.match_checked`: `matched`, `price_variance`,
+   * `quantity_variance` or `not_received`.
+   */
+  readonly status?: string;
 }
 
 /** Events from the sla module: a clock on a record warned, breached or was met. */

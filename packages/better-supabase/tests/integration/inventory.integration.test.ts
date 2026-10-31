@@ -373,7 +373,11 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
       [order.id, JSON.stringify([{ lineId: teeLine!.id, quantity: 6 }])],
     );
 
-    expect(partial).toEqual({ status: "partially_received", backordered: 8 });
+    expect(partial).toEqual({
+      status: "partially_received",
+      backordered: 8,
+      receiptId: expect.any(String),
+    });
     expect(await level(tee, warehouse)).toMatchObject({
       on_hand: 9,
       incoming: 4,
@@ -396,7 +400,11 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
       ],
     );
 
-    expect(done).toEqual({ status: "received", backordered: 0 });
+    expect(done).toEqual({
+      status: "received",
+      backordered: 0,
+      receiptId: expect.any(String),
+    });
     expect(
       await session.hint("better_supabase.cancel_purchase_order($1)", [
         order.id,

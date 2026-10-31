@@ -22,3 +22,9 @@ export const REQUIREMENT_ACTIONS = ["produce", "purchase"] as const;
 
 /** How many bill of materials levels an explosion follows. */
 export const BOM_MAX_DEPTH = 20;
+
+/**
+ * What `create_from_requirements` turns purchase suggestions into: draft
+ * purchase orders, or purchase requisitions that wait for approval.
+ */
+export const PURCHASE_SUGGESTIONS = ["order", "requisition"] as const;

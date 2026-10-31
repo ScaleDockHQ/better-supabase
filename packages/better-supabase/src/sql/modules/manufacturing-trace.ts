@@ -3,10 +3,25 @@ import type { BlockSqlContext } from "../context.ts";
 import { fail, userGrant } from "../shared.ts";
 import { locationsOf } from "./inventory-stock.ts";
 import { manufacturingSql } from "./manufacturing-sql.ts";
-import { BOM_MAX_DEPTH } from "./manufacturing-values.ts";
+import { BOM_MAX_DEPTH, PURCHASE_SUGGESTIONS } from "./manufacturing-values.ts";
 import { asService } from "./orders-shared.ts";
 
 const DEPTH = String(BOM_MAX_DEPTH);
+
+/** `options.purchaseSuggestions`, `order` by default. */
+function purchaseSuggestions(
+  ctx: BlockSqlContext,
+): (typeof PURCHASE_SUGGESTIONS)[number] {
+  const value = ctx.option("purchaseSuggestions") ?? "order";
+
+  if (!PURCHASE_SUGGESTIONS.some((known) => known === value)) {
+    throw new TypeError(
+      `blocks.manufacturing.options.purchaseSuggestions must be one of ${PURCHASE_SUGGESTIONS.join(", ")}`,
+    );
+  }
+
+  return value === "requisition" ? "requisition" : "order";
+}
 
 export function traceFunctions(ctx: BlockSqlContext): string {
   const q = manufacturingSql(ctx);
@@ -28,6 +43,27 @@ export function traceFunctions(ctx: BlockSqlContext): string {
   const purchasing =
     inventory.hasTable("purchaseOrders") &&
     inventory.hasTable("purchaseOrderLines");
+
+  const requisitions = purchaseSuggestions(ctx) === "requisition";
+
+  if (
+    requisitions &&
+    !(
+      purchasing &&
+      inventory.hasTable("requisitions") &&
+      inventory.hasTable("requisitionLines")
+    )
+  ) {
+    throw new TypeError(
+      'blocks.manufacturing.options.purchaseSuggestions: "requisition" needs the inventory purchase requisition tables',
+    );
+  }
+
+  const createPurchase = requisitions
+    ? `v_purchase := ${inventory.fn("request_purchase")}(create_from_requirements.tenant, v_group.location, v_group.lines,
+      v_group.supplier_type, v_group.supplier_id, v_group.currency, 'From material requirements');`
+    : `v_purchase := ${inventory.fn("save_purchase_order")}(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
+      v_group.supplier_id, v_group.currency, null, v_group.lines, 'From material requirements');`;
 
   const lotJson = (alias: string): string =>
     `jsonb_build_object('lotId', ${alias}.${lt("id")}, 'code', ${alias}.${lt("code")}, 'variantId', ${alias}.${lt("variant")}, 'expiresOn', ${alias}.${lt("expiresOn")})`;
@@ -54,8 +90,7 @@ export function traceFunctions(ctx: BlockSqlContext): string {
     if v_group.currency is null then
       ${q.orderInvalid("a purchase suggestion needs a currency: set one on the item or the variant's costing")}
     end if;
-    ${asService(`v_purchase := ${inventory.fn("save_purchase_order")}(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
-      v_group.supplier_id, v_group.currency, null, v_group.lines, 'From material requirements');`)}
+    ${asService(createPurchase)}
     v_purchases := v_purchases || jsonb_build_array(v_purchase);
   end loop;`
     : `if exists (select 1 from jsonb_array_elements(create_from_requirements.items) e where e ->> 'action' = 'purchase') then
@@ -270,9 +305,9 @@ ${userGrant(`${fn("material_requirements")}(${idType}, integer)`)}
 -- Turns material requirement suggestions into documents: items is [{
 -- variantId, action, quantity, dueOn, locationId }]; a produce item becomes
 -- a draft production order, purchase items become draft purchase orders of
--- the inventory block, one per location, supplier ({ supplierType,
+-- the inventory block${requisitions ? "'s purchase requisitions (options.purchaseSuggestions)" : ""}, one per location, supplier ({ supplierType,
 -- supplierId }) and currency, at unitCost or the variant's average cost.
--- Returns { productionOrders, purchaseOrders }.
+-- Returns { productionOrders, purchaseOrders, purchaseRequisitions }.
 create or replace function ${fn("create_from_requirements")}(tenant ${idType}, items jsonb)
 returns jsonb
 language plpgsql
@@ -315,7 +350,7 @@ begin
         'dueOn', v_item ->> 'dueOn', 'locationId', v_item ->> 'locationId'))));
   end loop;
   ${purchase}
-  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', v_purchases);
+  return jsonb_build_object('productionOrders', v_orders, 'purchaseOrders', ${requisitions ? "'[]'::jsonb" : "v_purchases"}, 'purchaseRequisitions', ${requisitions ? "v_purchases" : "'[]'::jsonb"});
 end;
 $$;
 ${userGrant(`${fn("create_from_requirements")}(${idType}, jsonb)`)}

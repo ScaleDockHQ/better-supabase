@@ -1,4 +1,5 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { PurchaseNames } from "./invoices-purchase.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { bookSource, unbookSource } from "../accounting-sources-sql.ts";
@@ -25,9 +26,10 @@ import {
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { invoiceFromQuote } from "./invoices-from-quote.ts";
 import { invoiceLedger, paymentKey } from "./invoices-ledger.ts";
+import { invoicePurchase, PURCHASE_VALUES } from "./invoices-purchase.ts";
 import { createdFromLink } from "./quotes-functions.ts";
 
-export interface InvoiceNames {
+export interface InvoiceNames extends PurchaseNames {
   readonly fn: (name: string) => string;
   readonly t: (table: string) => string;
   readonly c: (table: string, column: string) => string;
@@ -215,7 +217,7 @@ export function invoiceFunctions(
   end if;`;
 
   const can = (alias: string, permission: string): string =>
-    `(${n.service} or ${ctx.scope.can(`${alias}.${i("tenant")}`, permission)})`;
+    `(${n.service} or ${ctx.scope.can(`${alias}.${i("tenant")}`, p.routed(alias, permission))})`;
 
   const st = (value: string, labels: readonly string[], negate = false) =>
     ctx.is("invoices", "status", value, labels, negate);
@@ -293,6 +295,8 @@ export function invoiceFunctions(
           }
         : false,
     });
+
+  const p = invoicePurchase(ctx, n, { i, balance, st, kd, record });
 
   const checkParty = (
     kind: "COMPANY" | "CONTACT",
@@ -409,10 +413,10 @@ begin
   if jsonb_typeof(update_invoice.attrs) is distinct from 'object'
     or (update_invoice.attrs ? 'title' and nullif(trim(update_invoice.attrs ->> 'title'), '') is null) then
     ${fail("INVOICE_ATTRS_INVALID", "attrs is an object, and a title isn't empty", "22023")}
-  end if;${checkParty("COMPANY", "v_company_type", "v_company_id", `v_row.${i("tenant")}`)}${checkParty("CONTACT", "v_contact_type", "v_contact_id", `v_row.${i("tenant")}`)}${refuse(has("note"), "update_invoice.attrs ->> 'note'", "NOTE", "note column")}${refuse(has("depositBps"), "update_invoice.attrs ->> 'depositBps'", "DEPOSIT", "deposit column")}${refuse(has("pricesIncludeTax"), "nullif(update_invoice.attrs ->> 'pricesIncludeTax', 'false')", "PRICING", "prices_include_tax column")}${headerRefusals("update_invoice.attrs")}
+  end if;${p.check("update_invoice.attrs", `v_row.${i("tenant")}`, has("direction") ? `v_row.${i("direction")}` : "'sales'")}${checkParty("COMPANY", "v_company_type", "v_company_id", `v_row.${i("tenant")}`)}${checkParty("CONTACT", "v_contact_type", "v_contact_id", `v_row.${i("tenant")}`)}${refuse(has("note"), "update_invoice.attrs ->> 'note'", "NOTE", "note column")}${refuse(has("depositBps"), "update_invoice.attrs ->> 'depositBps'", "DEPOSIT", "deposit column")}${refuse(has("pricesIncludeTax"), "nullif(update_invoice.attrs ->> 'pricesIncludeTax', 'false')", "PRICING", "prices_include_tax column")}${headerRefusals("update_invoice.attrs")}
   begin
     update ${t("invoices")} x set
-      ${i("title")} = case when update_invoice.attrs ? 'title' then trim(update_invoice.attrs ->> 'title') else x.${i("title")} end${keep("companyType", "case when v_company_id is null then null else v_company_type end", "company")}${company === undefined ? "" : keep("companyId", partyId("company", "v_company_id"), "company")}${keep("contactType", "case when v_contact_id is null then null else v_contact_type end", "contact")}${contact === undefined ? "" : keep("contactId", partyId("contact", "v_contact_id"), "contact")}${keep("termsDays", "(update_invoice.attrs ->> 'termsDays')::integer", "termsDays")}${keep("note", "update_invoice.attrs ->> 'note'", "note")}${keep("depositBps", "(update_invoice.attrs ->> 'depositBps')::integer", "depositBps")}${keep("pricesIncludeTax", "coalesce((update_invoice.attrs ->> 'pricesIncludeTax')::boolean, false)", "pricesIncludeTax")}${keep("depositAmount", "(update_invoice.attrs ->> 'depositAmount')::bigint", "depositAmount")}${keep("discountBps", "coalesce((update_invoice.attrs ->> 'discountBps')::integer, 0)", "discountBps")}${keep("discountAmount", "coalesce((update_invoice.attrs ->> 'discountAmount')::bigint, 0)", "discountAmount")},
+      ${i("title")} = case when update_invoice.attrs ? 'title' then trim(update_invoice.attrs ->> 'title') else x.${i("title")} end${keep("companyType", "case when v_company_id is null then null else v_company_type end", "company")}${company === undefined ? "" : keep("companyId", partyId("company", "v_company_id"), "company")}${keep("contactType", "case when v_contact_id is null then null else v_contact_type end", "contact")}${contact === undefined ? "" : keep("contactId", partyId("contact", "v_contact_id"), "contact")}${keep("termsDays", "(update_invoice.attrs ->> 'termsDays')::integer", "termsDays")}${keep("note", "update_invoice.attrs ->> 'note'", "note")}${keep("depositBps", "(update_invoice.attrs ->> 'depositBps')::integer", "depositBps")}${keep("pricesIncludeTax", "coalesce((update_invoice.attrs ->> 'pricesIncludeTax')::boolean, false)", "pricesIncludeTax")}${keep("depositAmount", "(update_invoice.attrs ->> 'depositAmount')::bigint", "depositAmount")}${keep("discountBps", "coalesce((update_invoice.attrs ->> 'discountBps')::integer, 0)", "discountBps")}${keep("discountAmount", "coalesce((update_invoice.attrs ->> 'discountAmount')::bigint, 0)", "discountAmount")}${keep("supplierReference", "nullif(trim(update_invoice.attrs ->> 'supplierReference'), '')", "supplierReference")}${keep("purchaseOrder", "(update_invoice.attrs ->> 'purchaseOrderId')::uuid", "purchaseOrderId")}${keep("dimensions", "coalesce(nullif(update_invoice.attrs -> 'dimensions', 'null'::jsonb), '{}'::jsonb)", "dimensions")},
       ${i("updatedAt")} = now()${updateExtraColumns(t("invoices"), n.extras, "update_invoice.attrs")}
     where x.${i("id")} = v_row.${i("id")}
     returning * into v_row;
@@ -585,8 +589,28 @@ ${userGrant(`${fn("remove_invoice_charge")}(uuid, jsonb)`)}
 `
     : "";
 
-  const kindTable = (kind: string): string =>
-    `(select * from ${t("invoices")} k where ${kd(`k.${i("kind")}`, [kind])})`;
+  const kindTable = (kind: string, direction = "sales"): string =>
+    `(select * from ${t("invoices")} k where ${has("direction") ? `k.${i("direction")} = '${direction}' and ` : ""}${kd(`k.${i("kind")}`, [kind])})`;
+
+  const assign = (
+    entity: string,
+    kind: string,
+    prefix: string,
+    direction = "sales",
+  ): string =>
+    assignNumberSql(
+      ctx,
+      entity,
+      `v_row.${i("tenant")}`,
+      { seq: "v_seq", identifier: "v_identifier" },
+      {
+        table: kindTable(kind, direction),
+        seq: i("number"),
+        tenant: i("tenant"),
+        prefix,
+      },
+      "v_issued_on::timestamptz",
+    );
 
   return `
 -- Creates a draft invoice. attrs: title (required), currency, company and
@@ -605,12 +629,12 @@ declare
   v_contact_type text := coalesce(create_invoice.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)});
   v_contact_id text := create_invoice.attrs -> 'contact' ->> 'id';
 begin
-  if not (${n.service} or ${ctx.scope.can("create_invoice.tenant", n.create)}) then
+  if not (${n.service} or ${ctx.scope.can("create_invoice.tenant", p.create("create_invoice.attrs"))}) then
     ${fail("INVOICE_FORBIDDEN", "not allowed to change invoices")}
   end if;
   if nullif(trim(create_invoice.attrs ->> 'title'), '') is null then
     ${fail("INVOICE_ATTRS_INVALID", "an invoice needs a title", "23502")}
-  end if;${checkParty("COMPANY", "v_company_type", "v_company_id", "create_invoice.tenant")}${checkParty("CONTACT", "v_contact_type", "v_contact_id", "create_invoice.tenant")}${refuse(has("note"), "create_invoice.attrs ->> 'note'", "NOTE", "note column")}${refuse(origin !== undefined, "(create_invoice.attrs -> 'origin' ->> 'id')", "ORIGIN", "origin columns")}${
+  end if;${p.check("create_invoice.attrs", "create_invoice.tenant", "create_invoice.attrs ->> 'direction'")}${checkParty("COMPANY", "v_company_type", "v_company_id", "create_invoice.tenant")}${checkParty("CONTACT", "v_contact_type", "v_contact_id", "create_invoice.tenant")}${refuse(has("note"), "create_invoice.attrs ->> 'note'", "NOTE", "note column")}${refuse(origin !== undefined, "(create_invoice.attrs -> 'origin' ->> 'id')", "ORIGIN", "origin columns")}${
     origin === "fixed"
       ? `
   if create_invoice.attrs -> 'origin' ->> 'id' is not null and (create_invoice.attrs -> 'origin' ->> 'type') is distinct from 'quote' then
@@ -620,7 +644,7 @@ begin
   }${refuse(has("depositBps"), "create_invoice.attrs ->> 'depositBps'", "DEPOSIT", "deposit column")}${refuse(has("pricesIncludeTax"), "nullif(create_invoice.attrs ->> 'pricesIncludeTax', 'false')", "PRICING", "prices_include_tax column")}${headerRefusals("create_invoice.attrs")}
   begin
     insert into ${t("invoices")} (${i("tenant")}, ${i("title")}${also("companyType")}${also("companyId")}${also("contactType")}${also("contactId")}, ${i("currency")},
-      ${i("termsDays")}${also("note")}${also("originType")}${also("originId")}${also("depositBps")}${also("depositAmount")}${also("discountBps")}${also("discountAmount")}${also("pricesIncludeTax")}${also("createdBy")}${insertExtraColumns(t("invoices"), n.extras, "create_invoice.attrs").columns})
+      ${i("termsDays")}${also("note")}${also("originType")}${also("originId")}${also("depositBps")}${also("depositAmount")}${also("discountBps")}${also("discountAmount")}${also("pricesIncludeTax")}${also("direction")}${also("supplierReference")}${also("purchaseOrder")}${also("dimensions")}${also("createdBy")}${insertExtraColumns(t("invoices"), n.extras, "create_invoice.attrs").columns})
     values (${valueLines(
       "      ",
       ["create_invoice.tenant", "trim(create_invoice.attrs ->> 'title')"],
@@ -671,6 +695,7 @@ begin
           "pricesIncludeTax",
           "coalesce((create_invoice.attrs ->> 'pricesIncludeTax')::boolean, false)",
         ),
+        ...PURCHASE_VALUES.map(([key, value]) => present(key, value)),
         present("createdBy", "auth.uid()"),
       ],
     )}${insertExtraColumns(t("invoices"), n.extras, "create_invoice.attrs").values})
@@ -750,10 +775,10 @@ begin
     if v_row.${i("total")} > v_original.${i("total")}${charges ? ` + ${charged("v_original")}` : ""} - v_original.${i("creditedTotal")} then
       ${fail("INVOICE_CREDIT_TOO_LARGE", "a credit note can't exceed the invoice's total less its earlier credits", "23514")}
     end if;
-    ${assignNumberSql(ctx, "credit_note", `v_row.${i("tenant")}`, { seq: "v_seq", identifier: "v_identifier" }, { table: kindTable("credit_note"), seq: i("number"), tenant: i("tenant"), prefix: n.creditPrefix }, "v_issued_on::timestamptz")}
+    ${p.byDirection("v_row", assign("credit_note", "credit_note", n.creditPrefix), assign("purchase_credit_note", "credit_note", n.purchaseCreditPrefix, "purchase"))}
   else
-    ${assignNumberSql(ctx, "invoice", `v_row.${i("tenant")}`, { seq: "v_seq", identifier: "v_identifier" }, { table: kindTable("invoice"), seq: i("number"), tenant: i("tenant"), prefix: n.prefix }, "v_issued_on::timestamptz")}
-  end if;
+    ${p.byDirection("v_row", assign("invoice", "invoice", n.prefix), assign("purchase_bill", "invoice", n.purchasePrefix, "purchase"))}
+  end if;${p.issue("v_row")}
   update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "issued")}, ${i("number")} = v_seq, ${i("identifier")} = v_identifier,
     ${i("issuedOn")} = v_issued_on,
     ${i("dueOn")} = coalesce(issue_invoice.due_on, v_issued_on + x.${i("termsDays")}),
@@ -811,7 +836,7 @@ begin
   end if;
   if upper(record_invoice_payment.currency) is distinct from v_row.${i("currency")} then
     ${fail("INVOICE_CURRENCY_MISMATCH", "a payment must be in the invoice's currency", "22023")}
-  end if;
+  end if;${p.payment("v_row", "record_invoice_payment.amount")}
   ${transitionActorSql("record_invoice_payment.actor", "INVOICE_ACTOR_INVALID")}
   -- A recorded reference is a replay that adds nothing, so it skips the check.
   v_reference := nullif(trim(record_invoice_payment.reference), '');
@@ -901,6 +926,7 @@ begin
       i("termsDays"),
       present("note", copy("note")),
       present("pricesIncludeTax", copy("pricesIncludeTax")),
+      ...PURCHASE_VALUES.map(([key]) => present(key, copy(key))),
       present("createdBy", copy("createdBy")),
     ],
   )})
@@ -923,6 +949,9 @@ begin
       "0",
       present("note", "nullif(trim(credit_invoice.note), '')"),
       present("pricesIncludeTax", `v_original.${copy("pricesIncludeTax")}`),
+      ...PURCHASE_VALUES.map(([key]) =>
+        present(key, `v_original.${copy(key)}`),
+      ),
       present("createdBy", "auth.uid()"),
     ],
   )})
@@ -1045,34 +1074,5 @@ begin
 end;
 $$;
 ${userGrant(`${fn("reverse_invoice_payment")}(uuid, text, jsonb)`)}
-${addCharge}
--- What a tenant is owed in one currency on as_of, by days past due:
--- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
-create or replace function ${fn("invoice_aging")}(tenant ${ctx.idType}, currency text, as_of date)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  with open as (
-    select ${balance("x")} as balance, coalesce(invoice_aging.as_of, current_date) - x.${i("dueOn")} as late
-    from ${t("invoices")} x
-    where x.${i("tenant")} = invoice_aging.tenant and x.${i("currency")} = upper(invoice_aging.currency)
-      and ${kd(`x.${i("kind")}`, ["invoice"])} and ${st(`x.${i("status")}`, ["issued", "partially_paid"])}
-  )
-  select jsonb_build_object(
-    'currency', upper(invoice_aging.currency),
-    'current', coalesce(sum(balance) filter (where late <= 0), 0)::text,
-    'days1To30', coalesce(sum(balance) filter (where late between 1 and 30), 0)::text,
-    'days31To60', coalesce(sum(balance) filter (where late between 31 and 60), 0)::text,
-    'days61To90', coalesce(sum(balance) filter (where late between 61 and 90), 0)::text,
-    'over90', coalesce(sum(balance) filter (where late > 90), 0)::text,
-    'outstanding', coalesce(sum(balance), 0)::text,
-    'overdueCount', count(*) filter (where late > 0)
-  )
-  from open
-$$;
-${userGrant(`${fn("invoice_aging")}(${ctx.idType}, text, date)`)}
-${fromQuote}`;
+${addCharge}${p.aging}${fromQuote}${p.functions}`;
 }

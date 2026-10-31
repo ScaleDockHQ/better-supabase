@@ -23,6 +23,14 @@ import {
 } from "./inventory-allocations.ts";
 import { counterCase, stockLedger } from "./inventory-ledger.ts";
 import {
+  PROCUREMENT_ENTITIES,
+  PROCUREMENT_TABLES,
+  procurementApprovals,
+  procurementContract,
+  procurementTables,
+  requisitionFunctions,
+} from "./inventory-procurement.ts";
+import {
   purchaseOrderFunctions,
   transferFunctions,
 } from "./inventory-purchasing.ts";
@@ -132,6 +140,23 @@ const EVENTS: BlockSqlEvents<InventoryEvents> = {
     "supplierType",
     "supplierId",
   ]),
+  "purchase_requisition.created": stockEvent("purchase-requisitions", [
+    "locationId",
+    "status",
+    "supplierType",
+    "supplierId",
+  ]),
+  "purchase_requisition.approved": stockEvent("purchase-requisitions", [
+    "locationId",
+    "status",
+    "supplierType",
+    "supplierId",
+  ]),
+  "inventory_receipt.created": stockEvent("inventory-receipts", [
+    "purchaseOrderId",
+    "locationId",
+    "inspectionId",
+  ]),
 };
 
 const tenantExport = { tenant: "tenant", export: true } as const;
@@ -144,9 +169,10 @@ const NAMES: BlockSqlNames = {
       primary: true,
     },
     purchase_order: { table: "purchaseOrders", singular: "purchase_order" },
+    ...PROCUREMENT_ENTITIES,
   },
   events: EVENTS,
-  options: ["extraColumns"],
+  options: ["extraColumns", "receiptInspection"],
   hooks: [
     "before_stock_adjust",
     "after_stock_adjust",
@@ -255,7 +281,11 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
         placedAt: "placed_at",
+        shipTo: "ship_to",
+        originType: "origin_type",
+        originId: "origin_id",
       },
+      optional: ["shipTo", "originType", "originId"],
       typed: ["status"],
     },
     purchaseOrderLines: {
@@ -273,6 +303,7 @@ const NAMES: BlockSqlNames = {
         unitCost: "unit_cost",
       },
     },
+    ...PROCUREMENT_TABLES,
     ...TRACKING_TABLES,
     ...ALLOCATION_TABLES,
   },
@@ -340,6 +371,17 @@ function tables(ctx: BlockSqlContext, names: InventoryNames): string {
   const tl = columns(ctx, "transferLines");
   const po = columns(ctx, "purchaseOrders");
   const pl = columns(ctx, "purchaseOrderLines");
+
+  // Where a drop-ship order goes and the document it came from.
+  const shipping = [
+    ctx.has("purchaseOrders", "shipTo")
+      ? `\n  ${po("shipTo")} jsonb check (${po("shipTo")} is null or jsonb_typeof(${po("shipTo")}) = 'object'),`
+      : "",
+    ctx.has("purchaseOrders", "originType")
+      ? `\n  ${po("originType")} text,`
+      : "",
+    ctx.has("purchaseOrders", "originId") ? `\n  ${po("originId")} text,` : "",
+  ].join("");
 
   return `${loc.shared ? "" : ownLocations(ctx, names, read)}
 create table if not exists ${t("levels")} (
@@ -426,7 +468,7 @@ create table if not exists ${t("purchaseOrders")} (
   ${po("note")} text,
   ${po("createdAt")} timestamptz not null default now(),
   ${po("updatedAt")} timestamptz not null default now(),
-  ${po("placedAt")} timestamptz,
+  ${po("placedAt")} timestamptz,${shipping}
   check ((${po("supplierType")} is null) = (${po("supplierId")} is null))
 );
 create index if not exists ${ctx.naming.rename("purchase_orders_location_idx")} on ${t("purchaseOrders")} (${po("location")});
@@ -449,7 +491,7 @@ ${lockTable(t("purchaseOrderLines"), { read: true })}
 ${read("purchaseOrderLines")}
 `
       : ""
-  }${trackingTables(ctx, read, lock)}${allocationTable(ctx, read, lock)}`;
+  }${procurementTables(ctx, read, lock, variants, location)}${trackingTables(ctx, read, lock)}${allocationTable(ctx, read, lock)}`;
 }
 
 /** Copies `stock_movements` into the ledger, keeping each movement's id. */
@@ -522,8 +564,9 @@ function build(ctx: BlockSqlContext): string {
 -- Stock per catalog variant and location in a unit with decimals: movements
 -- posted to the ledger in base units, lots, serial numbers, expiry, bins,
 -- weighted average cost, reservations with expiry, allocations with
--- backorders, transfers and purchase orders with receiving.
-${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${locationFunctions(ctx, names)}${stockFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
+-- backorders, transfers, purchase requisitions and purchase orders with
+-- receiving into goods receipts.
+${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${locationFunctions(ctx, names)}${stockFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${requisitionFunctions(ctx, names)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -654,6 +697,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
           { name: "cancel_purchase_order", args: ["uuid"], returns: "boolean" },
         ]
       : []),
+    ...procurementContract(ctx),
   ];
 }
 
@@ -664,13 +708,20 @@ export const INVENTORY: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Inventory",
   description:
-    "Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.",
+    "Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.",
   requires: [...REQUIRES],
   dependencies: (layout) =>
     layout.modules?.["inventory"]?.tables?.["locations"] === null
       ? [...REQUIRES, "assets"]
       : [...REQUIRES],
-  integrates: ["outbox", "assets", "accounting"],
+  integrates: [
+    "outbox",
+    "assets",
+    "accounting",
+    "contacts",
+    "approvals",
+    "inspections",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
   version: 3,
@@ -692,6 +743,7 @@ export const INVENTORY: BlockSqlDefinition = {
   contributes: {
     accounting: (own) =>
       accountingContributions(own, inventoryAccountingSources(own)),
+    approvals: procurementApprovals,
   },
   contract,
   build,

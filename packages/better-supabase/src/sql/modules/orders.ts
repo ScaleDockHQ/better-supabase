@@ -24,6 +24,7 @@ import {
   kitchenOn,
   kitchenSql,
 } from "./orders-kitchen.ts";
+import { dropShipContract, dropShipFunctions } from "./orders-procurement.ts";
 import { columns, paymentWindow } from "./orders-shared.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -652,7 +653,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Carts on any signed-in user (anonymous sign-ins included), checkout into
 -- orders with numbers, payments, fulfillments, returns and refunds.
-${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${documentFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
+${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${documentFunctions(ctx, names)}${dropShipFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -772,6 +773,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     ...(kitchenOn(ctx) ? kitchenContract() : []),
+    ...dropShipContract(ctx),
   ];
 }
 
@@ -790,6 +792,7 @@ export const ORDERS: BlockSqlDefinition = {
     "state-machine",
     "invoices",
     "quotes",
+    "contacts",
   ],
   target: "schema",
   modes: ["managed", "custom"],

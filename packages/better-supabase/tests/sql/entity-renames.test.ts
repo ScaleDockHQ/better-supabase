@@ -103,6 +103,7 @@ describe("blocks.<name>.entities in the SQL", () => {
     automations: ["'rules'", "'rules[]'", '"rules"', "'ruleId'"],
     hiring: ["'interviews[]'", "'interviews'"],
     inbox: ["'inbox_id'"],
+    inventory: ["'purchaseOrderId'"],
     manufacturing: [
       "'bomId'",
       "'workCenterId'",

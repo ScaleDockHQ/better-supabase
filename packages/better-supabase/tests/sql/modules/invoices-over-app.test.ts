@@ -990,17 +990,17 @@ create table public.bill_lines (
 
     const defaults = render();
     expect(defaults).toContain(
-      'create unique index if not exists "bills_org_id_kind_seq_key" on "public"."bills" ("org_id", "kind", "seq");',
+      'create unique index if not exists "bills_org_id_direction_kind_seq_key" on "public"."bills" ("org_id", "direction", "kind", "seq");',
     );
     expect(defaults).toContain('"bsb_bill_lines_position_key"');
     expect(defaults).toContain('"position") do update');
 
     const off = render({ uniqueNumber: false, linePositionKey: false });
-    expect(off).not.toContain("bills_org_id_kind");
+    expect(off).not.toContain("bills_org_id_direction_kind");
     expect(off).not.toContain("bsb_bill_lines_position_key");
     expect(off).not.toContain('"position") do update');
     expect(render({ uniqueNumber: "identifier" })).toContain(
-      '"bills_org_id_kind_code_key" on "public"."bills" ("org_id", "kind", "code")',
+      '"bills_org_id_direction_kind_code_key" on "public"."bills" ("org_id", "direction", "kind", "code")',
     );
 
     const own = renderBlocks(["invoices"], {
@@ -1009,7 +1009,9 @@ create table public.bill_lines (
       .map((file) => file.contents)
       .join("\n");
 
-    expect(own).toContain('unique ("tenant_id", "kind", "identifier")');
+    expect(own).toContain(
+      'unique ("tenant_id", "direction", "kind", "identifier")',
+    );
     expect(() => render({ uniqueNumber: "year" })).toThrow(/uniqueNumber/);
   });
 

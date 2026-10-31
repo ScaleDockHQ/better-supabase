@@ -11,6 +11,19 @@ const receivableCode = (invoice: string): string =>
 const cashCode = (currency: string): string =>
   `'invoices:cash:' || ${currency}`;
 
+/**
+ * The code of the account an invoice's payments move to: cash for a sales
+ * invoice, `invoices:paid:<currency>` for a purchase bill, so what an
+ * organization received counts only its customers' payments.
+ */
+export function invoiceCashCode(ctx: BlockSqlContext, alias: string): string {
+  const currency = `${alias}.${ctx.col("invoices", "currency")}`;
+
+  return ctx.has("invoices", "direction")
+    ? `case when ${alias}.${ctx.col("invoices", "direction")} = 'purchase' then 'invoices:paid:' || ${currency} else ${cashCode(currency)} end`
+    : cashCode(currency);
+}
+
 /** The ledger key of a payment with a reference, unique per organization. */
 export const paymentKey = (reference: string): string =>
   `'invoice-payment:' || ${reference}`;
@@ -65,7 +78,7 @@ export function invoiceLedger(ctx: BlockSqlContext): InvoiceLedger {
 
   const accountFor = (alias: string, code: string, name: string): string =>
     `${ledger.fn("ledger_account_for")}(${alias}.${i("tenant")}, ${code === "cash" ? "'cash'" : "'receivable'"},
-      ${code === "cash" ? cashCode(`${alias}.${i("currency")}`) : receivableCode(`${alias}.${i("id")}`)}, ${name},
+      ${code === "cash" ? invoiceCashCode(ctx, alias) : receivableCode(`${alias}.${i("id")}`)}, ${name},
       ${alias}.${i("currency")}::text, 0::smallint, ${code === "cash" ? "null, null" : `'invoices', ${alias}.${i("id")}::text`},
       null, true, ${read}, 'invoices', null)`;
 

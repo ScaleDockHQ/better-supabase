@@ -376,6 +376,10 @@ may be your own enum or domain.
   - `better_supabase.stock_transfer_lines`: `tenant_id`, `transfer_id`, `variant_id`, `quantity`, `detail`
   - `better_supabase.purchase_orders`: `id`, `tenant_id`, `location_id`, `supplier_type`, `supplier_id`, `status`, `currency`, `expected_at`, `note`, `created_at`, `updated_at`, `placed_at`; typed: `status`
   - `better_supabase.purchase_order_lines`: `id`, `tenant_id`, `purchase_order_id`, `variant_id`, `quantity_ordered`, `quantity_received`, `unit_cost`
+  - `better_supabase.purchase_requisitions`: `id`, `tenant_id`, `location_id`, `supplier_type`, `supplier_id`, `currency`, `status`, `reason`, `requested_by`, `decided_by`, `decided_at`, `approval_id`, `purchase_order_id`, `created_at`, `updated_at`
+  - `better_supabase.purchase_requisition_lines`: `id`, `tenant_id`, `requisition_id`, `variant_id`, `quantity`, `unit_cost`
+  - `better_supabase.inventory_receipts`: `id`, `tenant_id`, `purchase_order_id`, `location_id`, `inspection_id`, `received_by`, `received_at`
+  - `better_supabase.inventory_receipt_lines`: `id`, `tenant_id`, `receipt_id`, `purchase_order_line_id`, `variant_id`, `quantity`, `unit_cost`, `detail`
   - `better_supabase.stock_items`: `variant_id`, `tenant_id`, `unit`, `scale`, `tracking`, `tracks_expiry`, `costing`, `currency`, `average_cost`, `updated_at`
   - `better_supabase.stock_bins`: `id`, `tenant_id`, `location_id`, `code`, `name`, `hold`, `active`, `created_at`
   - `better_supabase.stock_lots`: `id`, `tenant_id`, `variant_id`, `code`, `expires_on`, `created_at`
@@ -386,7 +390,7 @@ may be your own enum or domain.
   - `better_supabase.invitations`: `id`, `email`, `role`, `token_hash`, `expires_at`, `accepted_at`, `organization_id`
   - `better_supabase.platform_invitations`, once mapped: `id`, `email`, `role`, `token_hash`, `expires_at`, `accepted_at`
 - `invoices`
-  - `better_supabase.invoices`: `id`, `tenant_id`, `kind`, `number`, `identifier`, `original_id`, `title`, `currency`, `status`, `terms_days`, `issued_on`, `due_on`, `paid_total`, `credited_total`, `paid_at`, `voided_at`, `created_at`, `updated_at`, `subtotal`, `tax_total`, `total`; typed: `status`, `kind`
+  - `better_supabase.invoices`: `id`, `tenant_id`, `kind`, `number`, `identifier`, `original_id`, `title`, `currency`, `status`, `terms_days`, `issued_on`, `due_on`, `paid_total`, `credited_total`, `paid_at`, `voided_at`, `created_at`, `updated_at`, `subtotal`, `tax_total`, `total`; typed: `status`, `kind`, `direction`
   - `better_supabase.invoice_lines`: `id`, `tenant_id`, `parent_id`, `description`, `quantity`, `unit_amount`, `position`; typed: `product_type`
   - `better_supabase.invoice_charges`: `id`, `tenant_id`, `invoice_id`, `amount`
 - `knowledge`

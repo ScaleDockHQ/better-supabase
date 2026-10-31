@@ -455,7 +455,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:6ac646548640774c343c9e8899fe241c81f9d309aa98900fbeeafe87e60f4f6c
+-- @bsb-hash sha256:44c3043d7cc941e798a64fcd6493fcfd36b406cc78396d271fbd4e8a9e2a019b
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -750,6 +750,8 @@ as $$
     when 'invitations.revoke' then 'members.invite'
     when 'invitations.view' then 'members.invite'
     when 'invoices.manage' then 'invoices.manage'
+    when 'invoices.overrideMatch' then 'invoices.override_match'
+    when 'invoices.purchase' then 'invoices.purchase'
     when 'invoices.read' then 'invoices.read'
     when 'invoices.write' then 'invoices.write'
     when 'knowledge.manage' then 'knowledge.manage'
@@ -797,6 +799,7 @@ as $$
     when 'onboarding.complete' then 'onboarding.complete'
     when 'onboarding.read' then 'onboarding.read'
     when 'orders.manage' then 'orders.manage'
+    when 'orders.overrideCredit' then 'orders.override_credit'
     when 'orders.prepare' then 'orders.prepare'
     when 'orders.read' then 'orders.read'
     when 'organizations.delete' then 'organization.delete'

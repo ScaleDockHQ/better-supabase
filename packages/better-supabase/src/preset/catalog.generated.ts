@@ -2507,7 +2507,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "assets",
-        "accounting"
+        "accounting",
+        "contacts",
+        "approvals",
+        "inspections"
       ],
       "manifest": "inventory",
       "scopes": [
@@ -2524,6 +2527,14 @@ export const PRESET_CATALOG: PresetCatalog = {
           "purchase_order": {
             "table": "purchaseOrders",
             "singular": "purchase_order"
+          },
+          "purchase_requisition": {
+            "table": "requisitions",
+            "singular": "purchase_requisition"
+          },
+          "inventory_receipt": {
+            "table": "receipts",
+            "singular": "inventory_receipt"
           }
         },
         "tables": {
@@ -2554,7 +2565,42 @@ export const PRESET_CATALOG: PresetCatalog = {
               "note": "note",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
-              "placedAt": "placed_at"
+              "placedAt": "placed_at",
+              "shipTo": "ship_to",
+              "originType": "origin_type",
+              "originId": "origin_id"
+            }
+          },
+          "requisitions": {
+            "name": "purchase_requisitions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "location": "location_id",
+              "supplierType": "supplier_type",
+              "supplierId": "supplier_id",
+              "currency": "currency",
+              "status": "status",
+              "reason": "reason",
+              "requestedBy": "requested_by",
+              "decidedBy": "decided_by",
+              "decidedAt": "decided_at",
+              "approval": "approval_id",
+              "purchaseOrder": "purchase_order_id",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "receipts": {
+            "name": "inventory_receipts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "purchaseOrder": "purchase_order_id",
+              "location": "location_id",
+              "inspection": "inspection_id",
+              "receivedBy": "received_by",
+              "receivedAt": "received_at"
             }
           }
         },
@@ -2699,7 +2745,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "numbering",
         "state-machine",
         "invoices",
-        "quotes"
+        "quotes",
+        "contacts"
       ],
       "manifest": "orders",
       "scopes": [
@@ -2788,7 +2835,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "keys": {
           "manage": "orders.manage",
           "read": "orders.read",
-          "prepare": "orders.prepare"
+          "prepare": "orders.prepare",
+          "overrideCredit": "orders.override_credit"
         }
       }
     },
@@ -3775,7 +3823,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "numbering",
         "quotes",
         "relations",
-        "accounting"
+        "accounting",
+        "inventory",
+        "contacts",
+        "orders"
       ],
       "manifest": "invoices",
       "scopes": [
@@ -3832,6 +3883,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "discountAmount": "discount_amount",
               "pricesIncludeTax": "prices_include_tax",
               "archivedAt": "archived_at",
+              "direction": "direction",
+              "supplierReference": "supplier_reference",
+              "purchaseOrder": "purchase_order_id",
+              "dimensions": "dimensions",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
@@ -3846,7 +3901,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "keys": {
           "read": "invoices.read",
           "write": "invoices.write",
-          "manage": "invoices.manage"
+          "manage": "invoices.manage",
+          "purchase": "invoices.purchase",
+          "overrideMatch": "invoices.override_match"
         }
       }
     },
@@ -21332,6 +21389,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "PurchaseOrderStatus"
+        },
+        {
+          "name": "PurchaseRequisition"
         }
       ],
       "events": {
@@ -21350,7 +21410,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "transfer.cancelled",
           "purchase_order.placed",
           "purchase_order.received",
-          "purchase_order.cancelled"
+          "purchase_order.cancelled",
+          "purchase_requisition.created",
+          "purchase_requisition.approved",
+          "inventory_receipt.created"
         ]
       }
     },
@@ -21381,8 +21444,20 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceCharge"
         },
         {
+          "name": "InvoiceDirection"
+        },
+        {
           "name": "InvoiceInput",
           "fields": true
+        },
+        {
+          "name": "InvoiceMatch"
+        },
+        {
+          "name": "InvoiceMatchLine"
+        },
+        {
+          "name": "InvoiceMatchStatus"
         },
         {
           "name": "InvoicePatch",
@@ -21419,7 +21494,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invoice.uncollected",
           "invoice.charged",
           "invoice.charge_removed",
-          "invoice.payment_reversed"
+          "invoice.payment_reversed",
+          "invoice.match_checked"
         ]
       }
     },

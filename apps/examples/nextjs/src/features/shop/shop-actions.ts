@@ -130,6 +130,38 @@ export const adjustStock = bsb.action(
 );
 
 /**
+ * Asks to buy stock for a location. With the approvals block installed, the
+ * requisition opens an approval request; the approved ones become a purchase
+ * order through `purchaseOrderFromRequisitions`.
+ */
+export const requestPurchase = bsb.action(
+  {
+    input: v.object({
+      variantId: Id,
+      locationId: Id,
+      quantity: v.pipe(Count, v.minValue(1), v.maxValue(100_000)),
+    }),
+    requireTenant: true,
+    permission: "inventory.read",
+  },
+  async ({ variantId, locationId, quantity }, { tenant, db, auth }) => {
+    const requested = await db.inventory.requestPurchase(tenant, {
+      locationId,
+      lines: [{ variantId, quantity }],
+      reason: "Restock below the reorder point",
+    });
+
+    if (!requested.ok) {
+      return requested;
+    }
+
+    await refreshCaller(auth);
+
+    return ok(requested.data.id);
+  },
+);
+
+/**
  * Adds a product to the caller's open cart, which the shop shows as the draft
  * order. `createCart` returns the open cart when there is one.
  */

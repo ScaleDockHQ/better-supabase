@@ -220,6 +220,7 @@ export const permissions = {
     manage: "orders.manage",
     read: "orders.read",
     prepare: "orders.prepare",
+    overrideCredit: "orders.override_credit",
   },
   organizations: {
     update: "organization.update",
@@ -258,7 +259,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "promotions.manage" | "promotions.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "promotions.manage" | "promotions.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -299,6 +300,7 @@ export const blockEvents: Events<BlockEvents> = {
     "enrollment_program.updated",
     "fulfillment.delivered",
     "fulfillment.shipped",
+    "inventory_receipt.created",
     "invitation.accepted",
     "invitation.created",
     "invitation.declined",
@@ -356,6 +358,8 @@ export const blockEvents: Events<BlockEvents> = {
     "purchase_order.cancelled",
     "purchase_order.placed",
     "purchase_order.received",
+    "purchase_requisition.approved",
+    "purchase_requisition.created",
     "reservation.committed",
     "reservation.created",
     "reservation.released",
@@ -409,6 +413,7 @@ export const blockEventSchemas = {
   "enrollment_program.updated": true,
   "fulfillment.delivered": true,
   "fulfillment.shipped": true,
+  "inventory_receipt.created": true,
   "invitation.accepted": true,
   "invitation.created": true,
   "invitation.declined": true,
@@ -466,6 +471,8 @@ export const blockEventSchemas = {
   "purchase_order.cancelled": true,
   "purchase_order.placed": true,
   "purchase_order.received": true,
+  "purchase_requisition.approved": true,
+  "purchase_requisition.created": true,
   "reservation.committed": true,
   "reservation.created": true,
   "reservation.released": true,

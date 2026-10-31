@@ -2288,7 +2288,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:9fad484402f9815c08216d9c5724cf86d81162ea50d3df678bf42a996a9b1f6a
+-- @bsb-hash sha256:64833773960e0bf86b0f67559df42eb5be170aaa2483e18f08ca1a98597a4854
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3409,6 +3409,18 @@ begin
     end if;
   end if;
   v_total := (v_priced ->> 'total')::bigint + case when v_inclusive then 0 else v_tax end;
+  declare
+    v_limit bigint;
+  begin
+    select s.credit_limit into v_limit from (select p."credit_limit", p."credit_currency" from "better_supabase"."companies" p where p."id"::text = (select p."id"::text from "better_supabase"."people" p where p."user_id" = v_cart.owner and p."tenant_id" = v_cart.tenant and p."merged_into" is null order by p."created_at" limit 1) and p."tenant_id" = v_cart.tenant and p."merged_into" is null union all select p."credit_limit", p."credit_currency" from "better_supabase"."people" p where p."id"::text = (select p."id"::text from "better_supabase"."people" p where p."user_id" = v_cart.owner and p."tenant_id" = v_cart.tenant and p."merged_into" is null order by p."created_at" limit 1) and p."tenant_id" = v_cart.tenant and p."merged_into" is null) s(credit_limit, credit_currency)
+    where s.credit_limit is not null and coalesce(s.credit_currency, v_cart.currency) = v_cart.currency
+    order by s.credit_limit limit 1;
+    if v_limit is not null and (select coalesce(sum(greatest(x."total" - x."paid_total", 0)), 0) from "better_supabase"."orders" x
+      where x."customer_id" = v_cart.owner and x."tenant_id" = v_cart.tenant and x."currency" = v_cart.currency
+        and x."status" not in ('cancelled', 'refunded')) + v_total > v_limit and not (coalesce(better_supabase.can_user(v_cart.owner, 'tenant', v_cart.tenant, 'orders.override_credit'), false)) then
+      raise exception 'the order takes the customer over their credit limit' using errcode = '55000', hint = 'ORDER_CREDIT_LIMIT_EXCEEDED';
+    end if;
+  end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_cart.tenant::text || ':commerce:order', 0));
   select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."orders" x where x."tenant_id" = v_cart.tenant;
   v_number := v_seq::text;
@@ -3939,6 +3951,56 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
+
+-- A draft purchase order for an order's lines, shipped by the supplier
+-- straight to the order's shipping address (drop ship): the supplier is a
+-- config.subjects record (a contacts company by default), the location the
+-- one the order's lines were reserved at or the first active one, the unit
+-- cost the variant's average cost in the order's currency (0 without one;
+-- edit the draft before placing it). Needs inventory.purchase.
+create or replace function "better_supabase"."purchase_order_from_order"(order_id uuid, supplier_id text, supplier_type text default 'company', location uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_location uuid := purchase_order_from_order.location;
+  v_lines jsonb;
+  v_purchase jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."currency" as currency, x."shipping_address" as ship_to
+  into v_order from "better_supabase"."orders" x where x."id" = purchase_order_from_order.order_id;
+  if not found or not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if purchase_order_from_order.supplier_id is null then
+    raise exception 'a drop-ship purchase order names its supplier' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
+  end if;
+  v_location := coalesce(v_location, (select l."location_id" from "better_supabase"."order_lines" l where l."order_id" = v_order.id and l."location_id" is not null limit 1), (select y."id" from "better_supabase"."inventory_locations" y
+    where y."tenant_id" = v_order.tenant and y."active" order by y."code" limit 1));
+  select jsonb_agg(jsonb_build_object('variantId', g.variant, 'quantity', g.quantity::text, 'unitCost', g.unit_cost::text)) into v_lines
+  from (
+    select l."variant_id" as variant, sum(l."quantity") as quantity, max(coalesce((select round(y."average_cost")::bigint from "better_supabase"."stock_items" y where y."variant_id" = l."variant_id" and y."currency" = v_order.currency), 0)) as unit_cost
+    from "better_supabase"."order_lines" l where l."order_id" = v_order.id and l."variant_id" is not null
+    group by 1
+  ) g;
+  if v_lines is null then
+    raise exception 'the order has no catalog lines to buy' using errcode = '55000', hint = 'ORDERS_CART_EMPTY';
+  end if;
+  v_purchase := "better_supabase"."save_purchase_order"(v_order.tenant, null, v_location, purchase_order_from_order.supplier_type,
+    purchase_order_from_order.supplier_id, v_order.currency, null, v_lines, 'Drop ship');
+  update "better_supabase"."purchase_orders" x set "ship_to" = v_order.ship_to, "origin_type" = 'order', "origin_id" = v_order.id::text
+  where x."id" = (v_purchase ->> 'id')::uuid;
+  return v_purchase || jsonb_build_object('orderId', v_order.id, 'shipTo', v_order.ship_to);
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_order_from_order"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."purchase_order_from_order"(uuid, text, text, uuid) to authenticated, service_role;
 
 -- Fulfills lines of a paid or confirmed order from one location. lines is
 -- [{lineId, quantity, detail?}]; null fulfills everything not yet

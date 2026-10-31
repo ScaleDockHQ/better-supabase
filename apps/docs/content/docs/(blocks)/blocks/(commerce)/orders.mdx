@@ -46,11 +46,12 @@ are optional, and without `payments` only free orders can be placed.
 
 ## Permissions
 
-| Key              | What it allows                                                                 |
-| ---------------- | ------------------------------------------------------------------------------ |
-| `orders.read`    | Read every cart and order in the organization                                  |
-| `orders.manage`  | Shipping rates, fulfillments, returns, refunds, cancelling orders and stations |
-| `orders.prepare` | Send orders to the kitchen and move their lines through the preparation states |
+| Key                      | What it allows                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `orders.read`            | Read every cart and order in the organization                                  |
+| `orders.manage`          | Shipping rates, fulfillments, returns, refunds, cancelling orders and stations |
+| `orders.prepare`         | Send orders to the kitchen and move their lines through the preparation states |
+| `orders.override_credit` | Place an order or issue a sales invoice over the customer's credit limit       |
 
 Shoppers need neither key: a user reads and edits their own carts and reads
 their own orders. Placing an order, recording a payment, merging carts and
@@ -143,6 +144,13 @@ The order starts as `pending_payment` and holds its stock for 30 minutes
 idempotency key `order:<id>:payment`, so calling `checkout` again for the
 same cart returns the same order and the same payment. A free order is paid
 at once.
+
+With the [contacts](/docs/blocks/contacts) block installed, placing an order
+checks the credit limit contacts keeps on the shopper's person: what they
+still owe on open orders in the cart's currency, plus the new total, can't
+exceed `credit_limit` when `credit_currency` is that currency. Over the limit,
+placing fails with `ORDER_CREDIT_LIMIT_EXCEEDED`, unless the shopper holds
+`orders.override_credit`.
 
 With the [invoices block](/docs/blocks/invoices) installed, the payment that
 marks an order paid also creates its invoice: one line per order line (the
@@ -259,6 +267,27 @@ quantity can't be ordered (`ORDERS_QUANTITY_INVALID`).
 `orderFromQuoteAction` from `better-supabase/blocks/orders` is the quotes
 conversion action: without a `create`, it calls `orders.fromQuote` on the
 `orders` client in the action's clients.
+
+### Drop ship
+
+With the [inventory block](/docs/blocks/inventory#drop-ship) installed,
+`purchaseOrderFromOrder` drafts a purchase order for an order's catalog lines,
+which the supplier ships straight to the customer:
+
+```ts
+const { id } = await orders
+  .purchaseOrderFromOrder(order.id, { type: "company", id: supplierId })
+  .orThrow();
+await db.inventory.placePurchaseOrder(id).orThrow();
+```
+
+The purchase order's `ship_to` is the order's shipping address, and it
+records the order as its origin. Its location is the one the order's lines
+were reserved at, or the first active location, unless you pass `locationId`.
+Each line costs the variant's average cost in the order's currency, or 0
+without one, so edit the draft before placing it. Saving the draft needs
+`inventory.purchase`, and a blocked supplier fails with
+`PURCHASE_ORDER_SUPPLIER_BLOCKED`.
 
 ## Kitchen
 

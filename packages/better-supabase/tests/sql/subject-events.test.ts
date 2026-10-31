@@ -42,6 +42,7 @@ const SUBJECT_EVENTS = [
   "invoice.charged",
   "invoice.charge_removed",
   "invoice.payment_reversed",
+  "invoice.match_checked",
   "task.created",
   "task.updated",
   "task.assigned",
