@@ -2834,6 +2834,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "originType": "origin_type",
               "originId": "origin_id",
               "buyer": "buyer",
+              "variantOf": "variant_of",
+              "variantLabel": "variant_label",
+              "isSelected": "is_selected",
               "updatedAt": "updated_at"
             }
           },
@@ -3759,6 +3762,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "catalog",
         "automations",
         "orders",
+        "invoices",
         "inventory",
         "imports"
       ],
@@ -3822,6 +3826,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "depositDue": "deposit_due",
               "unpublishedChanges": "unpublished_changes",
               "buyer": "buyer",
+              "variantOf": "variant_of",
+              "variantLabel": "variant_label",
+              "isSelected": "is_selected",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
@@ -3864,6 +3871,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "inventory",
         "contacts",
         "orders",
+        "shipments",
+        "billable-time",
         "imports"
       ],
       "manifest": "invoices",
@@ -5341,6 +5350,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "description": "description",
               "merchant": "merchant",
               "amount": "amount",
+              "dimensions": "dimensions",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
@@ -14608,6 +14618,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "string",
                 "optional": true,
                 "maxLength": 200
+              },
+              "dimensions": {
+                "kind": "json",
+                "optional": true,
+                "description": "Accounting dimensions of the line: `{ project: \"<project id>\" }`."
               }
             },
             "jsonSchema": {
@@ -14652,6 +14667,9 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "merchant": {
                   "type": "string",
                   "maxLength": 200
+                },
+                "dimensions": {
+                  "description": "Accounting dimensions of the line: `{ project: \"<project id>\" }`."
                 }
               },
               "required": [
@@ -24877,6 +24895,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoicesOptions"
         },
         {
+          "name": "InvoiceSource"
+        },
+        {
+          "name": "InvoiceSources"
+        },
+        {
           "name": "InvoiceStatus"
         },
         {
@@ -24884,6 +24908,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "SendEInvoiceOptions"
+        },
+        {
+          "name": "SourceInvoice"
         }
       ],
       "events": {
@@ -26255,6 +26282,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "OrderStatus"
         },
         {
+          "name": "OrderVariants"
+        },
+        {
           "name": "PricedCart"
         }
       ],
@@ -27184,6 +27214,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "QuoteTaxLine"
+        },
+        {
+          "name": "QuoteVariants"
+        },
+        {
+          "name": "QuoteVariantSelection"
         },
         {
           "name": "QuoteVersion",

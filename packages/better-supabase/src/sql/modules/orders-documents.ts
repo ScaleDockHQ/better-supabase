@@ -13,6 +13,7 @@ import {
   orderFields,
   orderPayload,
 } from "./orders-shared.ts";
+import { quoteVariantGuard } from "./quotes-variants.ts";
 
 /** The document type an order's stock allocations carry. */
 const DOCUMENT = "'order'";
@@ -373,7 +374,7 @@ begin
   end if;
   if ${quotes.is("quotes", "status", `v_quote.${q("status")}`, ["accepted"], true)} then
     ${fail("ORDERS_QUOTE_NOT_ACCEPTED", "only an accepted quote becomes an order", "55000")}
-  end if;
+  end if;${quoteVariantGuard(quotes, "v_quote", quotes.table("quotes"))}
   if exists (select 1 from ${quotes.table("lines")} x where x.${ql("parent")} = v_quote.${q("id")} and ${countedLine(quotes, "lines", "x")}
     and x.${ql("quantity")} <> trunc(x.${ql("quantity")})) then
     ${fail("ORDERS_QUANTITY_INVALID", "an order line is a whole quantity; the quote has a fractional one", "22023")}

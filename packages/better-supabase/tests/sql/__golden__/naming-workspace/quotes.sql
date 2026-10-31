@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:aa183349dccf166e38cc5c5d2f0be02ec212f5d0e1b090c31a38fa5007cd6a4f
+-- @bsb-hash sha256:ec89da26a2d0b004fff915ada76f63d261f32830d2dae699d8e1ccaf6ecaa15c
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -138,6 +138,9 @@ create table if not exists "better_supabase"."quotes" (
   "deposit_due" bigint not null default 0,
   "unpublished_changes" boolean not null default false,
   "buyer" jsonb,
+  "variant_of" uuid,
+  "variant_label" text check (length("variant_label") between 1 and 100),
+  "is_selected" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -154,7 +157,11 @@ alter table "better_supabase"."quotes" add column if not exists "deposit_amount"
 alter table "better_supabase"."quotes" add column if not exists "deposit_required" boolean not null default false;
 alter table "better_supabase"."quotes" add column if not exists "unpublished_changes" boolean not null default false;
 alter table "better_supabase"."quotes" add column if not exists "buyer" jsonb;
+alter table "better_supabase"."quotes" add column if not exists "variant_of" uuid;
+alter table "better_supabase"."quotes" add column if not exists "variant_label" text check (length("variant_label") between 1 and 100);
+alter table "better_supabase"."quotes" add column if not exists "is_selected" boolean not null default false;
 create index if not exists quotes_tenant_status_idx on "better_supabase"."quotes" ("tenant_id", "status", "created_at" desc);
+create index if not exists quotes_variant_idx on "better_supabase"."quotes" ("variant_of") where "variant_of" is not null;
 create index if not exists quotes_origin_idx on "better_supabase"."quotes" ("origin_type", "origin_id");
 
 alter table "better_supabase"."quotes" enable row level security;
@@ -1255,6 +1262,136 @@ end;
 $$;
 revoke execute on function "better_supabase"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_quotes"() to service_role;
+
+-- Makes another variant of a quote: a new draft quote with the same pricing,
+-- party and lines, grouped under the same root. label names it (A, B, Basic,
+-- Premium) and is unique within the group; attrs change the new quote like
+-- create_quote's. The first variant gives the quote it came from the label
+-- Original when it has none.
+create or replace function "better_supabase"."create_quote_variant"(quote uuid, label text, attrs jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."quotes";
+  v_root uuid;
+  v_label text := nullif(trim(create_quote_variant.label), '');
+  v_made jsonb;
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."quotes" x where x."id" = create_quote_variant.quote and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.write'), false));
+  if v_src."id" is null then
+    raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
+  end if;
+  if v_label is null or length(v_label) > 100 then
+    raise exception 'a variant needs a label of up to 100 characters' using errcode = '22023', hint = 'QUOTE_VARIANT_INVALID';
+  end if;
+  v_root := coalesce(v_src."variant_of", v_src."id");
+  if exists (select 1 from "better_supabase"."quotes" x where (x."id" = v_root or x."variant_of" = v_root) and lower(x."variant_label") = lower(v_label)) then
+    raise exception 'another variant of this quote has that label' using errcode = '23505', hint = 'QUOTE_VARIANT_LABEL_TAKEN';
+  end if;
+  v_made := "better_supabase"."create_quote"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+    'title', v_src."title", 'currency', v_src."currency", 'validUntil', v_src."valid_until",
+    'company', case when v_src."company_id" is null then null else jsonb_build_object('type', v_src."company_type", 'id', v_src."company_id") end, 'contact', case when v_src."contact_id" is null then null else jsonb_build_object('type', v_src."contact_type", 'id', v_src."contact_id") end, 'terms', v_src."terms", 'note', v_src."note", 'pricesIncludeTax', v_src."prices_include_tax", 'discountBps', v_src."discount_bps", 'discountAmount', v_src."discount_amount"::text, 'depositBps', v_src."deposit_bps", 'depositAmount', v_src."deposit_amount"::text, 'depositRequired', v_src."deposit_required")) || coalesce(create_quote_variant.attrs, '{}'::jsonb), null);
+  v_id := (v_made ->> 'id')::uuid;
+  insert into "better_supabase"."quote_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "tax_code_id", "unit_cost", "discount_amount", "cost_source", "location_id", "bin_id", "billing_party", "billing_party_id", "billing_account_id", "position", "section", "optional", "selected", "periods")
+  select x."tenant_id", v_id, x."product_type", x."product_id", x."description", x."quantity", x."unit_amount", x."discount_bps", x."tax_rate_bps", x."tax_code", x."tax_code_id", x."unit_cost", x."discount_amount", x."cost_source", x."location_id", x."bin_id", x."billing_party", x."billing_party_id", x."billing_account_id", x."position", x."section", x."optional", x."selected", x."periods" from "better_supabase"."quote_lines" x where x."parent_id" = v_src."id";
+  update "better_supabase"."quotes" x set "variant_label" = coalesce(x."variant_label", 'Original')
+  where x."id" = v_root;
+  update "better_supabase"."quotes" x set "variant_of" = v_root, "variant_label" = v_label, "is_selected" = false
+  where x."id" = v_id;
+  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount', x."discount_amount"::text, 'deposit_due', x."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."create_quote_variant"(uuid, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_quote_variant"(uuid, text, jsonb) to authenticated, service_role;
+
+-- The quotes of one group of variants, the root first. isSelected tells which
+-- one the customer chose.
+create or replace function "better_supabase"."list_quote_variants"(quote uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."quotes";
+begin
+  select * into v_src from "better_supabase"."quotes" x where x."id" = list_quote_variants.quote;
+  if v_src."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'quotes.read'), false)) then
+    raise exception 'no such quote you can read' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
+  end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object(
+      'id', x."id", 'identifier', x."identifier", 'variantLabel', x."variant_label",
+      'isSelected', x."is_selected", 'status', x."status",
+      'currency', x."currency", 'total', x."total"::text, 'isRoot', x."variant_of" is null)
+      order by (x."variant_of" is not null), x."number"), '[]'::jsonb)
+    from "better_supabase"."quotes" x where (x."id" = coalesce(v_src."variant_of", v_src."id") or x."variant_of" = coalesce(v_src."variant_of", v_src."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."list_quote_variants"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_quote_variants"(uuid) to authenticated, service_role;
+
+-- Selects one variant of a quote and marks the others of its group not
+-- selected; only the selected variant becomes an order or an invoice. A
+-- withdrawn, rejected or expired variant can't be selected. options.forward
+-- is order or invoice to copy the selected variant forward in the same call
+-- (the quote must be accepted, as for order_from_quote and invoice_from_quote);
+-- options.attrs go to order_from_quote and options.depositBps to
+-- invoice_from_quote.
+create or replace function "better_supabase"."select_quote_variant"(quote uuid, options jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."quotes";
+  v_root uuid;
+  v_forward text := nullif(select_quote_variant.options ->> 'forward', '');
+  v_order jsonb;
+  v_invoice jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."quotes" x where x."id" = select_quote_variant.quote and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
+  end if;
+  v_root := coalesce(v_row."variant_of", v_row."id");
+  if v_row."variant_of" is null and not exists (select 1 from "better_supabase"."quotes" x where x."variant_of" = v_row."id") then
+    raise exception 'this quote has no variants' using errcode = '22023', hint = 'QUOTE_VARIANT_INVALID';
+  end if;
+  if v_row."status" in ('withdrawn', 'rejected', 'expired') then
+    raise exception 'a withdrawn, rejected or expired variant can''t be selected' using errcode = '55000', hint = 'QUOTE_VARIANT_NOT_SELECTABLE';
+  end if;
+  if v_forward is not null and v_forward not in ('') then
+    raise exception 'forward is order or invoice' using errcode = '22023', hint = 'QUOTE_VARIANT_INVALID';
+  end if;
+  perform 1 from "better_supabase"."quotes" x where (x."id" = v_root or x."variant_of" = v_root) for update;
+  update "better_supabase"."quotes" x set "is_selected" = (x."id" = v_row."id"), "updated_at" = now()
+  where (x."id" = v_root or x."variant_of" = v_root) and x."is_selected" is distinct from (x."id" = v_row."id");
+  if v_forward is not null and v_order is null and v_invoice is null then
+    raise exception 'the organization has no block to copy the variant forward to' using errcode = '22023', hint = 'QUOTE_VARIANT_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."quotes" x where x."id" = v_row."id";
+  return jsonb_build_object('quote', (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb)), 'variants', (select coalesce(jsonb_agg(jsonb_build_object(
+      'id', x."id", 'identifier', x."identifier", 'variantLabel', x."variant_label",
+      'isSelected', x."is_selected", 'status', x."status",
+      'currency', x."currency", 'total', x."total"::text, 'isRoot', x."variant_of" is null)
+      order by (x."variant_of" is not null), x."number"), '[]'::jsonb)
+    from "better_supabase"."quotes" x where (x."id" = v_root or x."variant_of" = v_root)), 'order', v_order, 'invoice', v_invoice);
+end;
+$$;
+revoke execute on function "better_supabase"."select_quote_variant"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."select_quote_variant"(uuid, jsonb) to authenticated, service_role;
 
 -- The import target of the quote entity (ADR 0141): item.data is { number,
 -- status?, title?, currency, validUntil?, createdAt?, sentAt?, viewedAt?,

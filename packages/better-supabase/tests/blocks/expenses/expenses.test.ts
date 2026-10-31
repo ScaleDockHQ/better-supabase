@@ -267,6 +267,7 @@ describe("createExpenses", () => {
         amount: money(4200n, "EUR"),
         description: "Train",
         merchant: "NS",
+        dimensions: { project: "proj-1" },
       })
       .orThrow();
 
@@ -326,6 +327,7 @@ describe("createExpenses", () => {
           amount: "4200",
           description: "Train",
           merchant: "NS",
+          dimensions: { project: "proj-1" },
           currency: "EUR",
         },
       ],
@@ -338,6 +340,7 @@ describe("createExpenses", () => {
           amount: "4200",
           description: "Train",
           merchant: null,
+          dimensions: null,
           currency: "EUR",
         },
       ],
@@ -350,6 +353,7 @@ describe("createExpenses", () => {
           amount: "4300",
           description: "Train back",
           merchant: "NS",
+          dimensions: null,
           currency: "EUR",
         },
       ],
@@ -362,6 +366,7 @@ describe("createExpenses", () => {
           amount: null,
           description: null,
           merchant: null,
+          dimensions: null,
           currency: null,
         },
       ],

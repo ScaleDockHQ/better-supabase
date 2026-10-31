@@ -327,7 +327,7 @@ export interface BlockNameRegistry {
       readonly "rates": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "rate" | "currency" | "effectiveFrom" | "cost" | "createdBy" | "createdAt";
       readonly "billed": "entry" | "tenant" | "invoice" | "rate" | "currency" | "seconds" | "createdAt";
     };
-    readonly functions: "billable_time_guard" | "billable_time_release" | "delete_time_rate" | "invoice_from_time" | "list_invoiced_time" | "list_time_rates" | "set_time_rate" | "time_rate" | "unbilled_time" | "wip_valuation";
+    readonly functions: "billable_time_guard" | "billable_time_release" | "claim_time_for_invoice" | "delete_time_rate" | "invoice_from_time" | "list_invoiced_time" | "list_time_rates" | "set_time_rate" | "time_lines_for_invoice" | "time_rate" | "unbilled_time" | "wip_valuation";
     readonly actions: "read" | "manage" | "invoice";
     readonly hooks: never;
     readonly entities: {
@@ -895,7 +895,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "categories": "id" | "tenant" | "key" | "name" | "currency" | "limitAmount" | "receiptOver" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "reports": "id" | "tenant" | "user" | "title" | "currency" | "note" | "approval" | "submittedAt" | "approvedAt" | "approvalTransaction" | "reimbursedAt" | "reimbursement" | "cancelledAt" | "createdAt" | "updatedAt" | "rejectedAt" | "decidedBy" | "decisionNote";
-      readonly "lines": "id" | "tenant" | "report" | "category" | "spentOn" | "description" | "merchant" | "amount" | "createdAt" | "updatedAt";
+      readonly "lines": "id" | "tenant" | "report" | "category" | "spentOn" | "description" | "merchant" | "amount" | "dimensions" | "createdAt" | "updatedAt";
       readonly "expenses": "id" | "tenant" | "user" | "employee" | "category" | "spentOn" | "description" | "merchant" | "amount" | "currency" | "status" | "submittedAt" | "approvedAt" | "rejectedAt" | "decidedBy" | "decidedAt" | "decisionNote" | "reimbursedAt" | "reimbursedBy" | "reimbursement" | "createdBy" | "createdAt" | "updatedAt";
     };
     readonly functions: "add_expense_line" | "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_report" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "reimburse_expense_report" | "remove_expense_line" | "save_expense_category" | "submit_expense_report" | "update_expense_line";
@@ -903,7 +903,7 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {
       readonly "expense_report": "id" | "tenant_id" | "user_id" | "title" | "currency" | "note" | "approval_id" | "submitted_at" | "approved_at" | "approval_transaction_id" | "reimbursed_at" | "reimbursement_transaction_id" | "cancelled_at" | "created_at" | "updated_at" | "rejected_at" | "decided_by" | "decision_note";
-      readonly "expense_line": "id" | "tenant_id" | "report_id" | "category_id" | "spent_on" | "description" | "merchant" | "amount" | "created_at" | "updated_at";
+      readonly "expense_line": "id" | "tenant_id" | "report_id" | "category_id" | "spent_on" | "description" | "merchant" | "amount" | "dimensions" | "created_at" | "updated_at";
       readonly "expense_category": "id" | "tenant_id" | "key" | "name" | "currency" | "limit_amount" | "receipt_over" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "expense_report";
@@ -1216,13 +1216,14 @@ export interface BlockNameRegistry {
   readonly "invoices": {
     readonly tables: {
       readonly "invoices": "id" | "tenant" | "kind" | "number" | "identifier" | "original" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "currency" | "status" | "termsDays" | "issuedOn" | "dueOn" | "paidTotal" | "creditedTotal" | "paidAt" | "voidedAt" | "voidReason" | "writeOffReason" | "note" | "originType" | "originId" | "depositBps" | "depositAmount" | "discountBps" | "discountAmount" | "pricesIncludeTax" | "archivedAt" | "direction" | "supplierReference" | "purchaseOrder" | "dimensions" | "dunningLevel" | "dunningAt" | "dunningPausedUntil" | "buyer" | "paymentTermsId" | "discountDueOn" | "discountAmountEarly" | "collectionStatus" | "collectionAgencyId" | "collectionHandedAt" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
-      readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt" | "taxCodeId" | "unitCost" | "discountAmount" | "costSource" | "locationId" | "binId" | "billingParty" | "billingPartyId" | "billingAccountId";
+      readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt" | "taxCodeId" | "unitCost" | "discountAmount" | "costSource" | "locationId" | "binId" | "billingParty" | "billingPartyId" | "billingAccountId" | "dimensions";
       readonly "charges": "id" | "tenant" | "invoice" | "amount" | "currency" | "description" | "createdBy" | "createdAt";
       readonly "dunningLevels": "id" | "tenant" | "level" | "daysAfterDue" | "templateKey" | "textKey" | "fee" | "final" | "createdAt" | "updatedAt";
       readonly "dunningRuns": "id" | "tenant" | "asOf" | "createdBy" | "createdAt";
       readonly "dunningRunItems": "id" | "tenant" | "run" | "party" | "invoice" | "level" | "textKey" | "templateKey" | "fee" | "balance" | "dueOn" | "createdAt";
       readonly "dunningHistory": "id" | "tenant" | "invoice" | "run" | "kind" | "level" | "textKey" | "templateKey" | "fee" | "balance" | "note" | "createdAt";
       readonly "allocations": "id" | "tenant" | "reference" | "party" | "invoice" | "source" | "amount" | "discount" | "payment" | "discountPayment" | "allocatedOn" | "unallocatedAt" | "createdBy" | "createdAt";
+      readonly "lineSources": "id" | "tenant" | "invoice" | "position" | "source" | "sourceId" | "sourceLine" | "orderLine" | "quantity" | "createdAt";
       readonly "approvalLevels": "id" | "tenant" | "legalEntity" | "level" | "minAmount" | "currency" | "approver" | "createdAt";
       readonly "approvals": "id" | "tenant" | "invoice" | "level" | "approver" | "comment" | "decidedAt";
     };
@@ -1614,7 +1615,7 @@ export interface BlockNameRegistry {
       readonly "carts": "id" | "tenant" | "user" | "currency" | "priceList" | "status" | "email" | "shippingAddress" | "billingAddress" | "shippingRate" | "createdAt" | "updatedAt" | "convertedAt";
       readonly "cartLines": "id" | "tenant" | "cart" | "variant" | "quantity" | "unitAmount" | "createdAt" | "updatedAt";
       readonly "shippingRates": "id" | "tenant" | "name" | "countries" | "currency" | "kind" | "amount" | "perKg" | "freeOver" | "active" | "createdAt" | "updatedAt";
-      readonly "orders": "id" | "tenant" | "number" | "sequence" | "cart" | "customer" | "email" | "status" | "currency" | "subtotal" | "discountTotal" | "shippingTotal" | "taxTotal" | "total" | "paidTotal" | "refundedTotal" | "taxInclusive" | "shippingAddress" | "billingAddress" | "shipping" | "promotions" | "tax" | "taxTransaction" | "invoiceNumber" | "invoiceSequence" | "invoicedAt" | "placedAt" | "paidAt" | "fulfilledAt" | "completedAt" | "cancelledAt" | "cancelReason" | "originType" | "originId" | "buyer" | "updatedAt";
+      readonly "orders": "id" | "tenant" | "number" | "sequence" | "cart" | "customer" | "email" | "status" | "currency" | "subtotal" | "discountTotal" | "shippingTotal" | "taxTotal" | "total" | "paidTotal" | "refundedTotal" | "taxInclusive" | "shippingAddress" | "billingAddress" | "shipping" | "promotions" | "tax" | "taxTransaction" | "invoiceNumber" | "invoiceSequence" | "invoicedAt" | "placedAt" | "paidAt" | "fulfilledAt" | "completedAt" | "cancelledAt" | "cancelReason" | "originType" | "originId" | "buyer" | "variantOf" | "variantLabel" | "isSelected" | "updatedAt";
       readonly "orderLines": "id" | "tenant" | "order" | "position" | "variant" | "product" | "sku" | "title" | "quantity" | "unitAmount" | "subtotal" | "discount" | "tax" | "total" | "requiresShipping" | "location" | "reservation" | "fulfilled" | "returned" | "backordered" | "taxCodeId" | "unitCost" | "costSource" | "binId" | "billingParty" | "billingPartyId" | "billingAccountId";
       readonly "payments": "id" | "tenant" | "order" | "provider" | "reference" | "status" | "currency" | "amount" | "captured" | "refunded" | "createdAt" | "updatedAt";
       readonly "fulfillments": "id" | "tenant" | "order" | "location" | "status" | "carrier" | "trackingNumber" | "trackingUrl" | "createdAt" | "shippedAt" | "deliveredAt";
@@ -1626,11 +1627,11 @@ export interface BlockNameRegistry {
       readonly "kitchenRoutes": "product" | "tenant" | "station";
       readonly "preparations": "line" | "tenant" | "order" | "station" | "state" | "note" | "queuedAt" | "startedAt" | "readyAt" | "servedAt" | "updatedAt" | "updatedBy";
     };
-    readonly functions: "add_to_cart" | "cancel_fulfillment" | "cancel_order" | "cart_totals" | "complete_refund" | "create_cart" | "create_fulfillment" | "create_refund" | "delete_shipping_rate" | "deliver_fulfillment" | "expire_orders" | "get_order" | "import_order" | "merge_carts" | "order_cancel" | "order_from_document" | "order_from_lines" | "order_from_quote" | "order_json" | "order_transition" | "order_updated_at" | "place_order" | "price_cart" | "receive_return" | "record_payment" | "reject_return" | "request_return" | "save_shipping_rate" | "set_cart_details" | "set_cart_line" | "set_cart_shipping_rate" | "set_order_tax_transaction" | "ship_fulfillment" | "shipping_options";
+    readonly functions: "add_to_cart" | "cancel_fulfillment" | "cancel_order" | "cart_totals" | "complete_refund" | "create_cart" | "create_fulfillment" | "create_refund" | "delete_shipping_rate" | "deliver_fulfillment" | "expire_orders" | "get_order" | "import_order" | "list_order_variants" | "merge_carts" | "order_cancel" | "order_from_document" | "order_from_lines" | "order_from_quote" | "order_json" | "order_transition" | "order_updated_at" | "place_order" | "price_cart" | "receive_return" | "record_payment" | "reject_return" | "request_return" | "save_shipping_rate" | "select_order_variant" | "set_cart_details" | "set_cart_line" | "set_cart_shipping_rate" | "set_order_tax_transaction" | "set_order_variant" | "ship_fulfillment" | "shipping_options";
     readonly actions: "manage" | "read" | "prepare" | "overrideCredit";
     readonly hooks: "before_order_place" | "after_order_place" | "before_fulfillment_create" | "after_fulfillment_create" | "before_refund_create" | "after_refund_create";
     readonly entities: {
-      readonly "order": "id" | "tenant_id" | "number" | "sequence" | "cart_id" | "customer_id" | "email" | "status" | "currency" | "subtotal" | "discount_total" | "shipping_total" | "tax_total" | "total" | "paid_total" | "refunded_total" | "tax_inclusive" | "shipping_address" | "billing_address" | "shipping" | "promotions" | "tax" | "tax_transaction" | "invoice_number" | "invoice_sequence" | "invoiced_at" | "placed_at" | "paid_at" | "fulfilled_at" | "completed_at" | "cancelled_at" | "cancel_reason" | "origin_type" | "origin_id" | "buyer" | "updated_at";
+      readonly "order": "id" | "tenant_id" | "number" | "sequence" | "cart_id" | "customer_id" | "email" | "status" | "currency" | "subtotal" | "discount_total" | "shipping_total" | "tax_total" | "total" | "paid_total" | "refunded_total" | "tax_inclusive" | "shipping_address" | "billing_address" | "shipping" | "promotions" | "tax" | "tax_transaction" | "invoice_number" | "invoice_sequence" | "invoiced_at" | "placed_at" | "paid_at" | "fulfilled_at" | "completed_at" | "cancelled_at" | "cancel_reason" | "origin_type" | "origin_id" | "buyer" | "variant_of" | "variant_label" | "is_selected" | "updated_at";
       readonly "cart": "id" | "tenant_id" | "user_id" | "currency" | "price_list_id" | "status" | "email" | "shipping_address" | "billing_address" | "shipping_rate_id" | "created_at" | "updated_at" | "converted_at";
     };
     readonly primary: "order";
@@ -1815,17 +1816,17 @@ export interface BlockNameRegistry {
   };
   readonly "quotes": {
     readonly tables: {
-      readonly "quotes": "id" | "tenant" | "number" | "identifier" | "revision" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "owner" | "currency" | "status" | "validUntil" | "terms" | "note" | "originType" | "originId" | "tokenHash" | "sentAt" | "viewedAt" | "decidedAt" | "decidedBy" | "decisionNote" | "decidedUser" | "decidedIp" | "decidedUserAgent" | "pricesIncludeTax" | "discountBps" | "discountAmount" | "depositBps" | "depositAmount" | "depositRequired" | "depositDue" | "unpublishedChanges" | "buyer" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
+      readonly "quotes": "id" | "tenant" | "number" | "identifier" | "revision" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "owner" | "currency" | "status" | "validUntil" | "terms" | "note" | "originType" | "originId" | "tokenHash" | "sentAt" | "viewedAt" | "decidedAt" | "decidedBy" | "decisionNote" | "decidedUser" | "decidedIp" | "decidedUserAgent" | "pricesIncludeTax" | "discountBps" | "discountAmount" | "depositBps" | "depositAmount" | "depositRequired" | "depositDue" | "unpublishedChanges" | "buyer" | "variantOf" | "variantLabel" | "isSelected" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
       readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt" | "section" | "optional" | "selected" | "periods" | "taxCodeId" | "unitCost" | "discountAmount" | "costSource" | "locationId" | "binId" | "billingParty" | "billingPartyId" | "billingAccountId";
       readonly "versions": "id" | "tenant" | "quote" | "revision" | "snapshot" | "total" | "currency" | "publishedBy" | "publishedAt";
       readonly "versionLines": "id" | "tenant" | "version" | "position" | "description" | "quantity" | "unitAmount" | "periods" | "discountBps" | "taxRateBps" | "taxCode" | "section" | "optional" | "selected" | "productType" | "productId";
       readonly "taxLines": "id" | "tenant" | "parent" | "taxRateBps" | "taxCode" | "net" | "tax" | "gross" | "discount";
     };
-    readonly functions: "create_quote" | "decide_quote" | "expire_quotes" | "import_quote" | "portal_quote" | "public_quote" | "quote_totals_by_billing_party" | "quote_updated_at" | "quote_version" | "quote_versions" | "respond_to_portal_quote" | "respond_to_quote" | "revise_quote" | "send_quote" | "set_quote_lines" | "set_quote_lines_recount" | "update_quote" | "withdraw_quote";
+    readonly functions: "create_quote" | "create_quote_variant" | "decide_quote" | "expire_quotes" | "import_quote" | "list_quote_variants" | "portal_quote" | "public_quote" | "quote_totals_by_billing_party" | "quote_updated_at" | "quote_version" | "quote_versions" | "respond_to_portal_quote" | "respond_to_quote" | "revise_quote" | "select_quote_variant" | "send_quote" | "set_quote_lines" | "set_quote_lines_recount" | "update_quote" | "withdraw_quote";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_quote_send" | "after_quote_send" | "before_quote_accept" | "after_quote_accept";
     readonly entities: {
-      readonly "quote": "id" | "tenant_id" | "number" | "identifier" | "revision" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "owner_user_id" | "currency" | "status" | "valid_until" | "terms" | "note" | "origin_type" | "origin_id" | "token_hash" | "sent_at" | "viewed_at" | "decided_at" | "decided_by" | "decision_note" | "decided_user_id" | "decided_ip" | "decided_user_agent" | "prices_include_tax" | "discount_bps" | "discount_amount" | "deposit_bps" | "deposit_amount" | "deposit_required" | "deposit_due" | "unpublished_changes" | "buyer" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
+      readonly "quote": "id" | "tenant_id" | "number" | "identifier" | "revision" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "owner_user_id" | "currency" | "status" | "valid_until" | "terms" | "note" | "origin_type" | "origin_id" | "token_hash" | "sent_at" | "viewed_at" | "decided_at" | "decided_by" | "decision_note" | "decided_user_id" | "decided_ip" | "decided_user_agent" | "prices_include_tax" | "discount_bps" | "discount_amount" | "deposit_bps" | "deposit_amount" | "deposit_required" | "deposit_due" | "unpublished_changes" | "buyer" | "variant_of" | "variant_label" | "is_selected" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
     };
     readonly primary: "quote";
     readonly formerKeys: never;

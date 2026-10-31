@@ -236,3 +236,7 @@ wip.uncostedHours; // time the rate card has no cost for
 ```
 
 Materials are not part of it: stock movements are costed on the ledger.
+
+## Invoice with other sources
+
+`invoiceFromSources` on the invoices client bills unbilled time together with delivered orders and shipments. It reads rated entries through `time_lines_for_invoice` and claims them through `claim_time_for_invoice`, which marks the entries billed in the same transaction as the invoice. If an entry was billed in the meantime, the call fails with `BILLABLE_TIME_STALE` and nothing is written.

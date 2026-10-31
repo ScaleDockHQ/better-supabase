@@ -3,7 +3,7 @@
 -- report that the policy checks on submit, the owner approves it through the
 -- approvals block, which books it on the ledger, and then reimburses it.
 begin;
-select plan(20);
+select plan(23);
 
 select set_config(
   'request.jwt.claims',
@@ -157,6 +157,37 @@ select throws_ok(
   '55000',
   'only an approved report can be reimbursed',
   'a report is reimbursed once'
+);
+
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-0000000000a2","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000001"}}',
+  true
+);
+select set_config('test.split', better_supabase.create_expense_report(
+  '00000000-0000-4000-8000-000000000001', 'Two projects', 'EUR'
+) ->> 'id', true);
+select is(
+  better_supabase.add_expense_line(
+    current_setting('test.split')::uuid, current_setting('test.meals')::uuid, '2026-10-03', 900, 'Lunch',
+    dimensions => '{"project":"apollo"}'::jsonb
+  ) -> 'dimensions',
+  '{"project":"apollo"}'::jsonb,
+  'a line keeps its dimensions'
+);
+select is(
+  better_supabase.add_expense_line(
+    current_setting('test.split')::uuid, current_setting('test.meals')::uuid, '2026-10-03', 100, 'Water'
+  ) -> 'dimensions',
+  '{}'::jsonb,
+  'a line without dimensions keeps an empty object'
+);
+select throws_ok(
+  format($$select better_supabase.add_expense_line(%L, %L, '2026-10-03', 100, 'Bad', dimensions => '"x"'::jsonb)$$,
+    current_setting('test.split'), current_setting('test.meals')),
+  '22023',
+  'dimensions is an object of dimension keys and value codes',
+  'dimensions must be an object'
 );
 
 select * from finish();

@@ -18,6 +18,7 @@ import type { Result } from "../../core/result.ts";
 import type { WebhookInput } from "../../core/signatures.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../queue/types.ts";
+import type { OrderVariants } from "../sales-variants.ts";
 import type { BlockOptions } from "../shared.ts";
 import type {
   Address,
@@ -40,6 +41,7 @@ import { blockFields, readFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
+import { orderVariants } from "../sales-variants.ts";
 import {
   applyTemporal,
   blockCall,
@@ -217,9 +219,8 @@ export interface Invoice<F extends object = Record<never, never>> {
   readonly order: Order<F>;
 }
 
-export interface Orders<
-  F extends object = Record<never, never>,
-> extends OrderDocuments<F> {
+export interface Orders<F extends object = Record<never, never>>
+  extends OrderDocuments<F>, OrderVariants {
   saveShippingRate(
     organizationId: string,
     input: ShippingRateInput,
@@ -1200,6 +1201,7 @@ export function createOrders<
     },
     kitchen: orderKitchen(call),
     ...orderDocuments(call, parsed),
+    ...orderVariants(call),
   };
 
   return withBlockHooks(orders, options.hooks, {

@@ -146,6 +146,18 @@ export function expensesFunctions(ctx: BlockSqlContext): string {
   const alsoSet = (table: string, logical: string, value: string): string =>
     ctx.has(table, logical) ? `, ${ctx.col(table, logical)} = ${value}` : "";
 
+  // Refuses dimensions that aren't an object, or that the table can't keep.
+  const dimensionsCheck = (call: string): string =>
+    ctx.has("lines", "dimensions")
+      ? `
+  if ${call}.dimensions is not null and jsonb_typeof(${call}.dimensions) not in ('object', 'null') then
+    ${invalid("EXPENSE_LINE_INVALID", "dimensions is an object of dimension keys and value codes")}
+  end if;`
+      : `
+  if ${call}.dimensions is not null and ${call}.dimensions <> '{}'::jsonb and ${call}.dimensions <> 'null'::jsonb then
+    ${invalid("EXPENSE_DIMENSIONS_UNSUPPORTED", "this expense lines table has no dimensions column")}
+  end if;`;
+
   // Refuses a non-null argument the table has no column for.
   const unsupported = (
     table: string,
@@ -258,7 +270,7 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text, uuid)`)}
   ];
 
   const lineJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${x("id")}, 'reportId', ${row}.${x("report")}, 'categoryId', ${row}.${x("category")}, 'spentOn', ${row}.${x("spentOn")}, 'description', ${row}.${x("description")}, 'merchant', ${or("lines", row, "merchant")}, 'amount', ${row}.${x("amount")}::text, 'currency', (select rc.${r("currency")} from ${reports} rc where rc.${r("id")} = ${row}.${x("report")}), 'receipts', ${receipts(row)}, 'createdAt', ${row}.${x("createdAt")}, 'updatedAt', ${row}.${x("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${x("id")}, 'reportId', ${row}.${x("report")}, 'categoryId', ${row}.${x("category")}, 'spentOn', ${row}.${x("spentOn")}, 'description', ${row}.${x("description")}, 'merchant', ${or("lines", row, "merchant")}, 'dimensions', ${ctx.has("lines", "dimensions") ? `${row}.${x("dimensions")}` : "'{}'::jsonb"}, 'amount', ${row}.${x("amount")}::text, 'currency', (select rc.${r("currency")} from ${reports} rc where rc.${r("id")} = ${row}.${x("report")}), 'receipts', ${receipts(row)}, 'createdAt', ${row}.${x("createdAt")}, 'updatedAt', ${row}.${x("updatedAt")})`;
 
   const reportJson = (row: string, approval: string): string =>
     `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'title', ${row}.${r("title")}, 'currency', ${row}.${r("currency")}, 'note', ${or("reports", row, "note")}, 'status', ${status(row, approval)}, 'total', ${total(row)}::text, 'approvalId', ${or("reports", row, "approval")}, 'submittedAt', ${row}.${r("submittedAt")}, 'approvedAt', ${row}.${r("approvedAt")}, 'approvalTransactionId', ${or("reports", row, "approvalTransaction")}, 'reimbursedAt', ${row}.${r("reimbursedAt")}, 'reimbursementTransactionId', ${or("reports", row, "reimbursement")}, 'cancelledAt', ${row}.${r("cancelledAt")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")}${extraFieldsJson(row, extras)},
@@ -558,7 +570,7 @@ end;
 $$;
 ${userGrant(`${fn("create_expense_report")}(${idType}, text, text, text${extra.type})`)}
 
-create or replace function ${fn("add_expense_line")}(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null)
+create or replace function ${fn("add_expense_line")}(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -581,19 +593,19 @@ begin${loadReport("add_expense_line.report_id", true)}${ownerOnly}${editable}${c
   end if;
   if nullif(trim(add_expense_line.description), '') is null then
     ${invalid("EXPENSE_LINE_INVALID", "a line needs a description")}
-  end if;${unsupported("lines", "merchant", "nullif(trim(add_expense_line.merchant), '')", "EXPENSE_MERCHANT_UNSUPPORTED", "this expense lines table has no merchant column")}
-  insert into ${lines} (${x("tenant")}, ${x("report")}, ${x("category")}, ${x("spentOn")}, ${x("description")}${also("lines", "merchant")}, ${x("amount")})
+  end if;${unsupported("lines", "merchant", "nullif(trim(add_expense_line.merchant), '')", "EXPENSE_MERCHANT_UNSUPPORTED", "this expense lines table has no merchant column")}${dimensionsCheck("add_expense_line")}
+  insert into ${lines} (${x("tenant")}, ${x("report")}, ${x("category")}, ${x("spentOn")}, ${x("description")}${also("lines", "merchant")}${also("lines", "dimensions")}, ${x("amount")})
   values (v_row.${r("tenant")}, v_row.${r("id")}, v_category.${k("id")}, add_expense_line.spent_on, trim(add_expense_line.description),
-    ${ctx.has("lines", "merchant") ? "nullif(trim(add_expense_line.merchant), ''), " : ""}add_expense_line.amount)
+    ${ctx.has("lines", "merchant") ? "nullif(trim(add_expense_line.merchant), ''), " : ""}${ctx.has("lines", "dimensions") ? "coalesce(nullif(add_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), " : ""}add_expense_line.amount)
   returning * into v_line;
   update ${reports} x set ${r("updatedAt")} = now() where x.${r("id")} = v_row.${r("id")};
   return ${lineJson("v_line")};
 end;
 $$;
-${userGrant(`${fn("add_expense_line")}(uuid, uuid, date, bigint, text, text, text)`)}
+${userGrant(`${fn("add_expense_line")}(uuid, uuid, date, bigint, text, text, text, jsonb)`)}
 
 -- Changes a line of a draft or rejected report; null keeps a value.
-create or replace function ${fn("update_expense_line")}(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null, currency text default null)
+create or replace function ${fn("update_expense_line")}(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null, currency text default null, dimensions jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -616,12 +628,12 @@ begin
   end if;
   if update_expense_line.amount is not null and update_expense_line.amount <= 0 then
     ${invalid("EXPENSE_LINE_INVALID", "an amount is more than zero minor units")}
-  end if;${unsupported("lines", "merchant", "nullif(trim(update_expense_line.merchant), '')", "EXPENSE_MERCHANT_UNSUPPORTED", "this expense lines table has no merchant column")}
+  end if;${unsupported("lines", "merchant", "nullif(trim(update_expense_line.merchant), '')", "EXPENSE_MERCHANT_UNSUPPORTED", "this expense lines table has no merchant column")}${dimensionsCheck("update_expense_line")}
   update ${lines} l set
       ${x("category")} = coalesce(update_expense_line.category_id, l.${x("category")}),
       ${x("spentOn")} = coalesce(update_expense_line.spent_on, l.${x("spentOn")}),
       ${x("amount")} = coalesce(update_expense_line.amount, l.${x("amount")}),
-      ${x("description")} = coalesce(nullif(trim(update_expense_line.description), ''), l.${x("description")}),${ctx.has("lines", "merchant") ? `\n      ${x("merchant")} = coalesce(nullif(trim(update_expense_line.merchant), ''), l.${x("merchant")}),` : ""}
+      ${x("description")} = coalesce(nullif(trim(update_expense_line.description), ''), l.${x("description")}),${ctx.has("lines", "merchant") ? `\n      ${x("merchant")} = coalesce(nullif(trim(update_expense_line.merchant), ''), l.${x("merchant")}),` : ""}${ctx.has("lines", "dimensions") ? `\n      ${x("dimensions")} = coalesce(nullif(update_expense_line.dimensions, 'null'::jsonb), l.${x("dimensions")}),` : ""}
       ${x("updatedAt")} = now()
     where l.${x("id")} = v_line.${x("id")}
     returning * into v_line;
@@ -629,7 +641,7 @@ begin
   return ${lineJson("v_line")};
 end;
 $$;
-${userGrant(`${fn("update_expense_line")}(uuid, uuid, date, bigint, text, text, text)`)}
+${userGrant(`${fn("update_expense_line")}(uuid, uuid, date, bigint, text, text, text, jsonb)`)}
 
 create or replace function ${fn("remove_expense_line")}(line_id uuid)
 returns jsonb

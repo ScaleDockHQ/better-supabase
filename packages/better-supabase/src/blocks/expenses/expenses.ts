@@ -96,6 +96,8 @@ export interface ExpenseLine {
   readonly description: string;
   readonly merchant?: string;
   readonly amount: Money;
+  /** Accounting dimensions of the line, such as `{ project: "<project id>" }`. */
+  readonly dimensions?: Readonly<Record<string, string>>;
   /** Receipts attached to the line (attachments with the line as subject). */
   readonly receipts: number;
   readonly createdAt: Temporal.Instant;
@@ -109,6 +111,12 @@ export interface ExpenseLineInput {
   readonly amount: Money;
   readonly description: string;
   readonly merchant?: string;
+  /**
+   * Accounting dimensions the report books the line with, such as `{ project:
+   * "<project id>" }`. They need the expense lines `dimensions` column and
+   * values the `accounting` block knows.
+   */
+  readonly dimensions?: Readonly<Record<string, string>>;
 }
 
 export type ExpenseLineUpdate = Partial<ExpenseLineInput>;
@@ -390,7 +398,23 @@ function lineOf(value: unknown, fn: string): ExpenseLine {
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("merchant", optionalText(row["merchant"])),
+    ...optional("dimensions", dimensionsOf(row["dimensions"])),
   };
+}
+
+function dimensionsOf(
+  value: unknown,
+): Readonly<Record<string, string>> | undefined {
+  if (!isRecord(value) || Object.keys(value).length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, code]): [string, string] => [
+      key,
+      String(code),
+    ]),
+  );
 }
 
 function reportOf(value: unknown, fn: string): ExpenseReport {
@@ -636,6 +660,7 @@ export function createExpenses<
           amount: amountText(input.amount),
           description: input.description,
           merchant: input.merchant ?? null,
+          dimensions: input.dimensions ?? null,
           currency: input.amount.currency,
         },
         line("add_expense_line"),
@@ -650,6 +675,7 @@ export function createExpenses<
           amount: update.amount ? amountText(update.amount) : null,
           description: update.description ?? null,
           merchant: update.merchant ?? null,
+          dimensions: update.dimensions ?? null,
           currency: update.amount?.currency ?? null,
         },
         line("update_expense_line"),
