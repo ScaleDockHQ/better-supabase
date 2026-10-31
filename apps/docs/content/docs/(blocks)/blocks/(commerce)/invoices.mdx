@@ -653,3 +653,13 @@ await invoices
   })
   .orThrow();
 ```
+
+## Line costs and billing parties
+
+A line can carry `discountAmount` next to `discountBps`, a `unitCost` with a
+`costSource` (`catalog`, `average`, `manual` or `imported`), a `taxCodeId`, a
+`locationId` and a `binId`. A line without a product is free text, and the
+same product can appear on several lines. `billingParty` says who pays a
+line (`customer`, `internal`, `own_warranty`, `supplier_warranty` or
+`cost_account`), with a `billingPartyId` or `billingAccountId`.
+`document_totals_by_billing_party(document)` returns the totals and the cost per billing party.

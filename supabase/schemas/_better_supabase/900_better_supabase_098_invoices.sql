@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:b4c315c11dfa70bc38621d7ce10066ab0a273fa9a2e943625fc0588748d0cf34
+-- @bsb-hash sha256:5e2b34d32345aec91d2a09e6b82cdf380450a9bc3640617de1b1e302e4e68a5d
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -134,6 +134,7 @@ create table if not exists "better_supabase"."invoices" (
   "dunning_level" integer not null default 0,
   "dunning_at" timestamptz,
   "dunning_paused_until" date,
+  "buyer" jsonb,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -650,6 +651,13 @@ create table if not exists "better_supabase"."invoice_lines" (
   "tax_code" text,
   "tax_code_id" uuid,
   "unit_cost" bigint,
+  "discount_amount" bigint not null default 0 check ("discount_amount" >= 0),
+  "cost_source" text check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
+  "location_id" uuid,
+  "bin_id" uuid,
+  "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
+  "billing_party_id" text,
+  "billing_account_id" uuid,
   "position" integer not null,
   "created_at" timestamptz not null default now(),
   check (("product_type" is null) = ("product_id" is null))
@@ -691,7 +699,7 @@ begin
   select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount"
     into v_tenant, v_inclusive, v_record_bps, v_record_amount
   from "better_supabase"."invoices" x where x."id" = set_invoice_lines_recount.parent;
-  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0)
+  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum((round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0), 0)))), 0)
     into v_list, v_line_discount
   from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true;
   v_net := v_list - v_line_discount;
@@ -700,8 +708,8 @@ begin
     else 0
   end;
   with grouped as (
-    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) as amount,
-      sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * l."unit_amount") - (round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) as amount,
+      sum(round((round(l."quantity" * l."unit_amount") - (round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
     from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true
     group by 1, 2
   ), shared as (
@@ -814,7 +822,7 @@ begin
   end if;
   delete from "better_supabase"."invoice_lines" l where l."parent_id" = v_parent;
   begin
-    insert into "better_supabase"."invoice_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "tax_code_id", "unit_cost", "position")
+    insert into "better_supabase"."invoice_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "tax_code_id", "unit_cost", "discount_amount", "cost_source", "location_id", "bin_id", "billing_party", "billing_party_id", "billing_account_id", "position")
     select v_tenant,
       v_parent,
       x.value -> 'product' ->> 'type',
@@ -827,6 +835,13 @@ begin
       x.value ->> 'taxCode',
       nullif(x.value ->> 'taxCodeId', '')::uuid,
       (x.value ->> 'unitCost')::bigint,
+      coalesce((x.value ->> 'discountAmount')::bigint, 0),
+      nullif(x.value ->> 'costSource', ''),
+      nullif(x.value ->> 'locationId', '')::uuid,
+      nullif(x.value ->> 'binId', '')::uuid,
+      coalesce(nullif(x.value ->> 'billingParty', ''), 'customer'),
+      nullif(x.value ->> 'billingPartyId', ''),
+      nullif(x.value ->> 'billingAccountId', '')::uuid,
       x.ordinality::integer
     from jsonb_array_elements(coalesce(set_invoice_lines.lines, '[]')) with ordinality x;
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
@@ -1229,8 +1244,8 @@ begin
     v_original."currency", 0, nullif(trim(credit_invoice.note), ''), v_original."prices_include_tax", v_original."direction", v_original."supplier_reference", v_original."purchase_order_id", v_original."dimensions", auth.uid())
   returning * into v_row;
   if credit_invoice.lines is null then
-    insert into "better_supabase"."invoice_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "tax_code_id", "unit_cost", "position")
-    select x."tenant_id", v_row."id", x."product_type", x."product_id", x."description", x."quantity", x."unit_amount", x."discount_bps", x."tax_rate_bps", x."tax_code", x."tax_code_id", x."unit_cost", x."position"
+    insert into "better_supabase"."invoice_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "tax_code_id", "unit_cost", "discount_amount", "cost_source", "location_id", "bin_id", "billing_party", "billing_party_id", "billing_account_id", "position")
+    select x."tenant_id", v_row."id", x."product_type", x."product_id", x."description", x."quantity", x."unit_amount", x."discount_bps", x."tax_rate_bps", x."tax_code", x."tax_code_id", x."unit_cost", x."discount_amount", x."cost_source", x."location_id", x."bin_id", x."billing_party", x."billing_party_id", x."billing_account_id", x."position"
     from "better_supabase"."invoice_lines" x where x."parent_id" = v_original."id";
   else
     perform "better_supabase"."set_invoice_lines"(v_row."id", credit_invoice.lines);
@@ -1724,6 +1739,7 @@ begin
     end if;
     select coalesce(jsonb_agg(jsonb_build_object('description', x."description", 'quantity', x."quantity" * coalesce(x."periods", 1), 'unitAmount', x."unit_amount"::text,
         'discountBps', x."discount_bps", 'taxRateBps', x."tax_rate_bps", 'taxCode', x."tax_code",
+        'discountAmount', x."discount_amount", 'taxCodeId', x."tax_code_id", 'unitCost', x."unit_cost", 'costSource', x."cost_source", 'locationId', x."location_id", 'binId', x."bin_id", 'billingParty', x."billing_party", 'billingPartyId', x."billing_party_id", 'billingAccountId', x."billing_account_id",
         'product', case when x."product_type" is null then null else jsonb_build_object('type', x."product_type", 'id', x."product_id") end
       ) order by x."position"), '[]'::jsonb) into v_lines
     from "better_supabase"."quote_lines" x where x."parent_id" = v_quote."id" and (not x."optional" or x."selected");
@@ -1740,7 +1756,7 @@ begin
       into v_lines
     from "better_supabase"."invoices" d
     cross join lateral (
-      select dl."tax_rate_bps" as rate, sum(round(dl."quantity" * dl."unit_amount") - round(round(dl."quantity" * dl."unit_amount") * dl."discount_bps" / 10000.0))::bigint as amount
+      select dl."tax_rate_bps" as rate, sum(round(dl."quantity" * dl."unit_amount") - (round(round(dl."quantity" * dl."unit_amount") * dl."discount_bps" / 10000.0) + least(coalesce(dl."discount_amount", 0), greatest(round(dl."quantity" * dl."unit_amount") - round(round(dl."quantity" * dl."unit_amount") * dl."discount_bps" / 10000.0), 0))))::bigint as amount
       from "better_supabase"."invoice_lines" dl where dl."parent_id" = d."id" and true
       group by 1
     ) y
@@ -1794,7 +1810,7 @@ begin
   end if;
   with billed as (
     select il."parent_id" as bill, (il."product_id")::text as variant, sum(il."quantity") as quantity,
-      sum(case when b."prices_include_tax" then round((round(il."quantity" * il."unit_amount") - round(round(il."quantity" * il."unit_amount") * il."discount_bps" / 10000.0)) * 10000.0 / (10000 + il."tax_rate_bps")) else round(il."quantity" * il."unit_amount") - round(round(il."quantity" * il."unit_amount") * il."discount_bps" / 10000.0) end) as net
+      sum(case when b."prices_include_tax" then round((round(il."quantity" * il."unit_amount") - (round(round(il."quantity" * il."unit_amount") * il."discount_bps" / 10000.0) + least(coalesce(il."discount_amount", 0), greatest(round(il."quantity" * il."unit_amount") - round(round(il."quantity" * il."unit_amount") * il."discount_bps" / 10000.0), 0)))) * 10000.0 / (10000 + il."tax_rate_bps")) else round(il."quantity" * il."unit_amount") - (round(round(il."quantity" * il."unit_amount") * il."discount_bps" / 10000.0) + least(coalesce(il."discount_amount", 0), greatest(round(il."quantity" * il."unit_amount") - round(round(il."quantity" * il."unit_amount") * il."discount_bps" / 10000.0), 0))) end) as net
     from "better_supabase"."invoice_lines" il join "better_supabase"."invoices" b on b."id" = il."parent_id"
     where b."purchase_order_id" = v_row."purchase_order_id" and b."direction" = 'purchase'
       and b."kind" = 'invoice' and (b."id" = v_row."id" or b."status" in ('issued', 'partially_paid', 'paid'))
@@ -2306,6 +2322,222 @@ end;
 $$;
 revoke execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) from public, anon;
 grant execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) to authenticated, service_role;
+
+-- The shared body of the invoice and credit_note import targets (ADR 0141).
+-- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
+-- company?, contact?, origin?, direction?, legalEntityId?, buyer?, createdAt?,
+-- pricesIncludeTax?, attrs?, lines, taxLines?, totals?, payments? }; a credit
+-- note adds originalId or original (the identifier of the credited invoice).
+-- The document is created and issued with its number as is, takes the stored
+-- tax and totals, then its payments with their original dates. A document that
+-- is already imported is kept as it is: the item reports a warning.
+create or replace function "better_supabase"."import_invoice_document"(item jsonb, subject_id text, v_credit boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_invoice_document.item ->> 'tenant')::uuid;
+  v_data jsonb := import_invoice_document.item -> 'data';
+  v_status text := case when v_credit then 'issued' else coalesce(v_data ->> 'status', 'issued') end;
+  v_number text := nullif(btrim(v_data ->> 'number'), '');
+  v_issued_on date;
+  v_due_on date;
+  v_original uuid;
+  v_made jsonb;
+  v_id uuid;
+  v_row "better_supabase"."invoices";
+  v_warnings jsonb := '[]'::jsonb;
+  v_computed jsonb;
+  v_given jsonb;
+  v_pay jsonb;
+  v_index integer := 0;
+begin
+  if import_invoice_document.subject_id is not null then
+    select * into v_row from "better_supabase"."invoices" x where x."id" = import_invoice_document.subject_id::uuid and x."tenant_id" = v_tenant;
+    if not found then
+      raise exception 'the invoice no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    return jsonb_build_object('subjectId', v_row."id"::text, 'updatedAt', v_row."updated_at", 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source document changed after it was imported; an imported document is kept as imported, so void or credit it and import the correction as a new document')));
+  end if;
+  if v_status not in ('draft', 'issued', 'partially_paid', 'paid', 'void', 'uncollectible') then
+    raise exception 'status is draft, issued, partially_paid, paid, void or uncollectible' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if jsonb_typeof(v_data -> 'lines') is distinct from 'array' or jsonb_array_length(v_data -> 'lines') = 0 then
+    raise exception 'a document needs at least one line' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_status <> 'draft' and v_number is null then
+    raise exception 'an issued document needs its number' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  begin
+    v_issued_on := nullif(v_data ->> 'issuedOn', '')::date;
+    v_due_on := nullif(v_data ->> 'dueOn', '')::date;
+  exception when others then
+    raise exception 'issuedOn and dueOn are dates' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if v_status <> 'draft' and v_issued_on is null then
+    raise exception 'an issued document needs its issue date' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+
+  if v_credit then
+    v_original := coalesce(
+      nullif(v_data ->> 'originalId', '')::uuid,
+      (select x."id" from "better_supabase"."invoices" x where x."tenant_id" = v_tenant and x."identifier" = v_data ->> 'original' limit 1)
+    );
+    if v_original is null then
+      raise exception 'a credit note names the invoice it credits (originalId or original)' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    v_made := "better_supabase"."credit_invoice"(v_original, v_data -> 'lines', nullif(v_data ->> 'note', ''), v_number, v_issued_on);
+    v_id := (v_made ->> 'id')::uuid;
+  else
+    v_made := "better_supabase"."create_invoice"(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
+      'title', coalesce(nullif(v_data ->> 'title', ''), 'Invoice ' || coalesce(v_number, 'draft')),
+      'currency', v_data -> 'currency',
+      'termsDays', v_data -> 'termsDays',
+      'note', v_data -> 'note',
+      'company', v_data -> 'company',
+      'contact', v_data -> 'contact',
+      'origin', v_data -> 'origin',
+      'direction', v_data -> 'direction',
+      'pricesIncludeTax', v_data -> 'pricesIncludeTax',
+      'discountBps', v_data -> 'discountBps',
+      'discountAmount', v_data -> 'discountAmount')), v_data -> 'lines');
+    v_id := (v_made ->> 'id')::uuid;
+  end if;
+  update "better_supabase"."invoices" x set legal_entity_id = case when v_credit then x.legal_entity_id else nullif(v_data ->> 'legalEntityId', '')::uuid end,
+    "buyer" = case when jsonb_typeof(v_data -> 'buyer') = 'object' then v_data -> 'buyer' else x."buyer" end,
+    "created_at" = coalesce(nullif(v_data ->> 'createdAt', '')::timestamptz, x."created_at")
+  where x."id" = v_id;
+  if v_status <> 'draft' and not v_credit then
+    perform "better_supabase"."issue_invoice"(v_id, v_issued_on, v_due_on, null, v_number);
+  end if;
+  if jsonb_typeof(v_data -> 'taxLines') = 'array' then
+    v_computed := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(y."tax_code", '') || ':' || y."tax_rate_bps"::text as key, sum(y."net") as net, sum(y."tax") as tax
+        from "better_supabase"."invoice_tax_lines" y where y."invoice_id" = v_id group by 1) k
+    ), '{}'::jsonb);
+    v_given := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(g.value ->> 'taxCode', '') || ':' || coalesce((g.value ->> 'taxRateBps')::integer, 0)::text as key,
+          sum((g.value ->> 'net')::bigint) as net, sum((g.value ->> 'tax')::bigint) as tax
+        from jsonb_array_elements(v_data -> 'taxLines') g group by 1) k
+    ), '{}'::jsonb);
+    if v_computed <> v_given then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TAX_MISMATCH', 'message', 'the stored tax per code differs from the tax computed from the lines; the stored amounts were kept', 'computed', v_computed, 'given', v_given));
+    end if;
+    delete from "better_supabase"."invoice_tax_lines" y where y."invoice_id" = v_id;
+    insert into "better_supabase"."invoice_tax_lines" ("tenant_id", "invoice_id", "tax_rate_bps", "tax_code", "tax_code_id", "net", "tax", "gross", "discount", "show_tax")
+    select v_tenant, v_id, coalesce((g.value ->> 'taxRateBps')::integer, 0), nullif(g.value ->> 'taxCode', ''), nullif(g.value ->> 'taxCodeId', '')::uuid,
+      (g.value ->> 'net')::bigint, (g.value ->> 'tax')::bigint,
+      coalesce((g.value ->> 'gross')::bigint, (g.value ->> 'net')::bigint + (g.value ->> 'tax')::bigint),
+      coalesce((g.value ->> 'discount')::bigint, 0), coalesce((g.value ->> 'showTax')::boolean, true)
+    from jsonb_array_elements(v_data -> 'taxLines') g;
+  end if;
+  if jsonb_typeof(v_data -> 'totals') = 'object' then
+    select * into v_row from "better_supabase"."invoices" x where x."id" = v_id;
+    if (v_data -> 'totals' ->> 'subtotal' is not null and (v_data -> 'totals' ->> 'subtotal')::bigint <> v_row."subtotal")
+      or (v_data -> 'totals' ->> 'tax' is not null and (v_data -> 'totals' ->> 'tax')::bigint <> v_row."tax_total")
+      or (v_data -> 'totals' ->> 'total' is not null and (v_data -> 'totals' ->> 'total')::bigint <> v_row."total") then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TOTALS_MISMATCH', 'message', 'the stored totals differ from the totals computed from the lines; the stored totals were kept',
+        'computed', jsonb_build_object('subtotal', v_row."subtotal"::text, 'tax', v_row."tax_total"::text, 'total', v_row."total"::text),
+        'given', v_data -> 'totals'));
+    end if;
+    update "better_supabase"."invoices" x set
+      "subtotal" = coalesce((v_data -> 'totals' ->> 'subtotal')::bigint, x."subtotal"),
+      "tax_total" = coalesce((v_data -> 'totals' ->> 'tax')::bigint, x."tax_total"),
+      "total" = coalesce((v_data -> 'totals' ->> 'total')::bigint, x."total")
+    where x."id" = v_id;
+  end if;
+  if jsonb_typeof(v_data -> 'payments') = 'array' and jsonb_array_length(v_data -> 'payments') > 0 then
+    if v_credit or v_status = 'draft' then
+      raise exception 'only an issued invoice takes payments' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    select * into v_row from "better_supabase"."invoices" x where x."id" = v_id;
+    for v_pay in select p.value from jsonb_array_elements(v_data -> 'payments') p loop
+      v_index := v_index + 1;
+      perform "better_supabase"."record_invoice_payment"(
+        v_id, (v_pay ->> 'amount')::bigint, upper(coalesce(v_pay ->> 'currency', v_row."currency")),
+        (v_pay ->> 'paidAt')::timestamptz, coalesce(nullif(v_pay ->> 'method', ''), 'import'),
+        coalesce(nullif(v_pay ->> 'reference', ''), import_invoice_document.item ->> 'key' || ':payment:' || v_index::text),
+        nullif(v_pay ->> 'note', ''), null, null);
+    end loop;
+    update "better_supabase"."invoices" x set "paid_at" = (select max((p.value ->> 'paidAt')::timestamptz) from jsonb_array_elements(v_data -> 'payments') p)
+    where x."id" = v_id and x."paid_at" is not null and jsonb_typeof(v_data -> 'payments') = 'array';
+  end if;
+  if v_status = 'void' then
+    perform "better_supabase"."void_invoice"(v_id, coalesce(nullif(v_data ->> 'voidReason', ''), 'imported as void'));
+  elsif v_status = 'uncollectible' then
+    perform "better_supabase"."write_off_invoice"(v_id, nullif(v_data ->> 'writeOffReason', ''));
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = v_id;
+  if v_status in ('partially_paid', 'paid') and v_row."status"::text <> v_status then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_STATUS_MISMATCH', 'message', 'the payments give the status ' || v_row."status"::text || ', not ' || v_status, 'status', v_row."status"::text));
+  end if;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_row."updated_at", 'warnings', v_warnings);
+end;
+$$;
+revoke execute on function "better_supabase"."import_invoice_document"(jsonb, text, boolean) from public, anon, authenticated;
+
+create or replace function "better_supabase"."import_invoice"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security definer
+set search_path = ''
+as $$
+  select "better_supabase"."import_invoice_document"(import_invoice.item, import_invoice.subject_id, false)
+$$;
+revoke execute on function "better_supabase"."import_invoice"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_invoice"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."import_credit_note"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security definer
+set search_path = ''
+as $$
+  select "better_supabase"."import_invoice_document"(import_credit_note.item, import_credit_note.subject_id, true)
+$$;
+revoke execute on function "better_supabase"."import_credit_note"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_credit_note"(uuid, jsonb, text) to service_role;
+
+-- When an invoice last changed, for the conflict check of imports.
+create or replace function "better_supabase"."invoice_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."invoices" x where x."id" = $1::uuid
+$$;
+revoke execute on function "better_supabase"."invoice_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."invoice_updated_at"(text) to service_role;
+
+-- Totals and cost of one record's lines per billing party (ADR 0141). It runs
+-- as the caller, so only lines the caller can read count.
+create or replace function "better_supabase"."document_totals_by_billing_party"(document uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(g.row order by g.party, g.party_id, g.account_id), '[]'::jsonb)
+  from (
+    select l."billing_party" as party, l."billing_party_id" as party_id, l."billing_account_id"::text as account_id,
+      jsonb_build_object(
+        'billingParty', l."billing_party", 'billingPartyId', l."billing_party_id", 'billingAccountId', l."billing_account_id"::text,
+        'lines', count(*), 'net', sum((round(l."quantity" * l."unit_amount") - (round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0), 0)))))::text, 'cost', sum(round(l."quantity" * l."unit_cost"))::text
+      ) as row
+    from "better_supabase"."invoice_lines" l
+    where l."parent_id" = document and true
+    group by 1, 2, 3
+  ) g
+$$;
+revoke execute on function "better_supabase"."document_totals_by_billing_party"(uuid) from public, anon;
+grant execute on function "better_supabase"."document_totals_by_billing_party"(uuid) to authenticated, service_role;
 
 -- The entry of an issued invoice or credit note for accounting: the receivable
 -- against revenue and tax per rate, mirrored for a credit note. A purchase bill
@@ -2829,6 +3061,42 @@ set search_path = ''
 as $$ select "better_supabase"."pause_invoice_dunning"($1, $2, $3) $$;
 revoke execute on function "api"."pause_invoice_dunning"(uuid, date, text) from public, anon;
 grant execute on function "api"."pause_invoice_dunning"(uuid, date, text) to authenticated, service_role;
+
+create or replace function "api"."import_invoice"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_invoice"($1, $2, $3) $$;
+revoke execute on function "api"."import_invoice"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."import_invoice"(uuid, jsonb, text) to service_role;
+
+create or replace function "api"."import_credit_note"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_credit_note"($1, $2, $3) $$;
+revoke execute on function "api"."import_credit_note"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."import_credit_note"(uuid, jsonb, text) to service_role;
+
+create or replace function "api"."invoice_updated_at"(subject_id text)
+returns timestamptz
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."invoice_updated_at"($1) $$;
+revoke execute on function "api"."invoice_updated_at"(text) from public, anon, authenticated;
+grant execute on function "api"."invoice_updated_at"(text) to service_role;
+
+create or replace function "api"."document_totals_by_billing_party"(document uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."document_totals_by_billing_party"($1) $$;
+revoke execute on function "api"."document_totals_by_billing_party"(uuid) from public, anon;
+grant execute on function "api"."document_totals_by_billing_party"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

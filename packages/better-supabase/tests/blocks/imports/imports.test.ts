@@ -137,6 +137,13 @@ describe("imports client", () => {
         unchanged: 1,
         conflicted: 1,
         errors: [{ key: "c4", code: "IMPORT_ITEM_INVALID", message: "bad" }],
+        warnings: [
+          {
+            key: "c1",
+            code: "IMPORT_TOTALS_MISMATCH",
+            message: "the stored totals differ",
+          },
+        ],
         dryRun: false,
       },
     });
@@ -161,6 +168,13 @@ describe("imports client", () => {
       unchanged: 1,
       conflicted: 1,
       errors: [{ key: "c4", code: "IMPORT_ITEM_INVALID", message: "bad" }],
+      warnings: [
+        {
+          key: "c1",
+          code: "IMPORT_TOTALS_MISMATCH",
+          message: "the stored totals differ",
+        },
+      ],
       dryRun: false,
     });
     expect(t.calls[0]?.args["items"]).toEqual([

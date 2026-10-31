@@ -13,6 +13,7 @@ import {
   accountingContributions,
   accountingSourcesSql,
 } from "../accounting-sources-sql.ts";
+import { billingPartyReportSql } from "../billing-party-sql.ts";
 import { guestOr } from "../guest-sql.ts";
 import {
   lineExtraColumns,
@@ -40,6 +41,10 @@ import {
   invoiceParty,
   partyTypeSql,
 } from "./invoices-functions.ts";
+import {
+  invoiceImportFunctions,
+  invoiceImportTargets,
+} from "./invoices-import.ts";
 import { invoicePaymentsUpgrade } from "./invoices-ledger.ts";
 import { PURCHASE_COLUMNS, purchaseNames } from "./invoices-purchase.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
@@ -145,6 +150,7 @@ const NAMES: BlockSqlNames = {
             ...OPT_IN,
             ...PURCHASE_COLUMNS,
             ...COLLECTION_COLUMNS,
+            "buyer",
           ].filter(
             (column) =>
               typeof ctx.config.columns["invoices"]?.[column] !== "string",
@@ -190,6 +196,7 @@ const NAMES: BlockSqlNames = {
         dunningLevel: "dunning_level",
         dunningAt: "dunning_at",
         dunningPausedUntil: "dunning_paused_until",
+        buyer: "buyer",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -213,13 +220,14 @@ const NAMES: BlockSqlNames = {
         "archivedAt",
         ...PURCHASE_COLUMNS,
         ...COLLECTION_COLUMNS,
+        "buyer",
         "createdBy",
         "listTotal",
         "discountTotal",
       ],
       typed: ["status", "kind", "direction"],
     },
-    lines: lineTableSpec("invoice_lines", { tax: true }),
+    lines: lineTableSpec("invoice_lines", { tax: true, sales: true }),
     charges: {
       name: "invoice_charges",
       app: {},
@@ -347,7 +355,7 @@ create table if not exists ${t("invoices")} (
   ${i("paidTotal")} bigint not null default 0,
   ${i("creditedTotal")} bigint not null default 0,
   ${i("paidAt")} timestamptz,
-  ${i("voidedAt")} timestamptz,${column("voidReason", "text")}${column("note", "text")}${column("originType", "text")}${column("originId", "text")}${ctx.has("invoices", "depositBps") ? `\n  ${i("depositBps")} integer check (${i("depositBps")} > 0 and ${i("depositBps")} < 10000),` : ""}${column("pricesIncludeTax", "boolean not null default false")}${column("direction", (name) => `text not null default 'sales' check (${name} in ('sales', 'purchase'))`)}${column("supplierReference", (name) => `text check (length(${name}) <= 200)`)}${column("purchaseOrder", "uuid")}${column("dimensions", (name) => `jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}${collectionColumnsSql(column)}${column("createdBy", "uuid")}
+  ${i("voidedAt")} timestamptz,${column("voidReason", "text")}${column("note", "text")}${column("originType", "text")}${column("originId", "text")}${ctx.has("invoices", "depositBps") ? `\n  ${i("depositBps")} integer check (${i("depositBps")} > 0 and ${i("depositBps")} < 10000),` : ""}${column("pricesIncludeTax", "boolean not null default false")}${column("direction", (name) => `text not null default 'sales' check (${name} in ('sales', 'purchase'))`)}${column("supplierReference", (name) => `text check (length(${name}) <= 200)`)}${column("purchaseOrder", "uuid")}${column("dimensions", (name) => `jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}${collectionColumnsSql(column)}${column("buyer", "jsonb")}${column("createdBy", "uuid")}
   ${i("createdAt")} timestamptz not null default now(),
   ${i("updatedAt")} timestamptz not null default now(),
   ${totalColumnsSql(ctx, "invoices")},
@@ -581,7 +589,7 @@ function build(ctx: BlockSqlContext): string {
 -- Invoices an organization sends its own customers and the bills its
 -- suppliers send it: drafts with lines, a number on issue, payments, credit
 -- notes, void and write-off, aging and the three-way match of a bill.
-${tables(ctx, n)}${invoiceFunctions(ctx, n)}${accountingSourcesSql(ctx, invoiceAccountingSources(ctx))}`;
+${tables(ctx, n)}${invoiceFunctions(ctx, n)}${invoiceImportFunctions(ctx, n)}${billingPartyReportSql(ctx, { name: n.fn("document_totals_by_billing_party"), argument: "document", lines: "lines" })}${accountingSourcesSql(ctx, invoiceAccountingSources(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -620,6 +628,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "void_invoice", args: ["uuid", "text", "jsonb"], returns: "jsonb" },
+    {
+      name: "document_totals_by_billing_party",
+      args: ["uuid"],
+      returns: "jsonb",
+    },
     {
       name: "write_off_invoice",
       args: ["uuid", "text", "jsonb"],
@@ -717,6 +730,7 @@ export const INVOICES: BlockSqlDefinition = {
   contributes: {
     accounting: (own) =>
       accountingContributions(own, invoiceAccountingSources(own)),
+    imports: invoiceImportTargets,
   },
   contract,
   build,

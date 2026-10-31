@@ -341,6 +341,14 @@ export function createImports(options: ImportsOptions): Imports {
                 message: textOf(error["message"]),
               }),
             ),
+            warnings: recordsOf(
+              row["warnings"] ?? [],
+              "import_upsert_batch",
+            ).map((warning) => ({
+              key: nullableText(warning["key"]),
+              code: textOf(warning["code"]),
+              message: textOf(warning["message"]),
+            })),
             dryRun: row["dryRun"] === true,
           };
         },

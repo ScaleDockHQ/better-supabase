@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:8024d51bcfcc5eee84ac0ce00d62e352cb7725755a42c2d71e3539f3c53f05a2
+-- @bsb-hash sha256:f75ffecb9211052857f3b0ceb8c92e2b07906719cb5754f3feaea1272bca446a
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -371,6 +371,7 @@ declare
   v_unchanged integer := 0;
   v_conflicted integer := 0;
   v_errors jsonb := '[]'::jsonb;
+  v_warnings jsonb := '[]'::jsonb;
   v_message text;
   v_hint text;
 begin
@@ -459,6 +460,9 @@ begin
         end if;
 
         for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+          end if;
           insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_updated_at_at_import", "missing_since")
           values (
             v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
@@ -490,7 +494,7 @@ begin
     end;
   end loop;
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors);
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
@@ -811,7 +815,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:592dc0228e778dd53312f4e93f1f872bcc79efbb30f2edc960fca584b5f851db
+-- @bsb-hash sha256:2f1013e77abcd58c01d7f2cd0040bfb1df6760db5bd5f4a69b423b01e48da9ee
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1181,11 +1185,12 @@ declare
   v_unchanged integer := 0;
   v_conflicted integer := 0;
   v_errors jsonb := '[]'::jsonb;
+  v_warnings jsonb := '[]'::jsonb;
   v_message text;
   v_hint text;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'tax_code', 'tax_rate']::text[]) then
+  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'order', 'quote', 'invoice', 'credit_note', 'tax_code', 'tax_rate']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -1251,6 +1256,14 @@ begin
           v_current := "better_supabase"."supplier_item_updated_at"(v_rec."subject_id");
         when 'product_identifier' then
           v_current := "better_supabase"."product_identifier_updated_at"(v_rec."subject_id");
+        when 'order' then
+          v_current := "better_supabase"."order_updated_at"(v_rec."subject_id");
+        when 'quote' then
+          v_current := "better_supabase"."quote_updated_at"(v_rec."subject_id");
+        when 'invoice' then
+          v_current := "better_supabase"."invoice_updated_at"(v_rec."subject_id");
+        when 'credit_note' then
+          v_current := "better_supabase"."invoice_updated_at"(v_rec."subject_id");
         when 'tax_code' then
           v_current := "better_supabase"."tax_code_updated_at"(v_rec."subject_id");
           else null;
@@ -1282,6 +1295,18 @@ begin
       when 'product_identifier' then
         v_subject_type := 'product_identifier';
         v_out := "better_supabase"."import_product_identifier"(v_run_id, v_call, v_subject_id);
+      when 'order' then
+        v_subject_type := 'order';
+        v_out := "better_supabase"."import_order"(v_run_id, v_call, v_subject_id);
+      when 'quote' then
+        v_subject_type := 'quote';
+        v_out := "better_supabase"."import_quote"(v_run_id, v_call, v_subject_id);
+      when 'invoice' then
+        v_subject_type := 'invoice';
+        v_out := "better_supabase"."import_invoice"(v_run_id, v_call, v_subject_id);
+      when 'credit_note' then
+        v_subject_type := 'invoice';
+        v_out := "better_supabase"."import_credit_note"(v_run_id, v_call, v_subject_id);
       when 'tax_code' then
         v_subject_type := 'tax_code';
         v_out := "better_supabase"."import_tax_code"(v_run_id, v_call, v_subject_id);
@@ -1301,6 +1326,9 @@ begin
         end if;
 
         for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+          end if;
           insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_updated_at_at_import", "missing_since")
           values (
             v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
@@ -1332,7 +1360,7 @@ begin
     end;
   end loop;
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors);
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
@@ -1653,7 +1681,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:3ab30cea3679ed93cf668b5c85411ba80227b765c80b630e51f386681ef5a192
+-- @bsb-hash sha256:b1d8e260cff9f04512a3deae9348d117e7081856788eae48ff96a34e6a132513
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2028,6 +2056,7 @@ declare
   v_unchanged integer := 0;
   v_conflicted integer := 0;
   v_errors jsonb := '[]'::jsonb;
+  v_warnings jsonb := '[]'::jsonb;
   v_message text;
   v_hint text;
 begin
@@ -2116,6 +2145,9 @@ begin
         end if;
 
         for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+          end if;
           insert into "app_private"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_updated_at_at_import", "missing_since")
           values (
             v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
@@ -2147,7 +2179,7 @@ begin
     end;
   end loop;
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors);
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "app_private"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
@@ -2468,7 +2500,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:49f1f0a40829aa6d3d8d10192bd980d705c4c6cb6151d7eaf77dd8cfed769509
+-- @bsb-hash sha256:ba70b62c6b77f639e64fe82029cb18b1bdd6b4e1d4845080f88dbe02702c0095
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2838,6 +2870,7 @@ declare
   v_unchanged integer := 0;
   v_conflicted integer := 0;
   v_errors jsonb := '[]'::jsonb;
+  v_warnings jsonb := '[]'::jsonb;
   v_message text;
   v_hint text;
 begin
@@ -2926,6 +2959,9 @@ begin
         end if;
 
         for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+          end if;
           insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_updated_at_at_import", "missing_since")
           values (
             v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
@@ -2957,7 +2993,7 @@ begin
     end;
   end loop;
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors);
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
@@ -3426,7 +3462,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:7b72a915d803218e3195ac3acbc5d3a9d3e388f00330ea4ad0e66c5760c5dab0
+-- @bsb-hash sha256:a87dca5794518cb0f50d9fcf111581d25f4b0d105ec709f291294da15cb4ec26
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3793,6 +3829,7 @@ declare
   v_unchanged integer := 0;
   v_conflicted integer := 0;
   v_errors jsonb := '[]'::jsonb;
+  v_warnings jsonb := '[]'::jsonb;
   v_message text;
   v_hint text;
 begin
@@ -3881,6 +3918,9 @@ begin
         end if;
 
         for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+          end if;
           insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_updated_at_at_import", "missing_since")
           values (
             v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
@@ -3912,7 +3952,7 @@ begin
     end;
   end loop;
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors);
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
@@ -4233,7 +4273,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:39a44bedd233c179a9b36608944c7a6841d18483611aa37f38cb3930c4acd245
+-- @bsb-hash sha256:26c502a16a979e8bbea9184b75e186716b673eba14f3771686b24cb5d95e5b17
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4603,6 +4643,7 @@ declare
   v_unchanged integer := 0;
   v_conflicted integer := 0;
   v_errors jsonb := '[]'::jsonb;
+  v_warnings jsonb := '[]'::jsonb;
   v_message text;
   v_hint text;
 begin
@@ -4691,6 +4732,9 @@ begin
         end if;
 
         for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+          end if;
           insert into "better_supabase"."import_records" ("org_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_updated_at_at_import", "missing_since")
           values (
             v_run."org_id", v_run."source", v_scope, v_entity, v_key,
@@ -4722,7 +4766,7 @@ begin
     end;
   end loop;
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors);
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;

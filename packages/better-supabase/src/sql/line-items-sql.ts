@@ -55,6 +55,13 @@ const LINE_DEFAULTS: Readonly<Record<string, string>> = {
   taxCode: "null::text",
   taxCodeId: "null::uuid",
   unitCost: "null::bigint",
+  discountAmount: "0",
+  costSource: "null::text",
+  locationId: "null::uuid",
+  binId: "null::uuid",
+  billingParty: "'customer'::text",
+  billingPartyId: "null::text",
+  billingAccountId: "null::uuid",
 };
 
 /** The line columns an app's line table may lack. */
@@ -88,6 +95,38 @@ const TAX_LINE_COLUMNS = {
 } as const;
 
 /**
+ * The line columns of sales documents (quotes, invoices): a fixed discount next
+ * to the percentage, where the goods came from (location and bin), what they
+ * cost and how that cost was found, and who pays the line.
+ */
+const SALES_LINE_COLUMNS = {
+  discountAmount: "discount_amount",
+  costSource: "cost_source",
+  locationId: "location_id",
+  binId: "bin_id",
+  billingParty: "billing_party",
+  billingPartyId: "billing_party_id",
+  billingAccountId: "billing_account_id",
+} as const;
+
+/** Who can pay a line: `billing_party` on a line takes one of these. */
+export const BILLING_PARTIES: readonly string[] = [
+  "customer",
+  "internal",
+  "own_warranty",
+  "supplier_warranty",
+  "cost_account",
+];
+
+/** How a line's `unit_cost` was found. */
+export const COST_SOURCES: readonly string[] = [
+  "catalog",
+  "average",
+  "manual",
+  "imported",
+];
+
+/**
  * A `NAMES.tables` entry for a line table called `name`. The app's own line
  * table can stand in; it may lack the product, discount, tax and creation
  * columns, and its product type may be an enum. `document` adds a section
@@ -95,7 +134,11 @@ const TAX_LINE_COLUMNS = {
  */
 export function lineTableSpec(
   name: string,
-  options: { readonly document?: boolean; readonly tax?: boolean } = {},
+  options: {
+    readonly document?: boolean;
+    readonly tax?: boolean;
+    readonly sales?: boolean;
+  } = {},
 ): BlockSqlTableSpec {
   return {
     name,
@@ -105,11 +148,13 @@ export function lineTableSpec(
       ...LINE_COLUMNS,
       ...(options.document === true ? DOCUMENT_LINE_COLUMNS : {}),
       ...(options.tax === true ? TAX_LINE_COLUMNS : {}),
+      ...(options.sales === true ? SALES_LINE_COLUMNS : {}),
     },
     optional: [
       ...OPTIONAL_LINE_COLUMNS,
       ...(options.document === true ? Object.keys(DOCUMENT_LINE_COLUMNS) : []),
       ...(options.tax === true ? Object.keys(TAX_LINE_COLUMNS) : []),
+      ...(options.sales === true ? Object.keys(SALES_LINE_COLUMNS) : []),
     ],
     typed: ["productType"],
   };
@@ -165,6 +210,27 @@ export function lineAmount(
     : "";
 
   return `round(${alias}.${ctx.col(lines, "quantity")}${periods} * ${alias}.${ctx.col(lines, "unitAmount")})`;
+}
+
+/**
+ * A line's discount: its percentage of `amount` plus its fixed amount, never
+ * more than the amount. A credit line (a negative amount) takes no fixed
+ * amount. `percent` is the SQL for the percentage column's value in basis
+ * points, or `null` when the table has none.
+ */
+export function lineDiscount(
+  ctx: BlockSqlContext,
+  lines: string,
+  alias: string,
+  amount: string,
+  percent: string | null,
+): string {
+  const share =
+    percent === null ? "0" : `round(${amount} * ${percent} / 10000.0)`;
+
+  return declared(ctx, lines, "discountAmount")
+    ? `(${share} + least(coalesce(${alias}.${ctx.col(lines, "discountAmount")}, 0), greatest(${amount} - ${share}, 0)))`
+    : share;
 }
 
 /**
@@ -232,6 +298,7 @@ export function lineCopyColumns(
     "taxCode",
     "taxCodeId",
     "unitCost",
+    ...Object.keys(SALES_LINE_COLUMNS),
     "position",
     ...Object.keys(DOCUMENT_LINE_COLUMNS),
   ].filter((column) => declared(ctx, lines, column));
@@ -326,9 +393,13 @@ export function lineItemsSql(
   const trigger = `bsb_${ctx.tableName(items.lines).name}_totals`;
   const list = lineAmount(ctx, items.lines, "l");
 
-  const discount = has("discountBps")
-    ? `round(${list} * ${l("discountBps")} / 10000.0)`
-    : "0";
+  const discount = lineDiscount(
+    ctx,
+    items.lines,
+    "l",
+    list,
+    has("discountBps") ? l("discountBps") : null,
+  );
 
   const tax = has("taxRateBps")
     ? `round((${list} - ${discount}) * ${l("taxRateBps")} / 10000.0)`
@@ -370,6 +441,16 @@ export function lineItemsSql(
       ["taxCode", "x.value ->> 'taxCode'"],
       ["taxCodeId", "nullif(x.value ->> 'taxCodeId', '')::uuid"],
       ["unitCost", "(x.value ->> 'unitCost')::bigint"],
+      ["discountAmount", "coalesce((x.value ->> 'discountAmount')::bigint, 0)"],
+      ["costSource", "nullif(x.value ->> 'costSource', '')"],
+      ["locationId", "nullif(x.value ->> 'locationId', '')::uuid"],
+      ["binId", "nullif(x.value ->> 'binId', '')::uuid"],
+      [
+        "billingParty",
+        "coalesce(nullif(x.value ->> 'billingParty', ''), 'customer')",
+      ],
+      ["billingPartyId", "nullif(x.value ->> 'billingPartyId', '')"],
+      ["billingAccountId", "nullif(x.value ->> 'billingAccountId', '')::uuid"],
       ["section", "nullif(trim(x.value ->> 'section'), '')"],
       ["optional", "coalesce((x.value ->> 'optional')::boolean, false)"],
       [
@@ -406,7 +487,7 @@ export function lineItemsSql(
   ${c("parent")} uuid not null references ${p} (${pc("id")}) on delete cascade,${optional("productType")}${optional("productId")}
   ${c("description")} text not null check (length(${c("description")}) between 1 and 2000),
   ${c("quantity")} numeric(18, 4) not null check (${c("quantity")} > 0),
-  ${c("unitAmount")} bigint not null,${optional("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${optional("taxRateBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 100000)`)}${optional("taxCode")}${optional("taxCodeId", () => "uuid")}${optional("unitCost", () => "bigint")}${optional("section", (section) => `text check (length(${section}) between 1 and 300)`)}${optional("optional", () => "boolean not null default false")}${optional("selected", () => "boolean not null default true")}${optional("periods", (periods) => `integer not null default 1 check (${periods} > 0)`)}
+  ${c("unitAmount")} bigint not null,${optional("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${optional("taxRateBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 100000)`)}${optional("taxCode")}${optional("taxCodeId", () => "uuid")}${optional("unitCost", () => "bigint")}${optional("discountAmount", (name) => `bigint not null default 0 check (${name} >= 0)`)}${optional("costSource", (name) => `text check (${name} in (${COST_SOURCES.map(sqlString).join(", ")}))`)}${optional("locationId", () => "uuid")}${optional("binId", () => "uuid")}${optional("billingParty", (name) => `text not null default 'customer' check (${name} in (${BILLING_PARTIES.map(sqlString).join(", ")}))`)}${optional("billingPartyId")}${optional("billingAccountId", () => "uuid")}${optional("section", (section) => `text check (length(${section}) between 1 and 300)`)}${optional("optional", () => "boolean not null default false")}${optional("selected", () => "boolean not null default true")}${optional("periods", (periods) => `integer not null default 1 check (${periods} > 0)`)}
   ${c("position")} integer not null${has("createdAt") ? `,\n  ${c("createdAt")} timestamptz not null default now()` : ""}${has("productType") && has("productId") ? `,\n  check ((${c("productType")} is null) = (${c("productId")} is null))` : ""}
 );
 ${has("periods") ? `alter table ${t} add column if not exists ${c("periods")} integer not null default 1 check (${c("periods")} > 0);\n` : ""}create index if not exists ${sqlIdent(`${name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});${
@@ -716,9 +797,13 @@ function documentRecountSql(
   const parent = `${options.setter}_recount.parent`;
   const amount = lineAmount(ctx, items.lines, "l");
 
-  const discount = declared(ctx, items.lines, "discountBps")
-    ? `round(${amount} * ${l("discountBps")} / 10000.0)`
-    : "0";
+  const discount = lineDiscount(
+    ctx,
+    items.lines,
+    "l",
+    amount,
+    declared(ctx, items.lines, "discountBps") ? l("discountBps") : null,
+  );
 
   const rate = declared(ctx, items.lines, "taxRateBps") ? l("taxRateBps") : "0";
 

@@ -36,7 +36,7 @@ export function taxCompute(ctx: BlockSqlContext): string {
 
   return `
 -- The tax of lines [{ quantity?, unitAmount, discountBps?, taxCodeId?,
--- taxRateBps?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
+-- taxRateBps?, discountAmount?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
 -- rateBps, net, tax, gross, discount, showTax }], subtotal, taxTotal, total,
 -- discountTotal, showTaxAmount }, amounts as text. A line's rate is its tax
 -- code's rate on on_date; taxRateBps stands in when no rate covers the day or
@@ -89,6 +89,7 @@ begin
       coalesce((x.value ->> 'quantity')::numeric, 1) as qty,
       (x.value ->> 'unitAmount')::bigint as unit,
       coalesce((x.value ->> 'discountBps')::integer, 0) as disc_bps,
+      coalesce((x.value ->> 'discountAmount')::bigint, 0) as disc_amount,
       coalesce((x.value ->> 'unitCost')::bigint, 0) as unit_cost,
       y.${c("id")} as code_id,
       y.${c("code")} as code,
@@ -103,7 +104,7 @@ begin
   ), priced as (
     select s.*, round(s.qty * s.unit) as amount from src s
   ), discounted as (
-    select p.*, round(p.amount * p.disc_bps / 10000.0) as disc from priced p
+    select p.*, least(p.amount, round(p.amount * p.disc_bps / 10000.0) + p.disc_amount) as disc from priced p
   ), counted as (
     select d.*, d.amount - d.disc as after, round(d.qty * d.unit_cost) as cost from discounted d
   ), taxed as (
@@ -254,7 +255,7 @@ function issueInvoiceTax(ctx: BlockSqlContext): string {
     ? `x.${il("quantity")} * coalesce(x.${il("periods")}, 1)`
     : `x.${il("quantity")}`;
 
-  const line = `jsonb_build_object('quantity', ${quantity}, 'unitAmount', x.${il("unitAmount")}::text, 'discountBps', ${lineColumn(inv, "lines", "x", "discountBps")}, 'taxRateBps', ${lineColumn(inv, "lines", "x", "taxRateBps")}${ids ? `, 'taxCodeId', x.${il("taxCodeId")}` : ""}${costs ? `, 'unitCost', x.${il("unitCost")}::text` : ""})`;
+  const line = `jsonb_build_object('quantity', ${quantity}, 'unitAmount', x.${il("unitAmount")}::text, 'discountBps', ${lineColumn(inv, "lines", "x", "discountBps")}, 'discountAmount', ${lineColumn(inv, "lines", "x", "discountAmount")}::text, 'taxRateBps', ${lineColumn(inv, "lines", "x", "taxRateBps")}${ids ? `, 'taxCodeId', x.${il("taxCodeId")}` : ""}${costs ? `, 'unitCost', x.${il("unitCost")}::text` : ""})`;
 
   return `
 -- Writes the tax of an invoice per rate and tax code for its issue date, after

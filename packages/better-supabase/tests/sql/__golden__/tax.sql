@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:80ba711ae0c07ac07df7ada91ba8cc22d560ca056e1199561bd6f14129160627
+-- @bsb-hash sha256:4ead270abdb4626865a9e386e6010e8642866e6f2d2721718daf41ae5aad4e60
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -547,7 +547,7 @@ grant execute on function "better_supabase"."import_tax_rate"(uuid, jsonb, text)
 
 
 -- The tax of lines [{ quantity?, unitAmount, discountBps?, taxCodeId?,
--- taxRateBps?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
+-- taxRateBps?, discountAmount?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
 -- rateBps, net, tax, gross, discount, showTax }], subtotal, taxTotal, total,
 -- discountTotal, showTaxAmount }, amounts as text. A line's rate is its tax
 -- code's rate on on_date; taxRateBps stands in when no rate covers the day or
@@ -600,6 +600,7 @@ begin
       coalesce((x.value ->> 'quantity')::numeric, 1) as qty,
       (x.value ->> 'unitAmount')::bigint as unit,
       coalesce((x.value ->> 'discountBps')::integer, 0) as disc_bps,
+      coalesce((x.value ->> 'discountAmount')::bigint, 0) as disc_amount,
       coalesce((x.value ->> 'unitCost')::bigint, 0) as unit_cost,
       y."id" as code_id,
       y."code" as code,
@@ -614,7 +615,7 @@ begin
   ), priced as (
     select s.*, round(s.qty * s.unit) as amount from src s
   ), discounted as (
-    select p.*, round(p.amount * p.disc_bps / 10000.0) as disc from priced p
+    select p.*, least(p.amount, round(p.amount * p.disc_bps / 10000.0) + p.disc_amount) as disc from priced p
   ), counted as (
     select d.*, d.amount - d.disc as after, round(d.qty * d.unit_cost) as cost from discounted d
   ), taxed as (
@@ -1038,7 +1039,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:104320182b956aa2d7eb17f15af772a8936d3c8b03e2333a033e2ae1f0c1da20
+-- @bsb-hash sha256:a5b1dc08c4b7636e456978c75a8e2270466e8e2628271762b522acfe23192ead
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1622,7 +1623,7 @@ grant execute on function "better_supabase"."import_tax_rate"(uuid, jsonb, text)
 
 
 -- The tax of lines [{ quantity?, unitAmount, discountBps?, taxCodeId?,
--- taxRateBps?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
+-- taxRateBps?, discountAmount?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
 -- rateBps, net, tax, gross, discount, showTax }], subtotal, taxTotal, total,
 -- discountTotal, showTaxAmount }, amounts as text. A line's rate is its tax
 -- code's rate on on_date; taxRateBps stands in when no rate covers the day or
@@ -1675,6 +1676,7 @@ begin
       coalesce((x.value ->> 'quantity')::numeric, 1) as qty,
       (x.value ->> 'unitAmount')::bigint as unit,
       coalesce((x.value ->> 'discountBps')::integer, 0) as disc_bps,
+      coalesce((x.value ->> 'discountAmount')::bigint, 0) as disc_amount,
       coalesce((x.value ->> 'unitCost')::bigint, 0) as unit_cost,
       y."id" as code_id,
       y."code" as code,
@@ -1689,7 +1691,7 @@ begin
   ), priced as (
     select s.*, round(s.qty * s.unit) as amount from src s
   ), discounted as (
-    select p.*, round(p.amount * p.disc_bps / 10000.0) as disc from priced p
+    select p.*, least(p.amount, round(p.amount * p.disc_bps / 10000.0) + p.disc_amount) as disc from priced p
   ), counted as (
     select d.*, d.amount - d.disc as after, round(d.qty * d.unit_cost) as cost from discounted d
   ), taxed as (
@@ -1806,7 +1808,7 @@ begin
   from "better_supabase"."tax_codes" y
   where x."parent_id" = v_inv."id" and x."tax_code_id" = y."id";
   select "better_supabase"."tax_compute_lines"(
-    coalesce((select jsonb_agg(jsonb_build_object('quantity', x."quantity", 'unitAmount', x."unit_amount"::text, 'discountBps', x."discount_bps", 'taxRateBps', x."tax_rate_bps", 'taxCodeId', x."tax_code_id", 'unitCost', x."unit_cost"::text) order by x."position") from "better_supabase"."invoice_lines" x
+    coalesce((select jsonb_agg(jsonb_build_object('quantity', x."quantity", 'unitAmount', x."unit_amount"::text, 'discountBps', x."discount_bps", 'discountAmount', x."discount_amount"::text, 'taxRateBps', x."tax_rate_bps", 'taxCodeId', x."tax_code_id", 'unitCost', x."unit_cost"::text) order by x."position") from "better_supabase"."invoice_lines" x
       where x."parent_id" = v_inv."id" and true), '[]'::jsonb),
     issue_invoice_tax.on_date, v_inv."prices_include_tax", 0,
     0, 0)
@@ -2174,7 +2176,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:36c6ebc91c38adf83f0f77e5d0a162fe58fdf66e21d5f46f43424728fb6df699
+-- @bsb-hash sha256:96aef18c4131181b81eea0ac16575a6e667ec099d0d5f5902afe098b04c9b96c
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2725,7 +2727,7 @@ grant execute on function "app_private"."import_tax_rate"(uuid, jsonb, text) to 
 
 
 -- The tax of lines [{ quantity?, unitAmount, discountBps?, taxCodeId?,
--- taxRateBps?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
+-- taxRateBps?, discountAmount?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
 -- rateBps, net, tax, gross, discount, showTax }], subtotal, taxTotal, total,
 -- discountTotal, showTaxAmount }, amounts as text. A line's rate is its tax
 -- code's rate on on_date; taxRateBps stands in when no rate covers the day or
@@ -2778,6 +2780,7 @@ begin
       coalesce((x.value ->> 'quantity')::numeric, 1) as qty,
       (x.value ->> 'unitAmount')::bigint as unit,
       coalesce((x.value ->> 'discountBps')::integer, 0) as disc_bps,
+      coalesce((x.value ->> 'discountAmount')::bigint, 0) as disc_amount,
       coalesce((x.value ->> 'unitCost')::bigint, 0) as unit_cost,
       y."id" as code_id,
       y."code" as code,
@@ -2792,7 +2795,7 @@ begin
   ), priced as (
     select s.*, round(s.qty * s.unit) as amount from src s
   ), discounted as (
-    select p.*, round(p.amount * p.disc_bps / 10000.0) as disc from priced p
+    select p.*, least(p.amount, round(p.amount * p.disc_bps / 10000.0) + p.disc_amount) as disc from priced p
   ), counted as (
     select d.*, d.amount - d.disc as after, round(d.qty * d.unit_cost) as cost from discounted d
   ), taxed as (
@@ -3216,7 +3219,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:824a0899a64ac8e3df988df2ea92414abc1d64f6900779ce3cc0f3694ca0de78
+-- @bsb-hash sha256:38ee7d0786e24a99f2f77ef203ba4fed50813e179b2abf95d7990f7fcf367dad
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3762,7 +3765,7 @@ grant execute on function "better_supabase"."import_tax_rate"(uuid, jsonb, text)
 
 
 -- The tax of lines [{ quantity?, unitAmount, discountBps?, taxCodeId?,
--- taxRateBps?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
+-- taxRateBps?, discountAmount?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
 -- rateBps, net, tax, gross, discount, showTax }], subtotal, taxTotal, total,
 -- discountTotal, showTaxAmount }, amounts as text. A line's rate is its tax
 -- code's rate on on_date; taxRateBps stands in when no rate covers the day or
@@ -3815,6 +3818,7 @@ begin
       coalesce((x.value ->> 'quantity')::numeric, 1) as qty,
       (x.value ->> 'unitAmount')::bigint as unit,
       coalesce((x.value ->> 'discountBps')::integer, 0) as disc_bps,
+      coalesce((x.value ->> 'discountAmount')::bigint, 0) as disc_amount,
       coalesce((x.value ->> 'unitCost')::bigint, 0) as unit_cost,
       y."id" as code_id,
       y."code" as code,
@@ -3829,7 +3833,7 @@ begin
   ), priced as (
     select s.*, round(s.qty * s.unit) as amount from src s
   ), discounted as (
-    select p.*, round(p.amount * p.disc_bps / 10000.0) as disc from priced p
+    select p.*, least(p.amount, round(p.amount * p.disc_bps / 10000.0) + p.disc_amount) as disc from priced p
   ), counted as (
     select d.*, d.amount - d.disc as after, round(d.qty * d.unit_cost) as cost from discounted d
   ), taxed as (
@@ -4401,7 +4405,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:40ea530ed5c7f6a74ae94a42a489ee3c9e34af2398cf1b98c6040b35bb481df9
+-- @bsb-hash sha256:6cca0294dac1d3a060ec60d1eefaf1faf558ffad048b9b26001ff573758f0d21
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4932,7 +4936,7 @@ grant execute on function "better_supabase"."import_tax_rate"(uuid, jsonb, text)
 
 
 -- The tax of lines [{ quantity?, unitAmount, discountBps?, taxCodeId?,
--- taxRateBps?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
+-- taxRateBps?, discountAmount?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
 -- rateBps, net, tax, gross, discount, showTax }], subtotal, taxTotal, total,
 -- discountTotal, showTaxAmount }, amounts as text. A line's rate is its tax
 -- code's rate on on_date; taxRateBps stands in when no rate covers the day or
@@ -4985,6 +4989,7 @@ begin
       coalesce((x.value ->> 'quantity')::numeric, 1) as qty,
       (x.value ->> 'unitAmount')::bigint as unit,
       coalesce((x.value ->> 'discountBps')::integer, 0) as disc_bps,
+      coalesce((x.value ->> 'discountAmount')::bigint, 0) as disc_amount,
       coalesce((x.value ->> 'unitCost')::bigint, 0) as unit_cost,
       y."id" as code_id,
       y."code" as code,
@@ -4999,7 +5004,7 @@ begin
   ), priced as (
     select s.*, round(s.qty * s.unit) as amount from src s
   ), discounted as (
-    select p.*, round(p.amount * p.disc_bps / 10000.0) as disc from priced p
+    select p.*, least(p.amount, round(p.amount * p.disc_bps / 10000.0) + p.disc_amount) as disc from priced p
   ), counted as (
     select d.*, d.amount - d.disc as after, round(d.qty * d.unit_cost) as cost from discounted d
   ), taxed as (
@@ -5423,7 +5428,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:67655a89df62b1d536651fc59e44131b91e8a655ea0bce4e223f2ca7d56162da
+-- @bsb-hash sha256:36d5dd61f4bb01b878e63ece01988ec3b944738a746281de18dfc5ced30b606b
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5969,7 +5974,7 @@ grant execute on function "better_supabase"."import_tax_rate"(uuid, jsonb, text)
 
 
 -- The tax of lines [{ quantity?, unitAmount, discountBps?, taxCodeId?,
--- taxRateBps?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
+-- taxRateBps?, discountAmount?, unitCost? }] on a day: { groups: [{ taxCodeId, code, type,
 -- rateBps, net, tax, gross, discount, showTax }], subtotal, taxTotal, total,
 -- discountTotal, showTaxAmount }, amounts as text. A line's rate is its tax
 -- code's rate on on_date; taxRateBps stands in when no rate covers the day or
@@ -6022,6 +6027,7 @@ begin
       coalesce((x.value ->> 'quantity')::numeric, 1) as qty,
       (x.value ->> 'unitAmount')::bigint as unit,
       coalesce((x.value ->> 'discountBps')::integer, 0) as disc_bps,
+      coalesce((x.value ->> 'discountAmount')::bigint, 0) as disc_amount,
       coalesce((x.value ->> 'unitCost')::bigint, 0) as unit_cost,
       y."id" as code_id,
       y."code" as code,
@@ -6036,7 +6042,7 @@ begin
   ), priced as (
     select s.*, round(s.qty * s.unit) as amount from src s
   ), discounted as (
-    select p.*, round(p.amount * p.disc_bps / 10000.0) as disc from priced p
+    select p.*, least(p.amount, round(p.amount * p.disc_bps / 10000.0) + p.disc_amount) as disc from priced p
   ), counted as (
     select d.*, d.amount - d.disc as after, round(d.qty * d.unit_cost) as cost from discounted d
   ), taxed as (

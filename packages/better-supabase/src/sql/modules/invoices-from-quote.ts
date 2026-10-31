@@ -8,10 +8,24 @@ import {
   declared,
   lineAmount,
   lineColumn,
+  lineDiscount,
   lineExtraColumns,
 } from "../line-items-sql.ts";
 import { fail, userGrant } from "../shared.ts";
 import { quoteParty, quotePartyType } from "./quotes-kit.ts";
+
+/** The sales line columns a quote's lines hand to the invoice. */
+const SALES_KEYS: readonly string[] = [
+  "discountAmount",
+  "taxCodeId",
+  "unitCost",
+  "costSource",
+  "locationId",
+  "binId",
+  "billingParty",
+  "billingPartyId",
+  "billingAccountId",
+];
 
 /** The invoice helpers `invoice_from_quote` shares with the other functions. */
 export interface InvoiceKit {
@@ -141,9 +155,15 @@ export function invoiceFromQuote(
   const dl = (column: string): string => n.c("lines", column);
   const depositList = lineAmount(ctx, "lines", "dl");
 
-  const depositNet = ctx.has("lines", "discountBps")
-    ? `${depositList} - round(${depositList} * ${lineColumn(ctx, "lines", "dl", "discountBps")} / 10000.0)`
-    : depositList;
+  const depositNet = `${depositList} - ${lineDiscount(
+    ctx,
+    "lines",
+    "dl",
+    depositList,
+    ctx.has("lines", "discountBps")
+      ? lineColumn(ctx, "lines", "dl", "discountBps")
+      : null,
+  )}`;
 
   const invoiceExtras = new Set(n.extras.map((extra) => extra.name));
 
@@ -234,6 +254,7 @@ export function invoiceFromQuote(
     end if;
     select coalesce(jsonb_agg(jsonb_build_object('description', x.${ql("description")}, 'quantity', x.${ql("quantity")}${declared(quotes, "lines", "periods") ? ` * coalesce(x.${ql("periods")}, 1)` : ""}, 'unitAmount', x.${ql("unitAmount")}::text,
         'discountBps', ${lineColumn(quotes, "lines", "x", "discountBps")}, 'taxRateBps', ${lineColumn(quotes, "lines", "x", "taxRateBps")}, 'taxCode', ${lineColumn(quotes, "lines", "x", "taxCode")},
+        ${SALES_KEYS.map((key) => `${sqlString(key)}, ${lineColumn(quotes, "lines", "x", key)}`).join(", ")},
         'product', ${product}${lineFieldsSql}
       ) order by x.${ql("position")}), '[]'::jsonb) into v_lines
     from ${quotes.table("lines")} x where x.${ql("parent")} = v_quote.${q("id")} and ${countedLine(quotes, "lines", "x")};${discount}${

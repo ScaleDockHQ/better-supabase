@@ -10,6 +10,7 @@ import type { QuoteNames } from "./quotes-functions.ts";
 
 import { QUOTE_TO_ORDER } from "../../blocks/quotes/automations.ts";
 import { sqlString } from "../../core/template.ts";
+import { billingPartyReportSql } from "../billing-party-sql.ts";
 import { guestOr } from "../guest-sql.ts";
 import {
   lineExtraColumns,
@@ -34,6 +35,7 @@ import {
   quoteParty,
 } from "./quotes-functions.ts";
 import { quoteHolds } from "./quotes-holds.ts";
+import { quoteImportFunctions, quoteImportTargets } from "./quotes-import.ts";
 import { versionLinesOn } from "./quotes-kit.ts";
 
 const QUOTE = [
@@ -143,6 +145,7 @@ const NAMES: BlockSqlNames = {
         depositRequired: "deposit_required",
         depositDue: "deposit_due",
         unpublishedChanges: "unpublished_changes",
+        buyer: "buyer",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -170,13 +173,18 @@ const NAMES: BlockSqlNames = {
         "depositRequired",
         "depositDue",
         "unpublishedChanges",
+        "buyer",
         "createdBy",
         "listTotal",
         "discountTotal",
       ],
       typed: ["status"],
     },
-    lines: lineTableSpec("quote_lines", { document: true }),
+    lines: lineTableSpec("quote_lines", {
+      document: true,
+      tax: true,
+      sales: true,
+    }),
     versions: {
       name: "quote_versions",
       app: {},
@@ -275,6 +283,7 @@ function tables(ctx: BlockSqlContext, n: QuoteNames): string {
     ["depositAmount", (name) => `bigint check (${name} > 0)`],
     ["depositRequired", () => "boolean not null default false"],
     ["unpublishedChanges", () => "boolean not null default false"],
+    ["buyer", () => "jsonb"],
   ];
 
   const added = later
@@ -310,7 +319,7 @@ create table if not exists ${t("quotes")} (
   ${q("tokenHash")} text unique,
   ${q("sentAt")} timestamptz,${column("viewedAt", "timestamptz")}
   ${q("decidedAt")} timestamptz,
-  ${q("decidedBy")} text,${column("decisionNote", "text")}${column("decidedUser", "uuid")}${column("decidedIp", "text")}${column("decidedUserAgent", "text")}${column("pricesIncludeTax", "boolean not null default false")}${column("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${column("discountAmount", (amount) => `bigint not null default 0 check (${amount} >= 0)`)}${column("depositBps", (bps) => `integer check (${bps} > 0 and ${bps} < 10000)`)}${column("depositAmount", (amount) => `bigint check (${amount} > 0)`)}${column("depositRequired", "boolean not null default false")}${column("depositDue", "bigint not null default 0")}${column("unpublishedChanges", "boolean not null default false")}${column("createdBy", "uuid")}
+  ${q("decidedBy")} text,${column("decisionNote", "text")}${column("decidedUser", "uuid")}${column("decidedIp", "text")}${column("decidedUserAgent", "text")}${column("pricesIncludeTax", "boolean not null default false")}${column("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${column("discountAmount", (amount) => `bigint not null default 0 check (${amount} >= 0)`)}${column("depositBps", (bps) => `integer check (${bps} > 0 and ${bps} < 10000)`)}${column("depositAmount", (amount) => `bigint check (${amount} > 0)`)}${column("depositRequired", "boolean not null default false")}${column("depositDue", "bigint not null default 0")}${column("unpublishedChanges", "boolean not null default false")}${column("buyer", "jsonb")}${column("createdBy", "uuid")}
   ${q("createdAt")} timestamptz not null default now(),
   ${q("updatedAt")} timestamptz not null default now(),
   ${totalColumnsSql(ctx, "quotes")},
@@ -500,7 +509,7 @@ function build(ctx: BlockSqlContext): string {
 -- Quotes: line items, sections, optional lines, discounts and tax per rate,
 -- published versions, sending with a public link or to the signed-in portal
 -- the customer accepts, rejects or asks changes through, and expiry.
-${tables(ctx, n)}${quoteFunctions(ctx, n)}`;
+${tables(ctx, n)}${quoteFunctions(ctx, n)}${quoteImportFunctions(ctx, n)}${billingPartyReportSql(ctx, { name: n.fn("quote_totals_by_billing_party"), argument: "quote", lines: "lines" })}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -539,6 +548,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "expire_quotes", args: [], returns: "integer" },
+    { name: "quote_totals_by_billing_party", args: ["uuid"], returns: "jsonb" },
     ...(ctx.installed("deals")
       ? [{ name: "quote_from_deal", args: ["uuid"], returns: "jsonb" }]
       : []),
@@ -559,6 +569,7 @@ export const QUOTES: BlockSqlDefinition = {
     "outbox",
     "notifications",
     "numbering",
+    "legal-entities",
     "deals",
     "relations",
     "catalog",
@@ -586,6 +597,7 @@ export const QUOTES: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  contributes: { imports: quoteImportTargets },
   data: (ctx) =>
     shippedAutomation(ctx, QUOTE_TO_ORDER, {
       module: "orders",

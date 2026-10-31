@@ -9,7 +9,8 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
-import { sqlIdent } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
+import { BILLING_PARTIES, COST_SOURCES } from "../line-items-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { tableMoves } from "../table-renames.ts";
@@ -17,6 +18,7 @@ import { afterSaleFunctions } from "./orders-after-sale.ts";
 import { cartFunctions, shippingRateFunctions } from "./orders-carts.ts";
 import { checkoutFunctions } from "./orders-checkout.ts";
 import { documentFunctions } from "./orders-documents.ts";
+import { orderImportFunctions, orderImportTargets } from "./orders-import.ts";
 import {
   KITCHEN_TABLES,
   KITCHEN_TOPIC,
@@ -206,6 +208,7 @@ const NAMES: BlockSqlNames = {
         cancelReason: "cancel_reason",
         originType: "origin_type",
         originId: "origin_id",
+        buyer: "buyer",
         updatedAt: "updated_at",
       },
       optional: [
@@ -215,6 +218,7 @@ const NAMES: BlockSqlNames = {
         "taxTransaction",
         "originType",
         "originId",
+        "buyer",
       ],
       typed: ["status"],
     },
@@ -243,7 +247,23 @@ const NAMES: BlockSqlNames = {
         fulfilled: "quantity_fulfilled",
         returned: "quantity_returned",
         backordered: "backordered",
+        taxCodeId: "tax_code_id",
+        unitCost: "unit_cost",
+        costSource: "cost_source",
+        binId: "bin_id",
+        billingParty: "billing_party",
+        billingPartyId: "billing_party_id",
+        billingAccountId: "billing_account_id",
       },
+      optional: [
+        "taxCodeId",
+        "unitCost",
+        "costSource",
+        "binId",
+        "billingParty",
+        "billingPartyId",
+        "billingAccountId",
+      ],
     },
     payments: {
       name: "order_payments",
@@ -493,7 +513,7 @@ create table if not exists ${t("orders")} (
   ${o("paidAt")} timestamptz,
   ${o("fulfilledAt")} timestamptz,
   ${o("completedAt")} timestamptz,
-  ${o("cancelledAt")} timestamptz,${optionalColumn("orders", "cancelReason", (name) => `${name} text`)}${optionalColumn("orders", "originType", (name) => `${name} text check (${name} ~ '^[a-z][a-z0-9_]{0,62}$')`)}${optionalColumn("orders", "originId", (name) => `${name} text check (length(${name}) between 1 and 200)`)}
+  ${o("cancelledAt")} timestamptz,${optionalColumn("orders", "cancelReason", (name) => `${name} text`)}${optionalColumn("orders", "originType", (name) => `${name} text check (${name} ~ '^[a-z][a-z0-9_]{0,62}$')`)}${optionalColumn("orders", "originId", (name) => `${name} text check (length(${name}) between 1 and 200)`)}${optionalColumn("orders", "buyer", (name) => `${name} jsonb`)}
   ${o("updatedAt")} timestamptz not null default now(),
   unique (${o("tenant")}, ${o("number")}),
   unique (${o("tenant")}, ${o("invoiceNumber")})
@@ -526,7 +546,7 @@ create table if not exists ${t("orderLines")} (
   ${amount(ol("total"))},
   ${ol("requiresShipping")} boolean not null default true,
   ${ol("location")} uuid,
-  ${ol("reservation")} uuid,
+  ${ol("reservation")} uuid,${optionalColumn("orderLines", "taxCodeId", (name) => `${name} uuid`)}${optionalColumn("orderLines", "unitCost", (name) => `${name} bigint check (${name} >= 0)`)}${optionalColumn("orderLines", "costSource", (name) => `${name} text check (${name} in (${COST_SOURCES.map(sqlString).join(", ")}))`)}${optionalColumn("orderLines", "binId", (name) => `${name} uuid`)}${optionalColumn("orderLines", "billingParty", (name) => `${name} text not null default 'customer' check (${name} in (${BILLING_PARTIES.map(sqlString).join(", ")}))`)}${optionalColumn("orderLines", "billingPartyId", (name) => `${name} text`)}${optionalColumn("orderLines", "billingAccountId", (name) => `${name} uuid`)}
   ${ol("fulfilled")} integer not null default 0 check (${ol("fulfilled")} between 0 and ${ol("quantity")}),
   ${ol("returned")} integer not null default 0 check (${ol("returned")} between 0 and ${ol("quantity")}),
   ${ol("backordered")} boolean not null default false
@@ -653,7 +673,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Carts on any signed-in user (anonymous sign-ins included), checkout into
 -- orders with numbers, payments, fulfillments, returns and refunds.
-${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${documentFunctions(ctx, names)}${dropShipFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
+${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${documentFunctions(ctx, names)}${dropShipFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${orderImportFunctions(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -789,6 +809,7 @@ export const ORDERS: BlockSqlDefinition = {
     "inventory",
     "promotions",
     "numbering",
+    "legal-entities",
     "state-machine",
     "invoices",
     "quotes",
@@ -814,6 +835,7 @@ export const ORDERS: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  contributes: { imports: orderImportTargets },
   topics: (ctx) =>
     kitchenOn(ctx) ? [`${KITCHEN_TOPIC}:{organizationId}`] : [],
 };

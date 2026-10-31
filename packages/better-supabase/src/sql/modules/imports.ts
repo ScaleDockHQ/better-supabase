@@ -567,6 +567,7 @@ declare
   v_unchanged integer := 0;
   v_conflicted integer := 0;
   v_errors jsonb := '[]'::jsonb;
+  v_warnings jsonb := '[]'::jsonb;
   v_message text;
   v_hint text;
 begin
@@ -655,6 +656,9 @@ begin
         end if;
 
         for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+          end if;
           insert into ${records} (${x("tenant")}, ${x("source")}, ${x("scope")}, ${x("entity")}, ${x("externalKey")}, ${x("role")}, ${x("subjectType")}, ${x("subjectId")}, ${x("contentHash")}, ${x("firstRun")}, ${x("lastRun")}, ${x("subjectUpdatedAt")}, ${x("missingSince")})
           values (
             v_run.${r("tenant")}, v_run.${r("source")}, v_scope, v_entity, v_key,
@@ -686,7 +690,7 @@ begin
     end;
   end loop;
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors);
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 ${serviceGrant(`${ctx.fn("import_apply_batch")}(uuid, text, jsonb)`)}
