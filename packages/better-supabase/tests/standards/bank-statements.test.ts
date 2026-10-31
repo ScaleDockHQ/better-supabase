@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { parseCamt053 } from "../../src/blocks/banking/camt053.ts";
 import { parseMt940 } from "../../src/blocks/banking/mt940.ts";
+import { sepaCreditTransferXml } from "../../src/blocks/banking/sepa.ts";
+import { money } from "../../src/commerce/money.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 
 const camt = (
@@ -56,5 +58,28 @@ describe("MT940 customer statements", () => {
     expect(statement?.format).toBe("mt940");
     expect(statement?.transactions[0]?.externalId).toBe("B-1");
     expect(statement?.closingBalance?.amount).toBe(1250n);
+  });
+});
+
+describe("SEPA credit transfer initiation", () => {
+  it("pins the ISO 20022 pain.001 version the export writes", () => {
+    expect(SPEC_PINS.pain001v09).toBe("pain.001.001.09");
+    expect(
+      sepaCreditTransferXml({
+        messageId: "M1",
+        createdAt: "2026-10-31T09:30:00Z",
+        executionOn: "2026-11-02",
+        debtorName: "Acme",
+        debtorIban: "NL91ABNA0417164300",
+        transfers: [
+          {
+            endToEndId: "E1",
+            amount: money(100n, "EUR"),
+            creditorName: "B",
+            creditorIban: "NL02ABNA0123456789",
+          },
+        ],
+      }),
+    ).toContain(`xsd:${SPEC_PINS.pain001v09}"`);
   });
 });

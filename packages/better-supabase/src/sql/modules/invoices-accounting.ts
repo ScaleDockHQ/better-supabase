@@ -5,6 +5,7 @@ import { countedLine, lineAmount, lineColumn } from "../line-items-sql.ts";
 import { partyPaymentSource } from "./invoices-collections.ts";
 import { invoiceParty } from "./invoices-functions.ts";
 import { invoiceCashCode } from "./invoices-ledger.ts";
+import { discountSources } from "./invoices-open-items.ts";
 
 /**
  * What invoices books in accounting: an issued invoice or credit note in the
@@ -185,6 +186,7 @@ export function invoiceAccountingSources(
   where y.${tx("id")}::text = source_id and y.${tx("referenceType")} = 'invoices' and p.amount <> 0`,
     },
     ...chargeSources(),
+    ...discountSources(ctx, party),
     {
       source: "invoice_write_off",
       journal: "general",

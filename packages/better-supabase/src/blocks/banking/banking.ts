@@ -20,8 +20,13 @@ import type {
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import {
+  BATCH_ITEM_STATUSES,
+  BATCH_STATUSES,
+} from "../../sql/modules/banking-batches.ts";
 import {
   MATCH_TARGETS,
   STATEMENT_FORMATS,
@@ -42,6 +47,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { bankFeedOf } from "./feed.ts";
+import { sepaCreditTransferXml } from "./sepa.ts";
 
 /** Where a bank transaction stands. */
 export type BankTransactionStatus = (typeof TRANSACTION_STATUSES)[number];
@@ -232,6 +238,84 @@ export interface BankReconciliation {
   readonly reconciled: boolean;
 }
 
+/** Where a payment batch stands. */
+export type PaymentBatchStatus = (typeof BATCH_STATUSES)[number];
+
+/** Where one payment of a batch stands. */
+export type PaymentBatchItemStatus = (typeof BATCH_ITEM_STATUSES)[number];
+
+/** One supplier bill a payment batch pays. */
+export interface PaymentBatchItem {
+  readonly id: string;
+  readonly invoiceId: string;
+  readonly partyId: string;
+  readonly creditorName: string;
+  readonly creditorIban: string;
+  readonly creditorBic?: string;
+  /** What is paid for the bill: its balance less the discount taken. */
+  readonly amount: Money;
+  /** The early payment discount the payment takes. */
+  readonly discount: Money;
+  readonly endToEndId: string;
+  readonly remittance?: string;
+  readonly status: PaymentBatchItemStatus;
+}
+
+/**
+ * A batch of supplier bills paid from one bank account. It is a draft until
+ * `postPaymentBatch`, posted (paid, pending the bank) until its bank
+ * transaction is matched, then reconciled.
+ */
+export interface PaymentBatch {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly accountId: string;
+  readonly reference: string;
+  /** The SEPA MsgId of the file. */
+  readonly messageId: string;
+  readonly dueBy: Temporal.PlainDate;
+  readonly executionOn: Temporal.PlainDate;
+  readonly total: Money;
+  readonly itemCount: number;
+  readonly status: PaymentBatchStatus;
+  /** The bank transaction that reconciled it. */
+  readonly transactionId?: string;
+  readonly createdBy?: string;
+  readonly createdAt: Temporal.Instant;
+  readonly postedAt?: Temporal.Instant;
+  readonly reconciledAt?: Temporal.Instant;
+  readonly items: readonly PaymentBatchItem[];
+}
+
+/** The bank details of a supplier a batch pays. */
+export interface PaymentBatchCreditor {
+  readonly name: string;
+  readonly iban: string;
+  readonly bic?: string;
+}
+
+/** What `createPaymentBatch` selects and who it pays. */
+export interface PaymentBatchInput {
+  readonly accountId: string;
+  /** Bills due by this day, or whose early payment discount ends by it. */
+  readonly dueBy: BankDate;
+  /** The day the bank executes the payments. Default: today. */
+  readonly executionOn?: BankDate;
+  readonly reference?: string;
+  /** Pay only these bills; one that needs approval refuses the batch. */
+  readonly invoiceIds?: readonly string[];
+  /** The bank details per supplier (the party id of the bill). */
+  readonly creditors: Readonly<Record<string, PaymentBatchCreditor>>;
+}
+
+/** The parties of a SEPA file that the batch doesn't hold. */
+export interface SepaExportOptions {
+  /** The account holder's name. Default: the bank account's name. */
+  readonly debtorName?: string;
+  /** The initiating party. Default: the debtor. */
+  readonly initiatingPartyName?: string;
+}
+
 export interface BankFeedSync {
   /** The provider's account id. */
   readonly accountRef: string;
@@ -297,6 +381,36 @@ export interface Banking<F extends object = Record<never, never>> {
     accountId: string,
     asOf?: BankDate,
   ): AsyncResult<BankReconciliation>;
+  /**
+   * Selects the approved open supplier bills due by a date into a draft payment
+   * batch of one bank account. A bill whose early payment discount is still
+   * open on the execution day is paid less the discount. Fails with
+   * `PAYMENT_BATCH_EMPTY` when nothing qualifies and with
+   * `PAYMENT_BATCH_CREDITOR_MISSING` for a supplier without bank details.
+   */
+  createPaymentBatch(input: PaymentBatchInput): AsyncResult<PaymentBatch>;
+  paymentBatches(options?: {
+    readonly status?: PaymentBatchStatus;
+    readonly limit?: number;
+  }): AsyncResult<readonly PaymentBatch[]>;
+  getPaymentBatch(batchId: string): AsyncResult<PaymentBatch>;
+  /**
+   * Posts a draft batch: its bills count as paid, pending the bank. Matching
+   * the bank transaction with a `payment_batch` target records the payments.
+   * Fails with `PAYMENT_BATCH_APPROVAL_REQUIRED` for a bill still waiting for
+   * approval.
+   */
+  postPaymentBatch(batchId: string): AsyncResult<PaymentBatch>;
+  /** Cancels a draft or posted batch and frees its bills. */
+  cancelPaymentBatch(batchId: string): AsyncResult<PaymentBatch>;
+  /**
+   * The batch as a SEPA credit transfer file (ISO 20022 pain.001.001.09),
+   * written from the bank account's name, IBAN and BIC. Only euro batches.
+   */
+  exportSepaCreditTransfer(
+    batchId: string,
+    options?: SepaExportOptions,
+  ): AsyncResult<string>;
   /** Reads a bank feed's transactions since a day and imports them. */
   syncFeed(
     accountId: string,
@@ -559,6 +673,60 @@ function reconciliationOf(value: unknown, fn: string): BankReconciliation {
   };
 }
 
+function batchItemOf(value: unknown, currency: unknown): PaymentBatchItem {
+  const row = recordOf(value, "payment batch item");
+  const bic = optionalText(row["creditorBic"]);
+  const remittance = optionalText(row["remittance"]);
+
+  return {
+    id: textOf(row["id"]),
+    invoiceId: textOf(row["invoiceId"]),
+    partyId: textOf(row["partyId"]),
+    creditorName: textOf(row["creditorName"]),
+    creditorIban: textOf(row["creditorIban"]),
+    ...(bic ? { creditorBic: bic } : {}),
+    amount: moneyOf(row["amount"], currency),
+    discount: moneyOf(row["discount"], currency, "discount"),
+    endToEndId: textOf(row["endToEndId"]),
+    ...(remittance ? { remittance } : {}),
+    status: enumOrThrow(
+      row["status"],
+      BATCH_ITEM_STATUSES,
+      "payment batch item status",
+    ),
+  };
+}
+
+function batchOf(value: unknown, fn: string): PaymentBatch {
+  const row = recordOf(value, fn);
+  const currency = row["currency"];
+  const transactionId = optionalText(row["transactionId"]);
+  const createdBy = optionalText(row["createdBy"]);
+  const postedAt = optionalInstant(row["postedAt"]);
+  const reconciledAt = optionalInstant(row["reconciledAt"]);
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    accountId: textOf(row["accountId"]),
+    reference: textOf(row["reference"]),
+    messageId: textOf(row["messageId"]),
+    dueBy: plainDate(row["dueBy"]),
+    executionOn: plainDate(row["executionOn"]),
+    total: moneyOf(row["total"], currency, "total"),
+    itemCount: Number(row["itemCount"]),
+    status: enumOrThrow(row["status"], BATCH_STATUSES, "payment batch status"),
+    ...(transactionId ? { transactionId } : {}),
+    ...(createdBy ? { createdBy } : {}),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    ...(postedAt ? { postedAt } : {}),
+    ...(reconciledAt ? { reconciledAt } : {}),
+    items: recordsOf(row["items"], fn).map((item) =>
+      batchItemOf(item, currency),
+    ),
+  };
+}
+
 function importOf(value: unknown, fn: string): BankStatementImport {
   const row = recordOf(value, fn);
 
@@ -567,6 +735,52 @@ function importOf(value: unknown, fn: string): BankStatementImport {
     imported: Number(row["imported"]),
     skipped: Number(row["skipped"]),
   };
+}
+
+const sepaInvalid = (message: string): AsyncResult<string> =>
+  AsyncResult.err(
+    dbError("invalid_request", message, { hint: "SEPA_EXPORT_INVALID" }),
+  );
+
+/** The SEPA file of a batch, or the error of what the format refuses. */
+function sepaFile(
+  batch: PaymentBatch,
+  accounts: readonly BankAccount[],
+  options: SepaExportOptions,
+): AsyncResult<string> {
+  const account = accounts.find((each) => each.id === batch.accountId);
+
+  if (!account?.iban) {
+    return sepaInvalid("The batch's bank account has no IBAN");
+  }
+
+  try {
+    return AsyncResult.ok(
+      sepaCreditTransferXml({
+        messageId: batch.messageId,
+        createdAt: batch.createdAt,
+        executionOn: batch.executionOn,
+        debtorName: options.debtorName ?? account.name,
+        debtorIban: account.iban,
+        ...(account.bic ? { debtorBic: account.bic } : {}),
+        ...(options.initiatingPartyName
+          ? { initiatingPartyName: options.initiatingPartyName }
+          : {}),
+        transfers: batch.items
+          .filter((item) => item.status !== "cancelled")
+          .map((item) => ({
+            endToEndId: item.endToEndId,
+            amount: item.amount,
+            creditorName: item.creditorName,
+            creditorIban: item.creditorIban,
+            ...(item.creditorBic ? { creditorBic: item.creditorBic } : {}),
+            ...(item.remittance ? { remittance: item.remittance } : {}),
+          })),
+      }),
+    );
+  } catch (error) {
+    return sepaInvalid(error instanceof Error ? error.message : String(error));
+  }
 }
 
 /** Drops `undefined` so the SQL reads a missing key, not `null`. */
@@ -770,6 +984,59 @@ export function createBanking<
         { account_id: accountId, as_of: dateText(asOf) ?? null },
         (value) => reconciliationOf(value, "bank_reconciliation_status"),
       ),
+    createPaymentBatch: (input) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "create_payment_batch",
+          {
+            tenant: organizationId,
+            input: defined({
+              accountId: input.accountId,
+              dueBy: dateText(input.dueBy),
+              executionOn: dateText(input.executionOn),
+              reference: input.reference,
+              invoiceIds: input.invoiceIds,
+              creditors: input.creditors,
+            }),
+          },
+          (value) => batchOf(value, "create_payment_batch"),
+        ),
+      ),
+    paymentBatches: (list = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_payment_batches",
+          {
+            tenant: organizationId,
+            status: list.status ?? null,
+            page_size: list.limit ?? null,
+          },
+          (value) =>
+            recordsOf(value, "list_payment_batches").map((row) =>
+              batchOf(row, "list_payment_batches"),
+            ),
+        ),
+      ),
+    getPaymentBatch: (batchId) =>
+      call("get_payment_batch", { batch_id: batchId }, (value) =>
+        batchOf(value, "get_payment_batch"),
+      ),
+    postPaymentBatch: (batchId) =>
+      call("post_payment_batch", { batch_id: batchId }, (value) =>
+        batchOf(value, "post_payment_batch"),
+      ),
+    cancelPaymentBatch: (batchId) =>
+      call("cancel_payment_batch", { batch_id: batchId }, (value) =>
+        batchOf(value, "cancel_payment_batch"),
+      ),
+    exportSepaCreditTransfer: (batchId, sepa = {}) =>
+      client
+        .getPaymentBatch(batchId)
+        .andThen((batch) =>
+          client
+            .accounts({ includeArchived: true })
+            .andThen((accounts) => sepaFile(batch, accounts, sepa)),
+        ),
     syncFeed: (accountId, feed, sync) =>
       AsyncResult.ok(bankFeedOf(feed))
         .andThen((checked) => checked.transactions(sync.accountRef, sync.since))

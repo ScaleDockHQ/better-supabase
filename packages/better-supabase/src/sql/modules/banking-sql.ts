@@ -19,6 +19,7 @@ export const MATCH_TARGETS = [
   "invoice",
   "accounting_entry",
   "expense_report",
+  "payment_batch",
 ] as const;
 
 /** The reference prefix of the invoice payment a bank match records. */

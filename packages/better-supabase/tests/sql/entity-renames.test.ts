@@ -114,6 +114,7 @@ describe("blocks.<name>.entities in the SQL", () => {
     invoices: [
       "'invoices:cash:",
       "'invoices:credit:",
+      "'invoices:discount:",
       "'invoice_party'",
       "'invoiceId'",
     ],

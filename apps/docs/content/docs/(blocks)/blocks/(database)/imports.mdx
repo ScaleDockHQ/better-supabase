@@ -225,6 +225,15 @@ The buyer is stored as given in the `buyer` column. With the
 writes nothing. A document edited after the import is reported as a conflict,
 and a document whose source changed yields `IMPORT_DOCUMENT_CHANGED`.
 
+### Opening open items
+
+The `open_item` entity writes an opening list of what customers owe and what
+suppliers are owed. Each item takes `number`, `side` (`customer` or
+`supplier`), `issuedOn`, `dueOn`, `currency`, the open `balance` in minor units
+and the `company` or `contact`. The item keeps its original dates, so the
+ageing is right on day one. It goes through `import_invoice_document`, so
+sending the same list again writes nothing.
+
 ## Over your own tables
 
 Map `tables.runs` onto the app's import table. Optional columns can be `null`.

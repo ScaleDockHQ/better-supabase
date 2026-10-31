@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:061061c4b17a549e4d871ef9e65c04023c9e2ee7f4d17979836d71a25840e1b9
+-- @bsb-hash sha256:8bb27562066137e91c56971ba16770c0fc2b5383b12c4d7b7a3644e1c07919c0
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -234,7 +234,7 @@ create table if not exists "better_supabase"."bank_matches" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "transaction_id" uuid not null,
-  "target_type" text not null check ("target_type" in ('invoice', 'accounting_entry', 'expense_report')),
+  "target_type" text not null check ("target_type" in ('invoice', 'accounting_entry', 'expense_report', 'payment_batch')),
   "target_id" uuid not null,
   -- Minor units with the transaction's sign; a transaction's matches add up to
   -- its amount.
@@ -253,6 +253,7 @@ drop policy if exists bank_matches_read on "better_supabase"."bank_matches";
 create policy bank_matches_read on "better_supabase"."bank_matches"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
+
 
 
 -- The ISO 7064 MOD 97-10 remainder of letters and digits, letters counting as
@@ -707,6 +708,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."bank_reconciliation_status"(uuid, date) from public, anon;
 grant execute on function "better_supabase"."bank_reconciliation_status"(uuid, date) to authenticated, service_role;
+
 
 
 -- Matches a bank rule's filter tree against a transaction's fields (ADR 0046).

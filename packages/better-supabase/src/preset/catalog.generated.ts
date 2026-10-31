@@ -3950,7 +3950,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "manage": "invoices.manage",
           "purchase": "invoices.purchase",
           "overrideMatch": "invoices.override_match",
-          "collect": "invoices.collect"
+          "collect": "invoices.collect",
+          "approve": "invoices.approve"
         }
       }
     },
@@ -20878,7 +20879,8 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "values": [
                   "invoice",
                   "accounting_entry",
-                  "expense_report"
+                  "expense_report",
+                  "payment_batch"
                 ]
               },
               "targetId": {
@@ -20899,7 +20901,8 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "enum": [
                     "invoice",
                     "accounting_entry",
-                    "expense_report"
+                    "expense_report",
+                    "payment_batch"
                   ]
                 },
                 "targetId": {
@@ -24446,6 +24449,21 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceAging"
         },
         {
+          "name": "InvoiceAllocation"
+        },
+        {
+          "name": "InvoiceApproval"
+        },
+        {
+          "name": "InvoiceApprovalLevel"
+        },
+        {
+          "name": "InvoiceApprovalLevelInput"
+        },
+        {
+          "name": "InvoiceApprovalStatus"
+        },
+        {
           "name": "InvoiceCharge"
         },
         {
@@ -24490,6 +24508,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "InvoiceMatchStatus"
+        },
+        {
+          "name": "InvoiceOpenItems"
         },
         {
           "name": "InvoicePatch",
@@ -24540,7 +24561,11 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invoice.credit_applied",
           "invoice.dunning_escalated",
           "invoice.dunning_paused",
-          "invoice.collection_started"
+          "invoice.collection_started",
+          "invoice.allocated",
+          "invoice.unallocated",
+          "invoice.discount_applied",
+          "invoice.approved"
         ]
       },
       "schedules": [

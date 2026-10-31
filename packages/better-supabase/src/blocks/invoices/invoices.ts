@@ -14,6 +14,7 @@ import type {
   InvoiceCollection,
   InvoicePaymentTerms,
 } from "./collections.ts";
+import type { InvoiceOpenItems } from "./open-items.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -47,6 +48,7 @@ import {
   invoiceCollections,
   paymentTermsOf,
 } from "./collections.ts";
+import { invoiceOpenItems } from "./open-items.ts";
 
 export type { Line, LineInput, Totals } from "../sales-lines.ts";
 
@@ -284,9 +286,8 @@ const actorArg = (
 ): { readonly actor?: TransitionActor } =>
   actor === undefined ? {} : { actor };
 
-export interface Invoices<
-  F extends object = Record<never, never>,
-> extends InvoiceCollections<Invoice<F>> {
+export interface Invoices<F extends object = Record<never, never>>
+  extends InvoiceCollections<Invoice<F>>, InvoiceOpenItems<Invoice<F>> {
   create(
     organizationId: string,
     input: InvoiceInput<F>,
@@ -827,6 +828,7 @@ export function createInvoices<
           )
         : AsyncResult.err(unknownCurrency(currency)),
     ...invoiceCollections(call, invoice),
+    ...invoiceOpenItems(call, invoice),
     match: (invoiceId) =>
       call("purchase_bill_match", { invoice: invoiceId }, matchOf),
     payments: (invoiceId) =>

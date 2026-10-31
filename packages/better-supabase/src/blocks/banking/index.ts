@@ -19,6 +19,13 @@ export {
   type BankTransaction,
   type BankTransactionListOptions,
   type BankTransactionStatus,
+  type PaymentBatch,
+  type PaymentBatchCreditor,
+  type PaymentBatchInput,
+  type PaymentBatchItem,
+  type PaymentBatchItemStatus,
+  type PaymentBatchStatus,
+  type SepaExportOptions,
 } from "./banking.ts";
 
 export {
@@ -51,6 +58,12 @@ export {
 export { parseCamt053 } from "./camt053.ts";
 
 export { parseMt940 } from "./mt940.ts";
+
+export {
+  sepaCreditTransferXml,
+  type SepaCreditTransfer,
+  type SepaCreditTransferFile,
+} from "./sepa.ts";
 
 export { creditorReference, isIban, referencePayload } from "./references.ts";
 

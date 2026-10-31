@@ -314,6 +314,7 @@ export const permissions = {
     purchase: "invoices.purchase",
     overrideMatch: "invoices.override_match",
     collect: "invoices.collect",
+    approve: "invoices.approve",
   },
   ledger: {
     read: "ledger.read",
@@ -396,7 +397,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "quotes.manage" | "quotes.read" | "quotes.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.approve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "quotes.manage" | "quotes.read" | "quotes.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -468,6 +469,8 @@ export const blockEvents: Events<BlockEvents> = {
     "invitation.resent",
     "invitation.revoked",
     "invitation.updated",
+    "invoice.allocated",
+    "invoice.approved",
     "invoice.charge_removed",
     "invoice.charged",
     "invoice.collection_started",
@@ -475,6 +478,7 @@ export const blockEvents: Events<BlockEvents> = {
     "invoice.credit_applied",
     "invoice.credited",
     "invoice.deleted",
+    "invoice.discount_applied",
     "invoice.dunning_escalated",
     "invoice.dunning_paused",
     "invoice.issued",
@@ -482,6 +486,7 @@ export const blockEvents: Events<BlockEvents> = {
     "invoice.paid",
     "invoice.payment_recorded",
     "invoice.payment_reversed",
+    "invoice.unallocated",
     "invoice.uncollected",
     "invoice.updated",
     "invoice.voided",
@@ -644,6 +649,8 @@ export const blockEventSchemas = {
   "invitation.resent": true,
   "invitation.revoked": true,
   "invitation.updated": true,
+  "invoice.allocated": true,
+  "invoice.approved": true,
   "invoice.charge_removed": true,
   "invoice.charged": true,
   "invoice.collection_started": true,
@@ -651,6 +658,7 @@ export const blockEventSchemas = {
   "invoice.credit_applied": true,
   "invoice.credited": true,
   "invoice.deleted": true,
+  "invoice.discount_applied": true,
   "invoice.dunning_escalated": true,
   "invoice.dunning_paused": true,
   "invoice.issued": true,
@@ -658,6 +666,7 @@ export const blockEventSchemas = {
   "invoice.paid": true,
   "invoice.payment_recorded": true,
   "invoice.payment_reversed": true,
+  "invoice.unallocated": true,
   "invoice.uncollected": true,
   "invoice.updated": true,
   "invoice.voided": true,

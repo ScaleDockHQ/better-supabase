@@ -33,9 +33,9 @@ import {
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { linked } from "./banking-sql.ts";
-import { invoiceCollections } from "./invoices-collections.ts";
 import { invoiceFromQuote } from "./invoices-from-quote.ts";
 import { invoiceLedger, paymentKey } from "./invoices-ledger.ts";
+import { invoiceCollectionsAndOpenItems } from "./invoices-open-items.ts";
 import { invoicePurchase, PURCHASE_VALUES } from "./invoices-purchase.ts";
 import { createTerms, discountIssue, lineMatrix } from "./invoices-terms.ts";
 import { sequenceEntry } from "./numbering-entities.ts";
@@ -1099,5 +1099,5 @@ begin
 end;
 $$;
 ${userGrant(`${fn("reverse_invoice_payment")}(uuid, text, jsonb)`)}
-${addCharge}${p.aging}${fromQuote}${p.functions}${invoiceCollections(ctx, n, { i, can, st, kd, balance, row, record, settle, ledger, charges })}`;
+${addCharge}${p.aging}${fromQuote}${p.functions}${invoiceCollectionsAndOpenItems(ctx, n, { i, can, st, kd, balance, row, record, settle, ledger, charges })}`;
 }

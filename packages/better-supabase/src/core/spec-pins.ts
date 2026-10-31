@@ -59,6 +59,11 @@ export const SPEC_PINS: {
   /** ISO 20022 bank-to-customer statement versions `parseCamt053` reads. */
   readonly camt053v02: "camt.053.001.02";
   readonly camt053v08: "camt.053.001.08";
+  /**
+   * ISO 20022 customer credit transfer initiation `sepaCreditTransferXml`
+   * writes.
+   */
+  readonly pain001v09: "pain.001.001.09";
   /** SWIFT MT940 customer statement layout `parseMt940` reads. */
   readonly mt940: "SR2025";
   /** ISO 11649 creditor references the banking block matches on. */
@@ -194,6 +199,7 @@ export const SPEC_PINS: {
   iso13616: "2020",
   camt053v02: "camt.053.001.02",
   camt053v08: "camt.053.001.08",
+  pain001v09: "pain.001.001.09",
   mt940: "SR2025",
   iso11649: "2009",
   fhirR4: "4.0.1",

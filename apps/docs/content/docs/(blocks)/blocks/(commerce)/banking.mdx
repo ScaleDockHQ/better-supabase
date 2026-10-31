@@ -176,6 +176,27 @@ the ledger balance of the journal's account and the difference. `reconciled`
 is true when nothing is unmatched and the statement balance equals the
 ledger.
 
+## Payment batches
+
+`createPaymentBatch({ accountId, dueBy, executionOn, creditors })` collects the
+approved open supplier bills that fall due by `dueBy` (or whose discount date
+falls by then) into a draft batch of one bank account. A bill whose discount is
+still open on `executionOn` is paid less the discount. `creditors` maps each
+supplier party id to the `name`, `iban` and optional `bic` that receive the
+money. A bill that still waits for [approval](/docs/blocks/invoices#purchase-approval-levels)
+is skipped, and naming it in `invoiceIds` fails with
+`PAYMENT_BATCH_APPROVAL_REQUIRED`. Nothing qualifying fails with
+`PAYMENT_BATCH_EMPTY`.
+
+`postPaymentBatch` marks the bills as pending bank confirmation, and
+`cancelPaymentBatch` frees them. `exportSepaCreditTransfer(batchId)` returns
+the batch as a SEPA credit transfer file in ISO 20022 pain.001.001.09 for a
+euro account. When the debit appears on a statement, match it with the target
+`{ targetType: "payment_batch", targetId }` and a negative amount equal to the
+batch total: the payments are allocated per supplier, the bills are paid and
+the batch is reconciled. Unmatching reverses them. Direct debits (pain.008)
+are not supported.
+
 ## Bank feeds
 
 A bank feed reads transactions from a bank or an aggregator, so you don't
@@ -218,6 +239,12 @@ another `apiVersion`.
 | `deleteRule(ruleId)`                    | nothing                                                     |
 | `applyRules(accountId)`                 | how many transactions the rules matched and ignored         |
 | `reconciliation(accountId, asOf)`       | the reconciliation status                                   |
+| `createPaymentBatch(input)`             | the draft payment batch                                     |
+| `paymentBatches(options)`               | the payment batches, the latest first                       |
+| `getPaymentBatch(batchId)`              | the batch with its items                                    |
+| `postPaymentBatch(batchId)`             | the posted batch                                            |
+| `cancelPaymentBatch(batchId)`           | the cancelled batch                                         |
+| `exportSepaCreditTransfer(batchId)`     | the pain.001.001.09 XML as a string                         |
 | `syncFeed(accountId, feed, sync)`       | the imported statement and how many transactions were added |
 
 ## Options
