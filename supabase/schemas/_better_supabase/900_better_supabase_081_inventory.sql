@@ -1,9 +1,26 @@
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:da0e580b8c34d697ea318142db1216c8a82bd266d9c07f6611ce9f71d2b79de0
+-- @bsb-hash sha256:fca7e544c46e59a0e482bae2216c789bf5e07ae3182b760d10e986dfa1744c8e
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -807,7 +824,9 @@ begin
     jsonb_strip_nulls(jsonb_build_object('variantId', move_stock.variant, 'locationId', move_stock.location, 'reason', move_stock.reason,
       'quantity', move_stock.quantity::text, 'unit', nullif(v_unit, 'item'))));
   if v_value <> 0 then
+    if not better_supabase.import_run() is not null then
     perform "better_supabase"."accounting_post_source"('stock_movement', v_id::text);
+  end if;
   end if;
   if v_serials is not null then
     update "better_supabase"."stock_serials" x set "movement_id" = v_id
@@ -3007,6 +3026,15 @@ drop function if exists "api"."adjust_stock"(uuid, uuid, integer, text, text);
 drop function if exists "api"."count_stock"(uuid, uuid, integer, text);
 drop function if exists "api"."set_reorder_point"(uuid, uuid, integer);
 drop function if exists "api"."reserve_stock"(uuid, uuid, integer, text, text, timestamptz);
+
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean

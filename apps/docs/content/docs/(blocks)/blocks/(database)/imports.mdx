@@ -133,6 +133,63 @@ definition to `runImport` without `importedKeys`, so a rerun updates rows
 instead of skipping them. The [upsert import](/recipes) recipe maps the
 columns, shows the preview and runs the import.
 
+## Import mode
+
+`import_upsert_batch` begins an import session for the batch it writes, so a
+migration of historical rows does not fire the side effects of live traffic.
+`better_supabase.begin_import_session(run)` does the same for a transaction
+you control. It is callable by the service role only, needs a running run, and
+sets the run id and the correlation id `import:<run>` for the rest of the
+transaction. `better_supabase.import_run()` returns the run id inside a
+session, and only to the service role: a user session that sets the setting
+itself still gets `null`, so a user can never turn the mode on.
+
+Two options decide what the mode does:
+
+```ts
+blocks: {
+  imports: {
+    options: {
+      events: { default: "skip", "customer.imported": "tag" },
+      audit: "summary",
+    },
+  },
+}
+```
+
+`events` maps an outbox event type (or `default`) to `skip`, `tag` or `emit`.
+An event with no entry is skipped, so a run fires no webhook and no workflow
+unless you list the event. `tag` emits the event with `importRunId` in its
+payload, and `emit` leaves it as it is. `audit` is `rows` (the default) or
+`summary`. In `rows` mode the audit log keeps one entry per changed row, tagged
+with the actor kind `integration` and the correlation id `import:<run>`. In
+`summary` mode a row writes no entry, and `finish_import_run` writes one
+`import.entity_completed` entry per entity that inserted or updated rows, so a
+second identical run adds none.
+
+A state machine accepts any declared status on insert in import mode. It
+writes one history row from no status to the inserted status with the reason
+`imported`, and no `status.changed` event.
+
+Write your own SQL functions against the same condition with
+`ctx.importing()` (`better_supabase.import_run() is not null`). The mode
+guards these hooks:
+
+| Hook                                                        | In import mode                                              |
+| ----------------------------------------------------------- | ----------------------------------------------------------- |
+| `emit_event` (every event, so webhooks and workflows)       | skipped, tagged or emitted by `imports.events`              |
+| Audit row changes and `audit_event`                         | tagged `integration`; one summary per entity with `summary` |
+| State machine insert                                        | one `imported` history row, no event                        |
+| `ctx.notify` (comment, inbox, task and other notifications) | not sent                                                    |
+| Accounting auto-posting of a document (`bookSource`)        | not posted; post the entries with their own import          |
+| Orders: stock taken when an order is paid                   | not taken                                                   |
+| Shipments: stock taken when a shipment ships                | not taken                                                   |
+
+Explicit calls stay as they are: `adjust_stock`, `count_stock`,
+`move_stock`, production consumption and the ledger postings of an explicit
+payment or credit call. Import those through their own targets with the
+quantities and balances of the source system.
+
 ## Over your own tables
 
 Map `tables.runs` onto the app's import table. Optional columns can be `null`.

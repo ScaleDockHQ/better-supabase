@@ -1,9 +1,26 @@
 -- better-supabase module: compliance
 -- @bsb-block compliance@3 managed
--- @bsb-hash sha256:cfa01629aef42369e097cf0a7b91aabd18a98aad481dc50da353e2d95c6c4b7b
+-- @bsb-hash sha256:5fc0ab4c1827e0a7bbfbe413714cd277723ac053bd7292e2665036d6091c2066
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -670,9 +687,10 @@ begin
     metadata => jsonb_build_object('organizationId', v_task."tenant_id", 'evidenceTaskId', v_task."id", 'controlId', v_task."control_id", 'assigneeId', v_task."assignee_id", 'dueOn', v_task."due_on")
   );
     if coalesce(v_task."assignee_id", v_owner) is not null then
-      v_claims := current_setting('request.jwt.claims', true);
-      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-      perform "better_supabase"."notify"(jsonb_build_object(
+      if better_supabase.import_run() is null then
+        v_claims := current_setting('request.jwt.claims', true);
+        perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+        perform "better_supabase"."notify"(jsonb_build_object(
         'type', 'evidence_task.missed',
         'tenant', v_task."tenant_id",
         'actor', null,
@@ -683,7 +701,8 @@ begin
         'key', 'evidence_task.missed:' || v_task."id"::text || ':' || v_task."due_on"::text,
         'data', jsonb_build_object('evidenceTaskId', v_task."id", 'dueOn', v_task."due_on")
       ));
-      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+        perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      end if;
     end if;
     update "better_supabase"."evidence_tasks" x set "notified_for" = v_task."due_on" where x."id" = v_task."id";
     v_count := v_count + 1;
@@ -989,6 +1008,15 @@ drop function if exists "api"."save_control_framework"(uuid, text, text, text, t
 drop function if exists "api"."save_control"(uuid, text, text, text, uuid, boolean, uuid);
 drop function if exists "api"."save_control"(uuid, text, text, text, uuid, boolean, uuid, jsonb);
 drop function if exists "api"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text, jsonb);
+
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean

@@ -216,6 +216,7 @@ function commitLines(ctx: BlockSqlContext): string {
   const ol = columns(ctx, "orderLines");
 
   return `
+    if not ${ctx.importing()} then
     for v_line in
       select x.${ol("id")} as id, x.${ol("variant")} as variant, x.${ol("quantity")} as quantity,
         x.${ol("location")} as location, x.${ol("reservation")} as reservation
@@ -233,7 +234,8 @@ function commitLines(ctx: BlockSqlContext): string {
           update ${ctx.table("orderLines")} x set ${ol("backordered")} = true where x.${ol("id")} = v_line.id;
         end;
       end;
-    end loop;`;
+    end loop;
+    end if;`;
 }
 
 function releaseLines(ctx: BlockSqlContext): string {

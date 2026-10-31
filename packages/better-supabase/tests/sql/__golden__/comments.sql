@@ -438,10 +438,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:e311e8405f5f5751225769534c9df56da187490864eebb64be2a39b64cd55878
+-- @bsb-hash sha256:5145f0c8bd1d6c64b407d23ee987fb8d980da077e16770884f7a1cd4087df361
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -694,9 +711,10 @@ begin
         and s."level" in ('all', 'participating')
         and not s."user_id" = any (array[v_msg."author_id"] || v_msg."mentions")
     ) or to_regprocedure('"public"."notification_audience"(jsonb)') is not null) then
-    v_claims := current_setting('request.jwt.claims', true);
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform "better_supabase"."notify"(jsonb_build_object(
+    if better_supabase.import_run() is null then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'comment.posted',
       'tenant', v_msg."tenant_id",
       'actor', v_msg."author_id",
@@ -709,7 +727,8 @@ begin
       'key', 'comment.posted:' || v_msg."id"::text,
       'data', jsonb_build_object('messageId', v_msg."id", 'conversationId', v_msg."conversation_id")
     ));
-    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
   end if;
 end;
 $$;

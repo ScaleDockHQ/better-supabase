@@ -422,10 +422,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:24d1fb3aee7e3fb498cbbc3c0925f1fdcd04554197984a206e7613785187ddb6
+-- @bsb-hash sha256:deeac8fd0d5b7837b09abed8dbca22a0ee4afa3140ae387023ebf58d398d41a0
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -989,9 +1006,10 @@ begin
   returning * into v_row;
   perform "better_supabase"."grant_access_request"(v_row."id");
   select * into v_row from "better_supabase"."access_requests" r where r."id" = v_row."id";
-  v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+  if better_supabase.import_run() is null then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'access_request.emergency_opened',
       'tenant', v_tenant,
       'actor', v_me,
@@ -1004,7 +1022,8 @@ begin
       'key', 'access_request.emergency_opened:' || v_row."id"::text,
       'data', jsonb_build_object('accessRequestId', v_row."id")
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
   perform "better_supabase".emit_event('access_request.emergency_opened', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'reason', v_row."reason"), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
   perform better_supabase.audit_event(
     event_type => 'access_request.emergency_opened',

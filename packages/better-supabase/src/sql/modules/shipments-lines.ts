@@ -162,6 +162,7 @@ export function shipLines(ctx: BlockSqlContext): string {
     : `v_movement := ${sale};`;
 
   return `
+  if not ${ctx.importing()} then
   for v_line in
     select x.${l("id")} as id, x.${l("variant")} as variant, x.${l("location")} as location, x.${l("quantity")} as quantity,
       x.${l("detail")} as detail, ${allocation} as allocation
@@ -173,7 +174,8 @@ export function shipLines(ctx: BlockSqlContext): string {
     update ${ctx.table("lines")} x set ${l("movement")} = v_movement, ${l("movedAt")} = now(),
       ${l("detail")} = jsonb_strip_nulls(coalesce(v_line.detail, '{}'::jsonb) || jsonb_build_object('parts', ${movementLots(inventory, "v_movement")}))
     where x.${l("id")} = v_line.id;
-  end loop;`;
+  end loop;
+  end if;`;
 }
 
 /**

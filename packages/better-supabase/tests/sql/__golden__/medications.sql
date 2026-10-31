@@ -1430,10 +1430,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:69831a04773be69c54115016a3547ab747109267d2837c2fd39fa2f165bb46d3
+-- @bsb-hash sha256:14fe7a93f2d83f2d60e27611d60781381c58f58f805b659a37eee387e2faba11
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -2808,9 +2825,10 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'medicationOrderId', v_row."order_id", 'medicationAdministrationId', v_row."id", 'subjectType', v_order."subject_type", 'subjectId', v_order."subject_id", 'status', v_row."status", 'scheduledAt', v_row."scheduled_at", 'administeredAt', v_row."administered_at")
   );
-    v_claims := current_setting('request.jwt.claims', true);
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform "better_supabase"."notify"(jsonb_build_object(
+    if better_supabase.import_run() is null then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'medication_administration.missed',
       'tenant', v_row."tenant_id",
       'actor', (select auth.uid()),
@@ -2822,7 +2840,8 @@ begin
       'key', 'medication_administration.missed:' || v_row."id"::text,
       'data', jsonb_build_object('medicationOrderId', v_order."id", 'scheduledAt', v_row."scheduled_at")
     ));
-    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
     v_count := v_count + 1;
   end loop;
   return v_count;

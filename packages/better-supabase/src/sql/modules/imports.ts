@@ -16,6 +16,7 @@ import {
   lockTable,
   quotedTable,
   schemaPreamble,
+  SERVICE_CALLER,
   serviceGrant,
   sha256Hex,
   userGrant,
@@ -45,7 +46,7 @@ const EVENTS: BlockSqlEvents<ImportsEvents> = {
 
 const NAMES: BlockSqlNames = {
   events: EVENTS,
-  options: ["targets"],
+  options: ["targets", "events", "audit"],
   migrations: [
     {
       from: 1,
@@ -103,6 +104,49 @@ const NAMES: BlockSqlNames = {
     },
   },
 };
+
+const EVENT_MODES: ReadonlySet<string> = new Set(["skip", "tag", "emit"]);
+
+/**
+ * `blocks.imports.options.events` as the JSON the session carries: an outbox
+ * event type (or `default`) to `skip`, `tag` or `emit`. Without an entry an
+ * event is skipped, so an import fires no webhook or workflow unless asked.
+ */
+function eventsPolicyOf(ctx: BlockSqlContext): string {
+  const where = "blocks['imports'].options.events";
+  const raw: unknown = ctx.option("events") ?? {};
+
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new TypeError(
+      `${where} must map event types (or "default") to skip, tag or emit`,
+    );
+  }
+
+  const policy: Record<string, string> = {};
+
+  for (const [type, mode] of new Map<string, unknown>(Object.entries(raw))) {
+    if (typeof mode !== "string" || !EVENT_MODES.has(mode)) {
+      throw new TypeError(`${where}.${type} must be skip, tag or emit`);
+    }
+
+    policy[type] = mode;
+  }
+
+  return JSON.stringify(policy);
+}
+
+/** `blocks.imports.options.audit`: one audit entry per row or per entity. */
+function auditModeOf(ctx: BlockSqlContext): "rows" | "summary" {
+  const raw: unknown = ctx.option("audit") ?? "rows";
+
+  if (raw !== "rows" && raw !== "summary") {
+    throw new TypeError(
+      "blocks['imports'].options.audit must be rows or summary",
+    );
+  }
+
+  return raw;
+}
 
 /**
  * Every target the module dispatches to: the contributions of the blocks that
@@ -179,6 +223,8 @@ function build(ctx: BlockSqlContext): string {
   const x = (column: string): string => ctx.col("records", column);
   const manage = ctx.permission("manage", OPERATIONS["imports.manage"]);
   const targets = targetsOf(ctx);
+  const eventsPolicy = sqlString(eventsPolicyOf(ctx));
+  const auditMode = auditModeOf(ctx);
   const runsName = ctx.tableName("runs").name;
   const recordsName = ctx.tableName("records").name;
   const unique = `(${x("tenant")}, ${x("source")}, ${x("scope")}, ${x("entity")}, ${x("externalKey")}, ${x("role")})`;
@@ -645,8 +691,44 @@ end;
 $$;
 ${serviceGrant(`${ctx.fn("import_apply_batch")}(uuid, text, jsonb)`)}
 
--- The single write path of an import (service role). A dry run writes inside a
--- subtransaction it rolls back, then keeps the counts.
+-- Turns import mode on for the rest of the transaction (ADR 0141): the outbox
+-- applies the imports.events policy, the audit log tags entries as
+-- integration with the correlation id import:<run> (imports.audit decides rows
+-- or one summary per entity) and ctx.importing() guards skip their side
+-- effects. The setting is transaction-local and better_supabase.import_run()
+-- only reports it to the service role, so no user session can turn it on.
+create or replace function ${ctx.fn("begin_import_session")}(run uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_status text;
+begin
+  if not (${SERVICE_CALLER}) then
+    ${fail("IMPORT_FORBIDDEN", "only the service role can begin an import session")}
+  end if;
+  select r.${r("status")}::text into v_status from ${runs} r where r.${r("id")} = begin_import_session.run;
+  if not found then
+    ${fail("IMPORT_NOT_FOUND", "import not found", "P0002")}
+  end if;
+  if v_status <> 'running' then
+    ${fail("IMPORT_RUN_NOT_RUNNING", "the import is not running", "55000")}
+  end if;
+  perform set_config('better_supabase.import_run', begin_import_session.run::text, true);
+  perform set_config('better_supabase.correlation_id', 'import:' || begin_import_session.run::text, true);
+  perform set_config('better_supabase.import_events', ${eventsPolicy}, true);
+  perform set_config('better_supabase.import_audit', '${auditMode}', true);
+  return begin_import_session.run;
+end;
+$$;
+${serviceGrant(`${ctx.fn("begin_import_session")}(uuid)`)}
+
+-- The single write path of an import (service role). It begins the import
+-- session for its writes and restores the caller's settings afterwards. A dry
+-- run writes inside a subtransaction it rolls back, then keeps the counts.
 create or replace function ${ctx.fn("import_upsert_batch")}(run uuid, entity text, items jsonb)
 returns jsonb
 language plpgsql
@@ -659,6 +741,8 @@ declare
   v_entity text := import_upsert_batch.entity;
   v_run ${runs};
   v_result jsonb;
+  v_name text;
+  v_previous jsonb := '{}'::jsonb;
 begin
   select * into v_run from ${runs} r where r.${r("id")} = v_run_id for update;
   if not found then
@@ -667,6 +751,11 @@ begin
   if v_run.${r("status")} <> 'running' then
     ${fail("IMPORT_RUN_NOT_RUNNING", "the import is not running", "55000")}
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
+  end loop;
+  perform ${ctx.fn("begin_import_session")}(v_run_id);
 
   if v_run.${r("dryRun")} then
     begin
@@ -678,6 +767,10 @@ begin
   else
     v_result := ${ctx.fn("import_apply_batch")}(v_run_id, v_entity, import_upsert_batch.items);
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    perform set_config(v_name, v_previous ->> v_name, true);
+  end loop;
 
   ${mergeCounts}
   return v_result || jsonb_build_object('dryRun', v_run.${r("dryRun")});
@@ -786,7 +879,29 @@ begin
         subject: `'imports/' || v_run_id::text`,
         tenant: `v_run.${r("tenant")}`,
         audit: false,
-      })}
+      })}${
+        auditMode === "summary"
+          ? `
+      if coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0) + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0) > 0 then
+        ${ctx.audit({
+          type: "import.entity_completed",
+          payload: `jsonb_build_object('organizationId', v_run.${r("tenant")}, 'id', v_run_id, 'entity', v_entity, 'counts', v_counts -> v_entity)`,
+          subject: `'imports/' || v_run_id::text`,
+          tenant: `v_run.${r("tenant")}`,
+          key: `'import:' || v_run_id::text || ':' || v_entity`,
+          audit: {
+            category: "integration",
+            targetType: "import",
+            recordId: "v_run_id::text",
+            targetLabel: "v_entity",
+            summary: `'imported ' || v_entity`,
+            actorKind: "'integration'",
+            correlationId: "'import:' || v_run_id::text",
+          },
+        })}
+      end if;`
+          : ""
+      }
     end loop;
     ${ctx.record({
       type: "import.completed",
@@ -852,6 +967,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["uuid", "text", "integer", "text"],
       returns: "boolean",
     },
+    { name: "begin_import_session", args: ["uuid"], returns: "uuid" },
     {
       name: "import_upsert_batch",
       args: ["uuid", "text", "jsonb"],

@@ -33,7 +33,9 @@ export function bookSource(
   id: string,
 ): string {
   return booksAccounting(ctx)
-    ? `perform ${ctx.of("accounting").fn("accounting_post_source")}(${sqlString(source)}, ${id}::text);`
+    ? `if not ${ctx.importing()} then
+    perform ${ctx.of("accounting").fn("accounting_post_source")}(${sqlString(source)}, ${id}::text);
+  end if;`
     : "";
 }
 

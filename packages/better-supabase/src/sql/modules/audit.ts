@@ -204,6 +204,7 @@ function actorKind(ctx: BlockSqlContext): string {
   const staff = staffTest(ctx);
 
   return `case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -606,6 +607,11 @@ declare
   path_value text;
   path_step jsonb;
 begin
+  -- An import run with imports.audit 'summary' audits one entry per entity at
+  -- its end instead of one per row (ADR 0141).
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
 ${entrySql(ctx)}
   row_tenant := ${tenantValue};
 ${tenantFallbackSql(ctx.idType)}
@@ -800,6 +806,10 @@ declare
   existing text;
   entry_id ${log}.${c("id")}%type;${extra.length > 0 ? "\n  entry_row jsonb;\n  entry_columns text;" : ""}
 begin${noRestricted}
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   ${
     trusted
       ? "actor_id := coalesce(actor_id, auth.uid());"

@@ -462,6 +462,12 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
    */
   notify(fields: string, options?: { readonly indent?: string }): string;
   /**
+   * True while the transaction runs in import mode, which only the service role
+   * can begin (ADR 0141). Guard a side effect with `if not
+   * ${ctx.importing()}`.
+   */
+  importing(): string;
+  /**
    * PL/pgSQL that enqueues a job (`enqueue_job`); `null;` without the `jobs`
    * module. `delay` is an integer expression of seconds before it runs.
    */
@@ -1108,6 +1114,8 @@ export function createModuleContext(
       ["support_session", audit.supportSession],
       ["impersonated_by", audit.impersonatedBy],
       ["impersonation_reason", audit.impersonationReason],
+      ["actor_kind", audit.actorKind],
+      ["correlation_id", audit.correlationId],
     ];
 
     return `perform better_supabase.audit_event(\n${args
@@ -1383,16 +1391,16 @@ export function createModuleContext(
         return NOTHING;
       }
 
-      const indent = options.indent ?? "  ";
-      const target = createModuleContext("notifications", namesOf, shared);
-
       return [
-        "v_claims := current_setting('request.jwt.claims', true);",
-        `perform set_config('request.jwt.claims', '{"role": "service_role"}', true);`,
-        `perform ${target.fn("notify")}(${fields});`,
-        "perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);",
-      ].join(`\n${indent}`);
+        "if better_supabase.import_run() is null then",
+        "  v_claims := current_setting('request.jwt.claims', true);",
+        `  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);`,
+        `  perform ${createModuleContext("notifications", namesOf, shared).fn("notify")}(${fields});`,
+        "  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);",
+        "end if;",
+      ].join(`\n${options.indent ?? "  "}`);
     },
+    importing: () => "better_supabase.import_run() is not null",
     enqueue(queue, payload, dedupe, options = {}) {
       declares("queue");
 

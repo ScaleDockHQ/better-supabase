@@ -566,10 +566,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:593eba4d129ce8cbe470e7ef19f15438d08f5c6296761c7d7ed9198c4e8b6b0f
+-- @bsb-hash sha256:f8edef2e30607ddc18aad6174919578757b8ab17cf19073e4a2343ba76f9a331
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -888,9 +905,10 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'rating', v_row."rating", 'status', v_row."status", 'verified', v_row."verified")
   );
   if v_row."author_id" is not null then
-    v_claims := current_setting('request.jwt.claims', true);
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform "better_supabase"."notify"(jsonb_build_object(
+    if better_supabase.import_run() is null then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'review.published',
       'tenant', v_row."tenant_id",
       'subject_type', v_row."subject_type",
@@ -900,7 +918,8 @@ begin
       'key', 'review.published:' || v_row."id"::text || ':' || extract(epoch from now())::text,
       'data', jsonb_build_object('reviewId', v_row."id", 'status', v_row."status")
     ));
-    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
   end if;
   elsif old."status" not in ('hidden', 'removed') then
     perform "better_supabase".emit_event('review.rejected', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'rating', v_row."rating", 'status', v_row."status", 'verified', v_row."verified"), 'reviews/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reviews');
@@ -914,9 +933,10 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'rating', v_row."rating", 'status', v_row."status", 'verified', v_row."verified")
   );
   if v_row."author_id" is not null then
-    v_claims := current_setting('request.jwt.claims', true);
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform "better_supabase"."notify"(jsonb_build_object(
+    if better_supabase.import_run() is null then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'review.rejected',
       'tenant', v_row."tenant_id",
       'subject_type', v_row."subject_type",
@@ -926,7 +946,8 @@ begin
       'key', 'review.rejected:' || v_row."id"::text || ':' || extract(epoch from now())::text,
       'data', jsonb_build_object('reviewId', v_row."id", 'status', v_row."status")
     ));
-    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
   end if;
   end if;
   return null;
@@ -1058,9 +1079,10 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'rating', v_row."rating", 'status', v_row."status", 'verified', v_row."verified")
   );
   if v_row."author_id" is not null then
-    v_claims := current_setting('request.jwt.claims', true);
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform "better_supabase"."notify"(jsonb_build_object(
+    if better_supabase.import_run() is null then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'review.replied',
       'tenant', v_row."tenant_id",
       'subject_type', v_row."subject_type",
@@ -1070,7 +1092,8 @@ begin
       'key', 'review.replied:' || v_row."id"::text || ':' || extract(epoch from now())::text,
       'data', jsonb_build_object('reviewId', v_row."id", 'status', v_row."status")
     ));
-    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;

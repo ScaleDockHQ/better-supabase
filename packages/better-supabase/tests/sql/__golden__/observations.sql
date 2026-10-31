@@ -1105,10 +1105,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:2cbe8e31e0cdbd88110bfa638140e20cf2fac5e8593e06e1e82a206845c1f8e4
+-- @bsb-hash sha256:85941e302bab2b2b5ce18d0f37b1055929615ab9ca0abe9e19ca6b6bb5e6efb1
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1451,9 +1468,10 @@ begin
       and (m."starts_on" is null or m."starts_on" <= current_date)
       and (m."ends_on" is null or m."ends_on" >= current_date);
     if jsonb_array_length(v_recipients) > 0 then
-      v_claims := current_setting('request.jwt.claims', true);
-      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-      perform "better_supabase"."notify"(jsonb_build_object(
+      if better_supabase.import_run() is null then
+        v_claims := current_setting('request.jwt.claims', true);
+        perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+        perform "better_supabase"."notify"(jsonb_build_object(
         'type', 'observation.critical_recorded',
         'tenant', v_row."tenant_id",
         'actor', null,
@@ -1464,7 +1482,8 @@ begin
         'key', 'observation.critical_recorded:' || v_row."id"::text,
         'data', jsonb_build_object('observationId', v_row."id", 'definitionKey', v_def."key", 'flag', v_row."flag")
       ));
-      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+        perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      end if;
     end if;
   end if;
   if p_replaces is null then

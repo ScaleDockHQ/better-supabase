@@ -365,9 +365,25 @@ as $$
 #variable_conflict use_variable
 declare
   found_id text;
+  v_run uuid := better_supabase.import_run();
+  v_mode text;
 begin
   if event_type is null or btrim(event_type) = '' then
     ${fail("OUTBOX_TYPE_REQUIRED", "An event needs a type", "22023")}
+  end if;
+  -- In import mode (ADR 0141) the run's imports.events policy decides: the
+  -- event type's own entry, then the default, then skip.
+  if v_run is not null then
+    v_mode := coalesce(
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> event_type,
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> 'default',
+      'skip'
+    );
+    if v_mode = 'skip' then
+      return null;
+    elsif v_mode = 'tag' then
+      payload := coalesce(payload, '{}'::jsonb) || jsonb_build_object('importRunId', v_run);
+    end if;
   end if;${existing}
   insert into ${n.t} (${insert.map(([column]) => column).join(", ")})
   values (${insert.map(([, value]) => value).join(", ")})

@@ -5402,7 +5402,11 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "targets": {}
+              "targets": {},
+              "events": {},
+              "audit": {
+                "type": "string"
+              }
             }
           }
         }

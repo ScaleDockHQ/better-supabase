@@ -61,6 +61,13 @@ export interface BlockSqlAudit {
    * `act.reason`.
    */
   readonly impersonationReason?: string;
+  /**
+   * A `text` expression for the actor kind, for the service role only (others
+   * get the kind their token shows). Import runs write `'integration'`.
+   */
+  readonly actorKind?: string;
+  /** A `text` expression that groups entries, e.g. `'import:' || run_id`. */
+  readonly correlationId?: string;
 }
 
 /**

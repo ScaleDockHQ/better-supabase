@@ -1,11 +1,27 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:a0a331bd28434020b43a75ad7c6e1116866fd433463fdefccb509337c70ab913
+-- @bsb-hash sha256:2d1d87c8226c85aae71bdef10da8364aaf1610b0066fc02ea131ccb20b26bf96
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -194,6 +210,11 @@ declare
   path_value text;
   path_step jsonb;
 begin
+  -- An import run with imports.audit 'summary' audits one entry per entity at
+  -- its end instead of one per row (ADR 0141).
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if tg_nargs > 0 then
     settings := tg_argv[0]::jsonb;
     select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
@@ -272,6 +293,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -647,6 +669,10 @@ begin
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     actor_id := auth.uid();
     actor_kind := null;
@@ -694,6 +720,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -832,6 +859,10 @@ begin
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   actor_id := coalesce(actor_id, auth.uid());
   if idempotency_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.audit_event'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
@@ -863,6 +894,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -1248,11 +1280,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:deb5ea70e70300de9fd6b0d9b4095ac3249f41ab0f0c9067cbff859263f096ff
+-- @bsb-hash sha256:3513eae02f17161e078cf0f92dd8e765bc8016398b7fd9f7131a54721d02ffac
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -1441,6 +1489,11 @@ declare
   path_value text;
   path_step jsonb;
 begin
+  -- An import run with imports.audit 'summary' audits one entry per entity at
+  -- its end instead of one per row (ADR 0141).
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if tg_nargs > 0 then
     settings := tg_argv[0]::jsonb;
     select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
@@ -1519,6 +1572,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -1894,6 +1948,10 @@ begin
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     actor_id := auth.uid();
     actor_kind := null;
@@ -1941,6 +1999,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -2079,6 +2138,10 @@ begin
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   actor_id := coalesce(actor_id, auth.uid());
   if idempotency_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.audit_event'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
@@ -2110,6 +2173,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -2660,11 +2724,27 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:8dd3f23f8d93122f90a0a4dcb9b25c224b68c61d695f0e97b2fb2e7ada564664
+-- @bsb-hash sha256:00751039734a5ee4195d17e34774c1f252b5173d2a1d7dc5d1386f21d2526fea
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -2853,6 +2933,11 @@ declare
   path_value text;
   path_step jsonb;
 begin
+  -- An import run with imports.audit 'summary' audits one entry per entity at
+  -- its end instead of one per row (ADR 0141).
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if tg_nargs > 0 then
     settings := tg_argv[0]::jsonb;
     select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
@@ -2931,6 +3016,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -3306,6 +3392,10 @@ begin
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     actor_id := auth.uid();
     actor_kind := null;
@@ -3353,6 +3443,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -3491,6 +3582,10 @@ begin
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   actor_id := coalesce(actor_id, auth.uid());
   if idempotency_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.audit_event'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
@@ -3522,6 +3617,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -3907,11 +4003,27 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:0c6dea6a136555f32f814db5a56e7b1cb4a668aa2c2a45e79b0c9b5bd236ee2f
+-- @bsb-hash sha256:c885827fcd4f07a48a296a9ed8f450ce59cf562a32ff29b6348508b25c66e9f8
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -4100,6 +4212,11 @@ declare
   path_value text;
   path_step jsonb;
 begin
+  -- An import run with imports.audit 'summary' audits one entry per entity at
+  -- its end instead of one per row (ADR 0141).
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if tg_nargs > 0 then
     settings := tg_argv[0]::jsonb;
     select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
@@ -4178,6 +4295,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -4553,6 +4671,10 @@ begin
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     actor_id := auth.uid();
     actor_kind := null;
@@ -4600,6 +4722,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -4738,6 +4861,10 @@ begin
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   actor_id := coalesce(actor_id, auth.uid());
   if idempotency_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.audit_event'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
@@ -4769,6 +4896,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -5130,6 +5258,15 @@ drop function if exists "api"."purge_audit_log"(interval, integer);
 drop function if exists "api"."list_audit_events"(uuid, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer);
 drop function if exists "api"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean);
 
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
+
 create or replace function "api"."acting_member"()
 returns uuid
 language sql
@@ -5241,11 +5378,27 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:3b592d913ee218c086507c7bc1385ba04beb9b1b9081c89512c727658b5d3027
+-- @bsb-hash sha256:7101e42120b0b52f65ad17749b07fda35e899db8621f51bda3d1f159ec99ed60
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -5416,6 +5569,11 @@ declare
   path_value text;
   path_step jsonb;
 begin
+  -- An import run with imports.audit 'summary' audits one entry per entity at
+  -- its end instead of one per row (ADR 0141).
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if tg_nargs > 0 then
     settings := tg_argv[0]::jsonb;
     select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
@@ -5854,6 +6012,10 @@ begin
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = 'Map blocks.audit.tables.restricted to the table for sensitive details.';
   end if;
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     actor_id := auth.uid();
     actor_kind := null;
@@ -6023,6 +6185,10 @@ begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = 'Map blocks.audit.tables.restricted to the table for sensitive details.';
+  end if;
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
   end if;
   actor_id := coalesce(actor_id, auth.uid());
   if idempotency_key is not null then
@@ -6377,11 +6543,27 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:ab77b4388264d6c66a65baaefd1c3e75156b5ef41d5fe184402f9906abc0a787
+-- @bsb-hash sha256:ed501771974481e3d2cbf4d6d46833dcc2d774fa6f457eec63532ade1b8ba452
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -6570,6 +6752,11 @@ declare
   path_value text;
   path_step jsonb;
 begin
+  -- An import run with imports.audit 'summary' audits one entry per entity at
+  -- its end instead of one per row (ADR 0141).
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if tg_nargs > 0 then
     settings := tg_argv[0]::jsonb;
     select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
@@ -6648,6 +6835,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -7023,6 +7211,10 @@ begin
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     actor_id := auth.uid();
     actor_kind := null;
@@ -7070,6 +7262,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -7208,6 +7401,10 @@ begin
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   actor_id := coalesce(actor_id, auth.uid());
   if idempotency_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.audit_event'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
@@ -7239,6 +7436,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
+      when better_supabase.import_run() is not null then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'

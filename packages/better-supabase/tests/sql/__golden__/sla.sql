@@ -494,10 +494,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:676740e793f13e0b43017902adf7ecb3321a65ab298afb9bd979c1d161b4fd01
+-- @bsb-hash sha256:204fd2f65b6857c6d401b6faf6a09b936f10e73906a384b74e5b5db59f6172b9
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -878,9 +895,10 @@ begin
     returning *
   loop
     perform "better_supabase".emit_event('sla.breached', jsonb_build_object('organizationId', v_clock."tenant_id", 'clockId', v_clock."id", 'subjectType', v_clock."subject_type", 'subjectId', v_clock."subject_id", 'metric', v_clock."metric", 'dueAt', v_clock."due_at"), 'sla-clocks/' || v_clock."id"::text, (v_clock."tenant_id"::text)::text, null, 'better-supabase/sla');
-    v_claims := current_setting('request.jwt.claims', true);
-      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-      perform "better_supabase"."notify"(jsonb_build_object(
+    if better_supabase.import_run() is null then
+        v_claims := current_setting('request.jwt.claims', true);
+        perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+        perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'sla.breached',
       'tenant', v_clock."tenant_id",
       'subject_type', v_clock."subject_type",
@@ -890,7 +908,8 @@ begin
       'key', 'sla.breached:' || v_clock."id"::text,
       'data', jsonb_build_object('clockId', v_clock."id", 'metric', v_clock."metric", 'dueAt', v_clock."due_at")
     ));
-      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+        perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      end if;
     v_count := v_count + 1;
   end loop;
   for v_clock in
@@ -902,9 +921,10 @@ begin
     returning x.*
   loop
     perform "better_supabase".emit_event('sla.warned', jsonb_build_object('organizationId', v_clock."tenant_id", 'clockId', v_clock."id", 'subjectType', v_clock."subject_type", 'subjectId', v_clock."subject_id", 'metric', v_clock."metric", 'dueAt', v_clock."due_at"), 'sla-clocks/' || v_clock."id"::text, (v_clock."tenant_id"::text)::text, null, 'better-supabase/sla');
-    v_claims := current_setting('request.jwt.claims', true);
-      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-      perform "better_supabase"."notify"(jsonb_build_object(
+    if better_supabase.import_run() is null then
+        v_claims := current_setting('request.jwt.claims', true);
+        perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+        perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'sla.warned',
       'tenant', v_clock."tenant_id",
       'subject_type', v_clock."subject_type",
@@ -914,7 +934,8 @@ begin
       'key', 'sla.warned:' || v_clock."id"::text,
       'data', jsonb_build_object('clockId', v_clock."id", 'metric', v_clock."metric", 'dueAt', v_clock."due_at")
     ));
-      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+        perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      end if;
     v_count := v_count + 1;
   end loop;
   return v_count;

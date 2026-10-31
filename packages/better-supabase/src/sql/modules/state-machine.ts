@@ -152,9 +152,15 @@ function actorField(field: string): string {
 }
 
 /** The history columns and values a transition writes. */
-function historyWrite(ctx: BlockSqlContext, item: Machine): string {
+function historyWrite(
+  ctx: BlockSqlContext,
+  item: Machine,
+  imported = false,
+): string {
   const hist = item.history;
-  const from = `old.${sqlIdent(item.column)}::text`;
+  // An imported row has no previous status, so it can't read `old`.
+  const from = imported ? "null::text" : `old.${sqlIdent(item.column)}::text`;
+  const reason = imported ? "'imported'" : REASON;
   const to = `new.${sqlIdent(item.column)}::text`;
 
   if (hist === "app" || hist?.write === false) {
@@ -170,7 +176,7 @@ function historyWrite(ctx: BlockSqlContext, item: Machine): string {
       [hist.from, asColumnType(table, hist.from, from)],
       [hist.to, asColumnType(table, hist.to, to)],
       [hist.actor, ACTOR_ID],
-      [hist.reason, REASON],
+      [hist.reason, reason],
       ...ACTOR_FIELDS.flatMap(([key, field]): [string, string][] => {
         const column = hist[key];
 
@@ -193,7 +199,7 @@ function historyWrite(ctx: BlockSqlContext, item: Machine): string {
     [h("fromStatus"), ctx.cast("history", "fromStatus", from)],
     [h("toStatus"), ctx.cast("history", "toStatus", to)],
     [h("actor"), ACTOR_ID],
-    [h("reason"), REASON],
+    [h("reason"), reason],
     ...ACTOR_FIELDS.flatMap(([key, field]): [string, string][] =>
       ctx.has("history", key) ? [[h(key), actorField(field)]] : [],
     ),
@@ -437,6 +443,8 @@ function trigger(ctx: BlockSqlContext, item: Machine): string {
 ${item.workflow === undefined ? "" : WORKFLOW_DECLARE}`
     : "";
 
+  const importedWrite = historyWrite(ctx, item, true);
+
   const insert =
     item.workflow === undefined
       ? `${
@@ -444,6 +452,15 @@ ${item.workflow === undefined ? "" : WORKFLOW_DECLARE}`
             ? ""
             : `if new.${sqlIdent(item.column)} is null then
       new.${sqlIdent(item.column)} := ${sqlString(item.initial)};
+    end if;`
+        }${
+          importedWrite === ""
+            ? ""
+            : `
+    -- An import run (ADR 0141) may insert a row in any status: one synthetic
+    -- imported history row stands for how it got there, and no event fires.
+    if ${ctx.importing()} and new.${sqlIdent(item.column)} is not null then
+      ${importedWrite}
     end if;`
         }
     ${stageWrite(ctx, item, "open")}

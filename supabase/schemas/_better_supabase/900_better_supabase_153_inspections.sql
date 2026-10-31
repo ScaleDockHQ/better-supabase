@@ -1,9 +1,26 @@
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:2b849a4ed7e1899c0ea302b220c05def89f59845823efd0114db4be709e6bb88
+-- @bsb-hash sha256:ed129e095155377b87da5ef57c92406bab023e812286187f4526e105315a2641
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1497,9 +1514,10 @@ begin
   if not found or v_row."status" not in ('planned', 'in_progress') then
     return new;
   end if;
-  v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+  if better_supabase.import_run() is null then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'inspection.assigned',
       'tenant', v_row."tenant_id",
       'actor', auth.uid(),
@@ -1510,7 +1528,8 @@ begin
       'key', 'inspection.assigned:' || v_row."id"::text || ':' || new."user_id"::text,
       'data', jsonb_build_object('inspectionId', v_row."id", 'role', new."role")
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
   return new;
 end;
 $$;
@@ -1548,9 +1567,10 @@ begin
       where y."inspection_id" = v_row."id" and y."role" = 'auditor';
     end if;
     if cardinality(v_to) > 0 then
-      v_claims := current_setting('request.jwt.claims', true);
-      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-      perform "better_supabase"."notify"(jsonb_build_object(
+      if better_supabase.import_run() is null then
+        v_claims := current_setting('request.jwt.claims', true);
+        perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+        perform "better_supabase"."notify"(jsonb_build_object(
         'type', 'inspection.overdue',
         'tenant', v_row."tenant_id",
         'actor', null,
@@ -1561,7 +1581,8 @@ begin
         'key', 'inspection.overdue:' || v_row."id"::text || ':' || v_row."planned_end"::text,
         'data', jsonb_build_object('inspectionId', v_row."id", 'plannedEnd', v_row."planned_end")
       ));
-      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+        perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      end if;
     end if;
     update "better_supabase"."inspections" x set "overdue_notified_for" = v_row."planned_end" where x."id" = v_row."id";
     v_count := v_count + 1;
@@ -1680,6 +1701,15 @@ create trigger "bsb_search_inspection_index"
 -- blocks.inspections.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean

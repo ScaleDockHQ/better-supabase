@@ -1,5 +1,5 @@
 import { sqlIdent } from "../core/template.ts";
-import { SCHEMA } from "./shared.ts";
+import { SCHEMA, SERVICE_CALLER } from "./shared.ts";
 
 function columnTypeFunction(): string {
   return `${SCHEMA}
@@ -101,18 +101,43 @@ $$;
 revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;`;
 }
 
+/**
+ * `better_supabase.import_run()`: the import run whose session this transaction
+ * began, for the service role only. Any other caller gets null even when it
+ * sets the transaction-local setting itself, so a user session can't turn
+ * import mode on (ADR 0141).
+ */
+function importRunFunction(): string {
+  return `${SCHEMA}
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and ${SERVICE_CALLER}
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;`;
+}
+
 const FUNCTIONS: readonly (readonly [string, () => string])[] = [
   ["as_column_type", columnTypeFunction],
   ["try_column_type", tryColumnTypeFunction],
   ["value_unsupported", valueUnsupportedFunction],
   ["column_default", columnDefaultFunction],
+  ["import_run", importRunFunction],
 ];
 
 /**
- * `sql` with `better_supabase.as_column_type` and `try_column_type` defined
- * ahead of it when it calls them and does not define them. PL/pgSQL returns
- * `value` through the type's input function, so a text value becomes an enum
- * label or any other type `target` has.
+ * `sql` with `better_supabase.as_column_type`, `try_column_type` and
+ * `import_run` defined ahead of it when it calls them and does not define them.
+ * PL/pgSQL returns `value` through the type's input function, so a text value
+ * becomes an enum label or any other type `target` has.
  */
 export function withColumnTypeFunction(sql: string): string {
   const missing = FUNCTIONS.filter(

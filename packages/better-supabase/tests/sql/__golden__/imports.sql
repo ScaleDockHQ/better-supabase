@@ -1,10 +1,27 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:65b87c61f081e622e9a8bb5d095c810517d465f8593a40dc57356778dce5afb0
+-- @bsb-hash sha256:8024d51bcfcc5eee84ac0ce00d62e352cb7725755a42c2d71e3539f3c53f05a2
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -479,8 +496,45 @@ $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) to service_role;
 
--- The single write path of an import (service role). A dry run writes inside a
--- subtransaction it rolls back, then keeps the counts.
+-- Turns import mode on for the rest of the transaction (ADR 0141): the outbox
+-- applies the imports.events policy, the audit log tags entries as
+-- integration with the correlation id import:<run> (imports.audit decides rows
+-- or one summary per entity) and ctx.importing() guards skip their side
+-- effects. The setting is transaction-local and better_supabase.import_run()
+-- only reports it to the service role, so no user session can turn it on.
+create or replace function "better_supabase"."begin_import_session"(run uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_status text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role can begin an import session' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
+  end if;
+  select r."status"::text into v_status from "better_supabase"."import_runs" r where r."id" = begin_import_session.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if v_status <> 'running' then
+    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+  end if;
+  perform set_config('better_supabase.import_run', begin_import_session.run::text, true);
+  perform set_config('better_supabase.correlation_id', 'import:' || begin_import_session.run::text, true);
+  perform set_config('better_supabase.import_events', '{}', true);
+  perform set_config('better_supabase.import_audit', 'rows', true);
+  return begin_import_session.run;
+end;
+$$;
+revoke execute on function "better_supabase"."begin_import_session"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."begin_import_session"(uuid) to service_role;
+
+-- The single write path of an import (service role). It begins the import
+-- session for its writes and restores the caller's settings afterwards. A dry
+-- run writes inside a subtransaction it rolls back, then keeps the counts.
 create or replace function "better_supabase"."import_upsert_batch"(run uuid, entity text, items jsonb)
 returns jsonb
 language plpgsql
@@ -493,6 +547,8 @@ declare
   v_entity text := import_upsert_batch.entity;
   v_run "better_supabase"."import_runs";
   v_result jsonb;
+  v_name text;
+  v_previous jsonb := '{}'::jsonb;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
   if not found then
@@ -501,6 +557,11 @@ begin
   if v_run."status" <> 'running' then
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
+  end loop;
+  perform "better_supabase"."begin_import_session"(v_run_id);
 
   if v_run."dry_run" then
     begin
@@ -512,6 +573,10 @@ begin
   else
     v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    perform set_config(v_name, v_previous ->> v_name, true);
+  end loop;
 
   update "better_supabase"."import_runs" r set
     "counts" = jsonb_set(r."counts", array[v_entity], jsonb_build_object(
@@ -746,10 +811,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:8f7f26f1fa1b03c9f0e5d82e191240cbd194a1e0ca5b007d3c91d093f5d104c1
+-- @bsb-hash sha256:726fa7349f733e556b8967e010d5b1cb31a6d441cdf1fb91f1fd8a99e195f463
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1224,8 +1306,45 @@ $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) to service_role;
 
--- The single write path of an import (service role). A dry run writes inside a
--- subtransaction it rolls back, then keeps the counts.
+-- Turns import mode on for the rest of the transaction (ADR 0141): the outbox
+-- applies the imports.events policy, the audit log tags entries as
+-- integration with the correlation id import:<run> (imports.audit decides rows
+-- or one summary per entity) and ctx.importing() guards skip their side
+-- effects. The setting is transaction-local and better_supabase.import_run()
+-- only reports it to the service role, so no user session can turn it on.
+create or replace function "better_supabase"."begin_import_session"(run uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_status text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role can begin an import session' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
+  end if;
+  select r."status"::text into v_status from "better_supabase"."import_runs" r where r."id" = begin_import_session.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if v_status <> 'running' then
+    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+  end if;
+  perform set_config('better_supabase.import_run', begin_import_session.run::text, true);
+  perform set_config('better_supabase.correlation_id', 'import:' || begin_import_session.run::text, true);
+  perform set_config('better_supabase.import_events', '{}', true);
+  perform set_config('better_supabase.import_audit', 'rows', true);
+  return begin_import_session.run;
+end;
+$$;
+revoke execute on function "better_supabase"."begin_import_session"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."begin_import_session"(uuid) to service_role;
+
+-- The single write path of an import (service role). It begins the import
+-- session for its writes and restores the caller's settings afterwards. A dry
+-- run writes inside a subtransaction it rolls back, then keeps the counts.
 create or replace function "better_supabase"."import_upsert_batch"(run uuid, entity text, items jsonb)
 returns jsonb
 language plpgsql
@@ -1238,6 +1357,8 @@ declare
   v_entity text := import_upsert_batch.entity;
   v_run "better_supabase"."import_runs";
   v_result jsonb;
+  v_name text;
+  v_previous jsonb := '{}'::jsonb;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
   if not found then
@@ -1246,6 +1367,11 @@ begin
   if v_run."status" <> 'running' then
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
+  end loop;
+  perform "better_supabase"."begin_import_session"(v_run_id);
 
   if v_run."dry_run" then
     begin
@@ -1257,6 +1383,10 @@ begin
   else
     v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    perform set_config(v_name, v_previous ->> v_name, true);
+  end loop;
 
   update "better_supabase"."import_runs" r set
     "counts" = jsonb_set(r."counts", array[v_entity], jsonb_build_object(
@@ -1491,10 +1621,27 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:e9840d2c8171f075c78664acca258a9d9d70c82e5a360c8ee81a99d36aa9774a
+-- @bsb-hash sha256:3ab30cea3679ed93cf668b5c85411ba80227b765c80b630e51f386681ef5a192
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1974,8 +2121,45 @@ $$;
 revoke execute on function "app_private"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
 grant execute on function "app_private"."import_apply_batch"(uuid, text, jsonb) to service_role;
 
--- The single write path of an import (service role). A dry run writes inside a
--- subtransaction it rolls back, then keeps the counts.
+-- Turns import mode on for the rest of the transaction (ADR 0141): the outbox
+-- applies the imports.events policy, the audit log tags entries as
+-- integration with the correlation id import:<run> (imports.audit decides rows
+-- or one summary per entity) and ctx.importing() guards skip their side
+-- effects. The setting is transaction-local and better_supabase.import_run()
+-- only reports it to the service role, so no user session can turn it on.
+create or replace function "app_private"."begin_import_session"(run uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_status text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role can begin an import session' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
+  end if;
+  select r."status"::text into v_status from "app_private"."import_runs" r where r."id" = begin_import_session.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if v_status <> 'running' then
+    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+  end if;
+  perform set_config('better_supabase.import_run', begin_import_session.run::text, true);
+  perform set_config('better_supabase.correlation_id', 'import:' || begin_import_session.run::text, true);
+  perform set_config('better_supabase.import_events', '{}', true);
+  perform set_config('better_supabase.import_audit', 'rows', true);
+  return begin_import_session.run;
+end;
+$$;
+revoke execute on function "app_private"."begin_import_session"(uuid) from public, anon, authenticated;
+grant execute on function "app_private"."begin_import_session"(uuid) to service_role;
+
+-- The single write path of an import (service role). It begins the import
+-- session for its writes and restores the caller's settings afterwards. A dry
+-- run writes inside a subtransaction it rolls back, then keeps the counts.
 create or replace function "app_private"."import_upsert_batch"(run uuid, entity text, items jsonb)
 returns jsonb
 language plpgsql
@@ -1988,6 +2172,8 @@ declare
   v_entity text := import_upsert_batch.entity;
   v_run "app_private"."import_runs";
   v_result jsonb;
+  v_name text;
+  v_previous jsonb := '{}'::jsonb;
 begin
   select * into v_run from "app_private"."import_runs" r where r."id" = v_run_id for update;
   if not found then
@@ -1996,6 +2182,11 @@ begin
   if v_run."status" <> 'running' then
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
+  end loop;
+  perform "app_private"."begin_import_session"(v_run_id);
 
   if v_run."dry_run" then
     begin
@@ -2007,6 +2198,10 @@ begin
   else
     v_result := "app_private"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    perform set_config(v_name, v_previous ->> v_name, true);
+  end loop;
 
   update "app_private"."import_runs" r set
     "counts" = jsonb_set(r."counts", array[v_entity], jsonb_build_object(
@@ -2241,10 +2436,27 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:233763e456a3fd6e7d047f449e36a785de3725b7726e227293e31ea6d12e8f3c
+-- @bsb-hash sha256:49f1f0a40829aa6d3d8d10192bd980d705c4c6cb6151d7eaf77dd8cfed769509
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -2719,8 +2931,45 @@ $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) to service_role;
 
--- The single write path of an import (service role). A dry run writes inside a
--- subtransaction it rolls back, then keeps the counts.
+-- Turns import mode on for the rest of the transaction (ADR 0141): the outbox
+-- applies the imports.events policy, the audit log tags entries as
+-- integration with the correlation id import:<run> (imports.audit decides rows
+-- or one summary per entity) and ctx.importing() guards skip their side
+-- effects. The setting is transaction-local and better_supabase.import_run()
+-- only reports it to the service role, so no user session can turn it on.
+create or replace function "better_supabase"."begin_import_session"(run uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_status text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role can begin an import session' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
+  end if;
+  select r."status"::text into v_status from "better_supabase"."import_runs" r where r."id" = begin_import_session.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if v_status <> 'running' then
+    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+  end if;
+  perform set_config('better_supabase.import_run', begin_import_session.run::text, true);
+  perform set_config('better_supabase.correlation_id', 'import:' || begin_import_session.run::text, true);
+  perform set_config('better_supabase.import_events', '{}', true);
+  perform set_config('better_supabase.import_audit', 'rows', true);
+  return begin_import_session.run;
+end;
+$$;
+revoke execute on function "better_supabase"."begin_import_session"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."begin_import_session"(uuid) to service_role;
+
+-- The single write path of an import (service role). It begins the import
+-- session for its writes and restores the caller's settings afterwards. A dry
+-- run writes inside a subtransaction it rolls back, then keeps the counts.
 create or replace function "better_supabase"."import_upsert_batch"(run uuid, entity text, items jsonb)
 returns jsonb
 language plpgsql
@@ -2733,6 +2982,8 @@ declare
   v_entity text := import_upsert_batch.entity;
   v_run "better_supabase"."import_runs";
   v_result jsonb;
+  v_name text;
+  v_previous jsonb := '{}'::jsonb;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
   if not found then
@@ -2741,6 +2992,11 @@ begin
   if v_run."status" <> 'running' then
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
+  end loop;
+  perform "better_supabase"."begin_import_session"(v_run_id);
 
   if v_run."dry_run" then
     begin
@@ -2752,6 +3008,10 @@ begin
   else
     v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    perform set_config(v_name, v_previous ->> v_name, true);
+  end loop;
 
   update "better_supabase"."import_runs" r set
     "counts" = jsonb_set(r."counts", array[v_entity], jsonb_build_object(
@@ -2960,6 +3220,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."import_records" as r
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -3050,6 +3319,15 @@ as $$ select "better_supabase"."import_apply_batch"($1, $2, $3) $$;
 revoke execute on function "api"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
 grant execute on function "api"."import_apply_batch"(uuid, text, jsonb) to service_role;
 
+create or replace function "api"."begin_import_session"(run uuid)
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."begin_import_session"($1) $$;
+revoke execute on function "api"."begin_import_session"(uuid) from public, anon, authenticated;
+grant execute on function "api"."begin_import_session"(uuid) to service_role;
+
 create or replace function "api"."import_upsert_batch"(run uuid, entity text, items jsonb)
 returns jsonb
 language sql
@@ -3116,7 +3394,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:75b0ff4f14fa0f319c0028e677877499eb89d2da6202f228a1920f23c99bf2ce
+-- @bsb-hash sha256:7b72a915d803218e3195ac3acbc5d3a9d3e388f00330ea4ad0e66c5760c5dab0
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3136,6 +3414,22 @@ end;
 $$;
 revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
 grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -3592,8 +3886,45 @@ $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) to service_role;
 
--- The single write path of an import (service role). A dry run writes inside a
--- subtransaction it rolls back, then keeps the counts.
+-- Turns import mode on for the rest of the transaction (ADR 0141): the outbox
+-- applies the imports.events policy, the audit log tags entries as
+-- integration with the correlation id import:<run> (imports.audit decides rows
+-- or one summary per entity) and ctx.importing() guards skip their side
+-- effects. The setting is transaction-local and better_supabase.import_run()
+-- only reports it to the service role, so no user session can turn it on.
+create or replace function "better_supabase"."begin_import_session"(run uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_status text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role can begin an import session' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
+  end if;
+  select r."status"::text into v_status from "better_supabase"."import_runs" r where r."id" = begin_import_session.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if v_status <> 'running' then
+    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+  end if;
+  perform set_config('better_supabase.import_run', begin_import_session.run::text, true);
+  perform set_config('better_supabase.correlation_id', 'import:' || begin_import_session.run::text, true);
+  perform set_config('better_supabase.import_events', '{}', true);
+  perform set_config('better_supabase.import_audit', 'rows', true);
+  return begin_import_session.run;
+end;
+$$;
+revoke execute on function "better_supabase"."begin_import_session"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."begin_import_session"(uuid) to service_role;
+
+-- The single write path of an import (service role). It begins the import
+-- session for its writes and restores the caller's settings afterwards. A dry
+-- run writes inside a subtransaction it rolls back, then keeps the counts.
 create or replace function "better_supabase"."import_upsert_batch"(run uuid, entity text, items jsonb)
 returns jsonb
 language plpgsql
@@ -3606,6 +3937,8 @@ declare
   v_entity text := import_upsert_batch.entity;
   v_run "better_supabase"."import_runs";
   v_result jsonb;
+  v_name text;
+  v_previous jsonb := '{}'::jsonb;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
   if not found then
@@ -3614,6 +3947,11 @@ begin
   if v_run."status" <> 'running' then
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
+  end loop;
+  perform "better_supabase"."begin_import_session"(v_run_id);
 
   if v_run."dry_run" then
     begin
@@ -3625,6 +3963,10 @@ begin
   else
     v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    perform set_config(v_name, v_previous ->> v_name, true);
+  end loop;
 
   update "better_supabase"."import_runs" r set
     "counts" = jsonb_set(r."counts", array[v_entity], jsonb_build_object(
@@ -3859,10 +4201,27 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:063b7baf8e8551ab7f511565dd0c9aa70463af3a12a6d65bd6443c8e3154c44d
+-- @bsb-hash sha256:39a44bedd233c179a9b36608944c7a6841d18483611aa37f38cb3930c4acd245
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -4337,8 +4696,45 @@ $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) to service_role;
 
--- The single write path of an import (service role). A dry run writes inside a
--- subtransaction it rolls back, then keeps the counts.
+-- Turns import mode on for the rest of the transaction (ADR 0141): the outbox
+-- applies the imports.events policy, the audit log tags entries as
+-- integration with the correlation id import:<run> (imports.audit decides rows
+-- or one summary per entity) and ctx.importing() guards skip their side
+-- effects. The setting is transaction-local and better_supabase.import_run()
+-- only reports it to the service role, so no user session can turn it on.
+create or replace function "better_supabase"."begin_import_session"(run uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_status text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role can begin an import session' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
+  end if;
+  select r."status"::text into v_status from "better_supabase"."import_runs" r where r."id" = begin_import_session.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if v_status <> 'running' then
+    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+  end if;
+  perform set_config('better_supabase.import_run', begin_import_session.run::text, true);
+  perform set_config('better_supabase.correlation_id', 'import:' || begin_import_session.run::text, true);
+  perform set_config('better_supabase.import_events', '{}', true);
+  perform set_config('better_supabase.import_audit', 'rows', true);
+  return begin_import_session.run;
+end;
+$$;
+revoke execute on function "better_supabase"."begin_import_session"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."begin_import_session"(uuid) to service_role;
+
+-- The single write path of an import (service role). It begins the import
+-- session for its writes and restores the caller's settings afterwards. A dry
+-- run writes inside a subtransaction it rolls back, then keeps the counts.
 create or replace function "better_supabase"."import_upsert_batch"(run uuid, entity text, items jsonb)
 returns jsonb
 language plpgsql
@@ -4351,6 +4747,8 @@ declare
   v_entity text := import_upsert_batch.entity;
   v_run "better_supabase"."import_runs";
   v_result jsonb;
+  v_name text;
+  v_previous jsonb := '{}'::jsonb;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
   if not found then
@@ -4359,6 +4757,11 @@ begin
   if v_run."status" <> 'running' then
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
+  end loop;
+  perform "better_supabase"."begin_import_session"(v_run_id);
 
   if v_run."dry_run" then
     begin
@@ -4370,6 +4773,10 @@ begin
   else
     v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
   end if;
+
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+    perform set_config(v_name, v_previous ->> v_name, true);
+  end loop;
 
   update "better_supabase"."import_runs" r set
     "counts" = jsonb_set(r."counts", array[v_entity], jsonb_build_object(

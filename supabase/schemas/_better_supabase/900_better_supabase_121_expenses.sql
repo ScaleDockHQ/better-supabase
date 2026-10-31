@@ -1,9 +1,26 @@
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:ebdc29407857658979086e9c43075d2c1fca46dccd8b4b240b7ae081d4cfa20d
+-- @bsb-hash sha256:028be4e10b3d27bc3d003d5b62d1a0adfc67c06470e726bd01cb979537e4d133
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -616,7 +633,9 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   select * into v_approval from "better_supabase"."approval_requests" p where p."id" = v_row."approval_id";
-  perform "better_supabase"."accounting_post_source"('expense_report', v_row."id"::text);
+  if not better_supabase.import_run() is not null then
+    perform "better_supabase"."accounting_post_source"('expense_report', v_row."id"::text);
+  end if;
   perform "better_supabase".emit_event('expense_report.approved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'status', (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)::text, 'currency', v_row."currency", 'transactionId', v_tx), 'expense-reports/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/expenses');
   perform better_supabase.audit_event(
     event_type => 'expense_report.approved',
@@ -669,7 +688,9 @@ begin
   update "better_supabase"."expense_reports" x set "reimbursed_at" = coalesce(reimburse_expense_report.paid_at, now()), "reimbursement_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  perform "better_supabase"."accounting_post_source"('expense_reimbursement', v_row."id"::text);
+  if not better_supabase.import_run() is not null then
+    perform "better_supabase"."accounting_post_source"('expense_reimbursement', v_row."id"::text);
+  end if;
   perform "better_supabase".emit_event('expense_report.reimbursed', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'status', (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)::text, 'currency', v_row."currency", 'transactionId', v_tx), 'expense-reports/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/expenses');
   perform better_supabase.audit_event(
     event_type => 'expense_report.reimbursed',
@@ -940,6 +961,15 @@ grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."save_expense_category"(uuid, text, text, text, bigint, bigint, jsonb);
 drop function if exists "api"."create_expense_report"(uuid, text, text, text, jsonb);
+
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean
