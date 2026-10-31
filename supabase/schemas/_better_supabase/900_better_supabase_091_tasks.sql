@@ -1,5 +1,5 @@
 -- better-supabase module: tasks
--- @bsb-block tasks@3 managed
+-- @bsb-block tasks@4 managed
 -- @bsb-hash sha256:35967a4e514ad1b018d1855c6d9c7573b2e2df8a82273963799084101dbfa7e7
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.

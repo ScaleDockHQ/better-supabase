@@ -33,7 +33,7 @@ export const RECORDING_TABLES = {
     columns: {
       id: "id",
       tenant: "tenant_id",
-      engagement: "engagement_id",
+      engagement: "activity_id",
       file: "file_id",
       filename: "filename",
       mediaType: "media_type",
@@ -69,7 +69,7 @@ export const RECORDING_TABLES = {
     optional: ["model", "createdBy", "createdAt", "updatedAt"],
     typed: ["source"],
     columns: {
-      engagement: "engagement_id",
+      engagement: "activity_id",
       tenant: "tenant_id",
       summary: "summary",
       actionItems: "action_items",

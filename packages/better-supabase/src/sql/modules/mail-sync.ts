@@ -73,6 +73,15 @@ const EVENTS: BlockSqlEvents<MailSyncEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  migrations: [
+    {
+      from: 1,
+      description:
+        "The threads' activity column is activity_id, after the activity entity (ADR 0152).",
+      table: "threads",
+      columns: { engagement: "engagement_id" },
+    },
+  ],
   entities: {
     mail_thread: { table: "threads", singular: "mail_thread", primary: true },
     mail_account: { table: "accounts", singular: "mail_account" },
@@ -121,7 +130,7 @@ const NAMES: BlockSqlNames = {
         snippet: "snippet",
         lastMessageAt: "last_message_at",
         messageCount: "message_count",
-        engagement: "engagement_id",
+        engagement: "activity_id",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
@@ -513,7 +522,7 @@ export const MAIL_SYNC: BlockSqlDefinition = {
   integrates: ["outbox", "audit", "contacts", "activities", "data-lifecycle"],
   target: "schema",
   modes: ["managed"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
   build,

@@ -7,7 +7,7 @@ select plan(5);
 
 insert into better_supabase.activities (id, tenant_id, type, title, created_by) values
   ('00000000-0000-4000-8000-0000000ac001', '00000000-0000-4000-8000-000000000001', 'note', 'Called back', '00000000-0000-4000-8000-0000000000a2');
-insert into better_supabase.engagement_subjects (tenant_id, engagement_id, subject_type, subject_id) values
+insert into better_supabase.engagement_subjects (tenant_id, activity_id, subject_type, subject_id) values
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000ac001', 'customer', '00000000-0000-4000-8000-00000000a001');
 insert into better_supabase.attachments (organization_id, subject_type, subject_id, name, mime_type, size, status, uploaded_at) values
   ('00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a001', 'a.pdf', 'application/pdf', 10, 'clean', '2026-01-01T09:00:00Z');

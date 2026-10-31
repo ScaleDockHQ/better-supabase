@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
--- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:759098cd07b9660e4f2c8e2fddd41e9a2598b52eb26c9a055ac472fc3e781363
+-- @bsb-block mail-sync@2 managed
+-- @bsb-hash sha256:1ce770fdd70d66e4b954a7f676a6e9a80b6e5be4b725c88de5c08dc3370c0054
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,13 +129,13 @@ create table if not exists "better_supabase"."mail_threads" (
   "snippet" text,
   "last_message_at" timestamptz,
   "message_count" integer not null default 0,
-  "engagement_id" uuid,
+  "activity_id" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("account_id", "external_id")
 );
 create index if not exists mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("engagement_id") where "engagement_id" is not null;
+create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
@@ -1030,13 +1030,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block-data mail-sync
--- @bsb-hash sha256:46311682c487754840b6dda39ab820fa307ebdbc908bd9a0af515f5ba0f8ed0f
+-- @bsb-hash sha256:a455c51c4d5ee70107696c80dad74fd5dee24dfb085ce0167490dd90eb1ef9c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('mail-sync', 1, 'managed')
+values ('mail-sync', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -107,7 +107,7 @@ select is(
 );
 select is(
   (select e.type || ':' || e.title from better_supabase.activities e
-   join better_supabase.mail_threads x on x.engagement_id = e.id
+   join better_supabase.mail_threads x on x.activity_id = e.id
    where x.id = (select id from ids where name = 'thread')),
   'email:Pricing',
   'the thread is logged as an email engagement'

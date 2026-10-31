@@ -74,10 +74,10 @@ may be your own enum or domain.
   - `better_supabase.acknowledgement_notices`: `id`, `tenant_id`, `subject_type`, `subject_id`, `version_id`, `user_id`, `notified_at`
 - `activities`
   - `better_supabase.activities`: `id`, `tenant_id`, `type`, `title`, `body`, `outcome`, `owner_user_id`, `due_at`, `done_at`, `created_at`; typed: `type`
-  - `better_supabase.engagement_subjects`: `tenant_id`, `engagement_id`, `subject_type`, `subject_id`
-  - `better_supabase.engagement_recordings`: `id`, `tenant_id`, `engagement_id`, `file_id`, `filename`, `media_type`, `status`, `created_at`; typed: `status`
+  - `better_supabase.engagement_subjects`: `tenant_id`, `activity_id`, `subject_type`, `subject_id`
+  - `better_supabase.engagement_recordings`: `id`, `tenant_id`, `activity_id`, `file_id`, `filename`, `media_type`, `status`, `created_at`; typed: `status`
   - `better_supabase.engagement_transcript_segments`: `recording_id`, `tenant_id`, `position`, `starts_ms`, `ends_ms`, `text`
-  - `better_supabase.engagement_notes`: `engagement_id`, `tenant_id`, `summary`, `action_items`, `source`; typed: `source`
+  - `better_supabase.engagement_notes`: `activity_id`, `tenant_id`, `summary`, `action_items`, `source`; typed: `source`
 - `agents`
   - `better_supabase.agents`: `id`, `organization_id`, `owner_id`, `slug`, `name`, `instructions`, `visibility`, `published_at`, `updated_at`; typed: `visibility`
   - `better_supabase.agent_installs`: `agent_id`, `user_id`, `organization_id`
@@ -625,8 +625,8 @@ may be your own enum or domain.
   - `better_supabase.taggings`: `tenant_id`, `tag_id`, `subject_type`, `subject_id`, `created_at`; typed: `subject_type`
 - `tasks`
   - `better_supabase.tasks`: `id`, `tenant_id`, `number`, `identifier`, `title`, `parent_id`, `team_id`, `priority`, `due_at`, `pipeline_id`, `stage_id`, `stage_entered_at`, `state`, `close_reason`, `closed_at`, `locked`, `rank`, `archived_at`, `created_at`, `updated_at`; typed: `state`, `close_reason`; typed with values: `priority`
-  - `better_supabase.task_checklist_items`: `id`, `tenant_id`, `work_item_id`, `title`, `done`, `rank`, `created_at`
-  - `better_supabase.task_assignees`: `tenant_id`, `work_item_id`, `user_id`
+  - `better_supabase.task_checklist_items`: `id`, `tenant_id`, `task_id`, `title`, `done`, `rank`, `created_at`
+  - `better_supabase.task_assignees`: `tenant_id`, `task_id`, `user_id`
   - `better_supabase.projects`: `id`, `tenant_id`, `key`, `name`, `status`, `archived_at`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.iterations`: `id`, `tenant_id`, `name`, `starts_on`, `ends_on`, `created_at`
 - `teams`

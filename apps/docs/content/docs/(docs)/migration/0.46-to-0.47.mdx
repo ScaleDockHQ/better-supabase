@@ -518,10 +518,25 @@ nothing is dropped. The new names are in `TABLE_RENAMES`:
 The idempotency `leases` table is renamed before the leases block takes the
 name. A table you adopted (`blocks.<name>.tables`) keeps its name, and so
 does every table of an entity you renamed: with `names: { task: "work_item" }`
-the tasks block still writes `work_items`. Foreign key columns such as
-`work_item_id` keep their names.
+the tasks block still writes `work_items`.
 The codemod lists queries on an old `better_supabase` table for review;
 rename them in your own SQL, views and `queryRaw` calls.
+
+### Foreign key columns
+
+The columns that point at a task or an activity follow the entity (ADR 0152):
+
+| Block        | Table                                                              | Old column      | New column    |
+| ------------ | ------------------------------------------------------------------ | --------------- | ------------- |
+| `tasks`      | `task_checklist_items`, `task_assignees`                           | `work_item_id`  | `task_id`     |
+| `activities` | `engagement_subjects`, `engagement_recordings`, `engagement_notes` | `engagement_id` | `activity_id` |
+| `mail-sync`  | `mail_threads`                                                     | `engagement_id` | `activity_id` |
+
+`upgrade` renames each column in the block tables. A column of an entity you
+renamed keeps the name that entity gives it, and a column of an adopted table
+or one you mapped in `blocks.<name>.columns` keeps its name. `codemod 0.47`
+lists the lines that use `work_item_id` or `engagement_id`, so rename them in
+your own SQL, views and policies.
 
 ## The SQL modules
 

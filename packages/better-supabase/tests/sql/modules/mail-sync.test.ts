@@ -21,7 +21,7 @@ describe("mail-sync module", () => {
     expect(sql).toContain('function "better_supabase"."record_sent_mail"(');
     expect(sql).not.toContain("match_mail_thread");
     expect(sql).not.toContain("log_mail_thread");
-    expect(sql).not.toContain('"engagement_id" uuid references');
+    expect(sql).not.toContain('"activity_id" uuid references');
     expect(sql).toContain("credential_ref must carry the tenant");
   });
 
@@ -39,7 +39,7 @@ describe("mail-sync module", () => {
     const sql = sqlOf({}, ["activities"]);
     expect(sql).toContain('function "better_supabase"."log_mail_thread"(');
     expect(sql).toContain("'type', 'email'");
-    expect(sql).toMatch(/engagement_id" uuid references .*activities/);
+    expect(sql).toMatch(/activity_id" uuid references .*activities/);
     expect(sqlOf({ engagementType: "mail" }, ["activities"])).toContain(
       "'type', 'mail'",
     );

@@ -122,6 +122,21 @@ select * from better_supabase.ai_document_versions;
     ]);
   });
 
+  it("lists the task and activity foreign key columns for review", () => {
+    const source = `select a.work_item_id from my_view a;
+select 1;
+select b.engagement_id from my_view b;
+`;
+
+    const result = applyCodemod(v047, source, "supabase/schemas/views.sql");
+
+    expect(result.text).toBe(source);
+    expect(result.review).toEqual([
+      { line: 1, message: expect.stringContaining("`task_id`") },
+      { line: 3, message: expect.stringContaining("`activity_id`") },
+    ]);
+  });
+
   it("lists the inbox contact calls that moved to the contacts block", () => {
     const source = `const person = await db.contacts.personForInboxContact(contactId);
 const total = 1;

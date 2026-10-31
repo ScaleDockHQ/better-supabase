@@ -45,7 +45,7 @@ select results_eq(
 );
 select results_eq(
   $$select s.subject_type, s.subject_id, s.position from better_supabase.engagement_subjects s
-    join better_supabase.activities e on e.id = s.engagement_id
+    join better_supabase.activities e on e.id = s.activity_id
     where e.external_ref = 'booking:' || (select id from ids where name = 'booking') order by s.position$$,
   $$values ('person'::text, (select id::text from ids where name = 'person'), 1), ('company'::text, (select id::text from ids where name = 'company'), 2)$$,
   'the meeting links the booker (matched by email, any case) and their company'
@@ -82,7 +82,7 @@ select is(
   'rescheduling records activity.updated'
 );
 select is(
-  (select count(*)::int from better_supabase.engagement_subjects s join better_supabase.activities e on e.id = s.engagement_id
+  (select count(*)::int from better_supabase.engagement_subjects s join better_supabase.activities e on e.id = s.activity_id
    where e.external_ref = 'booking:' || (select id from ids where name = 'booking')),
   2,
   'rescheduling does not duplicate the links'
@@ -113,7 +113,7 @@ select results_eq(
   'an unknown booker gets a meeting owned by the booking''s author'
 );
 select is(
-  (select count(*)::int from better_supabase.engagement_subjects s join better_supabase.activities e on e.id = s.engagement_id
+  (select count(*)::int from better_supabase.engagement_subjects s join better_supabase.activities e on e.id = s.activity_id
    where e.external_ref = 'booking:' || (select id from ids where name = 'stranger')),
   0,
   'an unknown booker links no subject'
