@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:0fe0683fefe767a2416b6a5a7a1422d83d1d8a699996989693eaa69a5a608ee8
+-- @bsb-hash sha256:573a18510e3c925173bb7203defe088b2a512d778322aba66e6a44b59f4eb73b
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -93,6 +93,30 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -136,6 +160,12 @@ create table if not exists "better_supabase"."invoices" (
   "dunning_at" timestamptz,
   "dunning_paused_until" date,
   "buyer" jsonb,
+  "payment_terms_id" uuid,
+  "discount_due_on" date,
+  "discount_amount_early" bigint check ("discount_amount_early" >= 0),
+  "collection_status" text check ("collection_status" in ('handed_over')),
+  "collection_agency_id" text,
+  "collection_handed_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -190,6 +220,7 @@ create table if not exists "better_supabase"."invoice_dunning_levels" (
   "level" integer not null check ("level" between 1 and 20),
   "days_after_due" integer not null check ("days_after_due" >= 0),
   "template_key" text not null check (length("template_key") between 1 and 200),
+  "text_key" text check (length("text_key") between 1 and 200),
   "fee" bigint not null default 0 check ("fee" >= 0),
   "final" boolean not null default false,
   "created_at" timestamptz not null default now(),
@@ -202,6 +233,74 @@ grant select on "better_supabase"."invoice_dunning_levels" to authenticated;
 grant all on "better_supabase"."invoice_dunning_levels" to service_role;
 drop policy if exists invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels";
 create policy invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "better_supabase"."invoice_dunning_runs" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "as_of" date not null,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+alter table "better_supabase"."invoice_dunning_runs" enable row level security;
+revoke all on "better_supabase"."invoice_dunning_runs" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
+grant all on "better_supabase"."invoice_dunning_runs" to service_role;
+drop policy if exists invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs";
+create policy invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "better_supabase"."invoice_dunning_run_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "run_id" uuid not null references "better_supabase"."invoice_dunning_runs" ("id") on delete cascade,
+  "party_id" text,
+  "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
+  "level" integer not null check ("level" >= 1),
+  "text_key" text,
+  "template_key" text not null,
+  "fee" bigint not null default 0 check ("fee" >= 0),
+  "balance" bigint not null,
+  "due_on" date not null,
+  "created_at" timestamptz not null default now(),
+  unique ("run_id", "invoice_id")
+);
+create index if not exists invoice_dunning_run_items_run_idx on "better_supabase"."invoice_dunning_run_items" ("run_id", "party_id");
+create index if not exists invoice_dunning_run_items_invoice_idx on "better_supabase"."invoice_dunning_run_items" ("invoice_id");
+alter table "better_supabase"."invoice_dunning_run_items" enable row level security;
+revoke all on "better_supabase"."invoice_dunning_run_items" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_dunning_run_items" to authenticated;
+grant all on "better_supabase"."invoice_dunning_run_items" to service_role;
+drop policy if exists invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items";
+create policy invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "better_supabase"."invoice_dunning_history" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
+  "run_id" uuid references "better_supabase"."invoice_dunning_runs" ("id") on delete set null,
+  "kind" text not null check ("kind" in ('reminder', 'handed_over')),
+  "level" integer not null default 0,
+  "text_key" text,
+  "template_key" text,
+  "fee" bigint not null default 0,
+  "balance" bigint not null default 0,
+  "note" text,
+  "created_at" timestamptz not null default clock_timestamp()
+);
+create index if not exists invoice_dunning_history_invoice_idx on "better_supabase"."invoice_dunning_history" ("invoice_id", "created_at");
+create index if not exists invoice_dunning_history_run_idx on "better_supabase"."invoice_dunning_history" ("run_id") where "run_id" is not null;
+alter table "better_supabase"."invoice_dunning_history" enable row level security;
+revoke all on "better_supabase"."invoice_dunning_history" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_dunning_history" to authenticated;
+grant all on "better_supabase"."invoice_dunning_history" to service_role;
+drop policy if exists invoice_dunning_history_read on "better_supabase"."invoice_dunning_history";
+create policy invoice_dunning_history_read on "better_supabase"."invoice_dunning_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -275,7 +374,7 @@ begin
     
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -367,7 +466,7 @@ begin
     perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -653,6 +752,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_warnings jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -788,7 +888,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -796,7 +896,7 @@ begin
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text) order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
       'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
         from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
-        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb))|| case when v_warnings is null then '{}'::jsonb else jsonb_build_object('warnings', v_warnings) end;
 end;
 $$;
 revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) from public, anon;
@@ -857,7 +957,7 @@ begin
     select 1 from "better_supabase"."ledger_transactions" y
     where y."tenant_id" = v_row."tenant_id" and y."idempotency_key" = 'invoice-payment:' || v_reference
   ) then
-    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -920,7 +1020,7 @@ begin
         using v_row."id", v_payment;
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -1002,7 +1102,7 @@ begin
   if credit_invoice.fixed_number is not null then
     perform "better_supabase"."issue_invoice"(v_row."id", coalesce(credit_invoice.issued_on, current_date), null, null, credit_invoice.fixed_number);
   end if;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -1057,7 +1157,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -1108,7 +1208,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -1189,7 +1289,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -1265,7 +1365,7 @@ begin
   returning * into v_row;
   
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -1330,7 +1430,7 @@ begin
   returning * into v_row;
   
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -1654,7 +1754,7 @@ begin
   if v_row."status" = 'paid' and v_was <> 'paid' then
     null;
   end if;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -1679,14 +1779,14 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoice_dunning_levels.tenant, 'invoices.read'), false)) then
     raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
-  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = list_invoice_dunning_levels.tenant), '[]'::jsonb);
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'textKey', l."text_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = list_invoice_dunning_levels.tenant), '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."list_invoice_dunning_levels"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_invoice_dunning_levels"(uuid) to authenticated, service_role;
 
 -- Replaces an organization's reminder levels. levels: [{ daysAfterDue,
--- templateKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
+-- templateKey, textKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
 -- rising. fee: minor units of the invoice's currency, added as a charge when
 -- the level is reached. Only the last level can be final.
 create or replace function "better_supabase"."set_invoice_dunning_levels"(tenant uuid, levels jsonb)
@@ -1709,6 +1809,7 @@ begin
       where jsonb_typeof(x.value) <> 'object'
         or coalesce(x.value ->> 'daysAfterDue', '') !~ '^[0-9]{1,5}$'
         or length(coalesce(trim(x.value ->> 'templateKey'), '')) not between 1 and 200
+        or length(coalesce(nullif(trim(x.value ->> 'textKey'), ''), 'x')) not between 1 and 200
         or coalesce(x.value ->> 'fee', '0') !~ '^[0-9]{1,18}$'
         or jsonb_typeof(coalesce(x.value -> 'final', 'false'::jsonb)) <> 'boolean'
         or ((x.value ->> 'final')::boolean is true and x.ordinality < jsonb_array_length(set_invoice_dunning_levels.levels))
@@ -1725,11 +1826,12 @@ begin
     raise exception 'each level comes more days after the due date than the one before' using errcode = '22023', hint = 'INVOICE_DUNNING_LEVELS_INVALID';
   end if;
   delete from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant;
-  insert into "better_supabase"."invoice_dunning_levels" ("tenant_id", "level", "days_after_due", "template_key", "fee", "final")
+  insert into "better_supabase"."invoice_dunning_levels" ("tenant_id", "level", "days_after_due", "template_key", "text_key", "fee", "final")
   select set_invoice_dunning_levels.tenant, x.ordinality, (x.value ->> 'daysAfterDue')::integer, trim(x.value ->> 'templateKey'),
+    nullif(trim(x.value ->> 'textKey'), ''),
     coalesce((x.value ->> 'fee')::bigint, 0), coalesce((x.value ->> 'final')::boolean, false)
   from jsonb_array_elements(set_invoice_dunning_levels.levels) with ordinality x;
-  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant), '[]'::jsonb);
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'textKey', l."text_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant), '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."set_invoice_dunning_levels"(uuid, jsonb) from public, anon;
@@ -1738,8 +1840,10 @@ grant execute on function "better_supabase"."set_invoice_dunning_levels"(uuid, j
 -- Raises each overdue invoice with a balance to the highest reminder level it
 -- has reached (one organization, or all), adds the level's fee as a charge,
 -- notifies who created the invoice and records invoice.dunning_escalated with
--- the level's template key, for a sink that sends the reminder. Invoices
--- paused until today or later wait. Returns how many invoices moved up.
+-- the level's template key, for a sink that sends the reminder. Each
+-- organization's invoices go into one run (invoice_dunning_runs) with the
+-- items picked per customer and a history row per invoice. Invoices paused
+-- until today or later, and invoices handed over to collection, wait. Returns how many invoices moved up.
 create or replace function "better_supabase"."run_invoice_dunning"(tenant uuid default null, as_of date default null)
 returns integer
 language plpgsql
@@ -1751,12 +1855,15 @@ declare
   v_row "better_supabase"."invoices";
   v_level "better_supabase"."invoice_dunning_levels";
   v_count integer := 0;
+  v_run uuid;
+  v_run_tenant uuid;
 begin
   for v_row in
     select x.* from "better_supabase"."invoices" x
     where (run_invoice_dunning.tenant is null or x."tenant_id" = run_invoice_dunning.tenant)
       and x."kind" = 'invoice' and x."status" in ('issued', 'partially_paid') and x."direction" = 'sales'
       and x."due_on" < v_today
+      and x."collection_status" is null
       and (x."dunning_paused_until" is null or x."dunning_paused_until" < v_today)
       and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") > 0
       and exists (select 1 from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = x."tenant_id" and l."level" > x."dunning_level" and x."due_on" + l."days_after_due" <= v_today)
@@ -1776,6 +1883,17 @@ begin
       select * into v_row from "better_supabase"."invoices" x where x."id" = v_row."id";
     end if;
     null;
+
+    if v_run is null or v_run_tenant is distinct from v_row."tenant_id" then
+      insert into "better_supabase"."invoice_dunning_runs" ("tenant_id", "as_of", "created_by")
+      values (v_row."tenant_id", v_today, auth.uid())
+      returning "id" into v_run;
+      v_run_tenant := v_row."tenant_id";
+    end if;
+    insert into "better_supabase"."invoice_dunning_run_items" ("tenant_id", "run_id", "party_id", "invoice_id", "level", "text_key", "template_key", "fee", "balance", "due_on")
+    values (v_row."tenant_id", v_run, coalesce(v_row."company_id"::text, v_row."contact_id"::text), v_row."id", v_level."level", v_level."text_key", v_level."template_key", v_level."fee", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"), v_row."due_on");
+    insert into "better_supabase"."invoice_dunning_history" ("tenant_id", "invoice_id", "run_id", "kind", "level", "text_key", "template_key", "fee", "balance")
+    values (v_row."tenant_id", v_row."id", v_run, 'reminder', v_level."level", v_level."text_key", v_level."template_key", v_level."fee", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"));
     v_count := v_count + 1;
   end loop;
   return v_count;
@@ -1814,7 +1932,7 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -1827,6 +1945,162 @@ end;
 $$;
 revoke execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) from public, anon;
 grant execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) to authenticated, service_role;
+
+-- The dunning runs of an organization, newest first: { id, asOf, items,
+-- customers }.
+create or replace function "better_supabase"."list_invoice_dunning_runs"(tenant uuid, max integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoice_dunning_runs.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', z.id, 'asOf', z.as_of, 'createdAt', z.created_at, 'items', z.items, 'customers', z.customers) order by z.created_at desc)
+    from (
+      select a."id" as id, a."as_of" as as_of, a."created_at" as created_at,
+        (select count(*) from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = a."id") as items,
+        (select count(distinct x."party_id") from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = a."id") as customers
+      from "better_supabase"."invoice_dunning_runs" a where a."tenant_id" = list_invoice_dunning_runs.tenant
+      order by a."created_at" desc limit least(greatest(coalesce(list_invoice_dunning_runs.max, 50), 1), 500)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_runs"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_runs"(uuid, integer) to authenticated, service_role;
+
+-- The items a run picked, grouped by customer: [{ partyId, balance, fee,
+-- items: [{ invoiceId, level, textKey, templateKey, fee, balance, dueOn }] }].
+-- Amounts are text.
+create or replace function "better_supabase"."list_invoice_dunning_run_items"(run uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  select a."tenant_id" into v_tenant from "better_supabase"."invoice_dunning_runs" a where a."id" = list_invoice_dunning_run_items.run;
+  if v_tenant is null then
+    raise exception 'no such dunning run' using errcode = 'P0002', hint = 'INVOICE_DUNNING_RUN_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('partyId', g.party, 'balance', g.balance::text, 'fee', g.fee::text, 'items', g.items) order by g.party nulls last)
+    from (
+      select x."party_id" as party, sum(x."balance") as balance, sum(x."fee") as fee,
+        jsonb_agg(jsonb_build_object('invoiceId', x."invoice_id", 'level', x."level", 'textKey', x."text_key", 'templateKey', x."template_key",
+          'fee', x."fee"::text, 'balance', x."balance"::text, 'dueOn', x."due_on") order by x."due_on", x."invoice_id") as items
+      from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = list_invoice_dunning_run_items.run
+      group by x."party_id"
+    ) g
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_run_items"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_run_items"(uuid) to authenticated, service_role;
+
+-- What happened to an invoice in collections, oldest first: [{ kind
+-- (reminder or handed_over), level, textKey, templateKey, fee, balance, note,
+-- runId, at }].
+create or replace function "better_supabase"."list_invoice_dunning_history"(invoice uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  select x."tenant_id" into v_tenant from "better_supabase"."invoices" x where x."id" = list_invoice_dunning_history.invoice;
+  if v_tenant is null then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('kind', x."kind", 'level', x."level", 'textKey', x."text_key", 'templateKey', x."template_key",
+      'fee', x."fee"::text, 'balance', x."balance"::text, 'note', x."note", 'runId', x."run_id", 'at', x."created_at")
+      order by x."created_at", x."id")
+    from "better_supabase"."invoice_dunning_history" x where x."invoice_id" = list_invoice_dunning_history.invoice
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_history"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_history"(uuid) to authenticated, service_role;
+
+-- Hands open sales invoices over to a collection agency, a company or person
+-- (agency_party_id). Their dunning stops, collection_status becomes
+-- handed_over, and each invoice records invoice.collection_started and
+-- a history row. At most 500 invoices; one that isn't an open sales invoice,
+-- or was handed over already, refuses the whole call. Needs invoices.collect.
+-- Returns the invoices.
+create or replace function "better_supabase"."hand_over_to_collection"(invoice_ids uuid[], agency_party_id text, note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_id uuid;
+  v_result jsonb := '[]'::jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if nullif(trim(hand_over_to_collection.agency_party_id), '') is null or length(hand_over_to_collection.agency_party_id) > 150
+    or coalesce(array_length(hand_over_to_collection.invoice_ids, 1), 0) not between 1 and 500
+    or length(hand_over_to_collection.note) > 2000 then
+    raise exception 'hand over 1 to 500 invoices to an agency party, with a note of at most 2000 characters' using errcode = '22023', hint = 'INVOICE_HAND_OVER_INVALID';
+  end if;
+  for v_id in select distinct x from unnest(hand_over_to_collection.invoice_ids) x order by x loop
+    select * into v_row from "better_supabase"."invoices" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.collect' end), false)) for update;
+    if v_row."id" is null then
+      raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+    end if;
+    if not v_row."kind" = 'invoice' or v_row."status" not in ('issued', 'partially_paid') or v_row."direction" <> 'sales' then
+      raise exception 'only an open sales invoice goes to collection' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
+    end if;
+    if v_row."collection_status" is not null then
+      raise exception 'the invoice was handed over to collection already' using errcode = '55000', hint = 'INVOICE_ALREADY_HANDED_OVER';
+    end if;
+    update "better_supabase"."invoices" x set
+      "collection_status" = 'handed_over',
+      "collection_agency_id" = trim(hand_over_to_collection.agency_party_id),
+      "collection_handed_at" = now(),
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    insert into "better_supabase"."invoice_dunning_history" ("tenant_id", "invoice_id", "kind", "level", "balance", "note")
+    values (v_row."tenant_id", v_row."id", 'handed_over', v_row."dunning_level", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"), nullif(trim(hand_over_to_collection.note), ''));
+    null;
+    v_result := v_result || to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
+      'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
+      'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text) order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+  end loop;
+  return v_result;
+end;
+$$;
+revoke execute on function "better_supabase"."hand_over_to_collection"(uuid[], text, text) from public, anon;
+grant execute on function "better_supabase"."hand_over_to_collection"(uuid[], text, text) to authenticated, service_role;
 
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
@@ -2119,6 +2393,69 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunn
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2150,7 +2487,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:77f3f828d5e2e74d8a53319f53141e9bc5052b60587ea67a7ce11051f050dd6b
+-- @bsb-hash sha256:050297636d6ebb5ae84dcb437018596bdd5098c631b2a47c3fd5806fd3de45e8
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2242,6 +2579,30 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -2285,6 +2646,12 @@ create table if not exists "better_supabase"."invoices" (
   "dunning_at" timestamptz,
   "dunning_paused_until" date,
   "buyer" jsonb,
+  "payment_terms_id" uuid,
+  "discount_due_on" date,
+  "discount_amount_early" bigint check ("discount_amount_early" >= 0),
+  "collection_status" text check ("collection_status" in ('handed_over')),
+  "collection_agency_id" text,
+  "collection_handed_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -2339,6 +2706,7 @@ create table if not exists "better_supabase"."invoice_dunning_levels" (
   "level" integer not null check ("level" between 1 and 20),
   "days_after_due" integer not null check ("days_after_due" >= 0),
   "template_key" text not null check (length("template_key") between 1 and 200),
+  "text_key" text check (length("text_key") between 1 and 200),
   "fee" bigint not null default 0 check ("fee" >= 0),
   "final" boolean not null default false,
   "created_at" timestamptz not null default now(),
@@ -2351,6 +2719,74 @@ grant select on "better_supabase"."invoice_dunning_levels" to authenticated;
 grant all on "better_supabase"."invoice_dunning_levels" to service_role;
 drop policy if exists invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels";
 create policy invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "better_supabase"."invoice_dunning_runs" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "as_of" date not null,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+alter table "better_supabase"."invoice_dunning_runs" enable row level security;
+revoke all on "better_supabase"."invoice_dunning_runs" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
+grant all on "better_supabase"."invoice_dunning_runs" to service_role;
+drop policy if exists invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs";
+create policy invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "better_supabase"."invoice_dunning_run_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "run_id" uuid not null references "better_supabase"."invoice_dunning_runs" ("id") on delete cascade,
+  "party_id" text,
+  "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
+  "level" integer not null check ("level" >= 1),
+  "text_key" text,
+  "template_key" text not null,
+  "fee" bigint not null default 0 check ("fee" >= 0),
+  "balance" bigint not null,
+  "due_on" date not null,
+  "created_at" timestamptz not null default now(),
+  unique ("run_id", "invoice_id")
+);
+create index if not exists invoice_dunning_run_items_run_idx on "better_supabase"."invoice_dunning_run_items" ("run_id", "party_id");
+create index if not exists invoice_dunning_run_items_invoice_idx on "better_supabase"."invoice_dunning_run_items" ("invoice_id");
+alter table "better_supabase"."invoice_dunning_run_items" enable row level security;
+revoke all on "better_supabase"."invoice_dunning_run_items" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_dunning_run_items" to authenticated;
+grant all on "better_supabase"."invoice_dunning_run_items" to service_role;
+drop policy if exists invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items";
+create policy invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "better_supabase"."invoice_dunning_history" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
+  "run_id" uuid references "better_supabase"."invoice_dunning_runs" ("id") on delete set null,
+  "kind" text not null check ("kind" in ('reminder', 'handed_over')),
+  "level" integer not null default 0,
+  "text_key" text,
+  "template_key" text,
+  "fee" bigint not null default 0,
+  "balance" bigint not null default 0,
+  "note" text,
+  "created_at" timestamptz not null default clock_timestamp()
+);
+create index if not exists invoice_dunning_history_invoice_idx on "better_supabase"."invoice_dunning_history" ("invoice_id", "created_at");
+create index if not exists invoice_dunning_history_run_idx on "better_supabase"."invoice_dunning_history" ("run_id") where "run_id" is not null;
+alter table "better_supabase"."invoice_dunning_history" enable row level security;
+revoke all on "better_supabase"."invoice_dunning_history" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_dunning_history" to authenticated;
+grant all on "better_supabase"."invoice_dunning_history" to service_role;
+drop policy if exists invoice_dunning_history_read on "better_supabase"."invoice_dunning_history";
+create policy invoice_dunning_history_read on "better_supabase"."invoice_dunning_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -2370,6 +2806,7 @@ declare
   v_company_id text := create_invoice.attrs -> 'company' ->> 'id';
   v_contact_type text := coalesce(create_invoice.attrs -> 'contact' ->> 'type', 'person');
   v_contact_id text := create_invoice.attrs -> 'contact' ->> 'id';
+  v_terms jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2406,15 +2843,19 @@ begin
   if nullif(create_invoice.attrs ->> 'discountAmount', '0') is not null then
     raise exception 'this invoices table has no discount amount column' using errcode = '22023', hint = 'INVOICE_DISCOUNT_UNSUPPORTED';
   end if;
+  v_terms := "better_supabase"."resolve_payment_terms"(create_invoice.tenant, nullif(create_invoice.attrs ->> 'paymentTermsId', '')::uuid, v_company_id, coalesce(create_invoice.attrs ->> 'direction', 'sales'));
+  if create_invoice.attrs ->> 'paymentTermsId' is not null and v_terms is null then
+    raise exception 'no such payment terms in this organization' using errcode = 'P0002', hint = 'INVOICE_PAYMENT_TERMS_NOT_FOUND';
+  end if;
   begin
     insert into "better_supabase"."invoices" ("tenant_id", "title", "company_type", "company_id", "contact_type", "contact_id", "currency",
-      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "prices_include_tax", "direction", "supplier_reference", "purchase_order_id", "dimensions", "created_by")
+      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "prices_include_tax", "direction", "supplier_reference", "purchase_order_id", "dimensions", "payment_terms_id", "created_by")
     values (create_invoice.tenant, trim(create_invoice.attrs ->> 'title'),
       case when v_company_id is null then null else v_company_type end, v_company_id,
       case when v_contact_id is null then null else v_contact_type end, v_contact_id,
-      upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR')), case when create_invoice.attrs ? 'termsDays' then (create_invoice.attrs ->> 'termsDays')::integer else 30 end,
+      upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR')), case when create_invoice.attrs ? 'termsDays' then (create_invoice.attrs ->> 'termsDays')::integer else coalesce((v_terms ->> 'days')::integer, 30) end,
       create_invoice.attrs ->> 'note', create_invoice.attrs -> 'origin' ->> 'type', create_invoice.attrs -> 'origin' ->> 'id',
-      (create_invoice.attrs ->> 'depositBps')::integer, coalesce((create_invoice.attrs ->> 'pricesIncludeTax')::boolean, false), coalesce(create_invoice.attrs ->> 'direction', 'sales'), nullif(trim(create_invoice.attrs ->> 'supplierReference'), ''), (create_invoice.attrs ->> 'purchaseOrderId')::uuid, coalesce(nullif(create_invoice.attrs -> 'dimensions', 'null'::jsonb), '{}'::jsonb), auth.uid())
+      (create_invoice.attrs ->> 'depositBps')::integer, coalesce((create_invoice.attrs ->> 'pricesIncludeTax')::boolean, false), coalesce(create_invoice.attrs ->> 'direction', 'sales'), nullif(trim(create_invoice.attrs ->> 'supplierReference'), ''), (create_invoice.attrs ->> 'purchaseOrderId')::uuid, coalesce(nullif(create_invoice.attrs -> 'dimensions', 'null'::jsonb), '{}'::jsonb), (v_terms ->> 'id')::uuid, auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation then
     raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
@@ -2431,7 +2872,7 @@ begin
     );
   end if;
   perform "better_supabase".emit_event('invoice.created', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -2525,7 +2966,7 @@ begin
     perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
   end if;
   perform "better_supabase".emit_event('invoice.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -2813,6 +3254,9 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_warnings jsonb;
+  v_early_bps integer;
+  v_early_days integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2850,6 +3294,8 @@ begin
     end if;
   end;
   perform "better_supabase"."issue_invoice_tax"(v_row."id", v_issued_on);
+  select z."discount_bps", z."discount_days" into v_early_bps, v_early_days
+  from "better_supabase"."payment_terms" z where z."id" = v_row."payment_terms_id";
   if v_row."kind" = 'credit_note' then
     select * into v_original from "better_supabase"."invoices" x where x."id" = v_row."original_id" for update;
     if v_row."total" > v_original."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_original."id"), 0) - v_original."credited_total" then
@@ -2914,21 +3360,30 @@ begin
   if v_row."kind" = 'invoice' and not v_row."direction" = 'purchase' and coalesce(v_row."company_id"::text, v_row."contact_id"::text) is not null then
     declare
       v_limit bigint;
+      v_block text;
     begin
-      select s.credit_limit into v_limit from (select p."credit_limit", p."credit_currency" from "better_supabase"."companies" p where p."id"::text = coalesce(v_row."company_id"::text, v_row."contact_id"::text) and p."tenant_id" = v_row."tenant_id" and p."merged_into" is null union all select p."credit_limit", p."credit_currency" from "better_supabase"."people" p where p."id"::text = coalesce(v_row."company_id"::text, v_row."contact_id"::text) and p."tenant_id" = v_row."tenant_id" and p."merged_into" is null) s(credit_limit, credit_currency)
+      select s.credit_limit, s.credit_block into v_limit, v_block from (select p."credit_limit", p."credit_currency", p."credit_block" from "better_supabase"."companies" p where p."id"::text = coalesce(v_row."company_id"::text, v_row."contact_id"::text) and p."tenant_id" = v_row."tenant_id" and p."merged_into" is null union all select p."credit_limit", p."credit_currency", p."credit_block" from "better_supabase"."people" p where p."id"::text = coalesce(v_row."company_id"::text, v_row."contact_id"::text) and p."tenant_id" = v_row."tenant_id" and p."merged_into" is null) s(credit_limit, credit_currency, credit_block)
       where s.credit_limit is not null and coalesce(s.credit_currency, v_row."currency") = v_row."currency"
       order by s.credit_limit limit 1;
-      if v_limit is not null and (select coalesce(sum((o."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = o."id"), 0) - o."credited_total" - o."paid_total")), 0) from "better_supabase"."invoices" o
+      if v_limit is not null and v_block is distinct from 'none' and (select coalesce(sum((o."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = o."id"), 0) - o."credited_total" - o."paid_total")), 0) from "better_supabase"."invoices" o
         where o."tenant_id" = v_row."tenant_id" and o."id" <> v_row."id" and o."currency" = v_row."currency"
           and coalesce(o."company_id"::text, o."contact_id"::text) = coalesce(v_row."company_id"::text, v_row."contact_id"::text) and not o."direction" = 'purchase'
           and o."kind" = 'invoice' and o."status" in ('issued', 'partially_paid')) + v_row."total" > v_limit and not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'orders.override_credit'), false)) then
-        raise exception 'this invoice takes the customer over their credit limit' using errcode = '55000', hint = 'INVOICE_CREDIT_LIMIT_EXCEEDED';
+        if v_block = 'soft' then
+          v_warnings := coalesce(v_warnings, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+            'code', 'INVOICE_CREDIT_LIMIT_EXCEEDED', 'message', 'this invoice takes the customer over their credit limit', 'limit', v_limit::text));
+        else
+          raise exception 'this invoice takes the customer over their credit limit' using errcode = '55000', hint = 'INVOICE_CREDIT_LIMIT_EXCEEDED';
+        end if;
       end if;
     end;
   end if;
   update "better_supabase"."invoices" x set "status" = 'issued', "number" = v_seq, "identifier" = v_identifier,
     "issued_on" = v_issued_on,
     "due_on" = coalesce(issue_invoice.due_on, v_issued_on + x."terms_days"),
+    "discount_due_on" = case when coalesce(v_early_bps, 0) > 0 and x."kind" = 'invoice' then v_issued_on + v_early_days end,
+    "discount_amount_early" = case when coalesce(v_early_bps, 0) > 0 and x."kind" = 'invoice'
+      then ((x."total"::numeric * v_early_bps + 5000) / 10000)::bigint end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -2966,7 +3421,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -2974,7 +3429,7 @@ begin
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text) order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
       'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
         from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
-        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb))|| case when v_warnings is null then '{}'::jsonb else jsonb_build_object('warnings', v_warnings) end;
 end;
 $$;
 revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) from public, anon;
@@ -3040,7 +3495,7 @@ begin
     select 1 from "better_supabase"."ledger_transactions" y
     where y."tenant_id" = v_row."tenant_id" and y."idempotency_key" = 'invoice-payment:' || v_reference
   ) then
-    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -3105,7 +3560,7 @@ begin
         using v_row."id", v_payment;
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -3187,7 +3642,7 @@ begin
   if credit_invoice.fixed_number is not null then
     perform "better_supabase"."issue_invoice"(v_row."id", coalesce(credit_invoice.issued_on, current_date), null, null, credit_invoice.fixed_number);
   end if;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -3254,7 +3709,7 @@ begin
     tenant => (v_row."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'reason', v_row."void_reason")
   );
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -3317,7 +3772,7 @@ begin
     tenant => (v_row."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text, 'reason', nullif(trim(write_off_invoice.reason), ''))
   );
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -3408,7 +3863,7 @@ begin
     tenant => (v_row."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'paymentId', reverse_invoice_payment.payment, 'reversalId', v_reversal, 'amount', v_amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text, 'reason', nullif(trim(reverse_invoice_payment.reason), ''))
   );
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -3496,7 +3951,7 @@ begin
     tenant => (v_row."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'chargeId', v_charge, 'amount', add_invoice_charge.amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text)
   );
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -3571,7 +4026,7 @@ begin
     tenant => (v_row."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'chargeId', remove_invoice_charge.charge, 'amount', v_amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text)
   );
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -3660,7 +4115,7 @@ begin
       and x."deposit_bps" is null and x."status" <> 'void' and x."kind" = 'invoice' and not (x."total" > 0 and x."credited_total" >= x."total")
     limit 1;
     if v_row."id" is not null then
-      return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+      return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -4032,7 +4487,7 @@ begin
   if v_row."status" = 'paid' and v_was <> 'paid' then
     perform "better_supabase".emit_event('invoice.paid', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'total', v_row."total"::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   end if;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -4057,14 +4512,14 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoice_dunning_levels.tenant, 'invoices.read'), false)) then
     raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
-  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = list_invoice_dunning_levels.tenant), '[]'::jsonb);
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'textKey', l."text_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = list_invoice_dunning_levels.tenant), '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."list_invoice_dunning_levels"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_invoice_dunning_levels"(uuid) to authenticated, service_role;
 
 -- Replaces an organization's reminder levels. levels: [{ daysAfterDue,
--- templateKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
+-- templateKey, textKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
 -- rising. fee: minor units of the invoice's currency, added as a charge when
 -- the level is reached. Only the last level can be final.
 create or replace function "better_supabase"."set_invoice_dunning_levels"(tenant uuid, levels jsonb)
@@ -4087,6 +4542,7 @@ begin
       where jsonb_typeof(x.value) <> 'object'
         or coalesce(x.value ->> 'daysAfterDue', '') !~ '^[0-9]{1,5}$'
         or length(coalesce(trim(x.value ->> 'templateKey'), '')) not between 1 and 200
+        or length(coalesce(nullif(trim(x.value ->> 'textKey'), ''), 'x')) not between 1 and 200
         or coalesce(x.value ->> 'fee', '0') !~ '^[0-9]{1,18}$'
         or jsonb_typeof(coalesce(x.value -> 'final', 'false'::jsonb)) <> 'boolean'
         or ((x.value ->> 'final')::boolean is true and x.ordinality < jsonb_array_length(set_invoice_dunning_levels.levels))
@@ -4103,11 +4559,12 @@ begin
     raise exception 'each level comes more days after the due date than the one before' using errcode = '22023', hint = 'INVOICE_DUNNING_LEVELS_INVALID';
   end if;
   delete from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant;
-  insert into "better_supabase"."invoice_dunning_levels" ("tenant_id", "level", "days_after_due", "template_key", "fee", "final")
+  insert into "better_supabase"."invoice_dunning_levels" ("tenant_id", "level", "days_after_due", "template_key", "text_key", "fee", "final")
   select set_invoice_dunning_levels.tenant, x.ordinality, (x.value ->> 'daysAfterDue')::integer, trim(x.value ->> 'templateKey'),
+    nullif(trim(x.value ->> 'textKey'), ''),
     coalesce((x.value ->> 'fee')::bigint, 0), coalesce((x.value ->> 'final')::boolean, false)
   from jsonb_array_elements(set_invoice_dunning_levels.levels) with ordinality x;
-  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant), '[]'::jsonb);
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'textKey', l."text_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant), '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."set_invoice_dunning_levels"(uuid, jsonb) from public, anon;
@@ -4116,8 +4573,10 @@ grant execute on function "better_supabase"."set_invoice_dunning_levels"(uuid, j
 -- Raises each overdue invoice with a balance to the highest reminder level it
 -- has reached (one organization, or all), adds the level's fee as a charge,
 -- notifies who created the invoice and records invoice.dunning_escalated with
--- the level's template key, for a sink that sends the reminder. Invoices
--- paused until today or later wait. Returns how many invoices moved up.
+-- the level's template key, for a sink that sends the reminder. Each
+-- organization's invoices go into one run (invoice_dunning_runs) with the
+-- items picked per customer and a history row per invoice. Invoices paused
+-- until today or later, and invoices handed over to collection, wait. Returns how many invoices moved up.
 create or replace function "better_supabase"."run_invoice_dunning"(tenant uuid default null, as_of date default null)
 returns integer
 language plpgsql
@@ -4129,6 +4588,8 @@ declare
   v_row "better_supabase"."invoices";
   v_level "better_supabase"."invoice_dunning_levels";
   v_count integer := 0;
+  v_run uuid;
+  v_run_tenant uuid;
   v_claims text;
 begin
   for v_row in
@@ -4136,6 +4597,7 @@ begin
     where (run_invoice_dunning.tenant is null or x."tenant_id" = run_invoice_dunning.tenant)
       and x."kind" = 'invoice' and x."status" in ('issued', 'partially_paid') and x."direction" = 'sales'
       and x."due_on" < v_today
+      and x."collection_status" is null
       and (x."dunning_paused_until" is null or x."dunning_paused_until" < v_today)
       and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") > 0
       and exists (select 1 from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = x."tenant_id" and l."level" > x."dunning_level" and x."due_on" + l."days_after_due" <= v_today)
@@ -4172,7 +4634,7 @@ begin
         perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
       end if;
     end if;
-    perform "better_supabase".emit_event('invoice.dunning_escalated', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'level', v_level."level", 'templateKey', v_level."template_key", 'fee', v_level."fee"::text, 'final', v_level."final", 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text, 'dueOn', v_row."due_on"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
+    perform "better_supabase".emit_event('invoice.dunning_escalated', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'level', v_level."level", 'templateKey', v_level."template_key", 'textKey', v_level."text_key", 'fee', v_level."fee"::text, 'final', v_level."final", 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text, 'dueOn', v_row."due_on"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
     event_type => 'invoice.dunning_escalated',
     category => 'billing',
@@ -4181,8 +4643,19 @@ begin
     target_label => v_row."identifier",
     summary => 'invoice dunning_escalated',
     tenant => (v_row."tenant_id"::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'level', v_level."level", 'templateKey', v_level."template_key", 'fee', v_level."fee"::text, 'final', v_level."final", 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text, 'dueOn', v_row."due_on")
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'level', v_level."level", 'templateKey', v_level."template_key", 'textKey', v_level."text_key", 'fee', v_level."fee"::text, 'final', v_level."final", 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text, 'dueOn', v_row."due_on")
   );
+
+    if v_run is null or v_run_tenant is distinct from v_row."tenant_id" then
+      insert into "better_supabase"."invoice_dunning_runs" ("tenant_id", "as_of", "created_by")
+      values (v_row."tenant_id", v_today, auth.uid())
+      returning "id" into v_run;
+      v_run_tenant := v_row."tenant_id";
+    end if;
+    insert into "better_supabase"."invoice_dunning_run_items" ("tenant_id", "run_id", "party_id", "invoice_id", "level", "text_key", "template_key", "fee", "balance", "due_on")
+    values (v_row."tenant_id", v_run, coalesce(v_row."company_id"::text, v_row."contact_id"::text), v_row."id", v_level."level", v_level."text_key", v_level."template_key", v_level."fee", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"), v_row."due_on");
+    insert into "better_supabase"."invoice_dunning_history" ("tenant_id", "invoice_id", "run_id", "kind", "level", "text_key", "template_key", "fee", "balance")
+    values (v_row."tenant_id", v_row."id", v_run, 'reminder', v_level."level", v_level."text_key", v_level."template_key", v_level."fee", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"));
     v_count := v_count + 1;
   end loop;
   return v_count;
@@ -4231,7 +4704,7 @@ begin
     tenant => (v_row."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'until', pause_invoice_dunning.until, 'reason', nullif(trim(pause_invoice_dunning.reason), ''))
   );
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -4244,6 +4717,172 @@ end;
 $$;
 revoke execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) from public, anon;
 grant execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) to authenticated, service_role;
+
+-- The dunning runs of an organization, newest first: { id, asOf, items,
+-- customers }.
+create or replace function "better_supabase"."list_invoice_dunning_runs"(tenant uuid, max integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoice_dunning_runs.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', z.id, 'asOf', z.as_of, 'createdAt', z.created_at, 'items', z.items, 'customers', z.customers) order by z.created_at desc)
+    from (
+      select a."id" as id, a."as_of" as as_of, a."created_at" as created_at,
+        (select count(*) from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = a."id") as items,
+        (select count(distinct x."party_id") from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = a."id") as customers
+      from "better_supabase"."invoice_dunning_runs" a where a."tenant_id" = list_invoice_dunning_runs.tenant
+      order by a."created_at" desc limit least(greatest(coalesce(list_invoice_dunning_runs.max, 50), 1), 500)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_runs"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_runs"(uuid, integer) to authenticated, service_role;
+
+-- The items a run picked, grouped by customer: [{ partyId, balance, fee,
+-- items: [{ invoiceId, level, textKey, templateKey, fee, balance, dueOn }] }].
+-- Amounts are text.
+create or replace function "better_supabase"."list_invoice_dunning_run_items"(run uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  select a."tenant_id" into v_tenant from "better_supabase"."invoice_dunning_runs" a where a."id" = list_invoice_dunning_run_items.run;
+  if v_tenant is null then
+    raise exception 'no such dunning run' using errcode = 'P0002', hint = 'INVOICE_DUNNING_RUN_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('partyId', g.party, 'balance', g.balance::text, 'fee', g.fee::text, 'items', g.items) order by g.party nulls last)
+    from (
+      select x."party_id" as party, sum(x."balance") as balance, sum(x."fee") as fee,
+        jsonb_agg(jsonb_build_object('invoiceId', x."invoice_id", 'level', x."level", 'textKey', x."text_key", 'templateKey', x."template_key",
+          'fee', x."fee"::text, 'balance', x."balance"::text, 'dueOn', x."due_on") order by x."due_on", x."invoice_id") as items
+      from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = list_invoice_dunning_run_items.run
+      group by x."party_id"
+    ) g
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_run_items"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_run_items"(uuid) to authenticated, service_role;
+
+-- What happened to an invoice in collections, oldest first: [{ kind
+-- (reminder or handed_over), level, textKey, templateKey, fee, balance, note,
+-- runId, at }].
+create or replace function "better_supabase"."list_invoice_dunning_history"(invoice uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  select x."tenant_id" into v_tenant from "better_supabase"."invoices" x where x."id" = list_invoice_dunning_history.invoice;
+  if v_tenant is null then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('kind', x."kind", 'level', x."level", 'textKey', x."text_key", 'templateKey', x."template_key",
+      'fee', x."fee"::text, 'balance', x."balance"::text, 'note', x."note", 'runId', x."run_id", 'at', x."created_at")
+      order by x."created_at", x."id")
+    from "better_supabase"."invoice_dunning_history" x where x."invoice_id" = list_invoice_dunning_history.invoice
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_history"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_history"(uuid) to authenticated, service_role;
+
+-- Hands open sales invoices over to a collection agency, a company or person
+-- (agency_party_id). Their dunning stops, collection_status becomes
+-- handed_over, and each invoice records invoice.collection_started and
+-- a history row. At most 500 invoices; one that isn't an open sales invoice,
+-- or was handed over already, refuses the whole call. Needs invoices.collect.
+-- Returns the invoices.
+create or replace function "better_supabase"."hand_over_to_collection"(invoice_ids uuid[], agency_party_id text, note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_id uuid;
+  v_result jsonb := '[]'::jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if nullif(trim(hand_over_to_collection.agency_party_id), '') is null or length(hand_over_to_collection.agency_party_id) > 150
+    or coalesce(array_length(hand_over_to_collection.invoice_ids, 1), 0) not between 1 and 500
+    or length(hand_over_to_collection.note) > 2000 then
+    raise exception 'hand over 1 to 500 invoices to an agency party, with a note of at most 2000 characters' using errcode = '22023', hint = 'INVOICE_HAND_OVER_INVALID';
+  end if;
+  for v_id in select distinct x from unnest(hand_over_to_collection.invoice_ids) x order by x loop
+    select * into v_row from "better_supabase"."invoices" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.collect' end), false)) for update;
+    if v_row."id" is null then
+      raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+    end if;
+    if not v_row."kind" = 'invoice' or v_row."status" not in ('issued', 'partially_paid') or v_row."direction" <> 'sales' then
+      raise exception 'only an open sales invoice goes to collection' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
+    end if;
+    if v_row."collection_status" is not null then
+      raise exception 'the invoice was handed over to collection already' using errcode = '55000', hint = 'INVOICE_ALREADY_HANDED_OVER';
+    end if;
+    update "better_supabase"."invoices" x set
+      "collection_status" = 'handed_over',
+      "collection_agency_id" = trim(hand_over_to_collection.agency_party_id),
+      "collection_handed_at" = now(),
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    insert into "better_supabase"."invoice_dunning_history" ("tenant_id", "invoice_id", "kind", "level", "balance", "note")
+    values (v_row."tenant_id", v_row."id", 'handed_over', v_row."dunning_level", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"), nullif(trim(hand_over_to_collection.note), ''));
+    perform "better_supabase".emit_event('invoice.collection_started', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'agencyPartyId', trim(hand_over_to_collection.agency_party_id), 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text, 'level', v_row."dunning_level"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
+  perform better_supabase.audit_event(
+    event_type => 'invoice.collection_started',
+    category => 'billing',
+    target_type => 'invoice',
+    record_id => v_row."id"::text,
+    target_label => v_row."identifier",
+    summary => 'invoice collection_started',
+    tenant => (v_row."tenant_id"::text)::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'agencyPartyId', trim(hand_over_to_collection.agency_party_id), 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text, 'level', v_row."dunning_level")
+  );
+    v_result := v_result || to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
+      'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
+      'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text) order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+  end loop;
+  return v_result;
+end;
+$$;
+revoke execute on function "better_supabase"."hand_over_to_collection"(uuid[], text, text) from public, anon;
+grant execute on function "better_supabase"."hand_over_to_collection"(uuid[], text, text) to authenticated, service_role;
 
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
@@ -4725,6 +5364,69 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunn
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4756,7 +5458,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:d7216311591fcba124859b2078946a7a74611810ffeb7e14623a96e6f5e7b034
+-- @bsb-hash sha256:16e5853ea34011343c5afccdad609011811ca71c73b50ed7df03ae59c662985d
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4848,6 +5550,30 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_levels";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_runs";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_run_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_history";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -4896,6 +5622,12 @@ create table if not exists "app_private"."invoices" (
   "dunning_at" timestamptz,
   "dunning_paused_until" date,
   "buyer" jsonb,
+  "payment_terms_id" uuid,
+  "discount_due_on" date,
+  "discount_amount_early" bigint check ("discount_amount_early" >= 0),
+  "collection_status" text check ("collection_status" in ('handed_over')),
+  "collection_agency_id" text,
+  "collection_handed_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -4950,6 +5682,7 @@ create table if not exists "app_private"."invoice_dunning_levels" (
   "level" integer not null check ("level" between 1 and 20),
   "days_after_due" integer not null check ("days_after_due" >= 0),
   "template_key" text not null check (length("template_key") between 1 and 200),
+  "text_key" text check (length("text_key") between 1 and 200),
   "fee" bigint not null default 0 check ("fee" >= 0),
   "final" boolean not null default false,
   "created_at" timestamptz not null default now(),
@@ -4962,6 +5695,74 @@ grant select on "app_private"."invoice_dunning_levels" to authenticated;
 grant all on "app_private"."invoice_dunning_levels" to service_role;
 drop policy if exists invoice_dunning_levels_read on "app_private"."invoice_dunning_levels";
 create policy invoice_dunning_levels_read on "app_private"."invoice_dunning_levels"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "app_private"."invoice_dunning_runs" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "as_of" date not null,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists invoice_dunning_runs_tenant_idx on "app_private"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+alter table "app_private"."invoice_dunning_runs" enable row level security;
+revoke all on "app_private"."invoice_dunning_runs" from public, anon, authenticated;
+grant select on "app_private"."invoice_dunning_runs" to authenticated;
+grant all on "app_private"."invoice_dunning_runs" to service_role;
+drop policy if exists invoice_dunning_runs_read on "app_private"."invoice_dunning_runs";
+create policy invoice_dunning_runs_read on "app_private"."invoice_dunning_runs"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "app_private"."invoice_dunning_run_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "run_id" uuid not null references "app_private"."invoice_dunning_runs" ("id") on delete cascade,
+  "party_id" text,
+  "invoice_id" uuid not null references "app_private"."invoices" ("id") on delete cascade,
+  "level" integer not null check ("level" >= 1),
+  "text_key" text,
+  "template_key" text not null,
+  "fee" bigint not null default 0 check ("fee" >= 0),
+  "balance" bigint not null,
+  "due_on" date not null,
+  "created_at" timestamptz not null default now(),
+  unique ("run_id", "invoice_id")
+);
+create index if not exists invoice_dunning_run_items_run_idx on "app_private"."invoice_dunning_run_items" ("run_id", "party_id");
+create index if not exists invoice_dunning_run_items_invoice_idx on "app_private"."invoice_dunning_run_items" ("invoice_id");
+alter table "app_private"."invoice_dunning_run_items" enable row level security;
+revoke all on "app_private"."invoice_dunning_run_items" from public, anon, authenticated;
+grant select on "app_private"."invoice_dunning_run_items" to authenticated;
+grant all on "app_private"."invoice_dunning_run_items" to service_role;
+drop policy if exists invoice_dunning_run_items_read on "app_private"."invoice_dunning_run_items";
+create policy invoice_dunning_run_items_read on "app_private"."invoice_dunning_run_items"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "app_private"."invoice_dunning_history" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "invoice_id" uuid not null references "app_private"."invoices" ("id") on delete cascade,
+  "run_id" uuid references "app_private"."invoice_dunning_runs" ("id") on delete set null,
+  "kind" text not null check ("kind" in ('reminder', 'handed_over')),
+  "level" integer not null default 0,
+  "text_key" text,
+  "template_key" text,
+  "fee" bigint not null default 0,
+  "balance" bigint not null default 0,
+  "note" text,
+  "created_at" timestamptz not null default clock_timestamp()
+);
+create index if not exists invoice_dunning_history_invoice_idx on "app_private"."invoice_dunning_history" ("invoice_id", "created_at");
+create index if not exists invoice_dunning_history_run_idx on "app_private"."invoice_dunning_history" ("run_id") where "run_id" is not null;
+alter table "app_private"."invoice_dunning_history" enable row level security;
+revoke all on "app_private"."invoice_dunning_history" from public, anon, authenticated;
+grant select on "app_private"."invoice_dunning_history" to authenticated;
+grant all on "app_private"."invoice_dunning_history" to service_role;
+drop policy if exists invoice_dunning_history_read on "app_private"."invoice_dunning_history";
+create policy invoice_dunning_history_read on "app_private"."invoice_dunning_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -5035,7 +5836,7 @@ begin
     
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -5127,7 +5928,7 @@ begin
     perform "app_private"."set_invoice_lines_recount"(v_row."id");
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -5413,6 +6214,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_warnings jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5548,7 +6350,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -5556,7 +6358,7 @@ begin
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text) order by il."position") from "app_private"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
       'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
         from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
-        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb))|| case when v_warnings is null then '{}'::jsonb else jsonb_build_object('warnings', v_warnings) end;
 end;
 $$;
 revoke execute on function "app_private"."issue_invoice"(uuid, date, date, jsonb, text) from public, anon;
@@ -5617,7 +6419,7 @@ begin
     select 1 from "better_supabase"."ledger_transactions" y
     where y."tenant_id" = v_row."tenant_id" and y."idempotency_key" = 'invoice-payment:' || v_reference
   ) then
-    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -5680,7 +6482,7 @@ begin
         using v_row."id", v_payment;
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -5762,7 +6564,7 @@ begin
   if credit_invoice.fixed_number is not null then
     perform "app_private"."issue_invoice"(v_row."id", coalesce(credit_invoice.issued_on, current_date), null, null, credit_invoice.fixed_number);
   end if;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -5817,7 +6619,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -5868,7 +6670,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -5949,7 +6751,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -6025,7 +6827,7 @@ begin
   returning * into v_row;
   
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -6090,7 +6892,7 @@ begin
   returning * into v_row;
   
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -6414,7 +7216,7 @@ begin
   if v_row."status" = 'paid' and v_was <> 'paid' then
     null;
   end if;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -6439,14 +7241,14 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoice_dunning_levels.tenant, 'invoices.read'), false)) then
     raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
-  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "app_private"."invoice_dunning_levels" l where l."tenant_id" = list_invoice_dunning_levels.tenant), '[]'::jsonb);
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'textKey', l."text_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "app_private"."invoice_dunning_levels" l where l."tenant_id" = list_invoice_dunning_levels.tenant), '[]'::jsonb);
 end;
 $$;
 revoke execute on function "app_private"."list_invoice_dunning_levels"(uuid) from public, anon;
 grant execute on function "app_private"."list_invoice_dunning_levels"(uuid) to authenticated, service_role;
 
 -- Replaces an organization's reminder levels. levels: [{ daysAfterDue,
--- templateKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
+-- templateKey, textKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
 -- rising. fee: minor units of the invoice's currency, added as a charge when
 -- the level is reached. Only the last level can be final.
 create or replace function "app_private"."set_invoice_dunning_levels"(tenant uuid, levels jsonb)
@@ -6469,6 +7271,7 @@ begin
       where jsonb_typeof(x.value) <> 'object'
         or coalesce(x.value ->> 'daysAfterDue', '') !~ '^[0-9]{1,5}$'
         or length(coalesce(trim(x.value ->> 'templateKey'), '')) not between 1 and 200
+        or length(coalesce(nullif(trim(x.value ->> 'textKey'), ''), 'x')) not between 1 and 200
         or coalesce(x.value ->> 'fee', '0') !~ '^[0-9]{1,18}$'
         or jsonb_typeof(coalesce(x.value -> 'final', 'false'::jsonb)) <> 'boolean'
         or ((x.value ->> 'final')::boolean is true and x.ordinality < jsonb_array_length(set_invoice_dunning_levels.levels))
@@ -6485,11 +7288,12 @@ begin
     raise exception 'each level comes more days after the due date than the one before' using errcode = '22023', hint = 'INVOICE_DUNNING_LEVELS_INVALID';
   end if;
   delete from "app_private"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant;
-  insert into "app_private"."invoice_dunning_levels" ("tenant_id", "level", "days_after_due", "template_key", "fee", "final")
+  insert into "app_private"."invoice_dunning_levels" ("tenant_id", "level", "days_after_due", "template_key", "text_key", "fee", "final")
   select set_invoice_dunning_levels.tenant, x.ordinality, (x.value ->> 'daysAfterDue')::integer, trim(x.value ->> 'templateKey'),
+    nullif(trim(x.value ->> 'textKey'), ''),
     coalesce((x.value ->> 'fee')::bigint, 0), coalesce((x.value ->> 'final')::boolean, false)
   from jsonb_array_elements(set_invoice_dunning_levels.levels) with ordinality x;
-  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "app_private"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant), '[]'::jsonb);
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'textKey', l."text_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "app_private"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant), '[]'::jsonb);
 end;
 $$;
 revoke execute on function "app_private"."set_invoice_dunning_levels"(uuid, jsonb) from public, anon;
@@ -6498,8 +7302,10 @@ grant execute on function "app_private"."set_invoice_dunning_levels"(uuid, jsonb
 -- Raises each overdue invoice with a balance to the highest reminder level it
 -- has reached (one organization, or all), adds the level's fee as a charge,
 -- notifies who created the invoice and records invoice.dunning_escalated with
--- the level's template key, for a sink that sends the reminder. Invoices
--- paused until today or later wait. Returns how many invoices moved up.
+-- the level's template key, for a sink that sends the reminder. Each
+-- organization's invoices go into one run (invoice_dunning_runs) with the
+-- items picked per customer and a history row per invoice. Invoices paused
+-- until today or later, and invoices handed over to collection, wait. Returns how many invoices moved up.
 create or replace function "app_private"."run_invoice_dunning"(tenant uuid default null, as_of date default null)
 returns integer
 language plpgsql
@@ -6511,12 +7317,15 @@ declare
   v_row "app_private"."invoices";
   v_level "app_private"."invoice_dunning_levels";
   v_count integer := 0;
+  v_run uuid;
+  v_run_tenant uuid;
 begin
   for v_row in
     select x.* from "app_private"."invoices" x
     where (run_invoice_dunning.tenant is null or x."tenant_id" = run_invoice_dunning.tenant)
       and x."kind" = 'invoice' and x."status" in ('issued', 'partially_paid') and x."direction" = 'sales'
       and x."due_on" < v_today
+      and x."collection_status" is null
       and (x."dunning_paused_until" is null or x."dunning_paused_until" < v_today)
       and (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") > 0
       and exists (select 1 from "app_private"."invoice_dunning_levels" l where l."tenant_id" = x."tenant_id" and l."level" > x."dunning_level" and x."due_on" + l."days_after_due" <= v_today)
@@ -6536,6 +7345,17 @@ begin
       select * into v_row from "app_private"."invoices" x where x."id" = v_row."id";
     end if;
     null;
+
+    if v_run is null or v_run_tenant is distinct from v_row."tenant_id" then
+      insert into "app_private"."invoice_dunning_runs" ("tenant_id", "as_of", "created_by")
+      values (v_row."tenant_id", v_today, auth.uid())
+      returning "id" into v_run;
+      v_run_tenant := v_row."tenant_id";
+    end if;
+    insert into "app_private"."invoice_dunning_run_items" ("tenant_id", "run_id", "party_id", "invoice_id", "level", "text_key", "template_key", "fee", "balance", "due_on")
+    values (v_row."tenant_id", v_run, coalesce(v_row."company_id"::text, v_row."contact_id"::text), v_row."id", v_level."level", v_level."text_key", v_level."template_key", v_level."fee", (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"), v_row."due_on");
+    insert into "app_private"."invoice_dunning_history" ("tenant_id", "invoice_id", "run_id", "kind", "level", "text_key", "template_key", "fee", "balance")
+    values (v_row."tenant_id", v_row."id", v_run, 'reminder', v_level."level", v_level."text_key", v_level."template_key", v_level."fee", (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"));
     v_count := v_count + 1;
   end loop;
   return v_count;
@@ -6574,7 +7394,7 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -6587,6 +7407,162 @@ end;
 $$;
 revoke execute on function "app_private"."pause_invoice_dunning"(uuid, date, text) from public, anon;
 grant execute on function "app_private"."pause_invoice_dunning"(uuid, date, text) to authenticated, service_role;
+
+-- The dunning runs of an organization, newest first: { id, asOf, items,
+-- customers }.
+create or replace function "app_private"."list_invoice_dunning_runs"(tenant uuid, max integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoice_dunning_runs.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', z.id, 'asOf', z.as_of, 'createdAt', z.created_at, 'items', z.items, 'customers', z.customers) order by z.created_at desc)
+    from (
+      select a."id" as id, a."as_of" as as_of, a."created_at" as created_at,
+        (select count(*) from "app_private"."invoice_dunning_run_items" x where x."run_id" = a."id") as items,
+        (select count(distinct x."party_id") from "app_private"."invoice_dunning_run_items" x where x."run_id" = a."id") as customers
+      from "app_private"."invoice_dunning_runs" a where a."tenant_id" = list_invoice_dunning_runs.tenant
+      order by a."created_at" desc limit least(greatest(coalesce(list_invoice_dunning_runs.max, 50), 1), 500)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."list_invoice_dunning_runs"(uuid, integer) from public, anon;
+grant execute on function "app_private"."list_invoice_dunning_runs"(uuid, integer) to authenticated, service_role;
+
+-- The items a run picked, grouped by customer: [{ partyId, balance, fee,
+-- items: [{ invoiceId, level, textKey, templateKey, fee, balance, dueOn }] }].
+-- Amounts are text.
+create or replace function "app_private"."list_invoice_dunning_run_items"(run uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  select a."tenant_id" into v_tenant from "app_private"."invoice_dunning_runs" a where a."id" = list_invoice_dunning_run_items.run;
+  if v_tenant is null then
+    raise exception 'no such dunning run' using errcode = 'P0002', hint = 'INVOICE_DUNNING_RUN_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('partyId', g.party, 'balance', g.balance::text, 'fee', g.fee::text, 'items', g.items) order by g.party nulls last)
+    from (
+      select x."party_id" as party, sum(x."balance") as balance, sum(x."fee") as fee,
+        jsonb_agg(jsonb_build_object('invoiceId', x."invoice_id", 'level', x."level", 'textKey', x."text_key", 'templateKey', x."template_key",
+          'fee', x."fee"::text, 'balance', x."balance"::text, 'dueOn', x."due_on") order by x."due_on", x."invoice_id") as items
+      from "app_private"."invoice_dunning_run_items" x where x."run_id" = list_invoice_dunning_run_items.run
+      group by x."party_id"
+    ) g
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."list_invoice_dunning_run_items"(uuid) from public, anon;
+grant execute on function "app_private"."list_invoice_dunning_run_items"(uuid) to authenticated, service_role;
+
+-- What happened to an invoice in collections, oldest first: [{ kind
+-- (reminder or handed_over), level, textKey, templateKey, fee, balance, note,
+-- runId, at }].
+create or replace function "app_private"."list_invoice_dunning_history"(invoice uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  select x."tenant_id" into v_tenant from "app_private"."invoices" x where x."id" = list_invoice_dunning_history.invoice;
+  if v_tenant is null then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('kind', x."kind", 'level', x."level", 'textKey', x."text_key", 'templateKey', x."template_key",
+      'fee', x."fee"::text, 'balance', x."balance"::text, 'note', x."note", 'runId', x."run_id", 'at', x."created_at")
+      order by x."created_at", x."id")
+    from "app_private"."invoice_dunning_history" x where x."invoice_id" = list_invoice_dunning_history.invoice
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."list_invoice_dunning_history"(uuid) from public, anon;
+grant execute on function "app_private"."list_invoice_dunning_history"(uuid) to authenticated, service_role;
+
+-- Hands open sales invoices over to a collection agency, a company or person
+-- (agency_party_id). Their dunning stops, collection_status becomes
+-- handed_over, and each invoice records invoice.collection_started and
+-- a history row. At most 500 invoices; one that isn't an open sales invoice,
+-- or was handed over already, refuses the whole call. Needs invoices.collect.
+-- Returns the invoices.
+create or replace function "app_private"."hand_over_to_collection"(invoice_ids uuid[], agency_party_id text, note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."invoices";
+  v_id uuid;
+  v_result jsonb := '[]'::jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if nullif(trim(hand_over_to_collection.agency_party_id), '') is null or length(hand_over_to_collection.agency_party_id) > 150
+    or coalesce(array_length(hand_over_to_collection.invoice_ids, 1), 0) not between 1 and 500
+    or length(hand_over_to_collection.note) > 2000 then
+    raise exception 'hand over 1 to 500 invoices to an agency party, with a note of at most 2000 characters' using errcode = '22023', hint = 'INVOICE_HAND_OVER_INVALID';
+  end if;
+  for v_id in select distinct x from unnest(hand_over_to_collection.invoice_ids) x order by x loop
+    select * into v_row from "app_private"."invoices" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.collect' end), false)) for update;
+    if v_row."id" is null then
+      raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+    end if;
+    if not v_row."kind" = 'invoice' or v_row."status" not in ('issued', 'partially_paid') or v_row."direction" <> 'sales' then
+      raise exception 'only an open sales invoice goes to collection' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
+    end if;
+    if v_row."collection_status" is not null then
+      raise exception 'the invoice was handed over to collection already' using errcode = '55000', hint = 'INVOICE_ALREADY_HANDED_OVER';
+    end if;
+    update "app_private"."invoices" x set
+      "collection_status" = 'handed_over',
+      "collection_agency_id" = trim(hand_over_to_collection.agency_party_id),
+      "collection_handed_at" = now(),
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    insert into "app_private"."invoice_dunning_history" ("tenant_id", "invoice_id", "kind", "level", "balance", "note")
+    values (v_row."tenant_id", v_row."id", 'handed_over', v_row."dunning_level", (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"), nullif(trim(hand_over_to_collection.note), ''));
+    null;
+    v_result := v_result || to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
+      'balance', (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
+      'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text) order by il."position") from "app_private"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+  end loop;
+  return v_result;
+end;
+$$;
+revoke execute on function "app_private"."hand_over_to_collection"(uuid[], text, text) from public, anon;
+grant execute on function "app_private"."hand_over_to_collection"(uuid[], text, text) to authenticated, service_role;
 
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
@@ -6879,6 +7855,69 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_
 create policy bsb_tenant_scope_delete on "app_private"."invoice_dunning_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_runs";
+drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_runs";
+create policy bsb_tenant_scope_select on "app_private"."invoice_dunning_runs" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_runs";
+create policy bsb_tenant_scope_insert on "app_private"."invoice_dunning_runs" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_runs";
+create policy bsb_tenant_scope_update on "app_private"."invoice_dunning_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_runs";
+create policy bsb_tenant_scope_delete on "app_private"."invoice_dunning_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_run_items";
+drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_select on "app_private"."invoice_dunning_run_items" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_insert on "app_private"."invoice_dunning_run_items" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_update on "app_private"."invoice_dunning_run_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_delete on "app_private"."invoice_dunning_run_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_history";
+drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_history";
+create policy bsb_tenant_scope_select on "app_private"."invoice_dunning_history" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_history";
+create policy bsb_tenant_scope_insert on "app_private"."invoice_dunning_history" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_history";
+create policy bsb_tenant_scope_update on "app_private"."invoice_dunning_history" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_history";
+create policy bsb_tenant_scope_delete on "app_private"."invoice_dunning_history" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -6910,7 +7949,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:8562c9c53214479cd88437bbf8325eb4eb03bc6afc78240be9cbcfebec4e8626
+-- @bsb-hash sha256:2448d92b43d17044b81142cc80dfc4cd90070d5d33e6ef67fd535f076a2fc4ca
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7002,6 +8041,30 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -7045,6 +8108,12 @@ create table if not exists "better_supabase"."invoices" (
   "dunning_at" timestamptz,
   "dunning_paused_until" date,
   "buyer" jsonb,
+  "payment_terms_id" uuid,
+  "discount_due_on" date,
+  "discount_amount_early" bigint check ("discount_amount_early" >= 0),
+  "collection_status" text check ("collection_status" in ('handed_over')),
+  "collection_agency_id" text,
+  "collection_handed_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -7099,6 +8168,7 @@ create table if not exists "better_supabase"."invoice_dunning_levels" (
   "level" integer not null check ("level" between 1 and 20),
   "days_after_due" integer not null check ("days_after_due" >= 0),
   "template_key" text not null check (length("template_key") between 1 and 200),
+  "text_key" text check (length("text_key") between 1 and 200),
   "fee" bigint not null default 0 check ("fee" >= 0),
   "final" boolean not null default false,
   "created_at" timestamptz not null default now(),
@@ -7111,6 +8181,74 @@ grant select on "better_supabase"."invoice_dunning_levels" to authenticated;
 grant all on "better_supabase"."invoice_dunning_levels" to service_role;
 drop policy if exists invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels";
 create policy invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "better_supabase"."invoice_dunning_runs" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "as_of" date not null,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+alter table "better_supabase"."invoice_dunning_runs" enable row level security;
+revoke all on "better_supabase"."invoice_dunning_runs" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
+grant all on "better_supabase"."invoice_dunning_runs" to service_role;
+drop policy if exists invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs";
+create policy invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "better_supabase"."invoice_dunning_run_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "run_id" uuid not null references "better_supabase"."invoice_dunning_runs" ("id") on delete cascade,
+  "party_id" text,
+  "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
+  "level" integer not null check ("level" >= 1),
+  "text_key" text,
+  "template_key" text not null,
+  "fee" bigint not null default 0 check ("fee" >= 0),
+  "balance" bigint not null,
+  "due_on" date not null,
+  "created_at" timestamptz not null default now(),
+  unique ("run_id", "invoice_id")
+);
+create index if not exists invoice_dunning_run_items_run_idx on "better_supabase"."invoice_dunning_run_items" ("run_id", "party_id");
+create index if not exists invoice_dunning_run_items_invoice_idx on "better_supabase"."invoice_dunning_run_items" ("invoice_id");
+alter table "better_supabase"."invoice_dunning_run_items" enable row level security;
+revoke all on "better_supabase"."invoice_dunning_run_items" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_dunning_run_items" to authenticated;
+grant all on "better_supabase"."invoice_dunning_run_items" to service_role;
+drop policy if exists invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items";
+create policy invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "better_supabase"."invoice_dunning_history" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
+  "run_id" uuid references "better_supabase"."invoice_dunning_runs" ("id") on delete set null,
+  "kind" text not null check ("kind" in ('reminder', 'handed_over')),
+  "level" integer not null default 0,
+  "text_key" text,
+  "template_key" text,
+  "fee" bigint not null default 0,
+  "balance" bigint not null default 0,
+  "note" text,
+  "created_at" timestamptz not null default clock_timestamp()
+);
+create index if not exists invoice_dunning_history_invoice_idx on "better_supabase"."invoice_dunning_history" ("invoice_id", "created_at");
+create index if not exists invoice_dunning_history_run_idx on "better_supabase"."invoice_dunning_history" ("run_id") where "run_id" is not null;
+alter table "better_supabase"."invoice_dunning_history" enable row level security;
+revoke all on "better_supabase"."invoice_dunning_history" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_dunning_history" to authenticated;
+grant all on "better_supabase"."invoice_dunning_history" to service_role;
+drop policy if exists invoice_dunning_history_read on "better_supabase"."invoice_dunning_history";
+create policy invoice_dunning_history_read on "better_supabase"."invoice_dunning_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -7184,7 +8322,7 @@ begin
     
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -7276,7 +8414,7 @@ begin
     perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -7562,6 +8700,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_warnings jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -7697,7 +8836,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -7705,7 +8844,7 @@ begin
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text) order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
       'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
         from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
-        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb))|| case when v_warnings is null then '{}'::jsonb else jsonb_build_object('warnings', v_warnings) end;
 end;
 $$;
 revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) from public, anon;
@@ -7766,7 +8905,7 @@ begin
     select 1 from "better_supabase"."ledger_transactions" y
     where y."tenant_id" = v_row."tenant_id" and y."idempotency_key" = 'invoice-payment:' || v_reference
   ) then
-    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -7829,7 +8968,7 @@ begin
         using v_row."id", v_payment;
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -7911,7 +9050,7 @@ begin
   if credit_invoice.fixed_number is not null then
     perform "better_supabase"."issue_invoice"(v_row."id", coalesce(credit_invoice.issued_on, current_date), null, null, credit_invoice.fixed_number);
   end if;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -7966,7 +9105,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -8017,7 +9156,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -8098,7 +9237,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -8174,7 +9313,7 @@ begin
   returning * into v_row;
   
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -8239,7 +9378,7 @@ begin
   returning * into v_row;
   
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -8563,7 +9702,7 @@ begin
   if v_row."status" = 'paid' and v_was <> 'paid' then
     null;
   end if;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -8588,14 +9727,14 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoice_dunning_levels.tenant, 'invoices.read'), false)) then
     raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
-  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = list_invoice_dunning_levels.tenant), '[]'::jsonb);
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'textKey', l."text_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = list_invoice_dunning_levels.tenant), '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."list_invoice_dunning_levels"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_invoice_dunning_levels"(uuid) to authenticated, service_role;
 
 -- Replaces an organization's reminder levels. levels: [{ daysAfterDue,
--- templateKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
+-- templateKey, textKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
 -- rising. fee: minor units of the invoice's currency, added as a charge when
 -- the level is reached. Only the last level can be final.
 create or replace function "better_supabase"."set_invoice_dunning_levels"(tenant uuid, levels jsonb)
@@ -8618,6 +9757,7 @@ begin
       where jsonb_typeof(x.value) <> 'object'
         or coalesce(x.value ->> 'daysAfterDue', '') !~ '^[0-9]{1,5}$'
         or length(coalesce(trim(x.value ->> 'templateKey'), '')) not between 1 and 200
+        or length(coalesce(nullif(trim(x.value ->> 'textKey'), ''), 'x')) not between 1 and 200
         or coalesce(x.value ->> 'fee', '0') !~ '^[0-9]{1,18}$'
         or jsonb_typeof(coalesce(x.value -> 'final', 'false'::jsonb)) <> 'boolean'
         or ((x.value ->> 'final')::boolean is true and x.ordinality < jsonb_array_length(set_invoice_dunning_levels.levels))
@@ -8634,11 +9774,12 @@ begin
     raise exception 'each level comes more days after the due date than the one before' using errcode = '22023', hint = 'INVOICE_DUNNING_LEVELS_INVALID';
   end if;
   delete from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant;
-  insert into "better_supabase"."invoice_dunning_levels" ("tenant_id", "level", "days_after_due", "template_key", "fee", "final")
+  insert into "better_supabase"."invoice_dunning_levels" ("tenant_id", "level", "days_after_due", "template_key", "text_key", "fee", "final")
   select set_invoice_dunning_levels.tenant, x.ordinality, (x.value ->> 'daysAfterDue')::integer, trim(x.value ->> 'templateKey'),
+    nullif(trim(x.value ->> 'textKey'), ''),
     coalesce((x.value ->> 'fee')::bigint, 0), coalesce((x.value ->> 'final')::boolean, false)
   from jsonb_array_elements(set_invoice_dunning_levels.levels) with ordinality x;
-  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant), '[]'::jsonb);
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'textKey', l."text_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant), '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."set_invoice_dunning_levels"(uuid, jsonb) from public, anon;
@@ -8647,8 +9788,10 @@ grant execute on function "better_supabase"."set_invoice_dunning_levels"(uuid, j
 -- Raises each overdue invoice with a balance to the highest reminder level it
 -- has reached (one organization, or all), adds the level's fee as a charge,
 -- notifies who created the invoice and records invoice.dunning_escalated with
--- the level's template key, for a sink that sends the reminder. Invoices
--- paused until today or later wait. Returns how many invoices moved up.
+-- the level's template key, for a sink that sends the reminder. Each
+-- organization's invoices go into one run (invoice_dunning_runs) with the
+-- items picked per customer and a history row per invoice. Invoices paused
+-- until today or later, and invoices handed over to collection, wait. Returns how many invoices moved up.
 create or replace function "better_supabase"."run_invoice_dunning"(tenant uuid default null, as_of date default null)
 returns integer
 language plpgsql
@@ -8660,12 +9803,15 @@ declare
   v_row "better_supabase"."invoices";
   v_level "better_supabase"."invoice_dunning_levels";
   v_count integer := 0;
+  v_run uuid;
+  v_run_tenant uuid;
 begin
   for v_row in
     select x.* from "better_supabase"."invoices" x
     where (run_invoice_dunning.tenant is null or x."tenant_id" = run_invoice_dunning.tenant)
       and x."kind" = 'invoice' and x."status" in ('issued', 'partially_paid') and x."direction" = 'sales'
       and x."due_on" < v_today
+      and x."collection_status" is null
       and (x."dunning_paused_until" is null or x."dunning_paused_until" < v_today)
       and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") > 0
       and exists (select 1 from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = x."tenant_id" and l."level" > x."dunning_level" and x."due_on" + l."days_after_due" <= v_today)
@@ -8685,6 +9831,17 @@ begin
       select * into v_row from "better_supabase"."invoices" x where x."id" = v_row."id";
     end if;
     null;
+
+    if v_run is null or v_run_tenant is distinct from v_row."tenant_id" then
+      insert into "better_supabase"."invoice_dunning_runs" ("tenant_id", "as_of", "created_by")
+      values (v_row."tenant_id", v_today, auth.uid())
+      returning "id" into v_run;
+      v_run_tenant := v_row."tenant_id";
+    end if;
+    insert into "better_supabase"."invoice_dunning_run_items" ("tenant_id", "run_id", "party_id", "invoice_id", "level", "text_key", "template_key", "fee", "balance", "due_on")
+    values (v_row."tenant_id", v_run, coalesce(v_row."company_id"::text, v_row."contact_id"::text), v_row."id", v_level."level", v_level."text_key", v_level."template_key", v_level."fee", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"), v_row."due_on");
+    insert into "better_supabase"."invoice_dunning_history" ("tenant_id", "invoice_id", "run_id", "kind", "level", "text_key", "template_key", "fee", "balance")
+    values (v_row."tenant_id", v_row."id", v_run, 'reminder', v_level."level", v_level."text_key", v_level."template_key", v_level."fee", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"));
     v_count := v_count + 1;
   end loop;
   return v_count;
@@ -8723,7 +9880,7 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -8736,6 +9893,162 @@ end;
 $$;
 revoke execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) from public, anon;
 grant execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) to authenticated, service_role;
+
+-- The dunning runs of an organization, newest first: { id, asOf, items,
+-- customers }.
+create or replace function "better_supabase"."list_invoice_dunning_runs"(tenant uuid, max integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoice_dunning_runs.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', z.id, 'asOf', z.as_of, 'createdAt', z.created_at, 'items', z.items, 'customers', z.customers) order by z.created_at desc)
+    from (
+      select a."id" as id, a."as_of" as as_of, a."created_at" as created_at,
+        (select count(*) from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = a."id") as items,
+        (select count(distinct x."party_id") from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = a."id") as customers
+      from "better_supabase"."invoice_dunning_runs" a where a."tenant_id" = list_invoice_dunning_runs.tenant
+      order by a."created_at" desc limit least(greatest(coalesce(list_invoice_dunning_runs.max, 50), 1), 500)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_runs"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_runs"(uuid, integer) to authenticated, service_role;
+
+-- The items a run picked, grouped by customer: [{ partyId, balance, fee,
+-- items: [{ invoiceId, level, textKey, templateKey, fee, balance, dueOn }] }].
+-- Amounts are text.
+create or replace function "better_supabase"."list_invoice_dunning_run_items"(run uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  select a."tenant_id" into v_tenant from "better_supabase"."invoice_dunning_runs" a where a."id" = list_invoice_dunning_run_items.run;
+  if v_tenant is null then
+    raise exception 'no such dunning run' using errcode = 'P0002', hint = 'INVOICE_DUNNING_RUN_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('partyId', g.party, 'balance', g.balance::text, 'fee', g.fee::text, 'items', g.items) order by g.party nulls last)
+    from (
+      select x."party_id" as party, sum(x."balance") as balance, sum(x."fee") as fee,
+        jsonb_agg(jsonb_build_object('invoiceId', x."invoice_id", 'level', x."level", 'textKey', x."text_key", 'templateKey', x."template_key",
+          'fee', x."fee"::text, 'balance', x."balance"::text, 'dueOn', x."due_on") order by x."due_on", x."invoice_id") as items
+      from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = list_invoice_dunning_run_items.run
+      group by x."party_id"
+    ) g
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_run_items"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_run_items"(uuid) to authenticated, service_role;
+
+-- What happened to an invoice in collections, oldest first: [{ kind
+-- (reminder or handed_over), level, textKey, templateKey, fee, balance, note,
+-- runId, at }].
+create or replace function "better_supabase"."list_invoice_dunning_history"(invoice uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  select x."tenant_id" into v_tenant from "better_supabase"."invoices" x where x."id" = list_invoice_dunning_history.invoice;
+  if v_tenant is null then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('kind', x."kind", 'level', x."level", 'textKey', x."text_key", 'templateKey', x."template_key",
+      'fee', x."fee"::text, 'balance', x."balance"::text, 'note', x."note", 'runId', x."run_id", 'at', x."created_at")
+      order by x."created_at", x."id")
+    from "better_supabase"."invoice_dunning_history" x where x."invoice_id" = list_invoice_dunning_history.invoice
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_history"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_history"(uuid) to authenticated, service_role;
+
+-- Hands open sales invoices over to a collection agency, a company or person
+-- (agency_party_id). Their dunning stops, collection_status becomes
+-- handed_over, and each invoice records invoice.collection_started and
+-- a history row. At most 500 invoices; one that isn't an open sales invoice,
+-- or was handed over already, refuses the whole call. Needs invoices.collect.
+-- Returns the invoices.
+create or replace function "better_supabase"."hand_over_to_collection"(invoice_ids uuid[], agency_party_id text, note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_id uuid;
+  v_result jsonb := '[]'::jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if nullif(trim(hand_over_to_collection.agency_party_id), '') is null or length(hand_over_to_collection.agency_party_id) > 150
+    or coalesce(array_length(hand_over_to_collection.invoice_ids, 1), 0) not between 1 and 500
+    or length(hand_over_to_collection.note) > 2000 then
+    raise exception 'hand over 1 to 500 invoices to an agency party, with a note of at most 2000 characters' using errcode = '22023', hint = 'INVOICE_HAND_OVER_INVALID';
+  end if;
+  for v_id in select distinct x from unnest(hand_over_to_collection.invoice_ids) x order by x loop
+    select * into v_row from "better_supabase"."invoices" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.collect' end), false)) for update;
+    if v_row."id" is null then
+      raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+    end if;
+    if not v_row."kind" = 'invoice' or v_row."status" not in ('issued', 'partially_paid') or v_row."direction" <> 'sales' then
+      raise exception 'only an open sales invoice goes to collection' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
+    end if;
+    if v_row."collection_status" is not null then
+      raise exception 'the invoice was handed over to collection already' using errcode = '55000', hint = 'INVOICE_ALREADY_HANDED_OVER';
+    end if;
+    update "better_supabase"."invoices" x set
+      "collection_status" = 'handed_over',
+      "collection_agency_id" = trim(hand_over_to_collection.agency_party_id),
+      "collection_handed_at" = now(),
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    insert into "better_supabase"."invoice_dunning_history" ("tenant_id", "invoice_id", "kind", "level", "balance", "note")
+    values (v_row."tenant_id", v_row."id", 'handed_over', v_row."dunning_level", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"), nullif(trim(hand_over_to_collection.note), ''));
+    null;
+    v_result := v_result || to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
+      'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
+      'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text) order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+  end loop;
+  return v_result;
+end;
+$$;
+revoke execute on function "better_supabase"."hand_over_to_collection"(uuid[], text, text) from public, anon;
+grant execute on function "better_supabase"."hand_over_to_collection"(uuid[], text, text) to authenticated, service_role;
 
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
@@ -9028,6 +10341,69 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunn
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.invoices.api: entry points for the Data API.
 create schema if not exists "api";
@@ -9275,6 +10651,42 @@ as $$ select "better_supabase"."pause_invoice_dunning"($1, $2, $3) $$;
 revoke execute on function "api"."pause_invoice_dunning"(uuid, date, text) from public, anon;
 grant execute on function "api"."pause_invoice_dunning"(uuid, date, text) to authenticated, service_role;
 
+create or replace function "api"."list_invoice_dunning_runs"(tenant uuid, max integer default 50)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_invoice_dunning_runs"($1, $2) $$;
+revoke execute on function "api"."list_invoice_dunning_runs"(uuid, integer) from public, anon;
+grant execute on function "api"."list_invoice_dunning_runs"(uuid, integer) to authenticated, service_role;
+
+create or replace function "api"."list_invoice_dunning_run_items"(run uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_invoice_dunning_run_items"($1) $$;
+revoke execute on function "api"."list_invoice_dunning_run_items"(uuid) from public, anon;
+grant execute on function "api"."list_invoice_dunning_run_items"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_invoice_dunning_history"(invoice uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_invoice_dunning_history"($1) $$;
+revoke execute on function "api"."list_invoice_dunning_history"(uuid) from public, anon;
+grant execute on function "api"."list_invoice_dunning_history"(uuid) to authenticated, service_role;
+
+create or replace function "api"."hand_over_to_collection"(invoice_ids uuid[], agency_party_id text, note text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."hand_over_to_collection"($1, $2, $3) $$;
+revoke execute on function "api"."hand_over_to_collection"(uuid[], text, text) from public, anon;
+grant execute on function "api"."hand_over_to_collection"(uuid[], text, text) to authenticated, service_role;
+
 create or replace function "api"."import_invoice"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language sql
@@ -9341,7 +10753,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:cfdcdf5c5d73910d2bab2d441963ff6b6180f7e69bca18e39b51917b4a995737
+-- @bsb-hash sha256:41491485bb49efac990bd21add3a43b2e6ac2acbbe26e92a5f32b17fd7c73ba4
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9448,6 +10860,30 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -9491,6 +10927,12 @@ alter table "better_supabase"."invoices" add column if not exists "dunning_level
 alter table "better_supabase"."invoices" add column if not exists "dunning_at" timestamptz;
 alter table "better_supabase"."invoices" add column if not exists "dunning_paused_until" date;
 alter table "better_supabase"."invoices" add column if not exists "buyer" jsonb;
+alter table "better_supabase"."invoices" add column if not exists "payment_terms_id" uuid;
+alter table "better_supabase"."invoices" add column if not exists "discount_due_on" date;
+alter table "better_supabase"."invoices" add column if not exists "discount_amount_early" bigint check ("discount_amount_early" >= 0);
+alter table "better_supabase"."invoices" add column if not exists "collection_status" text check ("collection_status" in ('handed_over'));
+alter table "better_supabase"."invoices" add column if not exists "collection_agency_id" text;
+alter table "better_supabase"."invoices" add column if not exists "collection_handed_at" timestamptz;
 alter table "better_supabase"."invoices" add column if not exists "created_by" uuid;
 alter table "better_supabase"."invoices" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."invoices" add column if not exists "updated_at" timestamptz not null default now();
@@ -9537,6 +10979,7 @@ alter table "better_supabase"."invoice_dunning_levels" add column if not exists 
 alter table "better_supabase"."invoice_dunning_levels" add column if not exists "level" integer check ("level" between 1 and 20);
 alter table "better_supabase"."invoice_dunning_levels" add column if not exists "days_after_due" integer check ("days_after_due" >= 0);
 alter table "better_supabase"."invoice_dunning_levels" add column if not exists "template_key" text check (length("template_key") between 1 and 200);
+alter table "better_supabase"."invoice_dunning_levels" add column if not exists "text_key" text check (length("text_key") between 1 and 200);
 alter table "better_supabase"."invoice_dunning_levels" add column if not exists "fee" bigint not null default 0 check ("fee" >= 0);
 alter table "better_supabase"."invoice_dunning_levels" add column if not exists "final" boolean not null default false;
 alter table "better_supabase"."invoice_dunning_levels" add column if not exists "created_at" timestamptz not null default now();
@@ -9546,6 +10989,67 @@ grant select on "better_supabase"."invoice_dunning_levels" to authenticated;
 grant all on "better_supabase"."invoice_dunning_levels" to service_role;
 drop policy if exists bsb_invoice_dunning_levels_select on "better_supabase"."invoice_dunning_levels";
 create policy bsb_invoice_dunning_levels_select on "better_supabase"."invoice_dunning_levels"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+-- better_supabase.invoice_dunning_runs is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."invoice_dunning_runs" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."invoice_dunning_runs" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."invoice_dunning_runs" add column if not exists "as_of" date;
+alter table "better_supabase"."invoice_dunning_runs" add column if not exists "created_by" uuid;
+alter table "better_supabase"."invoice_dunning_runs" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+alter table "better_supabase"."invoice_dunning_runs" enable row level security;
+grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
+grant all on "better_supabase"."invoice_dunning_runs" to service_role;
+drop policy if exists bsb_invoice_dunning_runs_select on "better_supabase"."invoice_dunning_runs";
+create policy bsb_invoice_dunning_runs_select on "better_supabase"."invoice_dunning_runs"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+-- better_supabase.invoice_dunning_run_items is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."invoice_dunning_run_items" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."invoice_dunning_run_items" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."invoice_dunning_run_items" add column if not exists "run_id" uuid references "better_supabase"."invoice_dunning_runs" ("id") on delete cascade;
+alter table "better_supabase"."invoice_dunning_run_items" add column if not exists "party_id" text;
+alter table "better_supabase"."invoice_dunning_run_items" add column if not exists "invoice_id" uuid references "better_supabase"."invoices" ("id") on delete cascade;
+alter table "better_supabase"."invoice_dunning_run_items" add column if not exists "level" integer check ("level" >= 1);
+alter table "better_supabase"."invoice_dunning_run_items" add column if not exists "text_key" text;
+alter table "better_supabase"."invoice_dunning_run_items" add column if not exists "template_key" text;
+alter table "better_supabase"."invoice_dunning_run_items" add column if not exists "fee" bigint not null default 0 check ("fee" >= 0);
+alter table "better_supabase"."invoice_dunning_run_items" add column if not exists "balance" bigint;
+alter table "better_supabase"."invoice_dunning_run_items" add column if not exists "due_on" date;
+alter table "better_supabase"."invoice_dunning_run_items" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists invoice_dunning_run_items_run_idx on "better_supabase"."invoice_dunning_run_items" ("run_id", "party_id");
+create index if not exists invoice_dunning_run_items_invoice_idx on "better_supabase"."invoice_dunning_run_items" ("invoice_id");
+alter table "better_supabase"."invoice_dunning_run_items" enable row level security;
+grant select on "better_supabase"."invoice_dunning_run_items" to authenticated;
+grant all on "better_supabase"."invoice_dunning_run_items" to service_role;
+drop policy if exists bsb_invoice_dunning_run_items_select on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_invoice_dunning_run_items_select on "better_supabase"."invoice_dunning_run_items"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+-- better_supabase.invoice_dunning_history is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."invoice_dunning_history" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."invoice_dunning_history" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."invoice_dunning_history" add column if not exists "invoice_id" uuid references "better_supabase"."invoices" ("id") on delete cascade;
+alter table "better_supabase"."invoice_dunning_history" add column if not exists "run_id" uuid references "better_supabase"."invoice_dunning_runs" ("id") on delete set null;
+alter table "better_supabase"."invoice_dunning_history" add column if not exists "kind" text check ("kind" in ('reminder', 'handed_over'));
+alter table "better_supabase"."invoice_dunning_history" add column if not exists "level" integer not null default 0;
+alter table "better_supabase"."invoice_dunning_history" add column if not exists "text_key" text;
+alter table "better_supabase"."invoice_dunning_history" add column if not exists "template_key" text;
+alter table "better_supabase"."invoice_dunning_history" add column if not exists "fee" bigint not null default 0;
+alter table "better_supabase"."invoice_dunning_history" add column if not exists "balance" bigint not null default 0;
+alter table "better_supabase"."invoice_dunning_history" add column if not exists "note" text;
+alter table "better_supabase"."invoice_dunning_history" add column if not exists "created_at" timestamptz not null default clock_timestamp();
+create index if not exists invoice_dunning_history_invoice_idx on "better_supabase"."invoice_dunning_history" ("invoice_id", "created_at");
+create index if not exists invoice_dunning_history_run_idx on "better_supabase"."invoice_dunning_history" ("run_id") where "run_id" is not null;
+alter table "better_supabase"."invoice_dunning_history" enable row level security;
+grant select on "better_supabase"."invoice_dunning_history" to authenticated;
+grant all on "better_supabase"."invoice_dunning_history" to service_role;
+drop policy if exists bsb_invoice_dunning_history_select on "better_supabase"."invoice_dunning_history";
+create policy bsb_invoice_dunning_history_select on "better_supabase"."invoice_dunning_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -9619,7 +11123,7 @@ begin
     
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -9711,7 +11215,7 @@ begin
     perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -9996,6 +11500,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_warnings jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -10131,7 +11636,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -10139,7 +11644,7 @@ begin
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text) order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
       'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
         from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
-        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb))|| case when v_warnings is null then '{}'::jsonb else jsonb_build_object('warnings', v_warnings) end;
 end;
 $$;
 revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) from public, anon;
@@ -10200,7 +11705,7 @@ begin
     select 1 from "better_supabase"."ledger_transactions" y
     where y."tenant_id" = v_row."tenant_id" and y."idempotency_key" = 'invoice-payment:' || v_reference
   ) then
-    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -10263,7 +11768,7 @@ begin
         using v_row."id", v_payment;
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -10345,7 +11850,7 @@ begin
   if credit_invoice.fixed_number is not null then
     perform "better_supabase"."issue_invoice"(v_row."id", coalesce(credit_invoice.issued_on, current_date), null, null, credit_invoice.fixed_number);
   end if;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -10400,7 +11905,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -10451,7 +11956,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -10532,7 +12037,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -10608,7 +12113,7 @@ begin
   returning * into v_row;
   
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -10673,7 +12178,7 @@ begin
   returning * into v_row;
   
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -10997,7 +12502,7 @@ begin
   if v_row."status" = 'paid' and v_was <> 'paid' then
     null;
   end if;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -11022,14 +12527,14 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoice_dunning_levels.tenant, 'invoices.read'), false)) then
     raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
-  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = list_invoice_dunning_levels.tenant), '[]'::jsonb);
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'textKey', l."text_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = list_invoice_dunning_levels.tenant), '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."list_invoice_dunning_levels"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_invoice_dunning_levels"(uuid) to authenticated, service_role;
 
 -- Replaces an organization's reminder levels. levels: [{ daysAfterDue,
--- templateKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
+-- templateKey, textKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
 -- rising. fee: minor units of the invoice's currency, added as a charge when
 -- the level is reached. Only the last level can be final.
 create or replace function "better_supabase"."set_invoice_dunning_levels"(tenant uuid, levels jsonb)
@@ -11052,6 +12557,7 @@ begin
       where jsonb_typeof(x.value) <> 'object'
         or coalesce(x.value ->> 'daysAfterDue', '') !~ '^[0-9]{1,5}$'
         or length(coalesce(trim(x.value ->> 'templateKey'), '')) not between 1 and 200
+        or length(coalesce(nullif(trim(x.value ->> 'textKey'), ''), 'x')) not between 1 and 200
         or coalesce(x.value ->> 'fee', '0') !~ '^[0-9]{1,18}$'
         or jsonb_typeof(coalesce(x.value -> 'final', 'false'::jsonb)) <> 'boolean'
         or ((x.value ->> 'final')::boolean is true and x.ordinality < jsonb_array_length(set_invoice_dunning_levels.levels))
@@ -11068,11 +12574,12 @@ begin
     raise exception 'each level comes more days after the due date than the one before' using errcode = '22023', hint = 'INVOICE_DUNNING_LEVELS_INVALID';
   end if;
   delete from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant;
-  insert into "better_supabase"."invoice_dunning_levels" ("tenant_id", "level", "days_after_due", "template_key", "fee", "final")
+  insert into "better_supabase"."invoice_dunning_levels" ("tenant_id", "level", "days_after_due", "template_key", "text_key", "fee", "final")
   select set_invoice_dunning_levels.tenant, x.ordinality, (x.value ->> 'daysAfterDue')::integer, trim(x.value ->> 'templateKey'),
+    nullif(trim(x.value ->> 'textKey'), ''),
     coalesce((x.value ->> 'fee')::bigint, 0), coalesce((x.value ->> 'final')::boolean, false)
   from jsonb_array_elements(set_invoice_dunning_levels.levels) with ordinality x;
-  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant), '[]'::jsonb);
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'textKey', l."text_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant), '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."set_invoice_dunning_levels"(uuid, jsonb) from public, anon;
@@ -11081,8 +12588,10 @@ grant execute on function "better_supabase"."set_invoice_dunning_levels"(uuid, j
 -- Raises each overdue invoice with a balance to the highest reminder level it
 -- has reached (one organization, or all), adds the level's fee as a charge,
 -- notifies who created the invoice and records invoice.dunning_escalated with
--- the level's template key, for a sink that sends the reminder. Invoices
--- paused until today or later wait. Returns how many invoices moved up.
+-- the level's template key, for a sink that sends the reminder. Each
+-- organization's invoices go into one run (invoice_dunning_runs) with the
+-- items picked per customer and a history row per invoice. Invoices paused
+-- until today or later, and invoices handed over to collection, wait. Returns how many invoices moved up.
 create or replace function "better_supabase"."run_invoice_dunning"(tenant uuid default null, as_of date default null)
 returns integer
 language plpgsql
@@ -11094,12 +12603,15 @@ declare
   v_row "better_supabase"."invoices";
   v_level "better_supabase"."invoice_dunning_levels";
   v_count integer := 0;
+  v_run uuid;
+  v_run_tenant uuid;
 begin
   for v_row in
     select x.* from "better_supabase"."invoices" x
     where (run_invoice_dunning.tenant is null or x."tenant_id" = run_invoice_dunning.tenant)
       and x."kind" = 'invoice' and x."status" in ('issued', 'partially_paid') and x."direction" = 'sales'
       and x."due_on" < v_today
+      and x."collection_status" is null
       and (x."dunning_paused_until" is null or x."dunning_paused_until" < v_today)
       and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") > 0
       and exists (select 1 from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = x."tenant_id" and l."level" > x."dunning_level" and x."due_on" + l."days_after_due" <= v_today)
@@ -11119,6 +12631,17 @@ begin
       select * into v_row from "better_supabase"."invoices" x where x."id" = v_row."id";
     end if;
     null;
+
+    if v_run is null or v_run_tenant is distinct from v_row."tenant_id" then
+      insert into "better_supabase"."invoice_dunning_runs" ("tenant_id", "as_of", "created_by")
+      values (v_row."tenant_id", v_today, auth.uid())
+      returning "id" into v_run;
+      v_run_tenant := v_row."tenant_id";
+    end if;
+    insert into "better_supabase"."invoice_dunning_run_items" ("tenant_id", "run_id", "party_id", "invoice_id", "level", "text_key", "template_key", "fee", "balance", "due_on")
+    values (v_row."tenant_id", v_run, coalesce(v_row."company_id"::text, v_row."contact_id"::text), v_row."id", v_level."level", v_level."text_key", v_level."template_key", v_level."fee", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"), v_row."due_on");
+    insert into "better_supabase"."invoice_dunning_history" ("tenant_id", "invoice_id", "run_id", "kind", "level", "text_key", "template_key", "fee", "balance")
+    values (v_row."tenant_id", v_row."id", v_run, 'reminder', v_level."level", v_level."text_key", v_level."template_key", v_level."fee", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"));
     v_count := v_count + 1;
   end loop;
   return v_count;
@@ -11157,7 +12680,7 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -11170,6 +12693,162 @@ end;
 $$;
 revoke execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) from public, anon;
 grant execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) to authenticated, service_role;
+
+-- The dunning runs of an organization, newest first: { id, asOf, items,
+-- customers }.
+create or replace function "better_supabase"."list_invoice_dunning_runs"(tenant uuid, max integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoice_dunning_runs.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', z.id, 'asOf', z.as_of, 'createdAt', z.created_at, 'items', z.items, 'customers', z.customers) order by z.created_at desc)
+    from (
+      select a."id" as id, a."as_of" as as_of, a."created_at" as created_at,
+        (select count(*) from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = a."id") as items,
+        (select count(distinct x."party_id") from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = a."id") as customers
+      from "better_supabase"."invoice_dunning_runs" a where a."tenant_id" = list_invoice_dunning_runs.tenant
+      order by a."created_at" desc limit least(greatest(coalesce(list_invoice_dunning_runs.max, 50), 1), 500)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_runs"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_runs"(uuid, integer) to authenticated, service_role;
+
+-- The items a run picked, grouped by customer: [{ partyId, balance, fee,
+-- items: [{ invoiceId, level, textKey, templateKey, fee, balance, dueOn }] }].
+-- Amounts are text.
+create or replace function "better_supabase"."list_invoice_dunning_run_items"(run uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  select a."tenant_id" into v_tenant from "better_supabase"."invoice_dunning_runs" a where a."id" = list_invoice_dunning_run_items.run;
+  if v_tenant is null then
+    raise exception 'no such dunning run' using errcode = 'P0002', hint = 'INVOICE_DUNNING_RUN_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('partyId', g.party, 'balance', g.balance::text, 'fee', g.fee::text, 'items', g.items) order by g.party nulls last)
+    from (
+      select x."party_id" as party, sum(x."balance") as balance, sum(x."fee") as fee,
+        jsonb_agg(jsonb_build_object('invoiceId', x."invoice_id", 'level', x."level", 'textKey', x."text_key", 'templateKey', x."template_key",
+          'fee', x."fee"::text, 'balance', x."balance"::text, 'dueOn', x."due_on") order by x."due_on", x."invoice_id") as items
+      from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = list_invoice_dunning_run_items.run
+      group by x."party_id"
+    ) g
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_run_items"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_run_items"(uuid) to authenticated, service_role;
+
+-- What happened to an invoice in collections, oldest first: [{ kind
+-- (reminder or handed_over), level, textKey, templateKey, fee, balance, note,
+-- runId, at }].
+create or replace function "better_supabase"."list_invoice_dunning_history"(invoice uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  select x."tenant_id" into v_tenant from "better_supabase"."invoices" x where x."id" = list_invoice_dunning_history.invoice;
+  if v_tenant is null then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('kind', x."kind", 'level', x."level", 'textKey', x."text_key", 'templateKey', x."template_key",
+      'fee', x."fee"::text, 'balance', x."balance"::text, 'note', x."note", 'runId', x."run_id", 'at', x."created_at")
+      order by x."created_at", x."id")
+    from "better_supabase"."invoice_dunning_history" x where x."invoice_id" = list_invoice_dunning_history.invoice
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_history"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_history"(uuid) to authenticated, service_role;
+
+-- Hands open sales invoices over to a collection agency, a company or person
+-- (agency_party_id). Their dunning stops, collection_status becomes
+-- handed_over, and each invoice records invoice.collection_started and
+-- a history row. At most 500 invoices; one that isn't an open sales invoice,
+-- or was handed over already, refuses the whole call. Needs invoices.collect.
+-- Returns the invoices.
+create or replace function "better_supabase"."hand_over_to_collection"(invoice_ids uuid[], agency_party_id text, note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_id uuid;
+  v_result jsonb := '[]'::jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if nullif(trim(hand_over_to_collection.agency_party_id), '') is null or length(hand_over_to_collection.agency_party_id) > 150
+    or coalesce(array_length(hand_over_to_collection.invoice_ids, 1), 0) not between 1 and 500
+    or length(hand_over_to_collection.note) > 2000 then
+    raise exception 'hand over 1 to 500 invoices to an agency party, with a note of at most 2000 characters' using errcode = '22023', hint = 'INVOICE_HAND_OVER_INVALID';
+  end if;
+  for v_id in select distinct x from unnest(hand_over_to_collection.invoice_ids) x order by x loop
+    select * into v_row from "better_supabase"."invoices" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.collect' end), false)) for update;
+    if v_row."id" is null then
+      raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+    end if;
+    if not v_row."kind" = 'invoice' or v_row."status" not in ('issued', 'partially_paid') or v_row."direction" <> 'sales' then
+      raise exception 'only an open sales invoice goes to collection' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
+    end if;
+    if v_row."collection_status" is not null then
+      raise exception 'the invoice was handed over to collection already' using errcode = '55000', hint = 'INVOICE_ALREADY_HANDED_OVER';
+    end if;
+    update "better_supabase"."invoices" x set
+      "collection_status" = 'handed_over',
+      "collection_agency_id" = trim(hand_over_to_collection.agency_party_id),
+      "collection_handed_at" = now(),
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    insert into "better_supabase"."invoice_dunning_history" ("tenant_id", "invoice_id", "kind", "level", "balance", "note")
+    values (v_row."tenant_id", v_row."id", 'handed_over', v_row."dunning_level", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"), nullif(trim(hand_over_to_collection.note), ''));
+    null;
+    v_result := v_result || to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
+      'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
+      'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text) order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+  end loop;
+  return v_result;
+end;
+$$;
+revoke execute on function "better_supabase"."hand_over_to_collection"(uuid[], text, text) from public, anon;
+grant execute on function "better_supabase"."hand_over_to_collection"(uuid[], text, text) to authenticated, service_role;
 
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
@@ -11462,6 +13141,69 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunn
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -11493,7 +13235,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:9f5d6cae8753bee0f19382221f1f8b2b20244a1cff5bba51d965cc38a08dbac6
+-- @bsb-hash sha256:45c8415021c1916fbb18401711ab6bb0467891835a74215f5c6167f51c04e950
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11585,6 +13327,30 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -11628,6 +13394,12 @@ create table if not exists "better_supabase"."invoices" (
   "dunning_at" timestamptz,
   "dunning_paused_until" date,
   "buyer" jsonb,
+  "payment_terms_id" uuid,
+  "discount_due_on" date,
+  "discount_amount_early" bigint check ("discount_amount_early" >= 0),
+  "collection_status" text check ("collection_status" in ('handed_over')),
+  "collection_agency_id" text,
+  "collection_handed_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -11682,6 +13454,7 @@ create table if not exists "better_supabase"."invoice_dunning_levels" (
   "level" integer not null check ("level" between 1 and 20),
   "days_after_due" integer not null check ("days_after_due" >= 0),
   "template_key" text not null check (length("template_key") between 1 and 200),
+  "text_key" text check (length("text_key") between 1 and 200),
   "fee" bigint not null default 0 check ("fee" >= 0),
   "final" boolean not null default false,
   "created_at" timestamptz not null default now(),
@@ -11694,6 +13467,74 @@ grant select on "better_supabase"."invoice_dunning_levels" to authenticated;
 grant all on "better_supabase"."invoice_dunning_levels" to service_role;
 drop policy if exists invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels";
 create policy invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "better_supabase"."invoice_dunning_runs" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "as_of" date not null,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("org_id", "created_at" desc);
+alter table "better_supabase"."invoice_dunning_runs" enable row level security;
+revoke all on "better_supabase"."invoice_dunning_runs" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
+grant all on "better_supabase"."invoice_dunning_runs" to service_role;
+drop policy if exists invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs";
+create policy invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "better_supabase"."invoice_dunning_run_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "run_id" uuid not null references "better_supabase"."invoice_dunning_runs" ("id") on delete cascade,
+  "party_id" text,
+  "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
+  "level" integer not null check ("level" >= 1),
+  "text_key" text,
+  "template_key" text not null,
+  "fee" bigint not null default 0 check ("fee" >= 0),
+  "balance" bigint not null,
+  "due_on" date not null,
+  "created_at" timestamptz not null default now(),
+  unique ("run_id", "invoice_id")
+);
+create index if not exists invoice_dunning_run_items_run_idx on "better_supabase"."invoice_dunning_run_items" ("run_id", "party_id");
+create index if not exists invoice_dunning_run_items_invoice_idx on "better_supabase"."invoice_dunning_run_items" ("invoice_id");
+alter table "better_supabase"."invoice_dunning_run_items" enable row level security;
+revoke all on "better_supabase"."invoice_dunning_run_items" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_dunning_run_items" to authenticated;
+grant all on "better_supabase"."invoice_dunning_run_items" to service_role;
+drop policy if exists invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items";
+create policy invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+create table if not exists "better_supabase"."invoice_dunning_history" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
+  "run_id" uuid references "better_supabase"."invoice_dunning_runs" ("id") on delete set null,
+  "kind" text not null check ("kind" in ('reminder', 'handed_over')),
+  "level" integer not null default 0,
+  "text_key" text,
+  "template_key" text,
+  "fee" bigint not null default 0,
+  "balance" bigint not null default 0,
+  "note" text,
+  "created_at" timestamptz not null default clock_timestamp()
+);
+create index if not exists invoice_dunning_history_invoice_idx on "better_supabase"."invoice_dunning_history" ("invoice_id", "created_at");
+create index if not exists invoice_dunning_history_run_idx on "better_supabase"."invoice_dunning_history" ("run_id") where "run_id" is not null;
+alter table "better_supabase"."invoice_dunning_history" enable row level security;
+revoke all on "better_supabase"."invoice_dunning_history" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_dunning_history" to authenticated;
+grant all on "better_supabase"."invoice_dunning_history" to service_role;
+drop policy if exists invoice_dunning_history_read on "better_supabase"."invoice_dunning_history";
+create policy invoice_dunning_history_read on "better_supabase"."invoice_dunning_history"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -11767,7 +13608,7 @@ begin
     
   end if;
   null;
-  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -11859,7 +13700,7 @@ begin
     perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
   end if;
   null;
-  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -12145,6 +13986,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_warnings jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -12280,7 +14122,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -12288,7 +14130,7 @@ begin
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text) order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
       'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
         from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
-        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."org_id" = v_row."org_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."org_id" = v_row."org_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb))|| case when v_warnings is null then '{}'::jsonb else jsonb_build_object('warnings', v_warnings) end;
 end;
 $$;
 revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) from public, anon;
@@ -12349,7 +14191,7 @@ begin
     select 1 from "better_supabase"."ledger_transactions" y
     where y."org_id" = v_row."org_id" and y."idempotency_key" = 'invoice-payment:' || v_reference
   ) then
-    return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+    return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -12412,7 +14254,7 @@ begin
         using v_row."id", v_payment;
     end if;
   end;
-  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -12494,7 +14336,7 @@ begin
   if credit_invoice.fixed_number is not null then
     perform "better_supabase"."issue_invoice"(v_row."id", coalesce(credit_invoice.issued_on, current_date), null, null, credit_invoice.fixed_number);
   end if;
-  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
@@ -12549,7 +14391,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -12600,7 +14442,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -12681,7 +14523,7 @@ begin
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
-  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -12757,7 +14599,7 @@ begin
   returning * into v_row;
   
   null;
-  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -12822,7 +14664,7 @@ begin
   returning * into v_row;
   
   null;
-  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -13146,7 +14988,7 @@ begin
   if v_row."status" = 'paid' and v_was <> 'paid' then
     null;
   end if;
-  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -13171,14 +15013,14 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoice_dunning_levels.tenant, 'invoices.read'), false)) then
     raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
-  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."org_id" = list_invoice_dunning_levels.tenant), '[]'::jsonb);
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'textKey', l."text_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."org_id" = list_invoice_dunning_levels.tenant), '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."list_invoice_dunning_levels"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_invoice_dunning_levels"(uuid) to authenticated, service_role;
 
 -- Replaces an organization's reminder levels. levels: [{ daysAfterDue,
--- templateKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
+-- templateKey, textKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
 -- rising. fee: minor units of the invoice's currency, added as a charge when
 -- the level is reached. Only the last level can be final.
 create or replace function "better_supabase"."set_invoice_dunning_levels"(tenant uuid, levels jsonb)
@@ -13201,6 +15043,7 @@ begin
       where jsonb_typeof(x.value) <> 'object'
         or coalesce(x.value ->> 'daysAfterDue', '') !~ '^[0-9]{1,5}$'
         or length(coalesce(trim(x.value ->> 'templateKey'), '')) not between 1 and 200
+        or length(coalesce(nullif(trim(x.value ->> 'textKey'), ''), 'x')) not between 1 and 200
         or coalesce(x.value ->> 'fee', '0') !~ '^[0-9]{1,18}$'
         or jsonb_typeof(coalesce(x.value -> 'final', 'false'::jsonb)) <> 'boolean'
         or ((x.value ->> 'final')::boolean is true and x.ordinality < jsonb_array_length(set_invoice_dunning_levels.levels))
@@ -13217,11 +15060,12 @@ begin
     raise exception 'each level comes more days after the due date than the one before' using errcode = '22023', hint = 'INVOICE_DUNNING_LEVELS_INVALID';
   end if;
   delete from "better_supabase"."invoice_dunning_levels" l where l."org_id" = set_invoice_dunning_levels.tenant;
-  insert into "better_supabase"."invoice_dunning_levels" ("org_id", "level", "days_after_due", "template_key", "fee", "final")
+  insert into "better_supabase"."invoice_dunning_levels" ("org_id", "level", "days_after_due", "template_key", "text_key", "fee", "final")
   select set_invoice_dunning_levels.tenant, x.ordinality, (x.value ->> 'daysAfterDue')::integer, trim(x.value ->> 'templateKey'),
+    nullif(trim(x.value ->> 'textKey'), ''),
     coalesce((x.value ->> 'fee')::bigint, 0), coalesce((x.value ->> 'final')::boolean, false)
   from jsonb_array_elements(set_invoice_dunning_levels.levels) with ordinality x;
-  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."org_id" = set_invoice_dunning_levels.tenant), '[]'::jsonb);
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'textKey', l."text_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."org_id" = set_invoice_dunning_levels.tenant), '[]'::jsonb);
 end;
 $$;
 revoke execute on function "better_supabase"."set_invoice_dunning_levels"(uuid, jsonb) from public, anon;
@@ -13230,8 +15074,10 @@ grant execute on function "better_supabase"."set_invoice_dunning_levels"(uuid, j
 -- Raises each overdue invoice with a balance to the highest reminder level it
 -- has reached (one organization, or all), adds the level's fee as a charge,
 -- notifies who created the invoice and records invoice.dunning_escalated with
--- the level's template key, for a sink that sends the reminder. Invoices
--- paused until today or later wait. Returns how many invoices moved up.
+-- the level's template key, for a sink that sends the reminder. Each
+-- organization's invoices go into one run (invoice_dunning_runs) with the
+-- items picked per customer and a history row per invoice. Invoices paused
+-- until today or later, and invoices handed over to collection, wait. Returns how many invoices moved up.
 create or replace function "better_supabase"."run_invoice_dunning"(tenant uuid default null, as_of date default null)
 returns integer
 language plpgsql
@@ -13243,12 +15089,15 @@ declare
   v_row "better_supabase"."invoices";
   v_level "better_supabase"."invoice_dunning_levels";
   v_count integer := 0;
+  v_run uuid;
+  v_run_tenant uuid;
 begin
   for v_row in
     select x.* from "better_supabase"."invoices" x
     where (run_invoice_dunning.tenant is null or x."org_id" = run_invoice_dunning.tenant)
       and x."kind" = 'invoice' and x."status" in ('issued', 'partially_paid') and x."direction" = 'sales'
       and x."due_on" < v_today
+      and x."collection_status" is null
       and (x."dunning_paused_until" is null or x."dunning_paused_until" < v_today)
       and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") > 0
       and exists (select 1 from "better_supabase"."invoice_dunning_levels" l where l."org_id" = x."org_id" and l."level" > x."dunning_level" and x."due_on" + l."days_after_due" <= v_today)
@@ -13268,6 +15117,17 @@ begin
       select * into v_row from "better_supabase"."invoices" x where x."id" = v_row."id";
     end if;
     null;
+
+    if v_run is null or v_run_tenant is distinct from v_row."org_id" then
+      insert into "better_supabase"."invoice_dunning_runs" ("org_id", "as_of", "created_by")
+      values (v_row."org_id", v_today, auth.uid())
+      returning "id" into v_run;
+      v_run_tenant := v_row."org_id";
+    end if;
+    insert into "better_supabase"."invoice_dunning_run_items" ("org_id", "run_id", "party_id", "invoice_id", "level", "text_key", "template_key", "fee", "balance", "due_on")
+    values (v_row."org_id", v_run, coalesce(v_row."company_id"::text, v_row."contact_id"::text), v_row."id", v_level."level", v_level."text_key", v_level."template_key", v_level."fee", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"), v_row."due_on");
+    insert into "better_supabase"."invoice_dunning_history" ("org_id", "invoice_id", "run_id", "kind", "level", "text_key", "template_key", "fee", "balance")
+    values (v_row."org_id", v_row."id", v_run, 'reminder', v_level."level", v_level."text_key", v_level."template_key", v_level."fee", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"));
     v_count := v_count + 1;
   end loop;
   return v_count;
@@ -13306,7 +15166,7 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
       'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
@@ -13319,6 +15179,162 @@ end;
 $$;
 revoke execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) from public, anon;
 grant execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) to authenticated, service_role;
+
+-- The dunning runs of an organization, newest first: { id, asOf, items,
+-- customers }.
+create or replace function "better_supabase"."list_invoice_dunning_runs"(tenant uuid, max integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoice_dunning_runs.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', z.id, 'asOf', z.as_of, 'createdAt', z.created_at, 'items', z.items, 'customers', z.customers) order by z.created_at desc)
+    from (
+      select a."id" as id, a."as_of" as as_of, a."created_at" as created_at,
+        (select count(*) from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = a."id") as items,
+        (select count(distinct x."party_id") from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = a."id") as customers
+      from "better_supabase"."invoice_dunning_runs" a where a."org_id" = list_invoice_dunning_runs.tenant
+      order by a."created_at" desc limit least(greatest(coalesce(list_invoice_dunning_runs.max, 50), 1), 500)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_runs"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_runs"(uuid, integer) to authenticated, service_role;
+
+-- The items a run picked, grouped by customer: [{ partyId, balance, fee,
+-- items: [{ invoiceId, level, textKey, templateKey, fee, balance, dueOn }] }].
+-- Amounts are text.
+create or replace function "better_supabase"."list_invoice_dunning_run_items"(run uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  select a."org_id" into v_tenant from "better_supabase"."invoice_dunning_runs" a where a."id" = list_invoice_dunning_run_items.run;
+  if v_tenant is null then
+    raise exception 'no such dunning run' using errcode = 'P0002', hint = 'INVOICE_DUNNING_RUN_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('partyId', g.party, 'balance', g.balance::text, 'fee', g.fee::text, 'items', g.items) order by g.party nulls last)
+    from (
+      select x."party_id" as party, sum(x."balance") as balance, sum(x."fee") as fee,
+        jsonb_agg(jsonb_build_object('invoiceId', x."invoice_id", 'level', x."level", 'textKey', x."text_key", 'templateKey', x."template_key",
+          'fee', x."fee"::text, 'balance', x."balance"::text, 'dueOn', x."due_on") order by x."due_on", x."invoice_id") as items
+      from "better_supabase"."invoice_dunning_run_items" x where x."run_id" = list_invoice_dunning_run_items.run
+      group by x."party_id"
+    ) g
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_run_items"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_run_items"(uuid) to authenticated, service_role;
+
+-- What happened to an invoice in collections, oldest first: [{ kind
+-- (reminder or handed_over), level, textKey, templateKey, fee, balance, note,
+-- runId, at }].
+create or replace function "better_supabase"."list_invoice_dunning_history"(invoice uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  select x."org_id" into v_tenant from "better_supabase"."invoices" x where x."id" = list_invoice_dunning_history.invoice;
+  if v_tenant is null then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('kind', x."kind", 'level', x."level", 'textKey', x."text_key", 'templateKey', x."template_key",
+      'fee', x."fee"::text, 'balance', x."balance"::text, 'note', x."note", 'runId', x."run_id", 'at', x."created_at")
+      order by x."created_at", x."id")
+    from "better_supabase"."invoice_dunning_history" x where x."invoice_id" = list_invoice_dunning_history.invoice
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_history"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_history"(uuid) to authenticated, service_role;
+
+-- Hands open sales invoices over to a collection agency, a company or person
+-- (agency_party_id). Their dunning stops, collection_status becomes
+-- handed_over, and each invoice records invoice.collection_started and
+-- a history row. At most 500 invoices; one that isn't an open sales invoice,
+-- or was handed over already, refuses the whole call. Needs invoices.collect.
+-- Returns the invoices.
+create or replace function "better_supabase"."hand_over_to_collection"(invoice_ids uuid[], agency_party_id text, note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_id uuid;
+  v_result jsonb := '[]'::jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if nullif(trim(hand_over_to_collection.agency_party_id), '') is null or length(hand_over_to_collection.agency_party_id) > 150
+    or coalesce(array_length(hand_over_to_collection.invoice_ids, 1), 0) not between 1 and 500
+    or length(hand_over_to_collection.note) > 2000 then
+    raise exception 'hand over 1 to 500 invoices to an agency party, with a note of at most 2000 characters' using errcode = '22023', hint = 'INVOICE_HAND_OVER_INVALID';
+  end if;
+  for v_id in select distinct x from unnest(hand_over_to_collection.invoice_ids) x order by x loop
+    select * into v_row from "better_supabase"."invoices" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.collect' end), false)) for update;
+    if v_row."id" is null then
+      raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+    end if;
+    if not v_row."kind" = 'invoice' or v_row."status" not in ('issued', 'partially_paid') or v_row."direction" <> 'sales' then
+      raise exception 'only an open sales invoice goes to collection' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
+    end if;
+    if v_row."collection_status" is not null then
+      raise exception 'the invoice was handed over to collection already' using errcode = '55000', hint = 'INVOICE_ALREADY_HANDED_OVER';
+    end if;
+    update "better_supabase"."invoices" x set
+      "collection_status" = 'handed_over',
+      "collection_agency_id" = trim(hand_over_to_collection.agency_party_id),
+      "collection_handed_at" = now(),
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    insert into "better_supabase"."invoice_dunning_history" ("org_id", "invoice_id", "kind", "level", "balance", "note")
+    values (v_row."org_id", v_row."id", 'handed_over', v_row."dunning_level", (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total"), nullif(trim(hand_over_to_collection.note), ''));
+    null;
+    v_result := v_result || (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
+      'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
+      'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text) order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."org_id" = v_row."org_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+  end loop;
+  return v_result;
+end;
+$$;
+revoke execute on function "better_supabase"."hand_over_to_collection"(uuid[], text, text) from public, anon;
+grant execute on function "better_supabase"."hand_over_to_collection"(uuid[], text, text) to authenticated, service_role;
 
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
@@ -13609,6 +15625,69 @@ create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_leve
   with check ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 

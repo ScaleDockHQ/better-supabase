@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:15d0cedaf4769f94941ad79b8447f2ffbac5344b1805512710ea965178c931f8
+-- @bsb-hash sha256:0749163821e186c81fd29198005e8b33d137cd70dc3c77627086f184ccff375a
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1087,6 +1087,7 @@ declare
   v_location uuid;
   v_reservation jsonb;
   v_claims text;
+  v_warnings jsonb;
 begin
   if auth.role() is distinct from 'service_role' then
     raise exception 'only the service role can do this' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
@@ -1179,7 +1180,8 @@ begin
         using v_order.id;
     end if;
   end;
-  return "better_supabase"."order_json"(v_order.id) || jsonb_build_object('created', true);
+  return "better_supabase"."order_json"(v_order.id) || jsonb_build_object('created', true)
+    || case when v_warnings is null then '{}'::jsonb else jsonb_build_object('warnings', v_warnings) end;
 end;
 $$;
 revoke execute on function "better_supabase"."place_order"(uuid, jsonb, bigint, uuid) from public, anon, authenticated;

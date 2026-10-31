@@ -1039,7 +1039,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:a5b1dc08c4b7636e456978c75a8e2270466e8e2628271762b522acfe23192ead
+-- @bsb-hash sha256:10b47b789ec37d6b13f02ec64e94025591fceceac711a2ecea4af424b4c2f1bb
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1810,7 +1810,7 @@ begin
   select "better_supabase"."tax_compute_lines"(
     coalesce((select jsonb_agg(jsonb_build_object('quantity', x."quantity", 'unitAmount', x."unit_amount"::text, 'discountBps', x."discount_bps", 'discountAmount', x."discount_amount"::text, 'taxRateBps', x."tax_rate_bps", 'taxCodeId', x."tax_code_id", 'unitCost', x."unit_cost"::text) order by x."position") from "better_supabase"."invoice_lines" x
       where x."parent_id" = v_inv."id" and true), '[]'::jsonb),
-    issue_invoice_tax.on_date, v_inv."prices_include_tax", 0,
+    issue_invoice_tax.on_date, v_inv."prices_include_tax", coalesce((select z."credit_restriction_bps" from "better_supabase"."payment_terms" z where z."id" = v_inv."payment_terms_id"), 0),
     0, 0)
   into v_result;
   delete from "better_supabase"."invoice_tax_lines" x where x."invoice_id" = v_inv."id";

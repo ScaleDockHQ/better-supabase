@@ -3273,7 +3273,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "inbox",
         "identities",
         "relations",
-        "qualifications"
+        "qualifications",
+        "imports"
       ],
       "manifest": "contacts",
       "scopes": [
@@ -3334,10 +3335,13 @@ export const PRESET_CATALOG: PresetCatalog = {
               "owner": "owner_user_id",
               "address": "address",
               "roles": "roles",
-              "paymentTermsDays": "payment_terms_days",
+              "customerTermsId": "customer_terms_id",
+              "supplierTermsId": "supplier_terms_id",
               "creditLimit": "credit_limit",
               "creditCurrency": "credit_currency",
+              "creditBlock": "credit_block",
               "supplierStatus": "supplier_status",
+              "language": "language",
               "mergedInto": "merged_into",
               "archivedAt": "archived_at",
               "createdBy": "created_by",
@@ -3360,10 +3364,13 @@ export const PRESET_CATALOG: PresetCatalog = {
               "avatarUrl": "avatar_url",
               "metadata": "metadata",
               "roles": "roles",
-              "paymentTermsDays": "payment_terms_days",
+              "customerTermsId": "customer_terms_id",
+              "supplierTermsId": "supplier_terms_id",
               "creditLimit": "credit_limit",
               "creditCurrency": "credit_currency",
+              "creditBlock": "credit_block",
               "supplierStatus": "supplier_status",
+              "language": "language",
               "mergedInto": "merged_into",
               "archivedAt": "archived_at",
               "createdBy": "created_by",
@@ -3917,6 +3924,12 @@ export const PRESET_CATALOG: PresetCatalog = {
               "dunningAt": "dunning_at",
               "dunningPausedUntil": "dunning_paused_until",
               "buyer": "buyer",
+              "paymentTermsId": "payment_terms_id",
+              "discountDueOn": "discount_due_on",
+              "discountAmountEarly": "discount_amount_early",
+              "collectionStatus": "collection_status",
+              "collectionAgencyId": "collection_agency_id",
+              "collectionHandedAt": "collection_handed_at",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
@@ -24267,6 +24280,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceCharge"
         },
         {
+          "name": "InvoiceCollection"
+        },
+        {
           "name": "InvoiceCollections"
         },
         {
@@ -24276,10 +24292,22 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceDunning"
         },
         {
+          "name": "InvoiceDunningHistoryEntry"
+        },
+        {
           "name": "InvoiceDunningLevel"
         },
         {
           "name": "InvoiceDunningLevelInput"
+        },
+        {
+          "name": "InvoiceDunningRun"
+        },
+        {
+          "name": "InvoiceDunningRunCustomer"
+        },
+        {
+          "name": "InvoiceDunningRunItem"
         },
         {
           "name": "InvoiceInput",
@@ -24302,6 +24330,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoicePayment"
         },
         {
+          "name": "InvoicePaymentTerms"
+        },
+        {
           "name": "Invoices",
           "fields": true
         },
@@ -24313,6 +24344,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "InvoiceStatus"
+        },
+        {
+          "name": "InvoiceWarning"
         },
         {
           "name": "SendEInvoiceOptions"
@@ -24336,7 +24370,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invoice.match_checked",
           "invoice.credit_applied",
           "invoice.dunning_escalated",
-          "invoice.dunning_paused"
+          "invoice.dunning_paused",
+          "invoice.collection_started"
         ]
       },
       "schedules": [
@@ -25882,12 +25917,30 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true
               },
-              "paymentTermsDays": {
-                "kind": "integer",
+              "customerTermsId": {
+                "kind": "uuid",
                 "optional": true,
-                "nullable": true,
-                "minimum": 0,
-                "maximum": 3650
+                "nullable": true
+              },
+              "supplierTermsId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "creditBlock": {
+                "kind": "enum",
+                "values": [
+                  "none",
+                  "soft",
+                  "hard"
+                ],
+                "optional": true,
+                "nullable": true
+              },
+              "language": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
               },
               "creditLimit": {
                 "kind": "custom",
@@ -25944,13 +25997,37 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "format": "uuid"
                 },
                 "address": {},
-                "paymentTermsDays": {
+                "customerTermsId": {
                   "type": [
-                    "integer",
+                    "string",
                     "null"
                   ],
-                  "minimum": 0,
-                  "maximum": 3650
+                  "format": "uuid"
+                },
+                "supplierTermsId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "creditBlock": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "none",
+                    "soft",
+                    "hard",
+                    null
+                  ]
+                },
+                "language": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "creditLimit": {
                   "title": "Money",
@@ -26104,12 +26181,30 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true
               },
-              "paymentTermsDays": {
-                "kind": "integer",
+              "customerTermsId": {
+                "kind": "uuid",
                 "optional": true,
-                "nullable": true,
-                "minimum": 0,
-                "maximum": 3650
+                "nullable": true
+              },
+              "supplierTermsId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "creditBlock": {
+                "kind": "enum",
+                "values": [
+                  "none",
+                  "soft",
+                  "hard"
+                ],
+                "optional": true,
+                "nullable": true
+              },
+              "language": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
               },
               "creditLimit": {
                 "kind": "custom",
@@ -26172,13 +26267,37 @@ export const PRESET_CATALOG: PresetCatalog = {
                   ],
                   "format": "uuid"
                 },
-                "paymentTermsDays": {
+                "customerTermsId": {
                   "type": [
-                    "integer",
+                    "string",
                     "null"
                   ],
-                  "minimum": 0,
-                  "maximum": 3650
+                  "format": "uuid"
+                },
+                "supplierTermsId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "creditBlock": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "none",
+                    "soft",
+                    "hard",
+                    null
+                  ]
+                },
+                "language": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "creditLimit": {
                   "title": "Money",

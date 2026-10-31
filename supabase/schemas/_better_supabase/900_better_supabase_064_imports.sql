@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:be206182105e3bfb8864812327efedade4d4653112745ad377e5e204aff202ea
+-- @bsb-hash sha256:2fdf40a0ae3e57dcabe779ee5091ded528313a61149fb481eed6dedc90d40320
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -375,7 +375,7 @@ declare
   v_hint text;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'order', 'quote', 'invoice', 'credit_note', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'customer']::text[]) then
+  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'order', 'payment_term', 'document_delivery_preference', 'quote', 'invoice', 'credit_note', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'customer']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -443,6 +443,10 @@ begin
           v_current := "better_supabase"."product_identifier_updated_at"(v_rec."subject_id");
         when 'order' then
           v_current := "better_supabase"."order_updated_at"(v_rec."subject_id");
+        when 'payment_term' then
+          v_current := "better_supabase"."payment_term_updated_at"(v_rec."subject_id");
+        when 'document_delivery_preference' then
+          v_current := "better_supabase"."document_delivery_preference_updated_at"(v_rec."subject_id");
         when 'quote' then
           v_current := "better_supabase"."quote_updated_at"(v_rec."subject_id");
         when 'invoice' then
@@ -485,6 +489,12 @@ begin
       when 'order' then
         v_subject_type := 'order';
         v_out := "better_supabase"."import_order"(v_run_id, v_call, v_subject_id);
+      when 'payment_term' then
+        v_subject_type := 'payment_term';
+        v_out := "better_supabase"."import_payment_term"(v_run_id, v_call, v_subject_id);
+      when 'document_delivery_preference' then
+        v_subject_type := 'document_delivery_preference';
+        v_out := "better_supabase"."import_document_delivery_preference"(v_run_id, v_call, v_subject_id);
       when 'quote' then
         v_subject_type := 'quote';
         v_out := "better_supabase"."import_quote"(v_run_id, v_call, v_subject_id);
