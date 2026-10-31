@@ -1,6 +1,6 @@
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:712ef6bd8012a38096b9da2bdb076ec6b682aa7886aa19a3db56b0b43c95a673
+-- @bsb-hash sha256:866ab824250daad878d8f681f5f97d6a6d296f77ee6a8b6141892b449f920b25
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -719,6 +719,7 @@ begin
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (record_observation.subject_id)::uuid)
       when 'meeting' then (select s."tenant_id"::text from "better_supabase"."meetings" s where s."id" = (record_observation.subject_id)::uuid)
       when 'meeting_decision' then (select s."tenant_id"::text from "better_supabase"."meeting_decisions" s where s."id" = (record_observation.subject_id)::uuid)
+      when 'maintenance_plan' then (select s."tenant_id"::text from "better_supabase"."maintenance_plans" s where s."id" = (record_observation.subject_id)::uuid)
       when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (record_observation.subject_id)::uuid)
       when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (record_observation.subject_id)::uuid)
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (record_observation.subject_id)::uuid)
@@ -773,6 +774,7 @@ begin
       when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'meeting' then exists (select 1 from "better_supabase"."meetings" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'meeting_decision' then exists (select 1 from "better_supabase"."meeting_decisions" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
+      when 'maintenance_plan' then exists (select 1 from "better_supabase"."maintenance_plans" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'production_order' then exists (select 1 from "better_supabase"."production_orders" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'work_center' then exists (select 1 from "better_supabase"."work_centers" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
@@ -870,6 +872,7 @@ begin
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'meeting' then (select s."tenant_id"::text from "better_supabase"."meetings" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'meeting_decision' then (select s."tenant_id"::text from "better_supabase"."meeting_decisions" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'maintenance_plan' then (select s."tenant_id"::text from "better_supabase"."maintenance_plans" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid)
@@ -924,6 +927,7 @@ begin
       when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'meeting' then exists (select 1 from "better_supabase"."meetings" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'meeting_decision' then exists (select 1 from "better_supabase"."meeting_decisions" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
+      when 'maintenance_plan' then exists (select 1 from "better_supabase"."maintenance_plans" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'production_order' then exists (select 1 from "better_supabase"."production_orders" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'work_center' then exists (select 1 from "better_supabase"."work_centers" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
@@ -1033,6 +1037,7 @@ begin
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'meeting' then (select s."tenant_id"::text from "better_supabase"."meetings" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'meeting_decision' then (select s."tenant_id"::text from "better_supabase"."meeting_decisions" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'maintenance_plan' then (select s."tenant_id"::text from "better_supabase"."maintenance_plans" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid)
@@ -1087,6 +1092,7 @@ begin
       when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'meeting' then exists (select 1 from "better_supabase"."meetings" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'meeting_decision' then exists (select 1 from "better_supabase"."meeting_decisions" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
+      when 'maintenance_plan' then exists (select 1 from "better_supabase"."maintenance_plans" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'production_order' then exists (select 1 from "better_supabase"."production_orders" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'work_center' then exists (select 1 from "better_supabase"."work_centers" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
@@ -1182,6 +1188,7 @@ begin
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (v_old."subject_id")::uuid)
       when 'meeting' then (select s."tenant_id"::text from "better_supabase"."meetings" s where s."id" = (v_old."subject_id")::uuid)
       when 'meeting_decision' then (select s."tenant_id"::text from "better_supabase"."meeting_decisions" s where s."id" = (v_old."subject_id")::uuid)
+      when 'maintenance_plan' then (select s."tenant_id"::text from "better_supabase"."maintenance_plans" s where s."id" = (v_old."subject_id")::uuid)
       when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (v_old."subject_id")::uuid)
       when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (v_old."subject_id")::uuid)
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (v_old."subject_id")::uuid)
@@ -1236,6 +1243,7 @@ begin
       when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'meeting' then exists (select 1 from "better_supabase"."meetings" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'meeting_decision' then exists (select 1 from "better_supabase"."meeting_decisions" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
+      when 'maintenance_plan' then exists (select 1 from "better_supabase"."maintenance_plans" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'production_order' then exists (select 1 from "better_supabase"."production_orders" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'work_center' then exists (select 1 from "better_supabase"."work_centers" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
@@ -1372,6 +1380,7 @@ begin
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (v_row."subject_id")::uuid)
       when 'meeting' then (select s."tenant_id"::text from "better_supabase"."meetings" s where s."id" = (v_row."subject_id")::uuid)
       when 'meeting_decision' then (select s."tenant_id"::text from "better_supabase"."meeting_decisions" s where s."id" = (v_row."subject_id")::uuid)
+      when 'maintenance_plan' then (select s."tenant_id"::text from "better_supabase"."maintenance_plans" s where s."id" = (v_row."subject_id")::uuid)
       when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (v_row."subject_id")::uuid)
       when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (v_row."subject_id")::uuid)
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (v_row."subject_id")::uuid)
@@ -1426,6 +1435,7 @@ begin
       when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'meeting' then exists (select 1 from "better_supabase"."meetings" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'meeting_decision' then exists (select 1 from "better_supabase"."meeting_decisions" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'maintenance_plan' then exists (select 1 from "better_supabase"."maintenance_plans" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'production_order' then exists (select 1 from "better_supabase"."production_orders" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'work_center' then exists (select 1 from "better_supabase"."work_centers" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -1741,6 +1751,7 @@ begin
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'meeting' then (select s."tenant_id"::text from "better_supabase"."meetings" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'meeting_decision' then (select s."tenant_id"::text from "better_supabase"."meeting_decisions" s where s."id" = (v_sub."subject_id"::text)::uuid)
+      when 'maintenance_plan' then (select s."tenant_id"::text from "better_supabase"."maintenance_plans" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (v_sub."subject_id"::text)::uuid)
@@ -1795,6 +1806,7 @@ begin
       when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'meeting' then exists (select 1 from "better_supabase"."meetings" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'meeting_decision' then exists (select 1 from "better_supabase"."meeting_decisions" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
+      when 'maintenance_plan' then exists (select 1 from "better_supabase"."maintenance_plans" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'production_order' then exists (select 1 from "better_supabase"."production_orders" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'work_center' then exists (select 1 from "better_supabase"."work_centers" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)

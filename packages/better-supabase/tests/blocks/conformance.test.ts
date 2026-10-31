@@ -112,6 +112,9 @@ const NO_FIELDS: readonly string[] = [
   "legal-entities",
   // Mailboxes, threads and messages mirror a provider's mail; app data goes on the linked records.
   "mail-sync",
+  // Plans, meters and calibrations are fixed records; app data goes on the
+  // dispatch work orders and the assets.
+  "maintenance",
   // Meetings, attendees, agendas and decisions are fixed records; app data
   // goes on the linked tasks and documents.
   "meetings",

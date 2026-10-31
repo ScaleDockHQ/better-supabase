@@ -33,6 +33,7 @@ export const QUALITY: readonly string[] = [
   "cases",
   "inspections",
   "meetings",
+  "maintenance",
   "risks",
   "qualifications",
   "courses",

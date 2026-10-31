@@ -366,6 +366,7 @@ export interface BlockOptionsRegistry {
   readonly incidents: IncidentsSqlOptions;
   readonly inspections: InspectionsSqlOptions;
   readonly meetings: MeetingsSqlOptions;
+  readonly maintenance: Record<never, never>;
   readonly inventory: InventorySqlOptions;
   readonly invitations: InvitationsSqlOptions;
   readonly invoices: InvoicesSqlOptions;
@@ -548,6 +549,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   identities: identitiesSqlOptions,
   "legal-entities": legalEntitiesSqlOptions,
   "mail-sync": mailSyncSqlOptions,
+  maintenance: NO_OPTIONS,
   memberships: membershipsSqlOptions,
   memory: memorySqlOptions,
   messaging: messagingSqlOptions,

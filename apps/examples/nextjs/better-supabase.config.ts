@@ -392,7 +392,7 @@ export default defineConfig({
       names: { task: { name: "work_item", url: "/work" } },
     },
     // A second tasks instance: maintenance requests on leased units.
-    maintenance: {
+    facilities: {
       block: "tasks",
       names: { task: "maintenance_request" },
       tables: { projects: null, iterations: null },
@@ -461,6 +461,9 @@ export default defineConfig({
     // Meetings with an agenda, minutes, votes on decisions and action items
     // that open as tasks; planned meetings mirror to the "Meetings" calendar.
     meetings: { options: { calendar: "Meetings" }, uses: { tasks: "tasks" } },
+    // Preventive plans by time or meter that open dispatch work orders with
+    // their spare parts, plus meter readings and calibrations.
+    maintenance: {},
     // Vital signs on a customer's record, with the seeded vitals definitions;
     // a critical value alerts the record's leads.
     observations: { options: { defaults: "vitals" } },

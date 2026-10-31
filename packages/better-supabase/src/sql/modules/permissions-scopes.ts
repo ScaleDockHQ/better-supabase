@@ -297,6 +297,7 @@ export const MODULE_PERMISSION_SCOPES: {
     manage: "tenant",
   },
   inspections: { read: "tenant", write: "tenant", manage: "tenant" },
+  maintenance: { read: "tenant", record: "tenant", manage: "tenant" },
   meetings: { read: "tenant", write: "tenant", manage: "tenant" },
   manufacturing: {
     read: "tenant",

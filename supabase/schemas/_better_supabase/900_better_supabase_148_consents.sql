@@ -1,6 +1,6 @@
 -- better-supabase module: consents
 -- @bsb-block consents@1 managed
--- @bsb-hash sha256:18c0d8ddfdc08f2aa753f90428b8faea88e00e5ed0cc63c71759dbaebc7618a7
+-- @bsb-hash sha256:bdc0b4348eaf624d24dbdb57f85d46af3177022526dd914ba103edd4019abe8c
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -390,6 +390,7 @@ begin
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (record_consent.subject_id)::uuid)
       when 'meeting' then (select s."tenant_id"::text from "better_supabase"."meetings" s where s."id" = (record_consent.subject_id)::uuid)
       when 'meeting_decision' then (select s."tenant_id"::text from "better_supabase"."meeting_decisions" s where s."id" = (record_consent.subject_id)::uuid)
+      when 'maintenance_plan' then (select s."tenant_id"::text from "better_supabase"."maintenance_plans" s where s."id" = (record_consent.subject_id)::uuid)
       when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (record_consent.subject_id)::uuid)
       when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (record_consent.subject_id)::uuid)
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (record_consent.subject_id)::uuid)
@@ -743,6 +744,7 @@ declare
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (consent_active.subject_id)::uuid)
       when 'meeting' then (select s."tenant_id"::text from "better_supabase"."meetings" s where s."id" = (consent_active.subject_id)::uuid)
       when 'meeting_decision' then (select s."tenant_id"::text from "better_supabase"."meeting_decisions" s where s."id" = (consent_active.subject_id)::uuid)
+      when 'maintenance_plan' then (select s."tenant_id"::text from "better_supabase"."maintenance_plans" s where s."id" = (consent_active.subject_id)::uuid)
       when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (consent_active.subject_id)::uuid)
       when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (consent_active.subject_id)::uuid)
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (consent_active.subject_id)::uuid)
@@ -845,6 +847,7 @@ declare
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (list_consents.subject_id)::uuid)
       when 'meeting' then (select s."tenant_id"::text from "better_supabase"."meetings" s where s."id" = (list_consents.subject_id)::uuid)
       when 'meeting_decision' then (select s."tenant_id"::text from "better_supabase"."meeting_decisions" s where s."id" = (list_consents.subject_id)::uuid)
+      when 'maintenance_plan' then (select s."tenant_id"::text from "better_supabase"."maintenance_plans" s where s."id" = (list_consents.subject_id)::uuid)
       when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (list_consents.subject_id)::uuid)
       when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (list_consents.subject_id)::uuid)
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (list_consents.subject_id)::uuid)

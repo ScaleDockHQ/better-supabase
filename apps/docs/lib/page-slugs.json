@@ -121,6 +121,7 @@
   "blocks/ledger",
   "blocks/legal-entities",
   "blocks/mail-sync",
+  "blocks/maintenance",
   "blocks/manufacturing",
   "blocks/medications",
   "blocks/meetings",

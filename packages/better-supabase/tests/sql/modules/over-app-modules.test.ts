@@ -111,6 +111,7 @@ const MODULES = [
   "inspections",
   "meetings",
   "payroll-export",
+  "maintenance",
   "manufacturing",
   "legal-entities",
   "funding",
