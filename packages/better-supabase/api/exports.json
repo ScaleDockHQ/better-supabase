@@ -9488,6 +9488,48 @@
       "RpcClient"
     ]
   },
+  "./blocks/maintenance": {
+    "values": [
+      "createMaintenance",
+      "dbTransport",
+      "extendBlock",
+      "maintenanceBlock",
+      "maintenanceCalibrationInputSchema",
+      "maintenanceEvents",
+      "maintenancePlanInputSchema",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Maintenance",
+      "MaintenanceCalibration",
+      "MaintenanceCalibrationEventData",
+      "MaintenanceCalibrationInput",
+      "MaintenanceCalibrationListOptions",
+      "MaintenanceCalibrationResult",
+      "MaintenanceEvents",
+      "MaintenanceGenerated",
+      "MaintenanceMeter",
+      "MaintenanceMeterReadingEventData",
+      "MaintenanceOptions",
+      "MaintenancePart",
+      "MaintenancePlan",
+      "MaintenancePlanChange",
+      "MaintenancePlanEventData",
+      "MaintenancePlanInput",
+      "MaintenancePlanKind",
+      "MaintenancePlanListOptions",
+      "MaintenancePlanStatus",
+      "MaintenancePlanWorkOrderEventData",
+      "MaintenancePriority",
+      "RpcClient"
+    ]
+  },
   "./blocks/manufacturing": {
     "values": [
       "bomInputSchema",

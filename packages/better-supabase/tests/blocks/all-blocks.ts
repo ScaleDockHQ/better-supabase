@@ -77,6 +77,7 @@ import type { leaveBlock } from "../../src/blocks/leave/manifest.ts";
 import type { ledgerBlock } from "../../src/blocks/ledger/manifest.ts";
 import type { legalEntitiesBlock } from "../../src/blocks/legal-entities/manifest.ts";
 import type { mailSyncBlock } from "../../src/blocks/mail-sync/manifest.ts";
+import type { maintenanceBlock } from "../../src/blocks/maintenance/manifest.ts";
 import type { manufacturingBlock } from "../../src/blocks/manufacturing/manifest.ts";
 import type { medicationsBlock } from "../../src/blocks/medications/manifest.ts";
 import type { meetingsBlock } from "../../src/blocks/meetings/manifest.ts";
@@ -237,6 +238,7 @@ export type AllBlocks = {
   readonly incidents: typeof incidentsBlock;
   readonly inspections: typeof inspectionsBlock;
   readonly meetings: typeof meetingsBlock;
+  readonly maintenance: typeof maintenanceBlock;
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
   readonly funding: typeof fundingBlock;

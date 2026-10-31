@@ -12,6 +12,7 @@ import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { AssetsEvents } from "better-supabase/blocks/assets";
 import type { ModerationEvents } from "better-supabase/blocks/moderation";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
+import type { DispatchEvents } from "better-supabase/blocks/dispatch";
 import type { ComplianceEvents } from "better-supabase/blocks/compliance";
 import type { AcknowledgementsEvents } from "better-supabase/blocks/acknowledgements";
 import type { CoursesEvents } from "better-supabase/blocks/courses";
@@ -21,6 +22,7 @@ import type { RisksEvents } from "better-supabase/blocks/risks";
 import type { CasesEvents } from "better-supabase/blocks/cases";
 import type { InspectionsEvents } from "better-supabase/blocks/inspections";
 import type { MeetingsEvents } from "better-supabase/blocks/meetings";
+import type { MaintenanceEvents } from "better-supabase/blocks/maintenance";
 import type { DriveEvents } from "better-supabase/blocks/drive";
 import type { EmployeesEvents } from "better-supabase/blocks/employees";
 import type { FormsEvents } from "better-supabase/blocks/forms";
@@ -49,6 +51,7 @@ import { commentsBlock as commentsBlockInstance } from "better-supabase/blocks/c
 import { assetsBlock as assetsBlockInstance } from "better-supabase/blocks/assets";
 import { moderationBlock as moderationBlockInstance } from "better-supabase/blocks/moderation";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
+import { dispatchBlock as dispatchBlockInstance } from "better-supabase/blocks/dispatch";
 import { complianceBlock as complianceBlockInstance } from "better-supabase/blocks/compliance";
 import { acknowledgementsBlock as acknowledgementsBlockInstance } from "better-supabase/blocks/acknowledgements";
 import { coursesBlock as coursesBlockInstance } from "better-supabase/blocks/courses";
@@ -58,6 +61,7 @@ import { risksBlock as risksBlockInstance } from "better-supabase/blocks/risks";
 import { casesBlock as casesBlockInstance } from "better-supabase/blocks/cases";
 import { inspectionsBlock as inspectionsBlockInstance } from "better-supabase/blocks/inspections";
 import { meetingsBlock as meetingsBlockInstance } from "better-supabase/blocks/meetings";
+import { maintenanceBlock as maintenanceBlockInstance } from "better-supabase/blocks/maintenance";
 import { driveBlock as driveBlockInstance } from "better-supabase/blocks/drive";
 import { employeesBlock as employeesBlockInstance } from "better-supabase/blocks/employees";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
@@ -131,6 +135,12 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  dispatch: {
+    schema: "better_supabase",
+    options: {
+      timeZone: "UTC",
+    },
+  },
   compliance: {
     schema: "better_supabase",
     options: {},
@@ -164,6 +174,10 @@ export const blockConfig = {
     options: {},
   },
   meetings: {
+    schema: "better_supabase",
+    options: {},
+  },
+  maintenance: {
     schema: "better_supabase",
     options: {},
   },
@@ -296,6 +310,7 @@ export const blocks = {
   assets: assetsBlockInstance,
   moderation: moderationBlockInstance,
   enrollments: enrollmentsBlockInstance,
+  dispatch: dispatchBlockInstance,
   compliance: complianceBlockInstance,
   acknowledgements: acknowledgementsBlockInstance,
   courses: coursesBlockInstance,
@@ -305,6 +320,7 @@ export const blocks = {
   cases: casesBlockInstance,
   inspections: inspectionsBlockInstance,
   meetings: meetingsBlockInstance,
+  maintenance: maintenanceBlockInstance,
   drive: driveBlockInstance,
   employees: employeesBlockInstance,
   entitlements: entitlementsBlockInstance,
@@ -431,6 +447,11 @@ export const permissions = {
     enroll: "courses.enroll",
     manage: "courses.manage",
   },
+  dispatch: {
+    read: "dispatch.read",
+    manage: "dispatch.manage",
+    work: "dispatch.work",
+  },
   drive: {
     read: "drive.read",
     create: "drive.create",
@@ -481,6 +502,15 @@ export const permissions = {
     invite: "members.invite",
     revoke: "members.invite",
     view: "members.invite",
+  },
+  maintenance: {
+    read: "maintenance.read",
+    record: "maintenance.record",
+    manage: "maintenance.manage",
+  },
+  maintenance_plan: {
+    read: "maintenance.read",
+    write: "maintenance.manage",
   },
   meeting: {
     read: "meetings.read",
@@ -613,6 +643,10 @@ export const permissions = {
     restore: "versions.restore",
     manage: "versions.manage",
   },
+  work_order: {
+    read: "dispatch.read",
+    write: "dispatch.manage",
+  },
 } as const;
 
 /**
@@ -620,13 +654,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "compliance.collect" | "compliance.manage" | "compliance.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "meetings.manage" | "meetings.read" | "meetings.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "compliance.collect" | "compliance.manage" | "compliance.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "maintenance.manage" | "maintenance.read" | "maintenance.record" | "meetings.manage" | "meetings.read" | "meetings.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & AssetsEvents & ModerationEvents & EnrollmentsEvents & ComplianceEvents & AcknowledgementsEvents & CoursesEvents & PostsEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & DriveEvents & EmployeesEvents & FormsEvents & SignaturesEvents & MessagingEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & ReactionsEvents & RelationsEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & VersionsEvents & TasksEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & AssetsEvents & ModerationEvents & EnrollmentsEvents & DispatchEvents & ComplianceEvents & AcknowledgementsEvents & CoursesEvents & PostsEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DriveEvents & EmployeesEvents & FormsEvents & SignaturesEvents & MessagingEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & ReactionsEvents & RelationsEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & VersionsEvents & TasksEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -711,6 +745,7 @@ export const blockEvents: Events<BlockEvents> = {
     "course_certificate.issued",
     "course_certificate.revoked",
     "course_lesson.completed",
+    "dispatch_route.planned",
     "drive.connection_created",
     "drive.connection_removed",
     "drive.created",
@@ -778,6 +813,13 @@ export const blockEvents: Events<BlockEvents> = {
     "invitation.resent",
     "invitation.revoked",
     "invitation.updated",
+    "maintenance_calibration.recorded",
+    "maintenance_meter_reading.recorded",
+    "maintenance_plan.completed",
+    "maintenance_plan.created",
+    "maintenance_plan.deleted",
+    "maintenance_plan.triggered",
+    "maintenance_plan.updated",
     "meeting.cancelled",
     "meeting.concluded",
     "meeting.created",
@@ -892,6 +934,12 @@ export const blockEvents: Events<BlockEvents> = {
     "version.created",
     "version.deleted",
     "version.restored",
+    "work_order.created",
+    "work_order.part_used",
+    "work_order.scheduled",
+    "work_order.status_changed",
+    "work_order.unscheduled",
+    "work_order.updated",
   ],
 };
 
@@ -976,6 +1024,7 @@ export const blockEventSchemas = {
   "course_certificate.issued": true,
   "course_certificate.revoked": true,
   "course_lesson.completed": true,
+  "dispatch_route.planned": true,
   "drive.connection_created": true,
   "drive.connection_removed": true,
   "drive.created": true,
@@ -1043,6 +1092,13 @@ export const blockEventSchemas = {
   "invitation.resent": true,
   "invitation.revoked": true,
   "invitation.updated": true,
+  "maintenance_calibration.recorded": true,
+  "maintenance_meter_reading.recorded": true,
+  "maintenance_plan.completed": true,
+  "maintenance_plan.created": true,
+  "maintenance_plan.deleted": true,
+  "maintenance_plan.triggered": true,
+  "maintenance_plan.updated": true,
   "meeting.cancelled": true,
   "meeting.concluded": true,
   "meeting.created": true,
@@ -1157,6 +1213,12 @@ export const blockEventSchemas = {
   "version.created": true,
   "version.deleted": true,
   "version.restored": true,
+  "work_order.created": true,
+  "work_order.part_used": true,
+  "work_order.scheduled": true,
+  "work_order.status_changed": true,
+  "work_order.unscheduled": true,
+  "work_order.updated": true,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

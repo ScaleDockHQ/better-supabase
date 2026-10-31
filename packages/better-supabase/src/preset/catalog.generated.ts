@@ -9217,6 +9217,137 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "maintenance",
+      "title": "Maintenance",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "dispatch"
+      ],
+      "integrates": [
+        "assets",
+        "inventory",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "maintenance",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "maintenance_plan": {
+            "table": "plans",
+            "singular": "maintenance_plan",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "maintenance_plan_part": {
+            "table": "parts",
+            "singular": "maintenance_plan_part"
+          },
+          "maintenance_meter": {
+            "table": "meters",
+            "singular": "maintenance_meter"
+          },
+          "maintenance_meter_reading": {
+            "table": "readings",
+            "singular": "maintenance_meter_reading"
+          },
+          "maintenance_calibration": {
+            "table": "calibrations",
+            "singular": "maintenance_calibration"
+          }
+        },
+        "tables": {
+          "plans": {
+            "name": "maintenance_plans",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "title": "title",
+              "asset": "asset_id",
+              "kind": "kind",
+              "everyDays": "every_days",
+              "meter": "meter_id",
+              "everyValue": "every_value",
+              "priority": "priority",
+              "status": "status",
+              "lastDoneAt": "last_done_at",
+              "lastDoneValue": "last_done_value",
+              "nextDueAt": "next_due_at",
+              "workOrder": "work_order_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "parts": {
+            "name": "maintenance_plan_parts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "plan": "plan_id",
+              "name": "name",
+              "quantity": "quantity",
+              "variant": "variant_id"
+            }
+          },
+          "meters": {
+            "name": "maintenance_meters",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "unit": "unit",
+              "asset": "asset_id",
+              "reading": "reading",
+              "readAt": "read_at",
+              "createdAt": "created_at"
+            }
+          },
+          "readings": {
+            "name": "maintenance_meter_readings",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "meter": "meter_id",
+              "value": "value",
+              "readAt": "read_at",
+              "readBy": "read_by"
+            }
+          },
+          "calibrations": {
+            "name": "maintenance_calibrations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "asset": "asset_id",
+              "instrument": "instrument",
+              "performedAt": "performed_at",
+              "dueAt": "due_at",
+              "result": "result",
+              "reference": "reference",
+              "performedBy": "performed_by"
+            }
+          }
+        },
+        "keys": {
+          "read": "maintenance.read",
+          "record": "maintenance.record",
+          "manage": "maintenance.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -19525,6 +19656,281 @@ export const PRESET_CATALOG: PresetCatalog = {
           "meeting_decision.recorded",
           "meeting_decision.decided",
           "meeting_action_item.created"
+        ]
+      }
+    },
+    {
+      "name": "maintenance",
+      "sql": [
+        "maintenance"
+      ],
+      "category": "work",
+      "client": {
+        "export": "maintenanceBlock",
+        "subpath": "better-supabase/blocks/maintenance"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "MaintenanceCalibration"
+        },
+        {
+          "name": "MaintenanceCalibrationEventData"
+        },
+        {
+          "name": "MaintenanceCalibrationInput"
+        },
+        {
+          "name": "MaintenanceCalibrationListOptions"
+        },
+        {
+          "name": "MaintenanceCalibrationResult"
+        },
+        {
+          "name": "MaintenanceMeter"
+        },
+        {
+          "name": "MaintenanceMeterReadingEventData"
+        },
+        {
+          "name": "MaintenancePlan"
+        },
+        {
+          "name": "MaintenancePlanChange"
+        },
+        {
+          "name": "MaintenancePlanEventData"
+        },
+        {
+          "name": "MaintenancePlanInput"
+        },
+        {
+          "name": "MaintenancePlanKind"
+        },
+        {
+          "name": "MaintenancePlanListOptions"
+        },
+        {
+          "name": "MaintenancePlanStatus"
+        },
+        {
+          "name": "MaintenancePlanWorkOrderEventData"
+        }
+      ],
+      "entitySchemas": {
+        "maintenance_plan": {
+          "input": {
+            "title": "MaintenancePlanInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "time",
+                  "meter"
+                ]
+              },
+              "everyDays": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "description": "A time plan falls due this many days after the last one."
+              },
+              "meterId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "everyValue": {
+                "kind": "string",
+                "optional": true,
+                "description": "A meter plan falls due this many units after the last one."
+              },
+              "assetId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "priority": {
+                "kind": "enum",
+                "optional": true,
+                "values": [
+                  "low",
+                  "normal",
+                  "high",
+                  "urgent"
+                ]
+              },
+              "parts": {
+                "kind": "json",
+                "array": true,
+                "optional": true,
+                "description": "The spare parts: `{ name, quantity, variantId }`."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MaintenancePlanInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "time",
+                    "meter"
+                  ]
+                },
+                "everyDays": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "A time plan falls due this many days after the last one."
+                },
+                "meterId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "everyValue": {
+                  "type": "string",
+                  "description": "A meter plan falls due this many units after the last one."
+                },
+                "assetId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": [
+                    "low",
+                    "normal",
+                    "high",
+                    "urgent"
+                  ]
+                },
+                "parts": {
+                  "type": "array",
+                  "items": {},
+                  "description": "The spare parts: `{ name, quantity, variantId }`."
+                }
+              },
+              "required": [
+                "title",
+                "kind"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "maintenance_calibration": {
+          "input": {
+            "title": "MaintenanceCalibrationInput",
+            "fields": {
+              "assetId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "instrument": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "performedAt": {
+                "kind": "instant"
+              },
+              "dueAt": {
+                "kind": "instant",
+                "description": "On or after performedAt."
+              },
+              "result": {
+                "kind": "enum",
+                "values": [
+                  "pass",
+                  "fail",
+                  "adjusted"
+                ]
+              },
+              "reference": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 200
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MaintenanceCalibrationInput",
+              "type": "object",
+              "properties": {
+                "assetId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "instrument": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "performedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "dueAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "On or after performedAt."
+                },
+                "result": {
+                  "type": "string",
+                  "enum": [
+                    "pass",
+                    "fail",
+                    "adjusted"
+                  ]
+                },
+                "reference": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "instrument",
+                "performedAt",
+                "dueAt",
+                "result"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "MaintenanceEvents",
+        "types": [
+          "maintenance_plan.created",
+          "maintenance_plan.updated",
+          "maintenance_plan.deleted",
+          "maintenance_plan.triggered",
+          "maintenance_plan.completed",
+          "maintenance_meter_reading.recorded",
+          "maintenance_calibration.recorded"
         ]
       }
     },

@@ -1704,6 +1704,7 @@
               "ledger",
               "legal-entities",
               "mail-sync",
+              "maintenance",
               "manufacturing",
               "medications",
               "meetings",
@@ -1876,6 +1877,7 @@
                   "ledger",
                   "legal-entities",
                   "mail-sync",
+                  "maintenance",
                   "manufacturing",
                   "medications",
                   "meetings",
@@ -2204,6 +2206,9 @@
             },
             "mail-sync": {
               "$ref": "#/$defs/blocks/mail-sync"
+            },
+            "maintenance": {
+              "$ref": "#/$defs/blocks/maintenance"
             },
             "manufacturing": {
               "$ref": "#/$defs/blocks/manufacturing"
@@ -5978,6 +5983,17 @@
                 "type": "boolean"
               }
             }
+          }
+        }
+      },
+      "maintenance": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

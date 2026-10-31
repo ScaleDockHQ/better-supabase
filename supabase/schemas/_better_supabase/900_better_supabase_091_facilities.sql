@@ -1,7 +1,7 @@
--- better-supabase module: maintenance
--- @bsb-block maintenance@4 managed tasks
--- @bsb-hash sha256:3d6c719a6e331ec228ceba76e06e23f27d8948f6d7872d173a9c591c1d26911b
--- @bsb-names maintenance task=maintenance_request/maintenance_requests
+-- better-supabase module: facilities
+-- @bsb-block facilities@4 managed tasks
+-- @bsb-hash sha256:c3bad9da4818d1114bc042bacdb3491a84872ccbd4bb8856a5dd17b7f345105a
+-- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -162,7 +162,7 @@ grant all on "better_supabase"."maintenance_requests" to service_role;
 drop policy if exists maintenance_requests_read on "better_supabase"."maintenance_requests";
 create policy maintenance_requests_read on "better_supabase"."maintenance_requests"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('facilities.read')));
 
 create table if not exists "better_supabase"."maintenance_request_assignees" (
   "tenant_id" uuid not null,
@@ -179,7 +179,7 @@ grant all on "better_supabase"."maintenance_request_assignees" to service_role;
 drop policy if exists maintenance_request_assignees_read on "better_supabase"."maintenance_request_assignees";
 create policy maintenance_request_assignees_read on "better_supabase"."maintenance_request_assignees"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('facilities.read')));
 
 alter table "better_supabase"."maintenance_requests" add column if not exists "recurs_from" uuid references "better_supabase"."maintenance_requests" ("id") on delete set null;
 create unique index if not exists "maintenance_requests_recurs_from_idx" on "better_supabase"."maintenance_requests" ("recurs_from");
@@ -204,7 +204,7 @@ grant all on "better_supabase"."maintenance_request_checklist_items" to service_
 drop policy if exists maintenance_request_checklist_items_read on "better_supabase"."maintenance_request_checklist_items";
 create policy maintenance_request_checklist_items_read on "better_supabase"."maintenance_request_checklist_items"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('facilities.read')));
 
 create or replace function better_supabase.bsb_maintenance_request_guard()
 returns trigger
@@ -246,11 +246,11 @@ begin
       if new."state" = 'completed' and new."progress" is not null then
         new."progress" := 100;
       end if;
-      perform "better_supabase".emit_event('maintenance_request.closed', jsonb_build_object('organizationId', new."tenant_id", 'maintenanceRequestId', new."id", 'subjectType', 'maintenance_request', 'subjectId', new."id"::text, 'title', new."title", 'state', new."state", 'closeReason', new."close_reason"), 'maintenance-requests/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/maintenance');
+      perform "better_supabase".emit_event('maintenance_request.closed', jsonb_build_object('organizationId', new."tenant_id", 'maintenanceRequestId', new."id", 'subjectType', 'maintenance_request', 'subjectId', new."id"::text, 'title', new."title", 'state', new."state", 'closeReason', new."close_reason"), 'maintenance-requests/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/facilities');
     elsif not (new."state" in ('completed', 'canceled')) and old."state" in ('completed', 'canceled') then
       new."closed_at" := null;
       new."close_reason" := null;
-      perform "better_supabase".emit_event('maintenance_request.reopened', jsonb_build_object('organizationId', new."tenant_id", 'maintenanceRequestId', new."id", 'subjectType', 'maintenance_request', 'subjectId', new."id"::text, 'title', new."title"), 'maintenance-requests/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/maintenance');
+      perform "better_supabase".emit_event('maintenance_request.reopened', jsonb_build_object('organizationId', new."tenant_id", 'maintenanceRequestId', new."id", 'subjectType', 'maintenance_request', 'subjectId', new."id"::text, 'title', new."title"), 'maintenance-requests/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/facilities');
     end if;
   end if;
   new."updated_at" := now();
@@ -282,7 +282,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', create_maintenance_request.tenant, 'maintenance.write'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', create_maintenance_request.tenant, 'facilities.write'), false)) then
     raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
   if nullif(trim(create_maintenance_request.attrs ->> 'title'), '') is null then
@@ -342,7 +342,7 @@ begin
         raise exception 'attach only your own files in this organization that aren''t on another subject' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
       end if;
     end if;
-  perform "better_supabase".emit_event('maintenance_request.created', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/maintenance');
+  perform "better_supabase".emit_event('maintenance_request.created', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_maintenance_request_create"(uuid)');
   begin
@@ -391,7 +391,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_item := (v_change ->> 'maintenanceRequestId')::uuid;
-      if not exists (select 1 from "better_supabase"."maintenance_requests" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.write'), false)) and x."archived_at" is null) then
+      if not exists (select 1 from "better_supabase"."maintenance_requests" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
       declare
@@ -481,7 +481,7 @@ begin
     end;
   end loop;
   for v_row in select * from "better_supabase"."maintenance_requests" x where x."id" = any (v_touched) loop
-    perform "better_supabase".emit_event('maintenance_request.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'maintenanceRequestId')::uuid = v_row."id")), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/maintenance');
+    perform "better_supabase".emit_event('maintenance_request.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'maintenanceRequestId')::uuid = v_row."id")), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
@@ -509,7 +509,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = set_maintenance_request_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.write'), false));
+  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = set_maintenance_request_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -548,7 +548,7 @@ begin
     end if;
   end if;
   if cardinality(v_added) > 0 then
-    perform "better_supabase".emit_event('maintenance_request.assigned', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'assigneeIds', to_jsonb(v_users), 'addedIds', to_jsonb(v_added)), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/maintenance');
+    perform "better_supabase".emit_event('maintenance_request.assigned', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'assigneeIds', to_jsonb(v_users), 'addedIds', to_jsonb(v_added)), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
   end if;
   return cardinality(v_users);
 end;
@@ -569,13 +569,13 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."maintenance_requests" x set "archived_at" = case when archive_maintenance_request.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_maintenance_request.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.write'), false))
+  where x."id" = archive_maintenance_request.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
   end if;
   if archive_maintenance_request.archived then
-    perform "better_supabase".emit_event('maintenance_request.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/maintenance');
+    perform "better_supabase".emit_event('maintenance_request.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
   end if;
   return true;
 end;
@@ -598,12 +598,12 @@ begin
   end if;
   delete from "better_supabase"."maintenance_requests" x
   where x."id" = delete_maintenance_request.work_item
-    and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.manage'), false))
+    and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.manage'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
   end if;
-  perform "better_supabase".emit_event('maintenance_request.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/maintenance');
+  perform "better_supabase".emit_event('maintenance_request.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
   return true;
 end;
 $$;
@@ -690,7 +690,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = save_maintenance_request_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = save_maintenance_request_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -721,7 +721,7 @@ begin
   exception when check_violation or not_null_violation or invalid_text_representation then
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
-  perform "better_supabase".emit_event('maintenance_request.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/maintenance');
+  perform "better_supabase".emit_event('maintenance_request.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
   return (select jsonb_build_object('id', y."id", 'maintenanceRequestId', y."maintenance_request_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."maintenance_request_checklist_items" y where y."id" = v_id);
 end;
 $$;
@@ -741,12 +741,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x.* into v_row from "better_supabase"."maintenance_requests" x join "better_supabase"."maintenance_request_checklist_items" y on y."maintenance_request_id" = x."id"
-  where y."id" = delete_maintenance_request_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.write'), false)) and x."archived_at" is null;
+  where y."id" = delete_maintenance_request_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     return false;
   end if;
   delete from "better_supabase"."maintenance_request_checklist_items" y where y."id" = delete_maintenance_request_checklist_item.checklist_item;
-  perform "better_supabase".emit_event('maintenance_request.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/maintenance');
+  perform "better_supabase".emit_event('maintenance_request.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
   return true;
 end;
 $$;
@@ -795,7 +795,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = set_maintenance_request_recurrence.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = set_maintenance_request_recurrence.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -813,7 +813,7 @@ begin
     on conflict ("tenant_id", "subject_type", "subject_id")
     do update set "dtstart" = excluded."dtstart", "tzid" = excluded."tzid", "rrule" = excluded."rrule";
   end if;
-  perform "better_supabase".emit_event('maintenance_request.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('recurrence')), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/maintenance');
+  perform "better_supabase".emit_event('maintenance_request.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('recurrence')), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."maintenance_request_assignees" ra where ra."maintenance_request_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."maintenance_request_checklist_items" rk where rk."maintenance_request_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'maintenance_request' and rr."subject_id" = x."id"::text)) -> 'recurrence' from "better_supabase"."maintenance_requests" x where x."id" = v_row."id");
 end;
 $$;
@@ -873,7 +873,7 @@ as $$
 declare
   v_row "better_supabase"."maintenance_requests";
 begin
-  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = watch_maintenance_request.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.read'), false));
+  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = watch_maintenance_request.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.read'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can read' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -896,7 +896,7 @@ as $$
   from "better_supabase"."maintenance_requests" x
   join "better_supabase"."notification_subscriptions" s on s."subject_type" = 'maintenance_request' and s."subject_id" = x."id"::text
     and s."organization_id" = x."tenant_id"
-  where x."id" = list_maintenance_request_watchers.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance.read'), false)) and s."level" in ('all', 'participating')
+  where x."id" = list_maintenance_request_watchers.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.read'), false)) and s."level" in ('all', 'participating')
 $$;
 revoke execute on function "better_supabase"."list_maintenance_request_watchers"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_maintenance_request_watchers"(uuid) to authenticated, service_role;
@@ -922,7 +922,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."maintenance_requests
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('facilities.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_requests" as restrictive
@@ -943,7 +943,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."maintenance_request_
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('facilities.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_request_checklist_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_request_checklist_items" as restrictive
@@ -964,7 +964,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."maintenance_request_
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('facilities.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_request_assignees";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_request_assignees" as restrictive

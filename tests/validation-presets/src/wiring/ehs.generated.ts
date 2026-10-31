@@ -11,6 +11,7 @@ import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
 import { assetsBlock } from "better-supabase/blocks/assets";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
+import { dispatchBlock } from "better-supabase/blocks/dispatch";
 import { complianceBlock } from "better-supabase/blocks/compliance";
 import { acknowledgementsBlock } from "better-supabase/blocks/acknowledgements";
 import { coursesBlock } from "better-supabase/blocks/courses";
@@ -19,6 +20,7 @@ import { risksBlock } from "better-supabase/blocks/risks";
 import { casesBlock } from "better-supabase/blocks/cases";
 import { inspectionsBlock } from "better-supabase/blocks/inspections";
 import { meetingsBlock } from "better-supabase/blocks/meetings";
+import { maintenanceBlock } from "better-supabase/blocks/maintenance";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
@@ -53,6 +55,7 @@ export const blockSet = defineBlocks(blockConfig, {
   billing: billingBlock,
   assets: assetsBlock,
   enrollments: enrollmentsBlock,
+  dispatch: dispatchBlock,
   compliance: complianceBlock,
   acknowledgements: acknowledgementsBlock,
   courses: coursesBlock,
@@ -61,6 +64,7 @@ export const blockSet = defineBlocks(blockConfig, {
   cases: casesBlock,
   inspections: inspectionsBlock,
   meetings: meetingsBlock,
+  maintenance: maintenanceBlock,
   drive: driveBlock,
   employees: employeesBlock,
   entitlements: entitlementsBlock,

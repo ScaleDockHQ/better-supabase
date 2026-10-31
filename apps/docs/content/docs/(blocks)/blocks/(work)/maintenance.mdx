@@ -1,0 +1,116 @@
+---
+title: Maintenance
+description: Preventive maintenance plans by time or meter that open dispatch work orders with their spare parts, plus meter readings and calibrations.
+---
+
+`maintenance` decides when equipment needs work. A plan falls due after a
+number of days or after a meter has advanced by a number of units, and the
+block then opens a [dispatch](/docs/blocks/dispatch) work order with the plan's
+spare parts. It also keeps meter readings and calibration records.
+
+```bash
+better-supabase add maintenance
+```
+
+```ts
+import { createMaintenance } from "better-supabase/blocks/maintenance";
+```
+
+The module requires `memberships`, `permissions`, `subjects` and
+[dispatch](/docs/blocks/dispatch). With [assets](/docs/blocks/assets) a plan
+and a calibration point at the equipment, with
+[inventory](/docs/blocks/inventory) a spare part points at a stock variant,
+with `outbox` it records the events, and with `audit` every change is audited.
+
+## Tables
+
+| Table                        | Holds                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| `maintenance_plans`          | A plan with its kind, interval, priority, status, next due date, work order |
+| `maintenance_plan_parts`     | The spare parts a plan puts on its work orders                              |
+| `maintenance_meters`         | A meter such as hours run, with its latest reading                          |
+| `maintenance_meter_readings` | The history of readings                                                     |
+| `maintenance_calibrations`   | A calibration of an instrument with its result and next due date            |
+
+Members with `maintenance.read` read every table. Writes go through the
+functions below. A plan is a subject of type `maintenance_plan`.
+
+| Permission           | Allows                              | Default roles |
+| -------------------- | ----------------------------------- | ------------- |
+| `maintenance.read`   | reading plans, meters, calibrations | owner, admin  |
+| `maintenance.record` | recording readings and calibrations | owner, admin  |
+| `maintenance.manage` | managing plans and meters           | owner, admin  |
+
+## Plans
+
+`createPlan` takes a `time` plan with `everyDays` or a `meter` plan with a
+`meterId` and an `everyValue`. A time plan falls due `everyDays` days after the
+last completion, or after the plan was created. A meter plan falls due when the
+reading is `everyValue` units above the reading at the last completion.
+
+```ts
+const plan = await db.maintenance
+  .createPlan({
+    title: "Grease the press",
+    kind: "meter",
+    meterId,
+    everyValue: "500",
+    priority: "high",
+    parts: [{ name: "Grease", quantity: 2, variantId }],
+  })
+  .orThrow();
+```
+
+`updatePlan` changes the title, interval, priority, asset, parts and status
+(`active` or `paused`). The kind and the meter stay. `deletePlan` removes a
+plan and its parts. `listPlans` filters by `status`, `kind`, `assetId` and
+`due`, and each plan carries its parts and whether it is due now.
+
+## Work orders
+
+`generateWorkOrders` opens one dispatch work order for every active plan that is
+due and has none open, with the plan's parts on it, and returns the plan and
+work order ids. Call it on a schedule, for example from a cron route with the
+service role.
+
+```ts
+const opened = await db.maintenance.generateWorkOrders().orThrow();
+```
+
+When the work order reaches `done`, the plan records the completion and moves
+its next due date. A cancelled work order frees the plan to open another. The
+caller of `generateWorkOrders` needs `maintenance.manage` and the dispatch
+permission to create work orders; the service role needs neither.
+
+## Meters and calibrations
+
+`createMeter` adds a meter and `recordReading` records a reading. A reading
+never goes below the latest one, and a reading with an older `readAt` stays in
+the history only. `recordCalibration` records the instrument, the result
+(`pass`, `fail` or `adjusted`) and when it is due again, and `listCalibrations`
+filters by asset and `dueBefore`.
+
+```ts
+await db.maintenance.recordReading(meterId, 1650).orThrow();
+
+await db.maintenance
+  .recordCalibration({
+    instrument: "Scale",
+    performedAt: Temporal.Now.instant(),
+    dueAt: Temporal.Now.instant().add({ hours: 24 * 365 }),
+    result: "pass",
+  })
+  .orThrow();
+```
+
+## Events
+
+| Event                                                                              | Data                                                      |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `maintenance_plan.created`, `maintenance_plan.updated`, `maintenance_plan.deleted` | `organizationId`, `id`, `title`, `kind`, `status`         |
+| `maintenance_plan.triggered`, `maintenance_plan.completed`                         | the plan data and `workOrderId`                           |
+| `maintenance_meter_reading.recorded`                                               | `organizationId`, `meterId`, `value`, `readAt`            |
+| `maintenance_calibration.recorded`                                                 | `organizationId`, `id`, `assetId`, `instrument`, `result` |
+
+The hooks are `before_maintenance_plan_create` and
+`after_maintenance_plan_create`.

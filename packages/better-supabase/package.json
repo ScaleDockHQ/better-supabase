@@ -1095,6 +1095,11 @@
       "types": "./dist/blocks/legal-entities/index.d.ts",
       "default": "./dist/blocks/legal-entities/index.js"
     },
+    "./blocks/maintenance": {
+      "@better-supabase/source": "./src/blocks/maintenance/index.ts",
+      "types": "./dist/blocks/maintenance/index.d.ts",
+      "default": "./dist/blocks/maintenance/index.js"
+    },
     "./blocks/manufacturing": {
       "@better-supabase/source": "./src/blocks/manufacturing/index.ts",
       "types": "./dist/blocks/manufacturing/index.d.ts",
@@ -2030,6 +2035,10 @@
       "./blocks/legal-entities": {
         "types": "./dist/blocks/legal-entities/index.d.ts",
         "default": "./dist/blocks/legal-entities/index.js"
+      },
+      "./blocks/maintenance": {
+        "types": "./dist/blocks/maintenance/index.d.ts",
+        "default": "./dist/blocks/maintenance/index.js"
       },
       "./blocks/manufacturing": {
         "types": "./dist/blocks/manufacturing/index.d.ts",

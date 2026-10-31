@@ -464,6 +464,16 @@ msgctxt "legal-entities.PNZhVW"
 msgid "The companies inside this organization, each with its own VAT number, currency and tax period."
 msgstr "The companies inside this organization, each with its own VAT number, currency and tax period."
 
+#: src/app/[locale]/(app)/maintenance/page.tsx
+msgctxt "maintenance.dudqv_"
+msgid "Maintenance"
+msgstr "Maintenance"
+
+#: src/app/[locale]/(app)/maintenance/page.tsx
+msgctxt "maintenance._0fNmw"
+msgid "Preventive plans by time or meter, and the work orders they open."
+msgstr "Preventive plans by time or meter, and the work orders they open."
+
 #: src/app/[locale]/(app)/manufacturing/page.tsx
 msgctxt "manufacturing.z3FEm2"
 msgid "Manufacturing"
@@ -544,6 +554,16 @@ msgstr "Dashboard"
 msgctxt "dashboard.6_sorY"
 msgid "Your organization at a glance."
 msgstr "Your organization at a glance."
+
+#: src/app/[locale]/(app)/payroll/page.tsx
+msgctxt "payroll-export.igugQ-"
+msgid "Payroll export"
+msgstr "Payroll export"
+
+#: src/app/[locale]/(app)/payroll/page.tsx
+msgctxt "payroll-export.af223Z"
+msgid "The worked and leave hours of each period, ready to hand to the payroll provider."
+msgstr "The worked and leave hours of each period, ready to hand to the payroll provider."
 
 #: src/app/[locale]/(app)/people/hiring/page.tsx
 #: src/features/people/components/hiring-board.tsx
@@ -9313,6 +9333,101 @@ msgctxt "legal-entities.0HT-Ib"
 msgid "Archived"
 msgstr "Archived"
 
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.ug01Mk"
+msgid "Time"
+msgstr "Time"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.ddfTTg"
+msgid "Meter"
+msgstr "Meter"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.C2iTEH"
+msgid "Paused"
+msgstr "Paused"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.xnVVIm"
+msgid "Work order open"
+msgstr "Work order open"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.g9pEhE"
+msgid "Due"
+msgstr "Due"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.cXAlMR"
+msgid "Scheduled"
+msgstr "Scheduled"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.fz0z4c"
+msgid "Plan"
+msgstr "Plan"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.B3Q5mz"
+msgid "Trigger"
+msgstr "Trigger"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.yHmVYj"
+msgid "Next due"
+msgstr "Next due"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.cQfwTT"
+msgid "Maintenance plans"
+msgstr "Maintenance plans"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.HKgDIs"
+msgid "Plans fall due by time or by meter and open dispatch work orders."
+msgstr "Plans fall due by time or by meter and open dispatch work orders."
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.32UjFX"
+msgid "The plans didn't load"
+msgstr "The plans didn't load"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.mfjvP7"
+msgid "No maintenance plans yet"
+msgstr "No maintenance plans yet"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.O4uDKc"
+msgid "Create a plan by time or meter, with the spare parts it needs, and work orders open when it falls due."
+msgstr "Create a plan by time or meter, with the spare parts it needs, and work orders open when it falls due."
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.PTnz1l"
+msgid "Read the maintenance guide"
+msgstr "Read the maintenance guide"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.vmbrZB"
+msgid "Generate work orders"
+msgstr "Generate work orders"
+
 #: src/features/manufacturing/components/material-requirements-grid.tsx
 msgctxt "production.eq1e8s"
 msgid "Unknown product"
@@ -10183,6 +10298,11 @@ msgid "Legal entities"
 msgstr "Legal entities"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.igugQ-"
+msgid "Payroll export"
+msgstr "Payroll export"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.X7jl6w"
 msgid "Orders"
 msgstr "Orders"
@@ -10276,6 +10396,11 @@ msgstr "Audits and inspections"
 msgctxt "navigation.dMaTpi"
 msgid "Meetings"
 msgstr "Meetings"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.dudqv_"
+msgid "Maintenance"
+msgstr "Maintenance"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.poLbhw"
@@ -10909,6 +11034,81 @@ msgstr "Owed"
 msgctxt "payables.MJ2jZQ"
 msgid "Total"
 msgstr "Total"
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.O33vjy"
+msgid "The payroll runs didn't load"
+msgstr "The payroll runs didn't load"
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.0qyczJ"
+msgid "No payroll runs yet"
+msgstr "No payroll runs yet"
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.TkrGa_"
+msgid "Create a run for a period to add up the approved hours and leave, then export it in your payroll provider's format."
+msgstr "Create a run for a period to add up the approved hours and leave, then export it in your payroll provider's format."
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.TK7Ih-"
+msgid "Read the payroll export guide"
+msgstr "Read the payroll export guide"
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.stJAkN"
+msgid "Payroll runs"
+msgstr "Payroll runs"
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.9e-m4Z"
+msgid "An exported run is locked; its checksum proves the file."
+msgstr "An exported run is locked; its checksum proves the file."
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.jCNpEL"
+msgid "Period"
+msgstr "Period"
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.753yX5"
+msgid "Label"
+msgstr "Label"
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.T2ZVQY"
+msgid "Lines"
+msgstr "Lines"
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.zQLEfz"
+msgid "Format"
+msgstr "Format"
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.DPnkvq"
+msgid "Exported"
+msgstr "Exported"
+
+#: src/features/payroll-export/components/payroll-runs.tsx
+msgctxt "payroll-export.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
 
 #: src/features/people/components/add-candidate-dialog.tsx
 msgctxt "people.XrpTyF"

@@ -90,6 +90,7 @@ import { LEAVE } from "./modules/leave.ts";
 import { LEDGER } from "./modules/ledger.ts";
 import { LEGAL_ENTITIES } from "./modules/legal-entities.ts";
 import { MAIL_SYNC } from "./modules/mail-sync.ts";
+import { MAINTENANCE } from "./modules/maintenance.ts";
 import { MANUFACTURING } from "./modules/manufacturing.ts";
 import { MEDICATIONS } from "./modules/medications.ts";
 import { MEETINGS } from "./modules/meetings.ts";
@@ -414,6 +415,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(LEGAL_ENTITIES),
       built(FUNDING),
       built(PAYROLL_EXPORT),
+      built(MAINTENANCE),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

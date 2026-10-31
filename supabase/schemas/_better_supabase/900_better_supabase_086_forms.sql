@@ -1,6 +1,6 @@
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:b3c31dc900b035bcb93130434d8a47d95d28715ca3000e925fde32939e9cd360
+-- @bsb-hash sha256:a9c138e82c60fc239d2e255162ec971d9b5e58a78c34288e15c2da3856371096
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -918,6 +918,7 @@ begin
     when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'forms.read'), false)
     when 'meeting' then exists (select 1 from "better_supabase"."meetings" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'meetings.read'), false)
     when 'meeting_decision' then exists (select 1 from "better_supabase"."meeting_decisions" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'meetings.read'), false)
+    when 'maintenance_plan' then exists (select 1 from "better_supabase"."maintenance_plans" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'maintenance.read'), false)
     when 'production_order' then exists (select 1 from "better_supabase"."production_orders" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'manufacturing.read'), false)
     when 'work_center' then exists (select 1 from "better_supabase"."work_centers" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'manufacturing.read'), false)
     when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'banking.read'), false)

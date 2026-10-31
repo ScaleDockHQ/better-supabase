@@ -187,7 +187,7 @@ describe("renameIdentifiers", () => {
         blocks: {
           notifications: {},
           tasks: {},
-          maintenance: {
+          facilities: {
             block: "tasks",
             entities: { work_item: "maintenance_request" },
             tables: { projects: null },
@@ -205,7 +205,7 @@ describe("renameIdentifiers", () => {
     expect(
       rendered.some(
         (file) =>
-          file.instance === "maintenance" &&
+          file.instance === "facilities" &&
           file.contents.includes("maintenance_request.assigned"),
       ),
     ).toBe(true);

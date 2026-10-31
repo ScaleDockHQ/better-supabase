@@ -327,7 +327,7 @@ describe("entityRenamePlan", () => {
       {
         blocks: {
           tasks: {},
-          maintenance: { block: "tasks", entities: { task: "request" } },
+          facilities: { block: "tasks", entities: { task: "request" } },
         },
       },
       "/app",
@@ -339,15 +339,15 @@ describe("entityRenamePlan", () => {
       .map((file) => file.contents)
       .join("\n")
       .replace(
-        "@bsb-names maintenance task=",
-        "@bsb-names maintenance work_item=",
+        "@bsb-names facilities task=",
+        "@bsb-names facilities work_item=",
       );
 
-    expect(installed).toContain("@bsb-names maintenance work_item=");
+    expect(installed).toContain("@bsb-names facilities work_item=");
     expect(
       entityRenamePlan(
         config.blockNames,
-        [...config.blockNames, "maintenance"],
+        [...config.blockNames, "facilities"],
         installed,
         layout,
       ),
