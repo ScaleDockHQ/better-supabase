@@ -62,6 +62,7 @@ const LINE_DEFAULTS: Readonly<Record<string, string>> = {
   billingParty: "'customer'::text",
   billingPartyId: "null::text",
   billingAccountId: "null::uuid",
+  dimensions: "'{}'::jsonb",
 };
 
 /** The line columns an app's line table may lack. */
@@ -109,6 +110,12 @@ const SALES_LINE_COLUMNS = {
   billingAccountId: "billing_account_id",
 } as const;
 
+/**
+ * The line column of a purchase bill: the accounting dimensions of the line
+ * (such as `project`), merged over the bill's own when the bill books.
+ */
+const PURCHASE_LINE_COLUMNS = { dimensions: "dimensions" } as const;
+
 /** Who can pay a line: `billing_party` on a line takes one of these. */
 export const BILLING_PARTIES: readonly string[] = [
   "customer",
@@ -138,6 +145,7 @@ export function lineTableSpec(
     readonly document?: boolean;
     readonly tax?: boolean;
     readonly sales?: boolean;
+    readonly purchase?: boolean;
   } = {},
 ): BlockSqlTableSpec {
   return {
@@ -149,12 +157,14 @@ export function lineTableSpec(
       ...(options.document === true ? DOCUMENT_LINE_COLUMNS : {}),
       ...(options.tax === true ? TAX_LINE_COLUMNS : {}),
       ...(options.sales === true ? SALES_LINE_COLUMNS : {}),
+      ...(options.purchase === true ? PURCHASE_LINE_COLUMNS : {}),
     },
     optional: [
       ...OPTIONAL_LINE_COLUMNS,
       ...(options.document === true ? Object.keys(DOCUMENT_LINE_COLUMNS) : []),
       ...(options.tax === true ? Object.keys(TAX_LINE_COLUMNS) : []),
       ...(options.sales === true ? Object.keys(SALES_LINE_COLUMNS) : []),
+      ...(options.purchase === true ? Object.keys(PURCHASE_LINE_COLUMNS) : []),
     ],
     typed: ["productType"],
   };
@@ -469,6 +479,10 @@ export function lineItemsSql(
       ],
       ["billingPartyId", "nullif(x.value ->> 'billingPartyId', '')"],
       ["billingAccountId", "nullif(x.value ->> 'billingAccountId', '')::uuid"],
+      [
+        "dimensions",
+        "coalesce(nullif(x.value -> 'dimensions', 'null'::jsonb), '{}'::jsonb)",
+      ],
       ["section", "nullif(trim(x.value ->> 'section'), '')"],
       ["optional", "coalesce((x.value ->> 'optional')::boolean, false)"],
       [
@@ -505,10 +519,10 @@ export function lineItemsSql(
   ${c("parent")} uuid not null references ${p} (${pc("id")}) on delete cascade,${optional("productType")}${optional("productId")}
   ${c("description")} text not null check (length(${c("description")}) between 1 and 2000),
   ${c("quantity")} numeric(18, 4) not null check (${c("quantity")} > 0),
-  ${c("unitAmount")} bigint not null,${optional("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${optional("taxRateBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 100000)`)}${optional("taxCode")}${optional("taxCodeId", () => "uuid")}${optional("unitCost", () => "bigint")}${optional("discountAmount", (name) => `bigint not null default 0 check (${name} >= 0)`)}${optional("costSource", (name) => `text check (${name} in (${COST_SOURCES.map(sqlString).join(", ")}))`)}${optional("locationId", () => "uuid")}${optional("binId", () => "uuid")}${optional("billingParty", (name) => `text not null default 'customer' check (${name} in (${BILLING_PARTIES.map(sqlString).join(", ")}))`)}${optional("billingPartyId")}${optional("billingAccountId", () => "uuid")}${optional("section", (section) => `text check (length(${section}) between 1 and 300)`)}${optional("optional", () => "boolean not null default false")}${optional("selected", () => "boolean not null default true")}${optional("periods", (periods) => `integer not null default 1 check (${periods} > 0)`)}
+  ${c("unitAmount")} bigint not null,${optional("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${optional("taxRateBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 100000)`)}${optional("taxCode")}${optional("taxCodeId", () => "uuid")}${optional("unitCost", () => "bigint")}${optional("discountAmount", (name) => `bigint not null default 0 check (${name} >= 0)`)}${optional("costSource", (name) => `text check (${name} in (${COST_SOURCES.map(sqlString).join(", ")}))`)}${optional("locationId", () => "uuid")}${optional("binId", () => "uuid")}${optional("billingParty", (name) => `text not null default 'customer' check (${name} in (${BILLING_PARTIES.map(sqlString).join(", ")}))`)}${optional("billingPartyId")}${optional("billingAccountId", () => "uuid")}${optional("dimensions", (name) => `jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}${optional("section", (section) => `text check (length(${section}) between 1 and 300)`)}${optional("optional", () => "boolean not null default false")}${optional("selected", () => "boolean not null default true")}${optional("periods", (periods) => `integer not null default 1 check (${periods} > 0)`)}
   ${c("position")} integer not null${has("createdAt") ? `,\n  ${c("createdAt")} timestamptz not null default now()` : ""}${has("productType") && has("productId") ? `,\n  check ((${c("productType")} is null) = (${c("productId")} is null))` : ""}
 );
-${has("periods") ? `alter table ${t} add column if not exists ${c("periods")} integer not null default 1 check (${c("periods")} > 0);\n` : ""}create index if not exists ${sqlIdent(`${name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});${
+${has("periods") ? `alter table ${t} add column if not exists ${c("periods")} integer not null default 1 check (${c("periods")} > 0);\n` : ""}${has("dimensions") ? `alter table ${t} add column if not exists ${c("dimensions")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${c("dimensions")}) = 'object');\n` : ""}create index if not exists ${sqlIdent(`${name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});${
         ctx.owns(items.lines) || !positionKey
           ? ""
           : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_position_key`)} on ${t} (${c("parent")}, ${c("position")});`

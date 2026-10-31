@@ -207,6 +207,13 @@ block installed, an approved report books in the purchase journal (the
 bank journal, in the same transaction. Expenses without a report book
 nothing.
 
+A line can carry `dimensions` (`addLine(reportId, { ..., dimensions: { project: "PRJ-12" } })`).
+The report books one expense line per distinct dimension set, so
+[project costing](/docs/blocks/billable-time#project-costing) counts each line
+on its project. An `expense_lines` table of yours without the `dimensions`
+column refuses it (`EXPENSE_DIMENSIONS_UNSUPPORTED`). Dimension keys must be
+dimensions the accounting block accepts.
+
 ## Expenses without reports
 
 Map `tables.reports` and `tables.lines` to `null` and each expense is one row of `tables.expenses` instead: the block's own table, or yours. It needs neither the approvals block nor the ledger, and the app decides each expense, unless [approvals decide it](#approvals-for-expenses-without-reports). Without the ledger, the ledger's subjects (`ledger_account`) aren't registered either, so comments, messaging and search don't reach for its tables.

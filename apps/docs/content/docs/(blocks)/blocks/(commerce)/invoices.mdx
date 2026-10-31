@@ -560,7 +560,11 @@ in the same transaction. Charges and write-offs aren't booked yet.
 A purchase bill books in the purchase journal: the supplier's payable against
 expense and deductible tax, with the bill's `dimensions` on the expense lines,
 so [project costing](/docs/blocks/billable-time#project-costing) counts a bill with a `project`
-dimension. With inventory installed, a product line of a bill with a purchase
+dimension. A purchase line can carry its own `dimensions` (`{ project: "PRJ-13" }`),
+which win over the bill's for the same key, so one bill can split its cost over
+projects. Lines of one bill that share a dimension set share an expense line.
+The `invoice_lines` table gains a `dimensions` column, also over your own
+lines table; a sales line ignores it. With inventory installed, a product line of a bill with a purchase
 order debits the payable the stock receipt already booked instead of an
 expense, so received stock isn't counted twice. Paying a bill credits the bank
 and debits the payable.

@@ -895,7 +895,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "categories": "id" | "tenant" | "key" | "name" | "currency" | "limitAmount" | "receiptOver" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "reports": "id" | "tenant" | "user" | "title" | "currency" | "note" | "approval" | "submittedAt" | "approvedAt" | "approvalTransaction" | "reimbursedAt" | "reimbursement" | "cancelledAt" | "createdAt" | "updatedAt" | "rejectedAt" | "decidedBy" | "decisionNote";
-      readonly "lines": "id" | "tenant" | "report" | "category" | "spentOn" | "description" | "merchant" | "amount" | "createdAt" | "updatedAt";
+      readonly "lines": "id" | "tenant" | "report" | "category" | "spentOn" | "description" | "merchant" | "amount" | "dimensions" | "createdAt" | "updatedAt";
       readonly "expenses": "id" | "tenant" | "user" | "employee" | "category" | "spentOn" | "description" | "merchant" | "amount" | "currency" | "status" | "submittedAt" | "approvedAt" | "rejectedAt" | "decidedBy" | "decidedAt" | "decisionNote" | "reimbursedAt" | "reimbursedBy" | "reimbursement" | "createdBy" | "createdAt" | "updatedAt";
     };
     readonly functions: "add_expense_line" | "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_report" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "reimburse_expense_report" | "remove_expense_line" | "save_expense_category" | "submit_expense_report" | "update_expense_line";
@@ -903,7 +903,7 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {
       readonly "expense_report": "id" | "tenant_id" | "user_id" | "title" | "currency" | "note" | "approval_id" | "submitted_at" | "approved_at" | "approval_transaction_id" | "reimbursed_at" | "reimbursement_transaction_id" | "cancelled_at" | "created_at" | "updated_at" | "rejected_at" | "decided_by" | "decision_note";
-      readonly "expense_line": "id" | "tenant_id" | "report_id" | "category_id" | "spent_on" | "description" | "merchant" | "amount" | "created_at" | "updated_at";
+      readonly "expense_line": "id" | "tenant_id" | "report_id" | "category_id" | "spent_on" | "description" | "merchant" | "amount" | "dimensions" | "created_at" | "updated_at";
       readonly "expense_category": "id" | "tenant_id" | "key" | "name" | "currency" | "limit_amount" | "receipt_over" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "expense_report";
@@ -1216,7 +1216,7 @@ export interface BlockNameRegistry {
   readonly "invoices": {
     readonly tables: {
       readonly "invoices": "id" | "tenant" | "kind" | "number" | "identifier" | "original" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "currency" | "status" | "termsDays" | "issuedOn" | "dueOn" | "paidTotal" | "creditedTotal" | "paidAt" | "voidedAt" | "voidReason" | "writeOffReason" | "note" | "originType" | "originId" | "depositBps" | "depositAmount" | "discountBps" | "discountAmount" | "pricesIncludeTax" | "archivedAt" | "direction" | "supplierReference" | "purchaseOrder" | "dimensions" | "dunningLevel" | "dunningAt" | "dunningPausedUntil" | "buyer" | "paymentTermsId" | "discountDueOn" | "discountAmountEarly" | "collectionStatus" | "collectionAgencyId" | "collectionHandedAt" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
-      readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt" | "taxCodeId" | "unitCost" | "discountAmount" | "costSource" | "locationId" | "binId" | "billingParty" | "billingPartyId" | "billingAccountId";
+      readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt" | "taxCodeId" | "unitCost" | "discountAmount" | "costSource" | "locationId" | "binId" | "billingParty" | "billingPartyId" | "billingAccountId" | "dimensions";
       readonly "charges": "id" | "tenant" | "invoice" | "amount" | "currency" | "description" | "createdBy" | "createdAt";
       readonly "dunningLevels": "id" | "tenant" | "level" | "daysAfterDue" | "templateKey" | "textKey" | "fee" | "final" | "createdAt" | "updatedAt";
       readonly "dunningRuns": "id" | "tenant" | "asOf" | "createdBy" | "createdAt";
