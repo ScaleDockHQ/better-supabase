@@ -153,4 +153,36 @@ describe("inspections module", () => {
       ]),
     );
   });
+
+  it("mirrors planned inspections to the named calendar", () => {
+    const modules = [...BASE.slice(0, -1), "calendar", "inspections"];
+
+    expect(sqlOf()).not.toContain("inspection_calendar_mirror");
+    expect(sqlOf({}, modules)).not.toContain("inspection_calendar_mirror");
+
+    const sql = sqlOf(withOptions({ calendar: "Audits" }), modules);
+
+    expect(sql).toContain("inspection_calendar_mirror");
+    expect(sql).toContain("'Audits'");
+    expect(sql).toContain("'inspection-' ||");
+    expect(() => sqlOf(withOptions({ calendar: "Audits" }), BASE)).toThrow(
+      "calendar",
+    );
+    expect(() => sqlOf(withOptions({ calendar: " " }), modules)).toThrow(
+      "name of a calendar",
+    );
+  });
+
+  it("notifies assignments and overdue inspections only with notifications installed", () => {
+    const modules = [...BASE.slice(0, -1), "notifications", "inspections"];
+
+    expect(sqlOf()).not.toContain("inspection.overdue");
+    expect(sqlOf()).not.toContain("inspection_assignment_notice");
+
+    const sql = sqlOf({}, modules);
+
+    expect(sql).toContain("notify_overdue_inspections");
+    expect(sql).toContain("'inspection.assigned:' ||");
+    expect(sql).toContain("'inspection.overdue:' ||");
+  });
 });

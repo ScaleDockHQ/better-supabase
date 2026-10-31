@@ -29,4 +29,13 @@ export const inspectionsBlock: BlockOf<
   create: createInspections,
   recipes: ["inspection-program-calendar", "inspection-run"],
   category: "work",
+  schedules: [
+    {
+      name: "overdue",
+      cron: "0 6 * * *",
+      runs: "notifyOverdue()",
+      description:
+        "Tells the lead of each inspection past its planned end, once per planned end.",
+    },
+  ],
 });

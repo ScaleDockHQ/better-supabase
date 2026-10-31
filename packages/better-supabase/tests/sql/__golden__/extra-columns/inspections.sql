@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:227391e03fe2be4f633fbef2e4b85cae92895095625f60fcd1ecc4f202571ab8
+-- @bsb-hash sha256:e9d5a9a22a9efbc60a7fdfa2748b5121037bf9b98a81699f4dad7554310d6fde
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -130,6 +130,7 @@ create table if not exists "better_supabase"."inspections" (
   "started_at" timestamptz,
   "completed_at" timestamptz,
   "closed_at" timestamptz,
+  "overdue_notified_for" date,
   "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'reporting', 'closed', 'canceled')),
   "checklist_form_id" uuid references "better_supabase"."forms" ("id") on delete restrict,
   "checklist_submission_id" uuid references "better_supabase"."form_submissions" ("id") on delete set null,
@@ -1223,6 +1224,18 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_inspections"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_inspections"(uuid, jsonb) to authenticated, service_role;
+
+
+-- Without the notifications block there is nobody to tell; the function stays so
+-- the client and its schedule work the same everywhere.
+create or replace function "better_supabase"."notify_overdue_inspections"()
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$ select 0 $$;
+revoke execute on function "better_supabase"."notify_overdue_inspections"() from public, anon, authenticated;
+grant execute on function "better_supabase"."notify_overdue_inspections"() to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

@@ -1,6 +1,6 @@
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:6afa58fff49660b9de2c071d24a33a047ea3f8d69da44d4f12c0da30d8aa4a0f
+-- @bsb-hash sha256:2b849a4ed7e1899c0ea302b220c05def89f59845823efd0114db4be709e6bb88
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,6 +129,7 @@ create table if not exists "better_supabase"."inspections" (
   "started_at" timestamptz,
   "completed_at" timestamptz,
   "closed_at" timestamptz,
+  "overdue_notified_for" date,
   "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'reporting', 'closed', 'canceled')),
   "checklist_form_id" uuid references "better_supabase"."forms" ("id") on delete restrict,
   "checklist_submission_id" uuid references "better_supabase"."form_submissions" ("id") on delete set null,
@@ -1437,6 +1438,140 @@ $$;
 revoke execute on function "better_supabase"."list_inspections"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_inspections"(uuid, jsonb) to authenticated, service_role;
 
+
+-- Mirrors an inspection with a planned start to an all-day event in the
+-- calendar Audits: one event per inspection, uid inspection-<id>. It skips
+-- the organization's missing calendar and removes the event once the
+-- inspection closes, is canceled or loses its planned start.
+create or replace function "better_supabase"."inspection_calendar_mirror"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_calendar uuid;
+begin
+  select y."id" into v_calendar from "better_supabase"."calendars" y
+  where y."tenant_id" = new."tenant_id" and y."name" = 'Audits'
+  order by y."created_at"
+  limit 1;
+  if v_calendar is null then
+    return new;
+  end if;
+  if new."planned_start" is null or new."status" not in ('planned', 'in_progress') then
+    delete from "better_supabase"."calendar_events" x where x."calendar_id" = v_calendar and x."uid" = 'inspection-' || new."id"::text;
+    return new;
+  end if;
+  insert into "better_supabase"."calendar_events" ("tenant_id", "calendar_id", "uid", "title", "starts_at", "ends_at", "all_day", "tz", "status", "subject_type", "subject_id")
+  values (new."tenant_id", v_calendar, 'inspection-' || new."id"::text, new."number" || ' ' || new."title",
+    (new."planned_start"::timestamp at time zone 'UTC'),
+    (coalesce(new."planned_end", new."planned_start") + 1)::timestamp at time zone 'UTC', true, 'UTC', 'confirmed', 'inspection', new."id"::text)
+  on conflict ("calendar_id", "uid", "original_start") do update set
+    "title" = excluded."title", "starts_at" = excluded."starts_at",
+    "ends_at" = excluded."ends_at", "updated_at" = now();
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."inspection_calendar_mirror"() from public, anon, authenticated;
+drop trigger if exists bsb_inspection_calendar on "better_supabase"."inspections";
+create trigger bsb_inspection_calendar after insert or update of "planned_start", "planned_end", "title", "status" on "better_supabase"."inspections"
+  for each row execute function "better_supabase"."inspection_calendar_mirror"();
+
+-- Notifies a user added to an inspection's team, unless they added themselves.
+-- The key keeps a team edit that keeps the user from notifying again.
+create or replace function "better_supabase"."inspection_assignment_notice"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inspections"%rowtype;
+  v_claims text;
+begin
+  if new."user_id" is not distinct from auth.uid() then
+    return new;
+  end if;
+  select * into v_row from "better_supabase"."inspections" x where x."id" = new."inspection_id";
+  if not found or v_row."status" not in ('planned', 'in_progress') then
+    return new;
+  end if;
+  v_claims := current_setting('request.jwt.claims', true);
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform "better_supabase"."notify"(jsonb_build_object(
+      'type', 'inspection.assigned',
+      'tenant', v_row."tenant_id",
+      'actor', auth.uid(),
+      'subject_type', 'inspection',
+      'subject_id', v_row."id"::text,
+      'summary', v_row."number" || ' ' || v_row."title",
+      'recipients', to_jsonb(array[new."user_id"]),
+      'key', 'inspection.assigned:' || v_row."id"::text || ':' || new."user_id"::text,
+      'data', jsonb_build_object('inspectionId', v_row."id", 'role', new."role")
+    ));
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."inspection_assignment_notice"() from public, anon, authenticated;
+drop trigger if exists bsb_inspection_assignment on "better_supabase"."inspection_members";
+create trigger bsb_inspection_assignment after insert on "better_supabase"."inspection_members"
+  for each row execute function "better_supabase"."inspection_assignment_notice"();
+
+-- Reports each planned or running inspection whose planned end has passed, to
+-- its lead or, without one, its auditors, once per planned end (the key keeps
+-- a repeat run quiet). Run it daily from a job (the inspections.overdue timer).
+create or replace function "better_supabase"."notify_overdue_inspections"()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inspections"%rowtype;
+  v_claims text;
+  v_to uuid[];
+  v_count integer := 0;
+begin
+  for v_row in
+    select * from "better_supabase"."inspections" x
+    where x."status" in ('planned', 'in_progress')
+      and x."planned_end" < current_date
+      and x."overdue_notified_for" is distinct from x."planned_end"
+    for update skip locked
+  loop
+    select coalesce(array_agg(y."user_id"), '{}'::uuid[]) into v_to from "better_supabase"."inspection_members" y
+    where y."inspection_id" = v_row."id" and y."role" = 'lead';
+    if cardinality(v_to) = 0 then
+      select coalesce(array_agg(y."user_id"), '{}'::uuid[]) into v_to from "better_supabase"."inspection_members" y
+      where y."inspection_id" = v_row."id" and y."role" = 'auditor';
+    end if;
+    if cardinality(v_to) > 0 then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
+        'type', 'inspection.overdue',
+        'tenant', v_row."tenant_id",
+        'actor', null,
+        'subject_type', 'inspection',
+        'subject_id', v_row."id"::text,
+        'summary', v_row."number" || ' ' || v_row."title",
+        'recipients', to_jsonb(v_to),
+        'key', 'inspection.overdue:' || v_row."id"::text || ':' || v_row."planned_end"::text,
+        'data', jsonb_build_object('inspectionId', v_row."id", 'plannedEnd', v_row."planned_end")
+      ));
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
+    update "better_supabase"."inspections" x set "overdue_notified_for" = v_row."planned_end" where x."id" = v_row."id";
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."notify_overdue_inspections"() from public, anon, authenticated;
+grant execute on function "better_supabase"."notify_overdue_inspections"() to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1752,6 +1887,15 @@ set search_path = ''
 as $$ select "better_supabase"."list_inspections"($1, $2) $$;
 revoke execute on function "api"."list_inspections"(uuid, jsonb) from public, anon;
 grant execute on function "api"."list_inspections"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."notify_overdue_inspections"()
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."notify_overdue_inspections"() $$;
+revoke execute on function "api"."notify_overdue_inspections"() from public, anon, authenticated;
+grant execute on function "api"."notify_overdue_inspections"() to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

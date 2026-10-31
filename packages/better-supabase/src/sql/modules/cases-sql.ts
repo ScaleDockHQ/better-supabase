@@ -262,6 +262,10 @@ export interface CasesSql {
   readonly taskType: string;
   /** The relations context, when its table is there to read links from. */
   readonly relations: BlockSqlContext | undefined;
+  /** The approvals context, when its tables are there to file requests in. */
+  readonly approvals: BlockSqlContext | undefined;
+  /** The versions context, when its tables are there to snapshot cases in. */
+  readonly versions: BlockSqlContext | undefined;
   readonly read: string;
   readonly create: string;
   readonly write: string;
@@ -322,6 +326,16 @@ export function casesSql(ctx: BlockSqlContext): CasesSql {
       ? ctx.of("relations")
       : undefined;
 
+  const approvals =
+    ctx.installed("approvals") && ctx.of("approvals").mode !== "custom"
+      ? ctx.of("approvals")
+      : undefined;
+
+  const versions =
+    ctx.installed("versions") && ctx.of("versions").mode !== "custom"
+      ? ctx.of("versions")
+      : undefined;
+
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or (${tenant} is not null and ${ctx.can("tenant", tenant, permission)}))`;
 
@@ -348,6 +362,8 @@ export function casesSql(ctx: BlockSqlContext): CasesSql {
     tasks,
     taskType: tasks === undefined ? "task" : entityType(tasks.resolved, "task"),
     relations,
+    approvals,
+    versions,
     read,
     create: ctx.permission("create", OPERATIONS["cases.create"]),
     write: ctx.permission("write", OPERATIONS["cases.write"]),

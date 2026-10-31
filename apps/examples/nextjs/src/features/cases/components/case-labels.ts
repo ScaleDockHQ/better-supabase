@@ -122,6 +122,10 @@ export function useBlockerLabel(): (blocker: CaseBlocker) => string {
         return t("Publish a new version of the affected documents.");
       }
 
+      case "CASE_APPROVAL_REQUIRED": {
+        return t("Ask for approval to close the case.");
+      }
+
       default: {
         const unknown: never = blocker;
 

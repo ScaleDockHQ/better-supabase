@@ -221,4 +221,19 @@ describe("cases module", () => {
       ]),
     );
   });
+
+  it("asks for approval to close only with approvals installed", () => {
+    const blocker = "'CASE_APPROVAL_REQUIRED'::text";
+    const modules = [...BASE, "approvals", "state-machine", "numbering"];
+
+    expect(sqlOf()).not.toContain(blocker);
+    expect(sqlOf()).not.toContain("case_close_approved");
+    expect(sqlOf({}, modules)).toContain(blocker);
+    expect(sqlOf({}, modules)).toContain("case_close_approved");
+  });
+
+  it("freezes a closing case in versions only with versions installed", () => {
+    expect(sqlOf()).not.toContain("'Closed ' ||");
+    expect(sqlOf({}, [...BASE, "versions"])).toContain("'Closed ' ||");
+  });
 });

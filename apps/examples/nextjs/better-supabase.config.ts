@@ -296,6 +296,9 @@ export default defineConfig({
               steps: [{ approvers: { manager: true } }],
             },
           },
+          // A floor that asks for nothing until a tenant policy adds steps: a
+          // case then can't close before a request to close is approved.
+          case: { close: { steps: [] } },
           // Sign-off on one version of a drive file, from the file's menu.
           drive_node: {
             approve: {
@@ -452,8 +455,9 @@ export default defineConfig({
     // pipeline, with actions as work items and a close guard.
     cases: {},
     // Audit programmes and inspections with a checklist; findings assess
-    // controls and raise cases.
-    inspections: {},
+    // controls and raise cases. Planned inspections mirror to the "Audits"
+    // calendar of an organization that has one.
+    inspections: { options: { calendar: "Audits" } },
     // Vital signs on a customer's record, with the seeded vitals definitions;
     // a critical value alerts the record's leads.
     observations: { options: { defaults: "vitals" } },

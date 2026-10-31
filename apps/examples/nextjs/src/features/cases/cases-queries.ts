@@ -117,6 +117,8 @@ export interface CaseDetailView {
   readonly rootCause: string | null;
   readonly effectivenessDueOn: string | null;
   readonly ownerId: string | null;
+  /** Whether the caller owns the case, which lets them close it. */
+  readonly isOwner: boolean;
   readonly blockers: readonly CaseBlocker[];
   readonly actions: readonly CaseActionView[];
 }
@@ -142,6 +144,8 @@ async function loadDetail(caseId: string): Promise<CaseDetailView | null> {
     rootCause: detail.rootCause ?? null,
     effectivenessDueOn: detail.effectivenessDueOn?.toString() ?? null,
     ownerId: detail.ownerId ?? null,
+    isOwner:
+      session.kind === "user" && session.user.id === (detail.ownerId ?? ""),
     blockers: detail.blockers,
     actions: detail.actions.map((action) => ({
       id: action.id,

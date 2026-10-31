@@ -19,6 +19,12 @@ export type InspectionsSqlOptions = {
    * `major_nonconformity` and `minor_nonconformity`.
    */
   readonly caseFindingTypes?: readonly string[];
+  /**
+   * The name of a calendar (the calendar block) that mirrors planned
+   * inspections as all-day events, from `plannedStart` to `plannedEnd`. An
+   * organization without a calendar of that name gets no events.
+   */
+  readonly calendar?: string;
   /** Extra columns on the inspections table, set through `fields`. */
   readonly extraColumns?: ExtraColumns;
 };
@@ -28,5 +34,6 @@ export const inspectionsSqlOptions: BlockOptionsSchema<InspectionsSqlOptions> =
     kinds: option.strings(),
     findingTypes: option.strings(),
     caseFindingTypes: option.strings(),
+    calendar: option.string(),
     extraColumns: option.extraColumns(),
   });

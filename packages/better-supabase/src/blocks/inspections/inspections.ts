@@ -237,6 +237,12 @@ export interface Inspections<F extends object = Record<never, never>> {
   close(inspectionId: string): AsyncResult<Inspection<F>>;
   /** Cancels an inspection that hasn't closed; needs `inspections.manage`. */
   cancel(inspectionId: string, reason?: string): AsyncResult<Inspection<F>>;
+  /**
+   * Tells the lead (or the auditors) of each planned or running inspection past
+   * its planned end, once per planned end, and returns how many it found.
+   * Service role only.
+   */
+  notifyOverdue(): AsyncResult<number>;
   get(inspectionId: string): AsyncResult<InspectionDetail<F>>;
   list(options?: InspectionListOptions): AsyncResult<readonly Inspection<F>[]>;
   addFinding(
@@ -565,6 +571,8 @@ export function createInspections<
         { inspection_id: inspectionId, reason: reason ?? null },
         one("cancel_inspection"),
       ).andThen(fields.row),
+    notifyOverdue: () =>
+      call("notify_overdue_inspections", {}, (value) => Number(value ?? 0)),
     get: (inspectionId) =>
       call("get_inspection", { inspection_id: inspectionId }, (value) =>
         detailOf(value, "get_inspection"),

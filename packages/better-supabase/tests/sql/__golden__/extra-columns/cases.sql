@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:47063e515f7611d6b46069919dd72fe1e6cdb7c1a83fdb304ae6d328eaacbb0d
+-- @bsb-hash sha256:96390e664da946cf16435901a79bdd6b1d1f8d020c7c01b4b6cc2f225517b881
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -820,7 +820,9 @@ grant execute on function "better_supabase"."case_blockers_of"("better_supabase"
 
 -- What still stops the case from closing: CASE_ROOT_CAUSE_REQUIRED,
 -- CASE_ACTIONS_REQUIRED, CASE_ACTIONS_OPEN, CASE_EFFECTIVENESS_REQUIRED and
--- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them. Empty when it may close.
+-- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them, and
+-- CASE_APPROVAL_REQUIRED while approvals asks for a decision on closing. Empty
+-- when it may close.
 create or replace function "better_supabase"."case_close_blockers"(case_id uuid)
 returns text[]
 language plpgsql
@@ -894,7 +896,8 @@ create trigger bsb_case_guard before update of "stage_id" on "better_supabase"."
 for each row execute function better_supabase.bsb_case_guard();
 
 -- Closes the case: moves it to its pipeline's first success stage. Refuses
--- with CASE_CLOSE_BLOCKED, the blockers in the detail, while one remains.
+-- with the first blocker as the hint and every blocker in the detail while one
+-- remains.
 create or replace function "better_supabase"."close_case"(case_id uuid, note text default null)
 returns jsonb
 language plpgsql

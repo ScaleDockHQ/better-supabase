@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:f8dff57e96bd46a35e869429c8b831abda304cdeaecd357a520115a7860c8ded
+-- @bsb-hash sha256:e21381e172e538f2f3d57a78102a6385fbcd8ef600ce2302a382395b36a5a9b8
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -811,7 +811,9 @@ grant execute on function "better_supabase"."case_blockers_of"("better_supabase"
 
 -- What still stops the case from closing: CASE_ROOT_CAUSE_REQUIRED,
 -- CASE_ACTIONS_REQUIRED, CASE_ACTIONS_OPEN, CASE_EFFECTIVENESS_REQUIRED and
--- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them. Empty when it may close.
+-- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them, and
+-- CASE_APPROVAL_REQUIRED while approvals asks for a decision on closing. Empty
+-- when it may close.
 create or replace function "better_supabase"."case_close_blockers"(case_id uuid)
 returns text[]
 language plpgsql
@@ -885,7 +887,8 @@ create trigger bsb_case_guard before update of "stage_id" on "better_supabase"."
 for each row execute function better_supabase.bsb_case_guard();
 
 -- Closes the case: moves it to its pipeline's first success stage. Refuses
--- with CASE_CLOSE_BLOCKED, the blockers in the detail, while one remains.
+-- with the first blocker as the hint and every blocker in the detail while one
+-- remains.
 create or replace function "better_supabase"."close_case"(case_id uuid, note text default null)
 returns jsonb
 language plpgsql
@@ -1363,7 +1366,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:05a8b2150d86dcce0ff3fe19ddaa9d72f061e411b96688e96b4a43d55d7eed41
+-- @bsb-hash sha256:2b67ee69a9939f8f5d8ebd3f11c9d8f07b6d018213274a7ac0991fa248103428
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2389,6 +2392,7 @@ as $$
 declare
   v_kind "better_supabase"."case_kinds";
   v_blockers text[] := '{}';
+  v_policy jsonb;
 begin
   select * into v_kind from "better_supabase"."case_kinds" y where y."id" = case_blockers_of.target."kind_id";
   if v_kind."requires_root_cause" and coalesce(trim(case_blockers_of.target."root_cause"), '') = '' then
@@ -2410,6 +2414,18 @@ begin
   if v_kind."requires_effectiveness" and case_blockers_of.target."effective" is not true then
     v_blockers := v_blockers || 'CASE_EFFECTIVENESS_REQUIRED'::text;
   end if;
+  v_policy := "better_supabase"."approval_effective_policy"(case_blockers_of.target."tenant_id", 'case', 'close',
+    jsonb_build_object('caseId', case_blockers_of.target."id", 'kind', v_kind."key", 'severity', case_blockers_of.target."severity"));
+  if (coalesce(v_policy ->> 'mode', 'authorize') = 'confirm' or jsonb_array_length(coalesce(v_policy -> 'steps', '[]'::jsonb)) > 0)
+    and not exists (
+      select 1 from "better_supabase"."approval_requests" r
+      where r."subject_type" = 'case'
+        and r."subject_id" = case_blockers_of.target."id"::text
+        and r."action" = 'close'
+        and r."status" = 'approved'
+    ) then
+    v_blockers := v_blockers || 'CASE_APPROVAL_REQUIRED'::text;
+  end if;
   return v_blockers;
 end;
 $$;
@@ -2418,7 +2434,9 @@ grant execute on function "better_supabase"."case_blockers_of"("better_supabase"
 
 -- What still stops the case from closing: CASE_ROOT_CAUSE_REQUIRED,
 -- CASE_ACTIONS_REQUIRED, CASE_ACTIONS_OPEN, CASE_EFFECTIVENESS_REQUIRED and
--- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them. Empty when it may close.
+-- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them, and
+-- CASE_APPROVAL_REQUIRED while approvals asks for a decision on closing. Empty
+-- when it may close.
 create or replace function "better_supabase"."case_close_blockers"(case_id uuid)
 returns text[]
 language plpgsql
@@ -2469,6 +2487,8 @@ begin
       new."status" := 'closed';
       new."closed_at" := now();
       new."closed_by" := auth.uid();
+      perform "better_supabase"."version_insert"(new."tenant_id", 'case', new."id"::text,
+        jsonb_build_object('id', new."id", 'organizationId', new."tenant_id", 'kindId', new."kind_id", 'number', new."number", 'title', new."title", 'description', new."description", 'severity', new."severity", 'source', new."source", 'reporterId', new."reporter_id", 'reporterContact', new."reporter_contact", 'ownerId', new."owner_id", 'occurredAt', new."occurred_at", 'detectedAt', new."detected_at", 'dueOn', new."due_on", 'pipelineId', new."pipeline_id", 'stageId', new."stage_id", 'stageEnteredAt', new."stage_entered_at", 'status', new."status", 'rootCause', new."root_cause", 'rootCauseSubmissionId', new."root_cause_submission_id", 'effective', new."effective", 'effectivenessDueOn', new."effectiveness_due_on", 'effectivenessNote', new."effectiveness_note", 'effectivenessSubmissionId', new."effectiveness_submission_id", 'closedAt', new."closed_at", 'closedBy', new."closed_by", 'closeNote', new."close_note", 'rank', new."rank", 'archivedAt', new."archived_at", 'createdBy', new."created_by", 'createdAt', new."created_at", 'updatedAt', new."updated_at"), null, 'Closed ' || new."number", 'manual', true, auth.uid());
     end if;
   elsif v_outcome = 'failure' then
     if old."status" <> 'canceled' then
@@ -2491,8 +2511,36 @@ drop trigger if exists bsb_case_guard on "better_supabase"."cases";
 create trigger bsb_case_guard before update of "stage_id" on "better_supabase"."cases"
 for each row execute function better_supabase.bsb_case_guard();
 
+create or replace function "better_supabase"."case_close_approved"(case_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."cases";
+  v_stage uuid;
+begin
+  select * into v_row from "better_supabase"."cases" x where x."id" = case_close_approved.case_id for update;
+  if not found or v_row."status" <> 'open' or cardinality("better_supabase"."case_blockers_of"(v_row)) > 0 then
+    return;
+  end if;
+  select s."id" into v_stage from "better_supabase"."pipeline_stages" s
+  where s."pipeline_id" = v_row."pipeline_id" and s."outcome" = 'success' and s."archived_at" is null
+  order by s."rank" collate "C"
+  limit 1;
+  if v_stage is not null then
+    update "better_supabase"."cases" x set "stage_id" = v_stage where x."id" = v_row."id";
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."case_close_approved"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."case_close_approved"(uuid) to service_role;
+
 -- Closes the case: moves it to its pipeline's first success stage. Refuses
--- with CASE_CLOSE_BLOCKED, the blockers in the detail, while one remains.
+-- with the first blocker as the hint and every blocker in the detail while one
+-- remains.
 create or replace function "better_supabase"."close_case"(case_id uuid, note text default null)
 returns jsonb
 language plpgsql
@@ -3050,7 +3098,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:177723b2e9081fb1ffcea3d85d7bc0e4f46918454df3d4c237258c52398a69e7
+-- @bsb-hash sha256:6a3e31de313721acba53ac9dd812c550e9c8b657689c701ea60f3a6323256874
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3865,7 +3913,9 @@ grant execute on function "app_private"."case_blockers_of"("app_private"."cases"
 
 -- What still stops the case from closing: CASE_ROOT_CAUSE_REQUIRED,
 -- CASE_ACTIONS_REQUIRED, CASE_ACTIONS_OPEN, CASE_EFFECTIVENESS_REQUIRED and
--- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them. Empty when it may close.
+-- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them, and
+-- CASE_APPROVAL_REQUIRED while approvals asks for a decision on closing. Empty
+-- when it may close.
 create or replace function "app_private"."case_close_blockers"(case_id uuid)
 returns text[]
 language plpgsql
@@ -3939,7 +3989,8 @@ create trigger bsb_case_guard before update of "stage_id" on "app_private"."case
 for each row execute function better_supabase.bsb_case_guard();
 
 -- Closes the case: moves it to its pipeline's first success stage. Refuses
--- with CASE_CLOSE_BLOCKED, the blockers in the detail, while one remains.
+-- with the first blocker as the hint and every blocker in the detail while one
+-- remains.
 create or replace function "app_private"."close_case"(case_id uuid, note text default null)
 returns jsonb
 language plpgsql
@@ -4417,7 +4468,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:cce4dfd9f505f7584bd0ec967a5dbbabfb2301c664df9b4c12b54535a1e76069
+-- @bsb-hash sha256:eb9303187c8681e51d7255baa253d0141fa50e3cab87611e46809da39d8dc464
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5227,7 +5278,9 @@ grant execute on function "better_supabase"."case_blockers_of"("better_supabase"
 
 -- What still stops the case from closing: CASE_ROOT_CAUSE_REQUIRED,
 -- CASE_ACTIONS_REQUIRED, CASE_ACTIONS_OPEN, CASE_EFFECTIVENESS_REQUIRED and
--- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them. Empty when it may close.
+-- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them, and
+-- CASE_APPROVAL_REQUIRED while approvals asks for a decision on closing. Empty
+-- when it may close.
 create or replace function "better_supabase"."case_close_blockers"(case_id uuid)
 returns text[]
 language plpgsql
@@ -5301,7 +5354,8 @@ create trigger bsb_case_guard before update of "stage_id" on "better_supabase"."
 for each row execute function better_supabase.bsb_case_guard();
 
 -- Closes the case: moves it to its pipeline's first success stage. Refuses
--- with CASE_CLOSE_BLOCKED, the blockers in the detail, while one remains.
+-- with the first blocker as the hint and every blocker in the detail while one
+-- remains.
 create or replace function "better_supabase"."close_case"(case_id uuid, note text default null)
 returns jsonb
 language plpgsql
@@ -6008,7 +6062,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:9cb4438716e0fe3531d5c0d10ee0e3b0b5f6e022fddfeab6abdb42414d16b233
+-- @bsb-hash sha256:1795c0fba3465a6769f6c89eb59050b971daaa52cadcd96b0a83e666be6d66d3
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6802,7 +6856,9 @@ grant execute on function "better_supabase"."case_blockers_of"("better_supabase"
 
 -- What still stops the case from closing: CASE_ROOT_CAUSE_REQUIRED,
 -- CASE_ACTIONS_REQUIRED, CASE_ACTIONS_OPEN, CASE_EFFECTIVENESS_REQUIRED and
--- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them. Empty when it may close.
+-- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them, and
+-- CASE_APPROVAL_REQUIRED while approvals asks for a decision on closing. Empty
+-- when it may close.
 create or replace function "better_supabase"."case_close_blockers"(case_id uuid)
 returns text[]
 language plpgsql
@@ -6876,7 +6932,8 @@ create trigger bsb_case_guard before update of "stage_id" on "better_supabase"."
 for each row execute function better_supabase.bsb_case_guard();
 
 -- Closes the case: moves it to its pipeline's first success stage. Refuses
--- with CASE_CLOSE_BLOCKED, the blockers in the detail, while one remains.
+-- with the first blocker as the hint and every blocker in the detail while one
+-- remains.
 create or replace function "better_supabase"."close_case"(case_id uuid, note text default null)
 returns jsonb
 language plpgsql
@@ -7354,7 +7411,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:e8e2c47f25c83fde0d420827caee55f6bc79fe776b17a50da851849625c03b19
+-- @bsb-hash sha256:dc51a6891862d44124aa19feb7e8ac3b09cf6630741315ce36839920f61172bd
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8164,7 +8221,9 @@ grant execute on function "better_supabase"."case_blockers_of"("better_supabase"
 
 -- What still stops the case from closing: CASE_ROOT_CAUSE_REQUIRED,
 -- CASE_ACTIONS_REQUIRED, CASE_ACTIONS_OPEN, CASE_EFFECTIVENESS_REQUIRED and
--- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them. Empty when it may close.
+-- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them, and
+-- CASE_APPROVAL_REQUIRED while approvals asks for a decision on closing. Empty
+-- when it may close.
 create or replace function "better_supabase"."case_close_blockers"(case_id uuid)
 returns text[]
 language plpgsql
@@ -8238,7 +8297,8 @@ create trigger bsb_case_guard before update of "stage_id" on "better_supabase"."
 for each row execute function better_supabase.bsb_case_guard();
 
 -- Closes the case: moves it to its pipeline's first success stage. Refuses
--- with CASE_CLOSE_BLOCKED, the blockers in the detail, while one remains.
+-- with the first blocker as the hint and every blocker in the detail while one
+-- remains.
 create or replace function "better_supabase"."close_case"(case_id uuid, note text default null)
 returns jsonb
 language plpgsql

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:a7e963ea59c027b5381929dd7538d12097c3d474b4d25e35e58141a575296b8e
+-- @bsb-hash sha256:e284ec8273bee9ab6ee7095eb8b57b89e7dd3076658d760f8f5cf503005bee19
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -130,6 +130,7 @@ create table if not exists "better_supabase"."inspections" (
   "started_at" timestamptz,
   "completed_at" timestamptz,
   "closed_at" timestamptz,
+  "overdue_notified_for" date,
   "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'reporting', 'closed', 'canceled')),
   "checklist_form_id" uuid references "better_supabase"."forms" ("id") on delete restrict,
   "checklist_submission_id" uuid references "better_supabase"."form_submissions" ("id") on delete set null,
@@ -1215,6 +1216,18 @@ $$;
 revoke execute on function "better_supabase"."list_inspections"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_inspections"(uuid, jsonb) to authenticated, service_role;
 
+
+-- Without the notifications block there is nobody to tell; the function stays so
+-- the client and its schedule work the same everywhere.
+create or replace function "better_supabase"."notify_overdue_inspections"()
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$ select 0 $$;
+revoke execute on function "better_supabase"."notify_overdue_inspections"() from public, anon, authenticated;
+grant execute on function "better_supabase"."notify_overdue_inspections"() to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1345,7 +1358,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:39508e5b5aef972d359f34eba01c5363cfb5276887921d7036b7330e1b515fae
+-- @bsb-hash sha256:ad3c1bb9afb2bc1f6d0e18f022aa64bd6a91322342e4ca3e4e8cbdd8b97b2ec1
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1474,6 +1487,7 @@ create table if not exists "better_supabase"."inspections" (
   "started_at" timestamptz,
   "completed_at" timestamptz,
   "closed_at" timestamptz,
+  "overdue_notified_for" date,
   "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'reporting', 'closed', 'canceled')),
   "checklist_form_id" uuid references "better_supabase"."forms" ("id") on delete restrict,
   "checklist_submission_id" uuid references "better_supabase"."form_submissions" ("id") on delete set null,
@@ -2782,6 +2796,101 @@ $$;
 revoke execute on function "better_supabase"."list_inspections"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_inspections"(uuid, jsonb) to authenticated, service_role;
 
+
+-- Notifies a user added to an inspection's team, unless they added themselves.
+-- The key keeps a team edit that keeps the user from notifying again.
+create or replace function "better_supabase"."inspection_assignment_notice"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inspections"%rowtype;
+  v_claims text;
+begin
+  if new."user_id" is not distinct from auth.uid() then
+    return new;
+  end if;
+  select * into v_row from "better_supabase"."inspections" x where x."id" = new."inspection_id";
+  if not found or v_row."status" not in ('planned', 'in_progress') then
+    return new;
+  end if;
+  v_claims := current_setting('request.jwt.claims', true);
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform "better_supabase"."notify"(jsonb_build_object(
+      'type', 'inspection.assigned',
+      'tenant', v_row."tenant_id",
+      'actor', auth.uid(),
+      'subject_type', 'inspection',
+      'subject_id', v_row."id"::text,
+      'summary', v_row."number" || ' ' || v_row."title",
+      'recipients', to_jsonb(array[new."user_id"]),
+      'key', 'inspection.assigned:' || v_row."id"::text || ':' || new."user_id"::text,
+      'data', jsonb_build_object('inspectionId', v_row."id", 'role', new."role")
+    ));
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."inspection_assignment_notice"() from public, anon, authenticated;
+drop trigger if exists bsb_inspection_assignment on "better_supabase"."inspection_members";
+create trigger bsb_inspection_assignment after insert on "better_supabase"."inspection_members"
+  for each row execute function "better_supabase"."inspection_assignment_notice"();
+
+-- Reports each planned or running inspection whose planned end has passed, to
+-- its lead or, without one, its auditors, once per planned end (the key keeps
+-- a repeat run quiet). Run it daily from a job (the inspections.overdue timer).
+create or replace function "better_supabase"."notify_overdue_inspections"()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inspections"%rowtype;
+  v_claims text;
+  v_to uuid[];
+  v_count integer := 0;
+begin
+  for v_row in
+    select * from "better_supabase"."inspections" x
+    where x."status" in ('planned', 'in_progress')
+      and x."planned_end" < current_date
+      and x."overdue_notified_for" is distinct from x."planned_end"
+    for update skip locked
+  loop
+    select coalesce(array_agg(y."user_id"), '{}'::uuid[]) into v_to from "better_supabase"."inspection_members" y
+    where y."inspection_id" = v_row."id" and y."role" = 'lead';
+    if cardinality(v_to) = 0 then
+      select coalesce(array_agg(y."user_id"), '{}'::uuid[]) into v_to from "better_supabase"."inspection_members" y
+      where y."inspection_id" = v_row."id" and y."role" = 'auditor';
+    end if;
+    if cardinality(v_to) > 0 then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
+        'type', 'inspection.overdue',
+        'tenant', v_row."tenant_id",
+        'actor', null,
+        'subject_type', 'inspection',
+        'subject_id', v_row."id"::text,
+        'summary', v_row."number" || ' ' || v_row."title",
+        'recipients', to_jsonb(v_to),
+        'key', 'inspection.overdue:' || v_row."id"::text || ':' || v_row."planned_end"::text,
+        'data', jsonb_build_object('inspectionId', v_row."id", 'plannedEnd', v_row."planned_end")
+      ));
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
+    update "better_supabase"."inspections" x set "overdue_notified_for" = v_row."planned_end" where x."id" = v_row."id";
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."notify_overdue_inspections"() from public, anon, authenticated;
+grant execute on function "better_supabase"."notify_overdue_inspections"() to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2912,7 +3021,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:48f9d65e6896b5a8bf069f18fb98bbe9fcf2581fe325ae7759e4243119cd5ae3
+-- @bsb-hash sha256:e5c42a1871286543b991bc019f5dad08c75529d47fc34f35e643f3bcd30b3979
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3046,6 +3155,7 @@ create table if not exists "app_private"."inspections" (
   "started_at" timestamptz,
   "completed_at" timestamptz,
   "closed_at" timestamptz,
+  "overdue_notified_for" date,
   "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'reporting', 'closed', 'canceled')),
   "checklist_form_id" uuid references "better_supabase"."forms" ("id") on delete restrict,
   "checklist_submission_id" uuid references "better_supabase"."form_submissions" ("id") on delete set null,
@@ -4131,6 +4241,18 @@ $$;
 revoke execute on function "app_private"."list_inspections"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."list_inspections"(uuid, jsonb) to authenticated, service_role;
 
+
+-- Without the notifications block there is nobody to tell; the function stays so
+-- the client and its schedule work the same everywhere.
+create or replace function "app_private"."notify_overdue_inspections"()
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$ select 0 $$;
+revoke execute on function "app_private"."notify_overdue_inspections"() from public, anon, authenticated;
+grant execute on function "app_private"."notify_overdue_inspections"() to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -4261,7 +4383,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:e52ac811a14b7093fecb2c20367c42a5dcbc8d59a37a938f2a7532f7ddc47419
+-- @bsb-hash sha256:db575465b78153a11d384db2efe283c3d884eb89cad37107af355934adad976c
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4390,6 +4512,7 @@ create table if not exists "better_supabase"."inspections" (
   "started_at" timestamptz,
   "completed_at" timestamptz,
   "closed_at" timestamptz,
+  "overdue_notified_for" date,
   "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'reporting', 'closed', 'canceled')),
   "checklist_form_id" uuid references "better_supabase"."forms" ("id") on delete restrict,
   "checklist_submission_id" uuid references "better_supabase"."form_submissions" ("id") on delete set null,
@@ -5475,6 +5598,18 @@ $$;
 revoke execute on function "better_supabase"."list_inspections"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_inspections"(uuid, jsonb) to authenticated, service_role;
 
+
+-- Without the notifications block there is nobody to tell; the function stays so
+-- the client and its schedule work the same everywhere.
+create or replace function "better_supabase"."notify_overdue_inspections"()
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$ select 0 $$;
+revoke execute on function "better_supabase"."notify_overdue_inspections"() from public, anon, authenticated;
+grant execute on function "better_supabase"."notify_overdue_inspections"() to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -5786,6 +5921,15 @@ as $$ select "better_supabase"."list_inspections"($1, $2) $$;
 revoke execute on function "api"."list_inspections"(uuid, jsonb) from public, anon;
 grant execute on function "api"."list_inspections"(uuid, jsonb) to authenticated, service_role;
 
+create or replace function "api"."notify_overdue_inspections"()
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."notify_overdue_inspections"() $$;
+revoke execute on function "api"."notify_overdue_inspections"() from public, anon, authenticated;
+grant execute on function "api"."notify_overdue_inspections"() to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -5816,7 +5960,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:6756e5ac035d2ca9876618ac7502d4dba81a930ea20b87ec71e169200a74236f
+-- @bsb-hash sha256:4230ebabf79f6d16327f74df5216a49c9dc4735a87dbcd69325b355d5e9a0d7c
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5939,6 +6083,7 @@ alter table "better_supabase"."inspections" add column if not exists "planned_en
 alter table "better_supabase"."inspections" add column if not exists "started_at" timestamptz;
 alter table "better_supabase"."inspections" add column if not exists "completed_at" timestamptz;
 alter table "better_supabase"."inspections" add column if not exists "closed_at" timestamptz;
+alter table "better_supabase"."inspections" add column if not exists "overdue_notified_for" date;
 alter table "better_supabase"."inspections" add column if not exists "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'reporting', 'closed', 'canceled'));
 alter table "better_supabase"."inspections" add column if not exists "checklist_form_id" uuid references "better_supabase"."forms" ("id") on delete restrict;
 alter table "better_supabase"."inspections" add column if not exists "checklist_submission_id" uuid references "better_supabase"."form_submissions" ("id") on delete set null;
@@ -7011,6 +7156,18 @@ $$;
 revoke execute on function "better_supabase"."list_inspections"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_inspections"(uuid, jsonb) to authenticated, service_role;
 
+
+-- Without the notifications block there is nobody to tell; the function stays so
+-- the client and its schedule work the same everywhere.
+create or replace function "better_supabase"."notify_overdue_inspections"()
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$ select 0 $$;
+revoke execute on function "better_supabase"."notify_overdue_inspections"() from public, anon, authenticated;
+grant execute on function "better_supabase"."notify_overdue_inspections"() to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -7141,7 +7298,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:73b0deef7357877c0e6a50ea41385714160b9b6df7048c2fb981e14bb2aa16da
+-- @bsb-hash sha256:26f737cc4650bb64ee4f69d2ed5ef17d289452250877be3b3c7cc466ba671f4a
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7270,6 +7427,7 @@ create table if not exists "better_supabase"."inspections" (
   "started_at" timestamptz,
   "completed_at" timestamptz,
   "closed_at" timestamptz,
+  "overdue_notified_for" date,
   "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'reporting', 'closed', 'canceled')),
   "checklist_form_id" uuid references "better_supabase"."forms" ("id") on delete restrict,
   "checklist_submission_id" uuid references "better_supabase"."form_submissions" ("id") on delete set null,
@@ -8354,6 +8512,18 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_inspections"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_inspections"(uuid, jsonb) to authenticated, service_role;
+
+
+-- Without the notifications block there is nobody to tell; the function stays so
+-- the client and its schedule work the same everywhere.
+create or replace function "better_supabase"."notify_overdue_inspections"()
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$ select 0 $$;
+revoke execute on function "better_supabase"."notify_overdue_inspections"() from public, anon, authenticated;
+grant execute on function "better_supabase"."notify_overdue_inspections"() to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

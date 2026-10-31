@@ -8082,6 +8082,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "forms",
         "relations",
         "drive",
+        "approvals",
+        "versions",
         "notifications",
         "outbox",
         "audit",
@@ -8227,6 +8229,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "compliance",
         "relations",
         "numbering",
+        "calendar",
+        "notifications",
         "outbox",
         "audit"
       ],
@@ -8306,6 +8310,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "startedAt": "started_at",
               "completedAt": "completed_at",
               "closedAt": "closed_at",
+              "overdueNotifiedFor": "overdue_notified_for",
               "status": "status",
               "checklistForm": "checklist_form_id",
               "checklistSubmission": "checklist_submission_id",
@@ -18504,7 +18509,15 @@ export const PRESET_CATALOG: PresetCatalog = {
           "inspection_finding.deleted",
           "inspection_finding.case_raised"
         ]
-      }
+      },
+      "schedules": [
+        {
+          "name": "overdue",
+          "cron": "0 6 * * *",
+          "runs": "notifyOverdue()",
+          "description": "Tells the lead of each inspection past its planned end, once per planned end."
+        }
+      ]
     },
     {
       "name": "manufacturing",
