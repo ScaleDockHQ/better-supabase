@@ -1353,10 +1353,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:d39c11e07ebc649bf25b64314be7785e4afb1fe74592d2af20b5f64f97b9b2d6
+-- @bsb-hash sha256:2f0ad0bb0c6ec95a0abc0b2e575f3ff5f93bd62b13b7698693fbc4ff8c738036
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1981,9 +1998,10 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'shiftId', v_row."id", 'teamId', v_row."team_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'reason', nullif(trim(cancel_shift.reason), ''))
   );
     if jsonb_array_length(v_users) > 0 then
-      v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+      if better_supabase.import_run() is null then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'shift.cancelled',
       'tenant', v_row."tenant_id",
       'actor', (select auth.uid()),
@@ -1994,7 +2012,8 @@ begin
       'key', 'shift.cancelled:' || v_row."id"::text,
       'data', jsonb_build_object('startsAt', v_row."starts_at", 'endsAt', v_row."ends_at")
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
     end if;
     declare
     v_hook regprocedure := to_regprocedure('"public"."after_shift_cancel"(uuid)');
@@ -2056,9 +2075,10 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'shiftId', v_row."id", 'teamId', v_row."team_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at")
   );
     if jsonb_array_length(coalesce((select jsonb_agg(x."user_id") from "better_supabase"."shift_assignments" x where x."shift_id" = v_row."id" and x."status" = 'assigned'), '[]'::jsonb)) > 0 then
-      v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+      if better_supabase.import_run() is null then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'shift.published',
       'tenant', v_row."tenant_id",
       'actor', (select auth.uid()),
@@ -2069,7 +2089,8 @@ begin
       'key', 'shift.published:' || v_row."id"::text,
       'data', jsonb_build_object('startsAt', v_row."starts_at", 'endsAt', v_row."ends_at")
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
     end if;
   end loop;
   return v_count;
@@ -2200,9 +2221,10 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'shiftId', v_row."shift_id", 'assignmentId', v_row."id", 'userId', v_row."user_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at")
   );
   if v_shift."status" = 'published' then
+    if better_supabase.import_run() is null then
     v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'shift_assignment.created',
       'tenant', v_shift."tenant_id",
       'actor', (select auth.uid()),
@@ -2213,7 +2235,8 @@ begin
       'key', 'shift_assignment.created:' || v_shift."id"::text || ':' || v_row."user_id"::text,
       'data', jsonb_build_object('startsAt', v_shift."starts_at", 'endsAt', v_shift."ends_at")
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_shift_assignment_create"(uuid)');
@@ -2270,9 +2293,10 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'shiftId', v_row."shift_id", 'assignmentId', v_row."id", 'userId', v_row."user_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'reason', nullif(trim(unassign_shift.reason), ''))
   );
     if v_was = 'assigned' and v_shift."status" = 'published' then
-      v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+      if better_supabase.import_run() is null then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'shift_assignment.released',
       'tenant', v_shift."tenant_id",
       'actor', (select auth.uid()),
@@ -2283,7 +2307,8 @@ begin
       'key', 'shift_assignment.released:' || v_shift."id"::text || ':' || v_row."user_id"::text,
       'data', jsonb_build_object('startsAt', v_shift."starts_at", 'endsAt', v_shift."ends_at")
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
     end if;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'shiftId', v_row."shift_id", 'userId', v_row."user_id", 'status', v_row."status", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'assignedBy', v_row."assigned_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
@@ -2402,9 +2427,10 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'shiftId', v_row."shift_id", 'assignmentId', v_row."id", 'userId', v_row."user_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at")
   );
+    if better_supabase.import_run() is null then
     v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'shift_assignment.created',
       'tenant', v_shift."tenant_id",
       'actor', (select auth.uid()),
@@ -2415,7 +2441,8 @@ begin
       'key', 'shift_assignment.created:' || v_shift."id"::text || ':' || v_row."user_id"::text,
       'data', jsonb_build_object('startsAt', v_shift."starts_at", 'endsAt', v_shift."ends_at")
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
     declare
     v_hook regprocedure := to_regprocedure('"public"."after_shift_assignment_create"(uuid)');
   begin
@@ -2438,9 +2465,10 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'shiftId', v_row."shift_id", 'assignmentId', v_row."id", 'userId', v_row."user_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'reason', 'request_rejected')
   );
+    if better_supabase.import_run() is null then
     v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'shift_assignment.released',
       'tenant', v_shift."tenant_id",
       'actor', (select auth.uid()),
@@ -2451,7 +2479,8 @@ begin
       'key', 'shift_assignment.released:' || v_shift."id"::text || ':' || v_row."user_id"::text,
       'data', jsonb_build_object('startsAt', v_shift."starts_at", 'endsAt', v_shift."ends_at")
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'shiftId', v_row."shift_id", 'userId', v_row."user_id", 'status', v_row."status", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'assignedBy', v_row."assigned_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('warnings', v_warnings);
 end;
@@ -2510,9 +2539,10 @@ begin
     tenant => (v_swap."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_swap."tenant_id", 'swapId', v_swap."id", 'assignmentId', v_swap."assignment_id", 'shiftId', v_shift."id", 'fromUserId', v_swap."from_user_id", 'toUserId', v_swap."to_user_id")
   );
-  v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+  if better_supabase.import_run() is null then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'shift_swap.requested',
       'tenant', v_shift."tenant_id",
       'actor', (select auth.uid()),
@@ -2523,7 +2553,8 @@ begin
       'key', 'shift_swap.requested:' || v_shift."id"::text || ':' || v_swap."to_user_id"::text,
       'data', jsonb_build_object('startsAt', v_shift."starts_at", 'endsAt', v_shift."ends_at")
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
   return jsonb_build_object('id', v_swap."id", 'organizationId', v_swap."tenant_id", 'assignmentId', v_swap."assignment_id", 'fromUserId', v_swap."from_user_id", 'toUserId', v_swap."to_user_id", 'status', v_swap."status", 'approvalId', v_swap."approval_id", 'note', v_swap."note", 'decidedBy', v_swap."decided_by", 'decidedAt', v_swap."decided_at", 'createdAt', v_swap."created_at");
 end;
 $$;
@@ -2622,9 +2653,10 @@ begin
     metadata => jsonb_build_object('organizationId', v_swap."tenant_id", 'swapId', v_swap."id", 'assignmentId', v_swap."assignment_id", 'shiftId', v_shift."id", 'fromUserId', v_swap."from_user_id", 'toUserId', v_swap."to_user_id", 'status', v_swap."status")
   );
   if v_status <> 'canceled' then
+    if better_supabase.import_run() is null then
     v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'shift_swap.decided',
       'tenant', v_shift."tenant_id",
       'actor', (select auth.uid()),
@@ -2635,12 +2667,14 @@ begin
       'key', 'shift_swap.decided:' || v_shift."id"::text || ':' || v_swap."from_user_id"::text,
       'data', jsonb_build_object('startsAt', v_shift."starts_at", 'endsAt', v_shift."ends_at")
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
   end if;
   if v_status = 'approved' then
+    if better_supabase.import_run() is null then
     v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'shift_assignment.created',
       'tenant', v_shift."tenant_id",
       'actor', (select auth.uid()),
@@ -2651,7 +2685,8 @@ begin
       'key', 'shift_assignment.created:' || v_shift."id"::text || ':' || v_swap."to_user_id"::text,
       'data', jsonb_build_object('startsAt', v_shift."starts_at", 'endsAt', v_shift."ends_at")
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
   end if;
   return jsonb_build_object('id', v_swap."id", 'organizationId', v_swap."tenant_id", 'assignmentId', v_swap."assignment_id", 'fromUserId', v_swap."from_user_id", 'toUserId', v_swap."to_user_id", 'status', v_swap."status", 'approvalId', v_swap."approval_id", 'note', v_swap."note", 'decidedBy', v_swap."decided_by", 'decidedAt', v_swap."decided_at", 'createdAt', v_swap."created_at");
 end;

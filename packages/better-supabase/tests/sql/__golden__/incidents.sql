@@ -1101,10 +1101,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@3 managed
--- @bsb-hash sha256:f0807f12493d380901cc11e1505dd504a484c6ca9c2c62ef9fbcca3f36cb7c18
+-- @bsb-hash sha256:42253b7fb5828d73e28a8b7612c5b11bf6bf118297df689f3046bdf03d40337e
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1651,9 +1668,10 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'incidentId', v_row."id", 'title', v_row."title", 'severity', v_row."severity", 'status', v_row."status", 'public', v_row."public")
   );
   if v_row."commander_id" is not null and v_row."commander_id" is distinct from auth.uid() then
-    v_claims := current_setting('request.jwt.claims', true);
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform "better_supabase"."notify"(jsonb_build_object(
+    if better_supabase.import_run() is null then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'incident.opened',
       'tenant', v_row."tenant_id",
       'actor', auth.uid(),
@@ -1664,7 +1682,8 @@ begin
       'key', 'incident.opened:' || v_row."id"::text,
       'data', jsonb_build_object('incidentId', v_row."id", 'severity', v_row."severity")
     ));
-    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'title', v_row."title", 'description', v_row."description", 'severity', v_row."severity", 'status', v_row."status", 'public', v_row."public", 'commanderId', v_row."commander_id", 'startedAt', v_row."started_at", 'resolvedAt', v_row."resolved_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."incident_status_components" ic on ic."id" = im."component_id" where im."incident_id" = v_row."id"));
 end;

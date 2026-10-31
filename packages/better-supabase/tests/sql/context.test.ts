@@ -760,11 +760,17 @@ describe("statement helpers", () => {
 
   it("notifies as the service role and restores the claims", () => {
     expect(all("notifications").notify("v_fields", { indent: "    " })).toBe(
-      `v_claims := current_setting('request.jwt.claims', true);
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform "better_supabase"."notify"(v_fields);
-    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);`,
+      `if better_supabase.import_run() is null then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(v_fields);
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;`,
     );
+  });
+
+  it("names the import mode condition", () => {
+    expect(all().importing()).toBe("better_supabase.import_run() is not null");
   });
 
   it("enqueues a deduplicated job", () => {

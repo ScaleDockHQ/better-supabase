@@ -1,11 +1,27 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:a1d3344e66eb4042d246243941f52ec45eb8c35c07716087f2f368db0af046c7
+-- @bsb-hash sha256:3f6a03b200be427dbcb046fd6151b5ba1e0da125c356249c0e68e50865538d03
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -107,9 +123,25 @@ as $$
 #variable_conflict use_variable
 declare
   found_id text;
+  v_run uuid := better_supabase.import_run();
+  v_mode text;
 begin
   if event_type is null or btrim(event_type) = '' then
     raise exception 'An event needs a type' using errcode = '22023', hint = 'OUTBOX_TYPE_REQUIRED';
+  end if;
+  -- In import mode (ADR 0141) the run's imports.events policy decides: the
+  -- event type's own entry, then the default, then skip.
+  if v_run is not null then
+    v_mode := coalesce(
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> event_type,
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> 'default',
+      'skip'
+    );
+    if v_mode = 'skip' then
+      return null;
+    elsif v_mode = 'tag' then
+      payload := coalesce(payload, '{}'::jsonb) || jsonb_build_object('importRunId', v_run);
+    end if;
   end if;
   if key is not null then
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
@@ -886,11 +918,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:5651ad428234fb6c40d0517ec57e239e1a25bf90ac1935a26c7062c51755cd3f
+-- @bsb-hash sha256:9a205de64287c5cf8c3c34f6f3bb9ba7a2016fa490c3e243cfdf9557df929aba
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -992,9 +1040,25 @@ as $$
 #variable_conflict use_variable
 declare
   found_id text;
+  v_run uuid := better_supabase.import_run();
+  v_mode text;
 begin
   if event_type is null or btrim(event_type) = '' then
     raise exception 'An event needs a type' using errcode = '22023', hint = 'OUTBOX_TYPE_REQUIRED';
+  end if;
+  -- In import mode (ADR 0141) the run's imports.events policy decides: the
+  -- event type's own entry, then the default, then skip.
+  if v_run is not null then
+    v_mode := coalesce(
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> event_type,
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> 'default',
+      'skip'
+    );
+    if v_mode = 'skip' then
+      return null;
+    elsif v_mode = 'tag' then
+      payload := coalesce(payload, '{}'::jsonb) || jsonb_build_object('importRunId', v_run);
+    end if;
   end if;
   if key is not null then
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
@@ -1775,11 +1839,27 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:ca0799e4a1e82c8044a2e8f53296e85e3e6e6d114aed5657aba3ee6255bc079d
+-- @bsb-hash sha256:08d8e7004829e6ccbfde5a62813710b38aff0f093d16d2a1604e763a62ee0ac6
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -1886,9 +1966,25 @@ as $$
 #variable_conflict use_variable
 declare
   found_id text;
+  v_run uuid := better_supabase.import_run();
+  v_mode text;
 begin
   if event_type is null or btrim(event_type) = '' then
     raise exception 'An event needs a type' using errcode = '22023', hint = 'OUTBOX_TYPE_REQUIRED';
+  end if;
+  -- In import mode (ADR 0141) the run's imports.events policy decides: the
+  -- event type's own entry, then the default, then skip.
+  if v_run is not null then
+    v_mode := coalesce(
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> event_type,
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> 'default',
+      'skip'
+    );
+    if v_mode = 'skip' then
+      return null;
+    elsif v_mode = 'tag' then
+      payload := coalesce(payload, '{}'::jsonb) || jsonb_build_object('importRunId', v_run);
+    end if;
   end if;
   if key is not null then
     select e."id"::text into found_id from "app_private"."outbox_events" e
@@ -2665,11 +2761,27 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:a64b6f52847b0a1ab9285189fc4a8523ba3379d9bf44f785e7c0a5cf1dd5e1e4
+-- @bsb-hash sha256:b30074b328ac0e1f8c486827943e72fb679c77be511b9c69c3b5f1894014c115
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -2771,9 +2883,25 @@ as $$
 #variable_conflict use_variable
 declare
   found_id text;
+  v_run uuid := better_supabase.import_run();
+  v_mode text;
 begin
   if event_type is null or btrim(event_type) = '' then
     raise exception 'An event needs a type' using errcode = '22023', hint = 'OUTBOX_TYPE_REQUIRED';
+  end if;
+  -- In import mode (ADR 0141) the run's imports.events policy decides: the
+  -- event type's own entry, then the default, then skip.
+  if v_run is not null then
+    v_mode := coalesce(
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> event_type,
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> 'default',
+      'skip'
+    );
+    if v_mode = 'skip' then
+      return null;
+    elsif v_mode = 'tag' then
+      payload := coalesce(payload, '{}'::jsonb) || jsonb_build_object('importRunId', v_run);
+    end if;
   end if;
   if key is not null then
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
@@ -3174,6 +3302,15 @@ grant usage on schema "api" to anon, authenticated, service_role;
 drop function if exists "api"."emit_event"(text, jsonb, text, text, text, text);
 drop function if exists "api"."purge_outbox"(interval);
 drop function if exists "api"."purge_outbox"(interval, integer);
+
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
 
 create or replace function "api"."emit_event"(event_type text, payload jsonb default '{}', subject text default null, tenant text default null, key text default null, source text default null)
 returns text
@@ -3639,11 +3776,27 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:a01ca1acc5083a923f5895dba667f4ae24496e1e0464e575d3db40df654dbdd6
+-- @bsb-hash sha256:2ad6f56c05e8157541dd3b916ff26ba9cab8dddbe0d1e7bccb09e3b8af50afef
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -3716,9 +3869,25 @@ as $$
 #variable_conflict use_variable
 declare
   found_id text;
+  v_run uuid := better_supabase.import_run();
+  v_mode text;
 begin
   if event_type is null or btrim(event_type) = '' then
     raise exception 'An event needs a type' using errcode = '22023', hint = 'OUTBOX_TYPE_REQUIRED';
+  end if;
+  -- In import mode (ADR 0141) the run's imports.events policy decides: the
+  -- event type's own entry, then the default, then skip.
+  if v_run is not null then
+    v_mode := coalesce(
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> event_type,
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> 'default',
+      'skip'
+    );
+    if v_mode = 'skip' then
+      return null;
+    elsif v_mode = 'tag' then
+      payload := coalesce(payload, '{}'::jsonb) || jsonb_build_object('importRunId', v_run);
+    end if;
   end if;
   if key is not null then
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
@@ -4495,11 +4664,27 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:b020878ab1451605fcc4f46920ba55bf8330d7e59950074cba1330d3bce52573
+-- @bsb-hash sha256:50975bbac5fbe305ae04e251b371ba51d96637c0fc684346e02419f8f513e0d7
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -4601,9 +4786,25 @@ as $$
 #variable_conflict use_variable
 declare
   found_id text;
+  v_run uuid := better_supabase.import_run();
+  v_mode text;
 begin
   if event_type is null or btrim(event_type) = '' then
     raise exception 'An event needs a type' using errcode = '22023', hint = 'OUTBOX_TYPE_REQUIRED';
+  end if;
+  -- In import mode (ADR 0141) the run's imports.events policy decides: the
+  -- event type's own entry, then the default, then skip.
+  if v_run is not null then
+    v_mode := coalesce(
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> event_type,
+      nullif(current_setting('better_supabase.import_events', true), '')::jsonb ->> 'default',
+      'skip'
+    );
+    if v_mode = 'skip' then
+      return null;
+    elsif v_mode = 'tag' then
+      payload := coalesce(payload, '{}'::jsonb) || jsonb_build_object('importRunId', v_run);
+    end if;
   end if;
   if key is not null then
     select e."id"::text into found_id from "better_supabase"."outbox_events" e

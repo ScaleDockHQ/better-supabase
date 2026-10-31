@@ -1,9 +1,26 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:51cc418ace57c5302698be779c1d6b134e3868c4e83fa81250c485868c5028da
+-- @bsb-hash sha256:b4c1af523162f4c5d91b8230a6d9b0e5d88c37c5ba405d766ed6a23e0a312848
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -460,9 +477,10 @@ begin
     where not exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = x and k."notify" = 'none')
   );
   if cardinality(v_mentioned) > 0 then
-    v_claims := current_setting('request.jwt.claims', true);
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform "better_supabase"."notify"(jsonb_build_object(
+    if better_supabase.import_run() is null then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'message.mentioned',
       'tenant', v_msg."tenant_id",
       'actor', v_msg."author_id",
@@ -475,7 +493,8 @@ begin
       'watchers', false,
       'key', 'message.mentioned:' || v_msg."id"::text
     ));
-    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
   end if;
   if v_conv."kind" in ('dm', 'group_dm') and v_msg."thread_id" is null then
     v_direct := array(
@@ -485,9 +504,10 @@ begin
         and not k."user_id" = any (v_mentioned)
     );
     if cardinality(v_direct) > 0 then
+      if better_supabase.import_run() is null then
       v_claims := current_setting('request.jwt.claims', true);
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform "better_supabase"."notify"(jsonb_build_object(
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'message.direct',
       'tenant', v_msg."tenant_id",
       'actor', v_msg."author_id",
@@ -500,7 +520,8 @@ begin
       'watchers', false,
       'key', 'message.direct:' || v_msg."id"::text
     ));
-    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
     end if;
   end if;
   if v_msg."thread_id" is not null then
@@ -520,9 +541,10 @@ begin
         and s."level" in ('all', 'participating')
         and not s."user_id" = any (array[v_msg."author_id"] || v_mentioned)
     ) or to_regprocedure('"public"."notification_audience"(jsonb)') is not null) then
-    v_claims := current_setting('request.jwt.claims', true);
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform "better_supabase"."notify"(jsonb_build_object(
+    if better_supabase.import_run() is null then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'message.replied',
       'tenant', v_msg."tenant_id",
       'actor', v_msg."author_id",
@@ -535,7 +557,8 @@ begin
       'exclude', to_jsonb(v_mentioned),
       'key', 'message.replied:' || v_msg."id"::text
     ));
-    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_message_send"(uuid)');

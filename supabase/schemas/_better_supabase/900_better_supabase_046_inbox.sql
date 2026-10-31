@@ -1,9 +1,26 @@
 -- better-supabase module: inbox
 -- @bsb-block inbox@8 managed
--- @bsb-hash sha256:a9e48c3f380673041be4fbbe2c848a3b820310c516b717f6d97eed17054e52cb
+-- @bsb-hash sha256:ba9add7876ad2ba6801ba0a0aa2ac378e6af38d37d47cbb4ec2085d1c2b7b7b0
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -831,9 +848,10 @@ begin
     if v_conv."bot_mode" = 'bot' then
       perform "better_supabase"."enqueue_job"(queue => 'inbox_bot', payload => jsonb_build_object('conversation_id', v_conv."id", 'message_id', v_id, 'thread_id', v_conv."thread_id", 'inbox_id', v_conv."inbox_id"), dedupe_key => 'inbox:' || v_conv."id"::text, dedupe_running => false);
     end if;
-  v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+  if better_supabase.import_run() is null then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'inbox.message',
       'tenant', v_conv."tenant_id",
       'subject_type', 'conversation',
@@ -844,7 +862,8 @@ begin
       'key', 'inbox.message:' || v_id::text,
       'data', jsonb_build_object('conversationId', v_conv."id", 'messageId', v_id)
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
   end if;
   if v_kind = 'message' and inbox_add_message.direction = 'outbound' and v_inbox."channel" <> 'in_app' then
     insert into "better_supabase"."inbox_message_deliveries" ("tenant_id", "message_id", "channel")
@@ -855,9 +874,10 @@ begin
     end if;
   end if;
   if cardinality(v_mentions) > 0 then
-  v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+  if better_supabase.import_run() is null then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'inbox.mention',
       'tenant', v_conv."tenant_id",
       'actor', inbox_add_message.author,
@@ -868,7 +888,8 @@ begin
       'key', 'inbox.mention:' || v_id::text,
       'data', jsonb_build_object('conversationId', v_conv."id", 'messageId', v_id)
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
   end if;
   return v_id;
 end;
@@ -1165,9 +1186,10 @@ begin
     on conflict do nothing;
     end if;
     if assignee is not null and assignee is distinct from (select auth.uid()) then
-  v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+  if better_supabase.import_run() is null then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
         'type', 'inbox.assigned',
         'tenant', v_conv."tenant_id",
         'actor', (select auth.uid()),
@@ -1178,7 +1200,8 @@ begin
         'key', 'inbox.assigned:' || v_conv."id"::text || ':' || assignee::text || ':' || extract(epoch from now())::text,
         'data', jsonb_build_object('conversationId', v_conv."id")
       ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
       null;
     end if;
   end if;
@@ -1266,9 +1289,10 @@ begin
     insert into "better_supabase"."inbox_conversation_events" ("tenant_id", "conversation_id", "type", "actor_id", "data")
   values (v_conv."tenant_id", v_conv."id", 'handoff', (select auth.uid()), jsonb_build_object('from', v_before, 'to', set_bot_mode.mode, 'reason', set_bot_mode.reason));
     if v_before = 'bot' and mode = 'human' then
-  v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+  if better_supabase.import_run() is null then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
         'type', 'inbox.handoff',
         'tenant', v_conv."tenant_id",
         'actor', (select auth.uid()),
@@ -1280,7 +1304,8 @@ begin
         'key', 'inbox.handoff:' || v_conv."id"::text || ':' || extract(epoch from now())::text,
         'data', jsonb_build_object('conversationId', v_conv."id", 'reason', set_bot_mode.reason)
       ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
       null;
     end if;
   end if;
@@ -1885,9 +1910,10 @@ begin
     insert into "better_supabase"."inbox_conversation_events" ("tenant_id", "conversation_id", "type", "actor_id", "data")
     values (v_conv."tenant_id", v_conv."id", 'unsnoozed', null, jsonb_build_object('snoozed_until', v_until));
     perform "better_supabase".emit_event('inbox_conversation.unsnoozed', jsonb_build_object('conversationId', v_conv."id", 'organizationId', v_conv."tenant_id"::text, 'inboxId', v_conv."inbox_id", 'contactId', v_conv."contact_id", 'assigneeId', v_conv."assignee_id", 'status', v_conv."status"), 'conversations/' || v_conv."id"::text, (v_conv."tenant_id")::text, null, 'better-supabase/inbox');
-    v_claims := current_setting('request.jwt.claims', true);
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform "better_supabase"."notify"(jsonb_build_object(
+    if better_supabase.import_run() is null then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'inbox.snooze_ended',
       'tenant', v_conv."tenant_id",
       'subject_type', 'conversation',
@@ -1898,7 +1924,8 @@ begin
       'key', 'inbox.snooze_ended:' || v_conv."id"::text || ':' || extract(epoch from v_until)::text,
       'data', jsonb_build_object('conversationId', v_conv."id")
     ));
-    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
     v_count := v_count + 1;
   end loop;
   return v_count;
@@ -2526,6 +2553,15 @@ drop function if exists "api"."inbox_contact_json"(uuid);
 drop function if exists "api"."inbox_conversation_json"(uuid);
 drop function if exists "api"."inbox_messages_json"(uuid[]);
 drop function if exists "api"."inbox_file_allowed"(text, text);
+
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean

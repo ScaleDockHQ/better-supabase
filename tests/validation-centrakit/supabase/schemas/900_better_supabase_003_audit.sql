@@ -1,10 +1,26 @@
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:8d3720f55393ce0dff1d40d535876f35b174a59b6c3f5127f8fe391b64abde3f
+-- @bsb-hash sha256:e6d228d7d264c7a572abe8ebf5f8a535df16d5c9e9b2391cdd9563a6af4e98af
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -166,6 +182,11 @@ declare
   path_value text;
   path_step jsonb;
 begin
+  -- An import run with imports.audit 'summary' audits one entry per entity at
+  -- its end instead of one per row (ADR 0141).
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if tg_nargs > 0 then
     settings := tg_argv[0]::jsonb;
     select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
@@ -601,6 +622,10 @@ declare
   existing text;
   entry_id "centrakit"."audit_logs"."id"%type;
 begin
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     actor_id := auth.uid();
     actor_kind := null;
@@ -765,6 +790,10 @@ declare
   existing text;
   entry_id "centrakit"."audit_logs"."id"%type;
 begin
+  -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
   actor_id := coalesce(actor_id, auth.uid());
   if idempotency_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.audit_event'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));

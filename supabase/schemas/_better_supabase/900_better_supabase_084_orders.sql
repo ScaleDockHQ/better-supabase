@@ -1,9 +1,26 @@
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:195fa3dfb587be59be163061df9eb1d79f89658bf6e31a6865e731d1a6ce8bfb
+-- @bsb-hash sha256:876553234d6dec85138852229bda9c132648ea68772d8304dadde1479f5a1b92
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1264,6 +1281,7 @@ begin
   update "better_supabase"."orders" x set "paid_total" = v_paid, "updated_at" = now() where x."id" = v_order.id;
   if v_order.status::text in ('pending_payment', 'confirmed') and v_paid >= v_order.total then
     perform "better_supabase"."order_transition"(v_order.id, 'paid');
+    if not better_supabase.import_run() is not null then
     for v_line in
       select x."id" as id, x."variant_id" as variant, x."quantity" as quantity,
         x."location_id" as location, x."reservation_id" as reservation
@@ -1288,6 +1306,7 @@ begin
         end;
       end;
     end loop;
+    end if;
     v_invoice := "better_supabase"."create_invoice"(v_order.tenant,
       jsonb_build_object('title', 'Order ' || v_order.number, 'currency', v_order.currency, 'termsDays', 0,
         'origin', jsonb_build_object('type', 'order', 'id', v_order.id::text)),
@@ -2925,6 +2944,15 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."place_order"(uuid, jsonb, bigint, uuid, jsonb);
+
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean

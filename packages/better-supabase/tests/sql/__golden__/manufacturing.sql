@@ -1998,10 +1998,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:44b943d68bfdccd81747f3e45d3c458b135c0f6872272f954e31a12e89a82b61
+-- @bsb-hash sha256:c839d5ba9ebea0f2f4527dd7eb6b4ab6800dfdd59bd99cca14e08ec03f954e4f
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -3360,7 +3377,9 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   if v_labor > 0 then
+    if not better_supabase.import_run() is not null then
     perform "better_supabase"."accounting_post_source"('production_order', v_row."id"::text);
+  end if;
   end if;
   perform "better_supabase".emit_event('production_order.completed', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'number', v_row."number", 'variantId', v_row."variant_id", 'quantity', v_row."quantity"::text, 'status', v_row."status", 'producedQuantity', v_row."produced_quantity"::text, 'scrapQuantity', v_row."scrap_quantity"::text, 'outputLotId', v_row."output_lot_id"), 'production-orders/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/manufacturing');
   perform better_supabase.audit_event(

@@ -1366,10 +1366,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:2b67ee69a9939f8f5d8ebd3f11c9d8f07b6d018213274a7ac0991fa248103428
+-- @bsb-hash sha256:18bd68804083f60168f9f3bdff4c711321efc5fee657de3798468faf88a574f4
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -2804,9 +2821,10 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'caseId', v_row."id", 'kind', (select y."key" from "better_supabase"."case_kinds" y where y."id" = v_row."kind_id"), 'number', v_row."number", 'title', v_row."title", 'status', v_row."status", 'ownerId', v_row."owner_id", 'effectivenessDueOn', v_row."effectiveness_due_on")
   );
     if v_row."owner_id" is not null then
-      v_claims := current_setting('request.jwt.claims', true);
-      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-      perform "better_supabase"."notify"(jsonb_build_object(
+      if better_supabase.import_run() is null then
+        v_claims := current_setting('request.jwt.claims', true);
+        perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+        perform "better_supabase"."notify"(jsonb_build_object(
         'type', 'case.effectiveness_date_reached',
         'tenant', v_row."tenant_id",
         'actor', null,
@@ -2817,7 +2835,8 @@ begin
         'key', 'case.effectiveness_date_reached:' || v_row."id"::text || ':' || v_row."effectiveness_due_on"::text,
         'data', jsonb_build_object('caseId', v_row."id", 'effectivenessDueOn', v_row."effectiveness_due_on")
       ));
-      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+        perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      end if;
     end if;
     update "better_supabase"."cases" x set "effectiveness_notified_for" = v_row."effectiveness_due_on" where x."id" = v_row."id";
     v_count := v_count + 1;

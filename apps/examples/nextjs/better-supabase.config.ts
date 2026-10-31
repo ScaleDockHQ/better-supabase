@@ -523,6 +523,10 @@ export default defineConfig({
             updatedAt: "public.import_customer_updated_at",
           },
         },
+        // An import run fires no event unless listed, and audits one entry
+        // per entity instead of one per row (ADR 0141).
+        events: { "customer.imported": "tag", "customer.synced": "emit" },
+        audit: "summary",
       },
     },
     // Brand starters reach the organizations whose `brand` matches.

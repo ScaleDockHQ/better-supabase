@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:684743a499c7aa12556bc6356903df68900a83b7f493b9e6ae63e30e6b96b787
+-- @bsb-hash sha256:80c5fbbf16f2e5f04b89a4935a59fcc74084903720933d34674c1a322fd6e995
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,6 +29,22 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -353,10 +369,12 @@ begin
     end if;
     v_note := v_note || (v_extra - 'data') || jsonb_build_object('data', coalesce(v_note -> 'data', '{}'::jsonb) || coalesce(v_extra -> 'data', '{}'::jsonb));
   end if;
-  v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(v_note);
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  if better_supabase.import_run() is null then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(v_note);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
 end;
 $$;
 revoke execute on function "better_supabase"."approval_notify"(uuid, text) from public, anon, authenticated;
@@ -1782,6 +1800,15 @@ drop function if exists "api"."request_approval"(uuid, text, text, text, text, j
 drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb, text);
 drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text, jsonb, uuid);
 drop function if exists "api"."decide_approval"(uuid, text, text);
+
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean

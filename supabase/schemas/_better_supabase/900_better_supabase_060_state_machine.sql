@@ -1,6 +1,6 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:449b3bef7336c87f583e2cd3915d2f60a719567d1debf6c0b862cc06722f8199
+-- @bsb-hash sha256:c54a7431725f1aa82e320954a8a18a2e86bbee594d55e29b1dc5f206eb66fbe9
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20,6 +20,22 @@ end;
 $$;
 revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
 grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -225,6 +241,12 @@ begin
     if new."state" is null then
       new."state" := 'backlog';
     end if;
+    -- An import run (ADR 0141) may insert a row in any status: one synthetic
+    -- imported history row stands for how it got there, and no event fires.
+    if better_supabase.import_run() is not null and new."state" is not null then
+      insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_user_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
+        values (new."tenant_id", 'work_item', new."id"::text, null::text, new."state"::text, coalesce(auth.uid(), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'id', '')::uuid), 'imported', nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'name', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'email', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet, nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'userAgent', ''));
+    end if;
     
     
     return new;
@@ -393,6 +415,12 @@ as $$
 begin
   if tg_op = 'INSERT' then
     
+    -- An import run (ADR 0141) may insert a row in any status: one synthetic
+    -- imported history row stands for how it got there, and no event fires.
+    if better_supabase.import_run() is not null and new."document_status" is not null then
+      insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_user_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
+        values (new."tenant_id", 'drive_node', new."id"::text, null::text, new."document_status"::text, coalesce(auth.uid(), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'id', '')::uuid), 'imported', nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'name', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'email', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet, nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'userAgent', ''));
+    end if;
     
     
     return new;
@@ -895,6 +923,15 @@ set search_path = ''
 as $$ select "better_supabase"."as_column_type"($1, $2) $$;
 revoke execute on function "api"."as_column_type"(text, anyelement) from public;
 grant execute on function "api"."as_column_type"(text, anyelement) to anon, authenticated, service_role;
+
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
 
 create or replace function "api"."transition"(subject_type text, subject_id text, to_status text, reason text default null, actor jsonb default null)
 returns boolean

@@ -1,9 +1,26 @@
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:d2f38edd6c7521fdc4d73a7168d87ecc2255a718bba2de5cf58f7a4dcfb9c4ab
+-- @bsb-hash sha256:7fc025d04e7245d0e306db420f5244eaa20642d349e68fcc6dcfee4634797a1c
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -357,7 +374,9 @@ begin
     update "better_supabase"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    if not better_supabase.import_run() is not null then
     perform "better_supabase"."accounting_post_source"('gift', v_row."id"::text);
+  end if;
     perform "better_supabase".emit_event('donation.received', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id", 'pledgeId', v_row."pledge_id", 'amount', v_row."amount"::text, 'currency', v_row."currency", 'status', v_row."status"), 'donations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/donations');
   perform better_supabase.audit_event(
     event_type => 'donation.received',
@@ -1345,6 +1364,15 @@ grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."record_gift"(uuid, text, text, bigint, text, uuid, date, text, text, uuid, date, jsonb);
 drop function if exists "api"."open_gift"(uuid, text, text, bigint, text, uuid, uuid, date, text, text, jsonb);
+
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean

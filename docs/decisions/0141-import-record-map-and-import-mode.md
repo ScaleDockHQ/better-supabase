@@ -83,3 +83,14 @@ Drive sync (`drive_sync_batch`) already solves a small version of this with a
   guide and a codemod step cover it.
 - Every new write path has to honor `ctx.importing()`; the docs list each
   guarded hook. Revisit the hash rule if a target needs field-level merging.
+
+## Import mode as built
+
+`import_upsert_batch` begins the session itself and restores the caller's
+settings when the batch ends; a worker that runs chunk jobs calls it per
+chunk. `imports.events` defaults to skipping every event and `imports.audit`
+to `rows`. The guards cover the side effects that a write triggers by itself
+(outbox events, notifications, accounting auto-posting, stock taken for paid
+orders and shipped shipments). Explicit stock and ledger calls are not
+guarded, because an importer calls them on purpose with source balances. The
+docs page lists each guarded hook.

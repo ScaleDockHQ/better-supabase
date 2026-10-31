@@ -2288,10 +2288,27 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:64833773960e0bf86b0f67559df42eb5be170aaa2483e18f08ca1a98597a4854
+-- @bsb-hash sha256:33d6e15e217854b064590f201d6e46738955eca6ae1fdb0ead7686f95fd4dd05
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -3552,6 +3569,7 @@ begin
   update "better_supabase"."orders" x set "paid_total" = v_paid, "updated_at" = now() where x."id" = v_order.id;
   if v_order.status::text in ('pending_payment', 'confirmed') and v_paid >= v_order.total then
     perform "better_supabase"."order_transition"(v_order.id, 'paid');
+    if not better_supabase.import_run() is not null then
     for v_line in
       select x."id" as id, x."variant_id" as variant, x."quantity" as quantity,
         x."location_id" as location, x."reservation_id" as reservation
@@ -3576,6 +3594,7 @@ begin
         end;
       end;
     end loop;
+    end if;
     v_invoice := "better_supabase"."create_invoice"(v_order.tenant,
       jsonb_build_object('title', 'Order ' || v_order.number, 'currency', v_order.currency, 'termsDays', 0,
         'origin', jsonb_build_object('type', 'order', 'id', v_order.id::text)),
