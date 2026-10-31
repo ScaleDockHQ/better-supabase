@@ -1782,6 +1782,7 @@
               "vercel-marketplace",
               "versions",
               "waitlist",
+              "warehouse",
               "webhook-inbox",
               "webhooks-in",
               "webhooks-out",
@@ -1960,6 +1961,7 @@
                   "vercel-marketplace",
                   "versions",
                   "waitlist",
+                  "warehouse",
                   "webhook-inbox",
                   "webhooks-in",
                   "webhooks-out",
@@ -2450,6 +2452,9 @@
             },
             "waitlist": {
               "$ref": "#/$defs/blocks/waitlist"
+            },
+            "warehouse": {
+              "$ref": "#/$defs/blocks/warehouse"
             },
             "webhook-inbox": {
               "$ref": "#/$defs/blocks/webhook-inbox"
@@ -7838,6 +7843,17 @@
                 }
               }
             }
+          }
+        }
+      },
+      "warehouse": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

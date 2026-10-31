@@ -9840,6 +9840,51 @@
       "RpcClient"
     ]
   },
+  "./blocks/warehouse": {
+    "values": [
+      "countPlanInputSchema",
+      "createWarehouse",
+      "dbTransport",
+      "extendBlock",
+      "pickListInputSchema",
+      "pickRecordSchema",
+      "pickWaveInputSchema",
+      "rpcTransport",
+      "sqlTransport",
+      "warehouseBlock",
+      "warehouseEvents",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CountPlan",
+      "CountPlanEventData",
+      "CountPlanExecutedEventData",
+      "CountPlanInput",
+      "CycleCountVariance",
+      "CycleCountVarianceLine",
+      "PickLine",
+      "PickLineStatus",
+      "PickList",
+      "PickListEventData",
+      "PickListInput",
+      "PickListOptions",
+      "PickListPickedEventData",
+      "PickListStatus",
+      "PickRecord",
+      "PickWave",
+      "PickWaveEventData",
+      "PickWaveInput",
+      "PickWaveStatus",
+      "RpcClient",
+      "Warehouse",
+      "WarehouseEvents",
+      "WarehouseOptions"
+    ]
+  },
   "./blocks/manufacturing": {
     "values": [
       "bomInputSchema",

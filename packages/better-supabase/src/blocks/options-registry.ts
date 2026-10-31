@@ -374,6 +374,7 @@ export interface BlockOptionsRegistry {
   readonly dam: Record<never, never>;
   readonly lims: LimsSqlOptions;
   readonly appraisals: Record<never, never>;
+  readonly warehouse: Record<never, never>;
   readonly inventory: InventorySqlOptions;
   readonly invitations: InvitationsSqlOptions;
   readonly invoices: InvoicesSqlOptions;
@@ -562,6 +563,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   dam: NO_OPTIONS,
   lims: limsSqlOptions,
   appraisals: NO_OPTIONS,
+  warehouse: NO_OPTIONS,
   memberships: membershipsSqlOptions,
   memory: memorySqlOptions,
   messaging: messagingSqlOptions,

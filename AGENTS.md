@@ -281,6 +281,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0164: `lims` keeps samples, methods with specification limits and results; an out of specification result opens a `cases` nonconformity and blocks release, and instruments are assets with qualifications.
 - 0166: Purchase bill lines and expense lines carry `dimensions`; a report books one expense line per dimension set, so project costs split.
 - 0167: Appraisals run review cycles over enrollments, forms, goals and approvals, with calibration and sign-off.
+- 0168: Warehouse makes pick waves and lists from stock allocations, picking tasks and cycle count plans that hold large variances for review.
 
 ## Pre-release pins
 
