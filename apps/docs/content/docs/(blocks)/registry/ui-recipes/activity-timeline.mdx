@@ -29,7 +29,7 @@ const ICONS = new Map<string, LucideIcon>([
 export async function ActivityTimeline({
   subject,
 }: {
-  subject: { type: ContactKind; id: string };
+  subject: { type: TimelineSubjectType; id: string };
 }) {
   const [t, format, permissions] = await Promise.all([
     getExtracted("crm"),
