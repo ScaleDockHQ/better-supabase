@@ -31,6 +31,11 @@ import {
 } from "./data-lifecycle-entries.ts";
 import { DATA_LIFECYCLE_EVENTS } from "./data-lifecycle-events.ts";
 import {
+  RESTORE_CONTRACT,
+  restoreSql,
+  restoreTargets,
+} from "./data-lifecycle-restore.ts";
+import {
   RETENTION_CONTRACT,
   RETENTION_TABLES,
   retentionSql,
@@ -338,6 +343,8 @@ create index if not exists ${ctx.naming.rename("organization_deletions_due_idx")
 ${requested("requestedBy") ? `create index if not exists ${ctx.naming.rename("organization_deletions_requested_by_idx")} on ${d} (${cd("requestedBy")}) where ${cd("requestedBy")} is not null;\n` : ""}${ctx.owns("deletions") ? "" : `create unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("deletions").name}_tenant_key`)} on ${d} (${cd("tenant")});\n`}${lockTable(d)}
 
 ${retentionSql(ctx)}
+
+${restoreSql(ctx)}
 
 -- What an export reads and the purge clears: subject, display name,
 -- quoted table, column and whether the purge deletes it.
@@ -834,6 +841,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "due_organization_deletions", args: ["integer"], returns: "jsonb" },
     { name: "purge_organization", args: ["{id}"], returns: "jsonb" },
     { name: "anonymize_due", args: ["integer"], returns: "jsonb" },
+    ...RESTORE_CONTRACT,
     ...RETENTION_CONTRACT,
   ];
 }
@@ -849,7 +857,7 @@ export const DATA_LIFECYCLE: BlockSqlDefinition = {
   integrates: ["*"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 7,
+  version: 8,
   names: NAMES,
   contract,
   upgrades: [
@@ -889,7 +897,14 @@ export const DATA_LIFECYCLE: BlockSqlDefinition = {
         "request_subject_export exports one config.subjects record (subject 'record'): its row decrypted through its reveal function and every module's rows attached to it, held in data_export_contents until the export job writes them. data_exports gains subject_type, subject_id and format, one named subject check replaces the generated ones, and the data_export events carry subjectType and subjectId.",
       sql: () => "",
     },
+    {
+      from: 7,
+      description:
+        "data_restore_tables lists what a restore may write and restore_data_row writes one exported row into an organization through the import record map; with the imports block installed, createDataImporter restores an export (source restore).",
+      sql: () => "",
+    },
   ],
+  contributes: { imports: (own) => restoreTargets(own) },
   build,
   data,
 };

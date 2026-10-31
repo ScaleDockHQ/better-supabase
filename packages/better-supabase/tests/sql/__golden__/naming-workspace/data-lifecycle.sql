@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
--- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:fa2bcfd88b4a0dde43dd9e408b3ef55a9932e76f3536de64350f187b73543568
+-- @bsb-block data-lifecycle@8 managed
+-- @bsb-hash sha256:0af4e126e59abcfc4ffdf97cf24de0d2cab919e7fe57b1e86d42d434a4184d39
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -361,6 +361,142 @@ grant execute on function "better_supabase"."list_retention_policies"(text) to s
 grant execute on function "better_supabase"."place_legal_hold"(text, uuid, text) to service_role;
 grant execute on function "better_supabase"."release_legal_hold"(uuid) to service_role;
 grant execute on function "better_supabase"."list_legal_holds"(boolean) to service_role;
+
+
+-- The tables a restore may write, from the same list an export reads. Each
+-- entry: name, tenantColumn, columns (writable and not omitted from exports),
+-- keyColumns (the primary key without the tenant column) and references (the
+-- listed tables its foreign keys point at).
+create or replace function "better_supabase"."data_restore_tables"()
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  return (
+  with listed as (
+    select t.name, t.tbl, t.col, t.omit, to_regclass(t.tbl) as oid
+    from "better_supabase"."data_lifecycle_tables"() t
+    where t.subject = 'organization' and t.exported and to_regclass(t.tbl) is not null
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'name', l.name,
+    'tenantColumn', l.col,
+    'columns', (
+      select coalesce(jsonb_agg(a.attname order by a.attnum), '[]'::jsonb)
+      from pg_catalog.pg_attribute a
+      where a.attrelid = l.oid and a.attnum > 0 and not a.attisdropped
+        and a.attgenerated = '' and a.attidentity <> 'a'
+        and a.attname <> all (coalesce(l.omit, '{}'))
+    ),
+    'keyColumns', (
+      select coalesce(jsonb_agg(a.attname order by k.ord), '[]'::jsonb)
+      from pg_catalog.pg_constraint c
+      cross join lateral unnest(c.conkey) with ordinality as k(attnum, ord)
+      join pg_catalog.pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
+      where c.conrelid = l.oid and c.contype = 'p' and a.attname <> l.col
+    ),
+    'references', (
+      select coalesce(jsonb_agg(distinct o.name), '[]'::jsonb)
+      from pg_catalog.pg_constraint c
+      join listed o on o.oid = c.confrelid
+      where c.conrelid = l.oid and c.contype = 'f' and c.confrelid <> c.conrelid
+    )
+  ) order by l.name), '[]'::jsonb)
+  from listed l
+  );
+end
+$$;
+revoke execute on function "better_supabase"."data_restore_tables"() from public, anon, authenticated;
+grant execute on function "better_supabase"."data_restore_tables"() to service_role;
+
+-- The write function of the data_lifecycle_row import target: item.data is
+-- { table, row }. The row goes into the importing organization (its tenant
+-- column is replaced) and updates the row with the same primary key, unless
+-- that row belongs to another organization.
+create or replace function "better_supabase"."restore_data_row"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_name text := item #>> '{data,table}';
+  v_row jsonb := item #> '{data,row}';
+  v_tenant text := item ->> 'tenant';
+  v_table jsonb;
+  v_tbl text;
+  v_tenant_col text;
+  v_columns text[];
+  v_keys text[];
+  v_given text[];
+  v_cols text[];
+  v_pk text[];
+  v_sets text[];
+  v_sql text;
+  v_count bigint;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role restores data' using errcode = '42501', hint = 'DATA_RESTORE_FORBIDDEN';
+  end if;
+  if v_name is null or jsonb_typeof(v_row) is distinct from 'object' then
+    raise exception 'an item needs data.table and a data.row object' using errcode = '22023', hint = 'DATA_RESTORE_ROW_INVALID';
+  end if;
+  select x.value into v_table
+  from jsonb_array_elements("better_supabase"."data_restore_tables"()) x
+  where x.value ->> 'name' = v_name;
+  if v_table is null then
+    raise exception 'The restore has no table %', v_name using errcode = '22023', hint = 'DATA_RESTORE_TABLE';
+  end if;
+  select t.tbl into v_tbl from "better_supabase"."data_lifecycle_tables"() t
+  where t.subject = 'organization' and t.name = v_name and t.exported;
+  v_tenant_col := v_table ->> 'tenantColumn';
+  select coalesce(array_agg(c.value), '{}') into v_columns from jsonb_array_elements_text(v_table -> 'columns') c;
+  select coalesce(array_agg(c.value), '{}') into v_keys from jsonb_array_elements_text(v_table -> 'keyColumns') c;
+  select coalesce(array_agg(k.key), '{}') into v_given from jsonb_object_keys(v_row) k(key);
+  if exists (select 1 from unnest(v_given) g where g <> all (v_columns)) then
+    raise exception 'The table % has no column %', v_name, (select g from unnest(v_given) g where g <> all (v_columns) limit 1) using errcode = '22023', hint = 'DATA_RESTORE_COLUMN';
+  end if;
+
+  select array_agg(distinct c) into v_cols from unnest(v_given || array[v_tenant_col]) c;
+  v_row := v_row || pg_catalog.jsonb_build_object(v_tenant_col, v_tenant);
+  v_pk := v_keys || case when v_tenant_col = any (
+    select a.attname from pg_catalog.pg_constraint c
+    cross join lateral unnest(c.conkey) k(attnum)
+    join pg_catalog.pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
+    where c.conrelid = to_regclass(v_tbl) and c.contype = 'p'
+  ) then array[v_tenant_col] else '{}'::text[] end;
+
+  v_sql := pg_catalog.format(
+    'insert into %s as t (%s) select %s from jsonb_populate_record(null::%s, $1) r',
+    v_tbl,
+    (select string_agg(pg_catalog.format('%I', c), ', ') from unnest(v_cols) c),
+    (select string_agg(pg_catalog.format('r.%I', c), ', ') from unnest(v_cols) c),
+    v_tbl
+  );
+  if cardinality(v_pk) > 0 then
+    select array_agg(pg_catalog.format('%I = excluded.%I', c, c)) into v_sets
+    from unnest(v_cols) c where c <> all (v_pk);
+    v_sql := v_sql || pg_catalog.format(
+      ' on conflict ' || '(%s) do update set %s where t.%I::text = excluded.%I::text',
+      (select string_agg(pg_catalog.format('%I', c), ', ') from unnest(v_pk) c),
+      coalesce(array_to_string(v_sets, ', '), pg_catalog.format('%I = excluded.%I', v_pk[1], v_pk[1])),
+      v_tenant_col, v_tenant_col
+    );
+  end if;
+  execute v_sql using v_row;
+  get diagnostics v_count = row_count;
+  if v_count = 0 then
+    raise exception 'The row of % belongs to another organization', v_name using errcode = '23505', hint = 'DATA_RESTORE_ROW_CONFLICT';
+  end if;
+  return pg_catalog.jsonb_build_object('subjectId', item ->> 'key', 'subjectType', 'data_lifecycle_row');
+end;
+$$;
+revoke execute on function "better_supabase"."restore_data_row"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."restore_data_row"(uuid, jsonb, text) to service_role;
+
 
 -- What an export reads and the purge clears: subject, display name,
 -- quoted table, column and whether the purge deletes it.
@@ -1057,7 +1193,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block-data data-lifecycle
--- @bsb-hash sha256:2aaeb774923f87ce4066af2206504066d85675dc8ae1205d19bfd05e8d53c33f
+-- @bsb-hash sha256:91b1ecf37bdadc8a3837d47fa1a7dddb9d1dac6e489fc3acc79652fa7b1103b6
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1068,6 +1204,6 @@ values ('data-exports', 'data-exports', false)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('data-lifecycle', 7, 'managed')
+values ('data-lifecycle', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

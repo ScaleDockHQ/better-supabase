@@ -81,7 +81,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "custom-fields":
     "delete_field_definition list_field_definitions rank_field_definition read_field_values save_field_definition set_field_value",
   "data-lifecycle":
-    "anonymize_due cancel_organization_deletion claim_data_export complete_data_export data_export_rows due_organization_deletions expired_data_exports fail_data_export forget_data_exports get_data_export list_data_exports list_legal_holds list_retention_policies organization_credential_refs organization_deletion place_legal_hold purge_organization release_legal_hold remove_retention_policy request_data_export request_organization_deletion request_subject_export set_retention_policy",
+    "anonymize_due cancel_organization_deletion claim_data_export complete_data_export data_export_rows data_restore_tables due_organization_deletions expired_data_exports fail_data_export forget_data_exports get_data_export list_data_exports list_legal_holds list_retention_policies organization_credential_refs organization_deletion place_legal_hold purge_organization release_legal_hold remove_retention_policy request_data_export request_organization_deletion request_subject_export set_retention_policy",
   deals:
     "archive_deal close_deal create_deal deal_forecast deal_health delete_deal reopen_deal set_deal_contacts set_deal_lines set_deal_members update_deals",
   dispatch:

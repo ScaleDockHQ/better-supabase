@@ -94,3 +94,19 @@ to `rows`. The guards cover the side effects that a write triggers by itself
 orders and shipped shipments). Explicit stock and ledger calls are not
 guarded, because an importer calls them on purpose with source balances. The
 docs page lists each guarded hook.
+
+## Data lifecycle restore as built
+
+`createDataImporter` (`better-supabase/blocks/data-lifecycle`) reads the
+NDJSON-per-table organization export and writes it through the record map
+with `source = 'restore'`. `data-lifecycle` contributes one import target,
+`data_lifecycle_row`, whose write function `restore_data_row` inserts a row
+into the importing organization (it replaces the tenant column and updates by
+primary key, and refuses a key owned by another organization). Table and
+column names are checked against `data_restore_tables()`, which derives from
+`data_lifecycle_tables()` and the catalog; a row's key is its primary key
+values, or a hash of its line for a table without one. The CSV export is
+lossy (null and empty text coincide, formula guards, untyped JSON), so the
+importer rejects it with `DATA_RESTORE_CSV` instead of guessing. The target
+has no `updatedAt` reader, so a changed row overwrites a user's edit; the
+restore is for rebuilding an organization, not merging into a live one.

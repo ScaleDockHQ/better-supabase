@@ -6,6 +6,18 @@ export {
 } from "./exporter.ts";
 
 export {
+  createDataImporter,
+  RESTORE_SOURCE,
+  type DataImporter,
+  type DataImporterOptions,
+  type RestoreFile,
+  type RestoreOptions,
+  type RestoreReport,
+  type RestoreRowError,
+  type RestoreTableReport,
+} from "./importer.ts";
+
+export {
   createDataLifecycle,
   type DataExport,
   type DataExportDownload,

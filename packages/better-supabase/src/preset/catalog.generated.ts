@@ -607,7 +607,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "permissions"
       ],
       "integrates": [
-        "*"
+        "*",
+        "imports"
       ],
       "manifest": "data-lifecycle",
       "scopes": [
