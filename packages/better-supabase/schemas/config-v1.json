@@ -4894,6 +4894,13 @@
               "readAccess": {
                 "type": "string",
                 "default": "tenant"
+              },
+              "packs": {},
+              "entityMap": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           }

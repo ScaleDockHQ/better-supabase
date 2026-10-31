@@ -1527,7 +1527,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "field-encryption",
         "audit",
-        "subjects"
+        "subjects",
+        "legal-entities",
+        "imports"
       ],
       "manifest": "custom-fields",
       "scopes": [
@@ -1556,7 +1558,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "sensitive": "sensitive",
               "permission": "permission",
               "rank": "rank",
-              "encrypted": "encrypted"
+              "encrypted": "encrypted",
+              "pack": "pack",
+              "packVersion": "pack_version"
             }
           }
         },
@@ -8923,7 +8927,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "accounting",
         "inventory",
         "outbox",
-        "audit"
+        "audit",
+        "custom-fields"
       ],
       "manifest": "legal-entities",
       "scopes": [
@@ -12209,6 +12214,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "FieldDefinitionDetail"
+        },
+        {
+          "name": "FieldEntityScope"
+        },
+        {
+          "name": "FieldPack"
+        },
+        {
+          "name": "FieldPackField"
+        },
+        {
+          "name": "FieldPackInstall"
         },
         {
           "name": "FieldValue"

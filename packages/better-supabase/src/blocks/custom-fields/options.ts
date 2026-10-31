@@ -22,6 +22,18 @@ export type CustomFieldsSqlOptions = {
    * read the record, through `can_subject(type, id, 'read')`.
    */
   readonly readAccess?: "tenant" | "record";
+  /**
+   * Field packs (`defineFieldPack`) the app installs per tenant through
+   * `customFields.installPacks`. They are plain data, so `gen` carries them to
+   * the TypeScript side.
+   */
+  readonly packs?: readonly unknown[];
+  /**
+   * Existing `field_definitions.entity` values that aren't registered subject
+   * types, mapped to the type that replaces them. Applied once by the 3 to 4
+   * upgrade.
+   */
+  readonly entityMap?: Readonly<Record<string, string>>;
 };
 
 export const customFieldsSqlOptions: BlockOptionsSchema<CustomFieldsSqlOptions> =
@@ -30,4 +42,6 @@ export const customFieldsSqlOptions: BlockOptionsSchema<CustomFieldsSqlOptions> 
     auditReads: option.boolean({ default: false }),
     rankType: option.string<"text" | "integer">({ default: "text" }),
     readAccess: option.string<"tenant" | "record">({ default: "tenant" }),
+    packs: option.unknown<readonly unknown[]>({ client: true }),
+    entityMap: option.extraColumns(),
   });

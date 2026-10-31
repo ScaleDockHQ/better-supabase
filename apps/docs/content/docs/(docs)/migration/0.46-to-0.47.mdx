@@ -514,6 +514,41 @@ source, mapping)` keeps working, and `imports.runs.start`, `upsertBatch`,
 codemod lists code that names `import_runs`, `start_import`, `defineImport`
 or `appTableImport` so you can rename `kind` by hand.
 
+## Custom field entities
+
+Field definitions name a registered subject type (ADR 0156), so this is a
+breaking change:
+
+| 0.46                                                          | 0.47                                                                                       |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `field_definitions.entity` is any text                        | `entity` is a key of `config.subjects` or a type an installed block registers              |
+| `save_field_definition` accepts every entity                  | it fails with `FIELD_ENTITY_UNKNOWN` (`22023`) for an unregistered one                     |
+| `read_field_values(tenant, subject_type, subject_id)`         | the same, plus `legal_entity uuid default null` when the legal-entities block is installed |
+| `set_field_value(tenant, subject_type, subject_id, def, val)` | the same, plus `legal_entity uuid default null` with the legal-entities block              |
+
+`upgrade` adds `pack` and `pack_version` to `field_definitions` and creates
+`install_field_pack(tenant, pack jsonb)`. With the legal-entities block,
+`field_values` gains a nullable `legal_entity_id`, and the unique key on the
+tenant, subject type, subject id and definition gains the entity, so the
+organization and each entity keep one value per field. An app without
+registered subject types keeps free-text entities.
+
+Rename the stored entities before the upgrade by mapping each to a registered
+type. The upgrade renames the definitions and the value rows that follow them:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "custom-fields": { options: { entityMap: { invoice: "sales_invoice" } } },
+},
+```
+
+A definition whose new name already has the same key in the organization is
+left as it was. The codemod lists calls of `saveDefinition`,
+`listDefinitions` and `save_field_definition` that name a literal entity, so
+you can check each against the registered types. `better_supabase.subject_types()`
+returns the registered names. Field packs, per-entity values and the
+`field_value` import target are new (see [custom fields](/docs/blocks/custom-fields)).
+
 ## Table names
 
 A module table is its entity's plural, or starts with its entity's singular.

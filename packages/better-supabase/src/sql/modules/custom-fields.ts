@@ -34,6 +34,16 @@ import {
   keyedOptions,
   recordReadSubjects,
 } from "./custom-fields-keyed.ts";
+import {
+  FIELD_VALUE_ENTITY_COLUMN,
+  entityCheck,
+  fieldValueImportTargets,
+  importFieldValue,
+  importsOn,
+  installFieldPack,
+  packsOn,
+  perEntityValues,
+} from "./custom-fields-packs.ts";
 import { FIELD_CIPHER_PREFIX } from "./field-encryption.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
@@ -84,7 +94,14 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["layout", "auditReads", "rankType", "readAccess"],
+  options: [
+    "layout",
+    "auditReads",
+    "rankType",
+    "readAccess",
+    "packs",
+    "entityMap",
+  ],
   tables: {
     definitions: {
       name: "field_definitions",
@@ -103,8 +120,10 @@ const NAMES: BlockSqlNames = {
         permission: "permission",
         rank: "rank",
         encrypted: "encrypted",
+        pack: "pack",
+        packVersion: "pack_version",
       },
-      optional: ["rank", "encrypted"],
+      optional: ["rank", "encrypted", "pack", "packVersion"],
     },
     options: {
       name: "field_options",
@@ -279,7 +298,7 @@ ${keyedFields(
   ${ctx.col("definitions", "required")} boolean not null default false,
   ${ctx.col("definitions", "sensitive")} boolean not null default false,
   ${ctx.col("definitions", "permission")} text,
-${ctx.has("definitions", "encrypted") ? `  ${ctx.col("definitions", "encrypted")} boolean not null default false,\n` : ""}${ranked ? `  ${rank} text collate "C" not null default 'V',\n` : ""}  unique (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")})
+${ctx.has("definitions", "encrypted") ? `  ${ctx.col("definitions", "encrypted")} boolean not null default false,\n` : ""}${packsOn(ctx) ? `  ${ctx.col("definitions", "pack")} text,\n  ${ctx.col("definitions", "packVersion")} integer,\n` : ""}${ranked ? `  ${rank} text collate "C" not null default 'V',\n` : ""}  unique (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")})
 );
 ${typeCheck(ctx, definitions)}
 ${lockTable(definitions, { read: true })}
@@ -296,15 +315,33 @@ ${lockTable(definitions, { read: true })}
   ${ctx.col("values", "valueBool")} boolean,
   ${ctx.col("values", "optionId")} uuid${ctx.has("values", "valueJson") ? `,` : ""}
   ${ctx.has("values", "valueJson") ? `${ctx.col("values", "valueJson")} jsonb` : ""}
-  ${inline || !ctx.has("values", "definition") ? "" : `, unique (${ctx.col("values", "tenant")}, ${ctx.col("values", "subjectType")}, ${ctx.col("values", "subjectId")}, ${ctx.col("values", "definition")})`}
+  ${inline || !ctx.has("values", "definition") || perEntityValues(ctx) ? "" : `, unique (${ctx.col("values", "tenant")}, ${ctx.col("values", "subjectType")}, ${ctx.col("values", "subjectId")}, ${ctx.col("values", "definition")})`}
 );
 ${lockTable(values, { read: true })}
 ${inline || !ctx.has("values", "definition") ? "" : `create index if not exists ${ctx.naming.rename("field_values_definition_idx")} on ${values} (${ctx.col("values", "definition")});`}
 `
     : !inline && ctx.has("definitions", "encrypted")
       ? `alter table ${definitions} add column if not exists ${ctx.col("definitions", "encrypted")} boolean not null default false;
-`
-      : "";
+${packColumns(ctx, definitions)}`
+      : inline
+        ? ""
+        : packColumns(ctx, definitions);
+
+  const perEntity = perEntityValues(ctx);
+
+  // The organization's values, or with a legal entity the entity's value where
+  // it has one and the organization's value where it doesn't.
+  const readableValues = perEntity
+    ? `(select distinct on (x.${ctx.col("values", "definition")}) x.* from ${values} x
+    where x.${ctx.col("values", "tenant")} = read_field_values.tenant
+      and x.${ctx.col("values", "subjectType")} = read_field_values.subject_type
+      and x.${ctx.col("values", "subjectId")} = read_field_values.subject_id
+      and (x.${FIELD_VALUE_ENTITY_COLUMN} is null or x.${FIELD_VALUE_ENTITY_COLUMN} = read_field_values.legal_entity)
+    order by x.${ctx.col("values", "definition")}, x.${FIELD_VALUE_ENTITY_COLUMN} nulls last)`
+    : values;
+
+  const entityChecked = entityCheck(ctx, "save_field_definition.entity");
+  const entityGuard = entityChecked === "" ? "" : `${entityChecked}\n  `;
 
   const visible = inline
     ? "true"
@@ -334,7 +371,7 @@ begin
   ${
     inline
       ? fail("FIELD_INLINE", "inline fields have no definition row", "0A000")
-      : `${
+      : `${entityGuard}${
           ranked
             ? `select max(d.${rank} collate "C") into v_last from ${definitions} d
     where d.${ctx.col("definitions", "tenant")} = save_field_definition.tenant and d.${ctx.col("definitions", "entity")} = save_field_definition.entity;
@@ -361,7 +398,7 @@ end;
 $$;
 ${userGrant(`${ctx.fn("save_field_definition")}(${ctx.idType}, text, text, text, text, boolean)`)}
 
-create or replace function ${ctx.fn("read_field_values")}(tenant ${ctx.idType}, subject_type text, subject_id text)
+drop function if exists ${ctx.fn("read_field_values")}(${ctx.idType}, text, text${perEntity ? "" : ", uuid"});\ncreate or replace function ${ctx.fn("read_field_values")}(tenant ${ctx.idType}, subject_type text, subject_id text${perEntity ? ", legal_entity uuid default null" : ""})
 returns jsonb
 language plpgsql
 ${audited ? "volatile" : ctx.readVolatility()}
@@ -378,7 +415,7 @@ begin${encrypted === "" ? "" : `\n  v_key := ${encryption?.fn("field_key")}('ten
       : ""
   }
   into v_values${audited ? ", v_read" : ""}
-  from ${values} v
+  from ${readableValues} v
   ${inline ? "" : `left join ${definitions} d on d.${ctx.col("definitions", "id")} = v.${ctx.col("values", "definition")}`}
   where v.${ctx.col("values", "tenant")} = read_field_values.tenant
     and v.${ctx.col("values", "subjectType")} = read_field_values.subject_type
@@ -425,9 +462,9 @@ begin${encrypted === "" ? "" : `\n  v_key := ${encryption?.fn("field_key")}('ten
   return v_values;
 end;
 $$;
-${userGrant(`${ctx.fn("read_field_values")}(${ctx.idType}, text, text)`)}
+${userGrant(`${ctx.fn("read_field_values")}(${ctx.idType}, text, text${perEntity ? ", uuid" : ""})`)}
 
-create or replace function ${ctx.fn("set_field_value")}(tenant ${ctx.idType}, subject_type text, subject_id text, definition uuid, value text)
+drop function if exists ${ctx.fn("set_field_value")}(${ctx.idType}, text, text, uuid, text${perEntity ? "" : ", uuid"});\ncreate or replace function ${ctx.fn("set_field_value")}(tenant ${ctx.idType}, subject_type text, subject_id text, definition uuid, value text${perEntity ? ", legal_entity uuid default null" : ""})
 returns jsonb
 language plpgsql
 security definer
@@ -453,12 +490,12 @@ begin
     ${fail("FIELD_VALUE_INVALID", "the value doesn't match the field's format", "22023")}
   end if;`
   }
-  insert into ${values} (${ctx.col("values", "tenant")}, ${ctx.has("values", "definition") && !inline ? `${ctx.col("values", "definition")}, ` : ""}${ctx.col("values", "subjectType")}, ${ctx.col("values", "subjectId")}, ${ctx.col("values", "valueText")})
+  insert into ${values} (${ctx.col("values", "tenant")}, ${ctx.has("values", "definition") && !inline ? `${ctx.col("values", "definition")}, ` : ""}${ctx.col("values", "subjectType")}, ${ctx.col("values", "subjectId")}, ${ctx.col("values", "valueText")}${perEntity ? `, ${FIELD_VALUE_ENTITY_COLUMN}` : ""})
   values (set_field_value.tenant, ${ctx.has("values", "definition") && !inline ? "set_field_value.definition, " : ""}set_field_value.subject_type, set_field_value.subject_id, ${
     encrypted === ""
       ? "set_field_value.value"
       : `case when exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = set_field_value.definition and d.${ctx.col("definitions", "encrypted")}) then ${encryption?.fn("field_encrypt")}('tenant:' || set_field_value.tenant::text, set_field_value.value) else set_field_value.value end`
-  })
+  }${perEntity ? ", set_field_value.legal_entity" : ""})
   returning ${ctx.col("values", "id")} into v_id;
   ${ctx.record({
     type: "field_value.set",
@@ -470,7 +507,7 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-${userGrant(`${ctx.fn("set_field_value")}(${ctx.idType}, text, text, uuid, text)`)}
+${userGrant(`${ctx.fn("set_field_value")}(${ctx.idType}, text, text, uuid, text${perEntity ? ", uuid" : ""})`)}
 
 create or replace function ${ctx.fn("delete_field_definition")}(definition uuid)
 returns boolean
@@ -504,7 +541,57 @@ begin
 end;
 $$;
 ${userGrant(`${ctx.fn("delete_field_definition")}(uuid)`)}
-${inline ? "" : listDefinitions(ctx, definitions, rank, read)}${ranked ? rankDefinition(ctx, definitions, rank, manage) : ""}${encrypted === "" ? "" : encryptDefinition(ctx, definitions, values, manage)}`;
+${inline ? "" : listDefinitions(ctx, definitions, rank, read)}${ranked ? rankDefinition(ctx, definitions, rank, manage) : ""}${encrypted === "" ? "" : encryptDefinition(ctx, definitions, values, manage)}${packsOn(ctx) ? installFieldPack(ctx, manage) : ""}${
+    importsOn(ctx)
+      ? importFieldValue(ctx, {
+          seal: (value) =>
+            encrypted === ""
+              ? value
+              : `case when exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = v_definition and d.${ctx.col("definitions", "encrypted")}) then ${encryption?.fn("field_encrypt")}('tenant:' || v_tenant::text, ${value}) else ${value} end`,
+          record: ctx.record({
+            type: "field_value.set",
+            payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_row, 'subjectType', v_type, 'subjectId', v_subject)`,
+            subject: `'field-values/' || v_row::text`,
+            tenant: "v_tenant",
+            audit: false,
+          }),
+        })
+      : ""
+  }`;
+}
+
+/** `options.entityMap`: stored entity to the registered subject type. */
+function entityMapOf(ctx: BlockSqlContext): Readonly<Record<string, string>> {
+  const raw = ctx.option("entityMap");
+
+  if (raw === undefined) {
+    return {};
+  }
+
+  if (
+    typeof raw !== "object" ||
+    raw === null ||
+    Array.isArray(raw) ||
+    !Object.values(raw).every((to) => typeof to === "string")
+  ) {
+    throw new Error(
+      "custom-fields: options.entityMap maps stored entity names to subject types, such as { invoice: 'sales_invoice' }.",
+    );
+  }
+
+  return Object.fromEntries(Object.entries(raw));
+}
+
+/**
+ * The pack columns of a definitions table the module doesn't create, added when
+ * the table has them mapped.
+ */
+function packColumns(ctx: BlockSqlContext, definitions: string): string {
+  return packsOn(ctx)
+    ? `alter table ${definitions} add column if not exists ${ctx.col("definitions", "pack")} text;
+alter table ${definitions} add column if not exists ${ctx.col("definitions", "packVersion")} integer;
+`
+    : "";
 }
 
 /**
@@ -616,7 +703,13 @@ as $$
     'encrypted', d.${ctx.col("definitions", "encrypted")},`
         : ""
     }
-    'rank', ${rank === "" ? "null" : `d.${rank}`}
+    ${
+      packsOn(ctx)
+        ? `'pack', d.${ctx.col("definitions", "pack")},
+    'packVersion', d.${ctx.col("definitions", "packVersion")},
+    `
+        : ""
+    }'rank', ${rank === "" ? "null" : `d.${rank}`}
   ) order by ${order}), '[]'::jsonb)
   from ${definitions} d
   where d.${ctx.col("definitions", "tenant")} = list_field_definitions.tenant
@@ -675,12 +768,24 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     {
       name: "read_field_values",
-      args: ["{id}", "text", "text"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        ...(perEntityValues(ctx) ? (["uuid"] as const) : []),
+      ],
       returns: "jsonb",
     },
     {
       name: "set_field_value",
-      args: ["{id}", "text", "text", "uuid", "text"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "uuid",
+        "text",
+        ...(perEntityValues(ctx) ? (["uuid"] as const) : []),
+      ],
       returns: "jsonb",
     },
     { name: "delete_field_definition", args: ["uuid"], returns: "boolean" },
@@ -699,6 +804,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
             name: "encrypt_field_definition",
             args: ["uuid"],
             returns: "boolean",
+          },
+        ]
+      : []),
+    ...(packsOn(ctx)
+      ? [
+          {
+            name: "install_field_pack",
+            args: ["{id}", "jsonb"],
+            returns: "jsonb",
           },
         ]
       : []),
@@ -722,10 +836,18 @@ export const CUSTOM_FIELDS: BlockSqlDefinition = {
   description:
     "Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "field-encryption", "audit", "subjects"],
+  integrates: [
+    "outbox",
+    "field-encryption",
+    "audit",
+    "subjects",
+    "legal-entities",
+    "imports",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
+  contributes: { imports: fieldValueImportTargets },
   upgrades: [
     {
       from: 1,
@@ -767,6 +889,37 @@ alter table ${definitions} drop column if exists position;`;
         !ctx.has("definitions", "encrypted")
           ? ""
           : `alter table ${ctx.table("definitions")} add column if not exists ${ctx.col("definitions", "encrypted")} boolean not null default false;`,
+    },
+    {
+      from: 3,
+      description:
+        "Field definitions name a registered subject type (FIELD_ENTITY_UNKNOWN), carry the field pack they came from, and install_field_pack installs a pack idempotently; blocks.custom-fields.options.entityMap renames stored entities, and with the legal-entities block field_values gain a nullable legal_entity_id.",
+      sql: (ctx) => {
+        if (
+          !ctx.owns("definitions") ||
+          ctx.text("layout", "normalized") === "inline"
+        ) {
+          return "";
+        }
+
+        const definitions = ctx.table("definitions");
+        const entity = ctx.col("definitions", "entity");
+        const key = ctx.col("definitions", "key");
+        const tenant = ctx.col("definitions", "tenant");
+        const values = ctx.table("values");
+
+        const renames = Object.entries(entityMapOf(ctx)).map(
+          ([
+            from,
+            to,
+          ]) => `update ${definitions} d set ${entity} = ${sqlString(to)}
+where d.${entity} = ${sqlString(from)}
+  and not exists (select 1 from ${definitions} e where e.${tenant} = d.${tenant} and e.${entity} = ${sqlString(to)} and e.${key} = d.${key});
+update ${values} set ${ctx.col("values", "subjectType")} = ${sqlString(to)} where ${ctx.col("values", "subjectType")} = ${sqlString(from)};`,
+        );
+
+        return `${packColumns(ctx, definitions)}${renames.join("\n")}`;
+      },
     },
   ],
   names: NAMES,

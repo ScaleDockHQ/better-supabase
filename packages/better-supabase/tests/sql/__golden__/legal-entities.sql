@@ -635,7 +635,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:2a0818f3bb997739574a364297e80eb989418ba93841ce2e3b724c3299ea249a
+-- @bsb-hash sha256:26e7c3c43cd8226d216b798eed827797aa005870620e3f7fd0d127aa741628a2
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -760,7 +760,25 @@ drop policy if exists legal_entity_settings_read on "better_supabase"."legal_ent
 create policy legal_entity_settings_read on "better_supabase"."legal_entity_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
-
+alter table "better_supabase"."field_values" add column if not exists legal_entity_id uuid;
+alter table "better_supabase"."field_values" drop constraint if exists "bsb_field_values_legal_entity_fk";
+alter table "better_supabase"."field_values" add constraint "bsb_field_values_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
+create index if not exists "bsb_field_values_legal_entity_idx" on "better_supabase"."field_values" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
+do $$
+declare
+  v_constraint name;
+begin
+  for v_constraint in
+    select c.conname from pg_constraint c
+    where c.conrelid = '"better_supabase"."field_values"'::regclass and c.contype = 'u'
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = c.conrelid and a.attnum = any (c.conkey))
+        @> array['tenant_id', 'subject_type', 'subject_id', 'definition_id']
+      and cardinality(c.conkey) = 4
+  loop
+    execute format('alter table "better_supabase"."field_values" drop constraint %I', v_constraint);
+  end loop;
+end $$;
+create unique index if not exists "bsb_field_values_entity_key_idx" on "better_supabase"."field_values" ("tenant_id", "subject_type", "subject_id", "definition_id", coalesce(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 
 -- Checks the fiscal settings and fills the defaults: the first month of the

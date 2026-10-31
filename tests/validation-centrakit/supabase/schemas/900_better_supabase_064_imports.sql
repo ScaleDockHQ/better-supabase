@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:9791926548254b97a944f0c5cf88870a4240c9f6436ff295eea23b46c8ec55a5
+-- @bsb-hash sha256:5b408536317cebcf31d18670503f2166777006b074ffe31062ea68c874d88214
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -365,7 +365,7 @@ declare
   v_hint text;
 begin
   select * into v_run from "centrakit"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array['data_lifecycle_row']::text[]) then
+  if v_entity <> all (array['data_lifecycle_row', 'field_value']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -442,6 +442,9 @@ begin
       when 'data_lifecycle_row' then
         v_subject_type := 'data_lifecycle_row';
         v_out := "better_supabase"."restore_data_row"(v_run_id, v_call, v_subject_id);
+      when 'field_value' then
+        v_subject_type := 'field_value';
+        v_out := "better_supabase"."import_field_value"(v_run_id, v_call, v_subject_id);
       else
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
     end case;

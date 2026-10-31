@@ -7,9 +7,10 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlIdent } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
+import { perEntityValues } from "./custom-fields-packs.ts";
 import { legalEntityFunctions } from "./legal-entities-functions.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -171,6 +172,44 @@ alter table ${own.table(table)} drop constraint if exists ${constraint};
 alter table ${own.table(table)} add constraint ${constraint} foreign key (${tenant}, ${LEGAL_ENTITY_COLUMN}) references ${entities} (${e("tenant")}, ${e("id")}) on delete restrict;
 create index if not exists ${index} on ${own.table(table)} (${tenant}, ${LEGAL_ENTITY_COLUMN}) where ${LEGAL_ENTITY_COLUMN} is not null;`);
     }
+  }
+
+  const fields = ctx.installed("custom-fields")
+    ? ctx.of("custom-fields")
+    : undefined;
+
+  if (fields !== undefined && perEntityValues(fields)) {
+    const values = fields.table("values");
+    const name = fields.tableName("values").name;
+    const tenant = fields.col("values", "tenant");
+    const type = fields.col("values", "subjectType");
+    const id = fields.col("values", "subjectId");
+    const definition = fields.col("values", "definition");
+    const constraint = sqlIdent(`bsb_${name}_legal_entity_fk`);
+    const index = sqlIdent(`bsb_${name}_legal_entity_idx`);
+    const unique = sqlIdent(`bsb_${name}_entity_key_idx`);
+
+    // The organization's value and each entity's value are separate rows, so the
+    // unique key that held one row per field and record gains the entity.
+    lines.push(`alter table ${values} add column if not exists ${LEGAL_ENTITY_COLUMN} uuid;
+alter table ${values} drop constraint if exists ${constraint};
+alter table ${values} add constraint ${constraint} foreign key (${tenant}, ${LEGAL_ENTITY_COLUMN}) references ${entities} (${e("tenant")}, ${e("id")}) on delete restrict;
+create index if not exists ${index} on ${values} (${tenant}, ${LEGAL_ENTITY_COLUMN}) where ${LEGAL_ENTITY_COLUMN} is not null;
+do $$
+declare
+  v_constraint name;
+begin
+  for v_constraint in
+    select c.conname from pg_constraint c
+    where c.conrelid = '${values}'::regclass and c.contype = 'u'
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = c.conrelid and a.attnum = any (c.conkey))
+        @> array[${[tenant, type, id, definition].map((column) => sqlString(column.replaceAll('"', ""))).join(", ")}]
+      and cardinality(c.conkey) = 4
+  loop
+    execute format('alter table ${values} drop constraint %I', v_constraint);
+  end loop;
+end $$;
+create unique index if not exists ${unique} on ${values} (${tenant}, ${type}, ${id}, ${definition}, coalesce(${LEGAL_ENTITY_COLUMN}, '00000000-0000-0000-0000-000000000000'::uuid));`);
   }
 
   return lines.join("\n");
@@ -353,6 +392,7 @@ export const LEGAL_ENTITIES: BlockSqlDefinition = {
     "inventory",
     "outbox",
     "audit",
+    "custom-fields",
   ],
   target: "schema",
   modes: ["managed", "custom"],

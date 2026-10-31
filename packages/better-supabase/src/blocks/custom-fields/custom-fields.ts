@@ -6,6 +6,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTenantOptions } from "../shared.ts";
+import type { FieldPack } from "./pack.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
@@ -27,6 +28,26 @@ export interface CustomFieldsOptions extends BlockTenantOptions {
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
+  /** The packs `installPacks` installs: `blocks.custom-fields.options.packs`. */
+  readonly packs?: readonly FieldPack[];
+}
+
+/** What `install_field_pack` reports. */
+export interface FieldPackInstall {
+  readonly pack: string;
+  readonly version: number;
+  readonly created: number;
+  readonly updated: number;
+  readonly unchanged: number;
+}
+
+/** Reads and writes values of one legal entity (the legal-entities block). */
+export interface FieldEntityScope {
+  /**
+   * The legal entity. Reads return its value where it has one and the
+   * organization's value where it doesn't; writes store the entity's value.
+   */
+  readonly legalEntity?: string;
 }
 
 export interface FieldDefinition {
@@ -52,6 +73,9 @@ export interface FieldDefinitionDetail extends FieldDefinition {
    * ranked.
    */
   readonly rank?: string;
+  /** The field pack that installed the definition, if one did. */
+  readonly pack?: string;
+  readonly packVersion?: number;
 }
 
 /**
@@ -111,13 +135,27 @@ export interface CustomFields {
    * `next`. Resolves to its new key.
    */
   reorderDefinition(id: string, neighbors: RankNeighbors): AsyncResult<string>;
+  /**
+   * Installs a field pack in the tenant. A definition is matched by pack and
+   * key, so installing a version again changes nothing. Fails with
+   * `FIELD_ENTITY_UNKNOWN` for a subject type that isn't registered and with
+   * `FIELD_PACK_CONFLICT` for a key a definition outside the pack uses. Needs
+   * `custom_fields.manage`.
+   */
+  installPack(pack: FieldPack): AsyncResult<FieldPackInstall>;
+  /** Installs each pack of `options.packs`, in order. */
+  installPacks(): AsyncResult<FieldPackInstall[]>;
   /** The custom field values set on `subject`. */
-  readValues(subject: RecordRef): AsyncResult<unknown>;
+  readValues(
+    subject: RecordRef,
+    scope?: FieldEntityScope,
+  ): AsyncResult<unknown>;
   /** Sets one custom field value of `subject`. */
   setValue(
     subject: RecordRef,
     definitionId: string,
     value: string,
+    scope?: FieldEntityScope,
   ): AsyncResult<FieldDefinition>;
   /**
    * Keyed layout: every field of `subject` as typed rows, in rank order and
@@ -155,6 +193,25 @@ function fieldValueOf(value: unknown): FieldValue {
   };
 }
 
+function fieldPackInstallOf(value: unknown): FieldPackInstall {
+  const row = recordOf(value, "install_field_pack");
+
+  return {
+    pack: textOf(row["pack"]),
+    version: Number(row["version"]),
+    created: Number(row["created"]),
+    updated: Number(row["updated"]),
+    unchanged: Number(row["unchanged"]),
+  };
+}
+
+/** The argument only a database with the legal-entities block takes. */
+function entityArg(scope: FieldEntityScope | undefined) {
+  return scope?.legalEntity === undefined
+    ? {}
+    : { legal_entity: scope.legalEntity };
+}
+
 export function createCustomFields(options: CustomFieldsOptions): CustomFields {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
@@ -173,6 +230,8 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
           (value) =>
             recordsOf(value, "list_field_definitions").map((row) => {
               const rank = optionalText(row["rank"]);
+              const pack = optionalText(row["pack"]);
+              const packVersion = row["packVersion"];
 
               return {
                 id: textOf(row["id"]),
@@ -184,6 +243,8 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
                 sensitive: row["sensitive"] === true,
                 encrypted: row["encrypted"] === true,
                 ...(rank === undefined ? {} : { rank }),
+                ...(pack === undefined ? {} : { pack }),
+                ...(typeof packVersion === "number" ? { packVersion } : {}),
               };
             }),
         ),
@@ -228,7 +289,31 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
         { definition: id },
         (value) => value === true,
       ),
-    readValues: (subject) =>
+    installPack: (pack) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "install_field_pack",
+          { tenant: organizationId, pack },
+          fieldPackInstallOf,
+        ),
+      ),
+    installPacks: () => {
+      const results: FieldPackInstall[] = [];
+      let chain: AsyncResult<unknown> = AsyncResult.ok(undefined);
+
+      for (const pack of options.packs ?? []) {
+        chain = chain.andThen(() =>
+          client.installPack(pack).map((installed) => {
+            results.push(installed);
+
+            return installed;
+          }),
+        );
+      }
+
+      return chain.map(() => results);
+    },
+    readValues: (subject, scope) =>
       tenant().andThen((organizationId) =>
         call(
           "read_field_values",
@@ -236,11 +321,12 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
             tenant: organizationId,
             subject_type: subject.type,
             subject_id: subject.id,
+            ...entityArg(scope),
           },
           (value) => value,
         ),
       ),
-    setValue: (subject, definitionId, value) =>
+    setValue: (subject, definitionId, value, scope) =>
       tenant().andThen((organizationId) =>
         call(
           "set_field_value",
@@ -250,6 +336,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
             subject_id: subject.id,
             definition: definitionId,
             value,
+            ...entityArg(scope),
           },
           idOf("set_field_value"),
         ),

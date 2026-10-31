@@ -11,6 +11,7 @@ import type {
   Transcriber,
 } from "../../src/blocks/activities/index.ts";
 import type { AiTaskRunner } from "../../src/blocks/ai-schedules/index.ts";
+import type { FieldPack } from "../../src/blocks/custom-fields/index.ts";
 import type { Embedder } from "../../src/blocks/knowledge/index.ts";
 import type {
   DeliveryTransport,
@@ -175,6 +176,7 @@ describe("extension interfaces", () => {
     expectTypeOf<TaxProvider["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(flatRateCarrier).returns.toExtend<ShippingProvider>();
     expectTypeOf<ShippingProvider["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf<FieldPack["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(standardWebhooks).returns.toExtend<WebhookSigner>();
     expectTypeOf(hmacSigner).returns.toExtend<WebhookSigner>();
     expectTypeOf(fetchTransport).returns.toExtend<WebhookTransport>();

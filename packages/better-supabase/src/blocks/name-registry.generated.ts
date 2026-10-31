@@ -663,15 +663,15 @@ export interface BlockNameRegistry {
   };
   readonly "custom-fields": {
     readonly tables: {
-      readonly "definitions": "id" | "tenant" | "entity" | "key" | "label" | "type" | "required" | "sensitive" | "permission" | "rank" | "encrypted";
+      readonly "definitions": "id" | "tenant" | "entity" | "key" | "label" | "type" | "required" | "sensitive" | "permission" | "rank" | "encrypted" | "pack" | "packVersion";
       readonly "options": "id" | "definition" | "value" | "label" | "rank";
       readonly "values": "id" | "tenant" | "definition" | "subjectType" | "subjectId" | "valueText" | "valueNumber" | "valueDate" | "valueBool" | "optionId" | "valueJson" | "valueUrl" | "valueEmail" | "key" | "label" | "type" | "rank" | "createdAt" | "updatedAt";
     };
-    readonly functions: "delete_field_definition" | "list_field_definitions" | "rank_field_definition" | "read_field_values" | "save_field_definition" | "set_field_value";
+    readonly functions: "delete_field_definition" | "install_field_pack" | "list_field_definitions" | "rank_field_definition" | "read_field_values" | "save_field_definition" | "set_field_value";
     readonly actions: "manage" | "read" | "sensitive";
     readonly hooks: never;
     readonly entities: {
-      readonly "field_definition": "id" | "tenant_id" | "entity" | "key" | "label" | "type" | "required" | "sensitive" | "permission" | "rank" | "encrypted";
+      readonly "field_definition": "id" | "tenant_id" | "entity" | "key" | "label" | "type" | "required" | "sensitive" | "permission" | "rank" | "encrypted" | "pack" | "pack_version";
     };
     readonly primary: "field_definition";
     readonly formerKeys: "field";
