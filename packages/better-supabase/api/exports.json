@@ -9429,6 +9429,37 @@
       "RpcClient"
     ]
   },
+  "./blocks/legal-entities": {
+    "values": [
+      "createLegalEntities",
+      "dbTransport",
+      "extendBlock",
+      "legalEntitiesBlock",
+      "legalEntitiesEvents",
+      "legalEntitiesSqlOptions",
+      "legalEntityInputSchema",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CreateLegalEntityInput",
+      "LegalEntities",
+      "LegalEntitiesEvents",
+      "LegalEntitiesOptions",
+      "LegalEntitiesSqlOptions",
+      "LegalEntity",
+      "LegalEntityEventData",
+      "LegalEntityFiscal",
+      "LegalEntityInput",
+      "ResolvedSetting",
+      "RpcClient"
+    ]
+  },
   "./blocks/manufacturing": {
     "values": [
       "bomInputSchema",

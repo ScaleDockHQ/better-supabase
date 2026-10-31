@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_156_legal_entities.sql
+-- ==== schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
 -- @bsb-hash sha256:fbb8fcc2eb21e95190ac7dcee8cf29f93d9f19593bca0b3f85b5241674763e5b
@@ -618,7 +618,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_156_legal_entities.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block-data legal-entities
 -- @bsb-hash sha256:2f562e0fc37b73534d82eec86c0b9b2fbd8131c55be9ab68dee46882609313a6

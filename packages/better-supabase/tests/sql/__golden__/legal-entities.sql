@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_156_legal_entities.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
 -- @bsb-hash sha256:4475cfbb098a478ec34cfd857ce51c8a919791b8e702cc3b7649050be5ea46e5
@@ -618,7 +618,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_156_legal_entities.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block-data legal-entities
 -- @bsb-hash sha256:2f562e0fc37b73534d82eec86c0b9b2fbd8131c55be9ab68dee46882609313a6
@@ -632,7 +632,7 @@ values ('legal-entities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_156_legal_entities.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
 -- @bsb-hash sha256:2a0818f3bb997739574a364297e80eb989418ba93841ce2e3b724c3299ea249a
@@ -1288,7 +1288,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_156_legal_entities.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block-data legal-entities
 -- @bsb-hash sha256:2f562e0fc37b73534d82eec86c0b9b2fbd8131c55be9ab68dee46882609313a6
@@ -1302,7 +1302,7 @@ values ('legal-entities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_156_legal_entities.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
 -- @bsb-hash sha256:b493c20763fad4f3971181c395c669d9e08caaa4cfd54e534efb6600918ce731
@@ -1927,7 +1927,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_156_legal_entities.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block-data legal-entities
 -- @bsb-hash sha256:2f562e0fc37b73534d82eec86c0b9b2fbd8131c55be9ab68dee46882609313a6
@@ -1941,7 +1941,7 @@ values ('legal-entities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_156_legal_entities.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
 -- @bsb-hash sha256:fe8fbb8499f7c9c966bac5313180ffe92b94902909579664c00195d761f451f8
@@ -2682,7 +2682,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_156_legal_entities.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block-data legal-entities
 -- @bsb-hash sha256:2f562e0fc37b73534d82eec86c0b9b2fbd8131c55be9ab68dee46882609313a6
@@ -2696,7 +2696,7 @@ values ('legal-entities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_156_legal_entities.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
 -- @bsb-hash sha256:3591c99eb74a5f44600a57cb380b46b05c127bc440a527ea6304ff5a705ef7e3
@@ -3307,7 +3307,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_156_legal_entities.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block-data legal-entities
 -- @bsb-hash sha256:2f562e0fc37b73534d82eec86c0b9b2fbd8131c55be9ab68dee46882609313a6
@@ -3321,7 +3321,7 @@ values ('legal-entities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_156_legal_entities.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
 -- @bsb-hash sha256:fca1400af3bb6f015daa751ec09f26a9315df85270addf198c73153a5880f9e2
@@ -3941,7 +3941,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_156_legal_entities.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block-data legal-entities
 -- @bsb-hash sha256:2f562e0fc37b73534d82eec86c0b9b2fbd8131c55be9ab68dee46882609313a6
