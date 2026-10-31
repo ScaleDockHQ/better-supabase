@@ -288,6 +288,60 @@ type, channel and organization from `powersync`. Pass
 changes the notification tables, without a Realtime channel. Pass `functions`
 and `tables` when the instance renames them.
 
+### Care: progress notes, observations and doses
+
+Care staff write offline in a client's home, so the `activities` (progress
+notes), `observations` and `medications` blocks can sync too. Name them in
+`gen.powersync.instances`; the streams need the roles access model
+(`authorization: "roles"`), because PowerSync bypasses row level security and
+the streams filter instead. A user syncs the rows of the organizations where
+their role holds the block's `read` key (`observations.read`,
+`medications.read`, `activities.read`), including system observation
+definitions. Only progress notes (`type = 'note'`) open to the team sync, with
+their record links, never a restricted engagement. Record-team limits are not
+applied on the device.
+
+The upload routes replay each write through the block's functions:
+
+```ts title="src/lib/powersync/care.ts"
+import {
+  activityLinksRoute,
+  careUploadOutcome,
+  createUploadConnector,
+  medicationAdministrationRoute,
+  observationRoute,
+  progressNoteRoute,
+} from "better-supabase/powersync";
+import { bsb } from "../supabase/supabase.native";
+import { powersync } from "./database";
+
+export const connector = createUploadConnector({
+  classify: careUploadOutcome,
+  tables: {
+    activities: progressNoteRoute(bsb.activities, powersync),
+    engagement_subjects: activityLinksRoute(),
+    observations: observationRoute(bsb.observations, powersync),
+    medication_administrations: medicationAdministrationRoute(bsb.medications),
+  },
+  // fetchCredentials, powersync, and so on
+});
+```
+
+- A note is logged with its local id as `externalRef`, so a retried upload
+  updates it instead of adding a second note. An edit of a note that locked
+  on the server becomes an addendum, and a note is never deleted.
+- A reading that the server already has (same definition, time and value) counts
+  as applied, so a lost answer doesn't add a duplicate. An observation is
+  corrected online, as a new observation.
+- A dose is recorded with `recordAdministration` or, for an as-needed dose,
+  `recordAsNeeded`. A dose that was already recorded, a missing second
+  checker or a locked note is a conflict: with `careUploadOutcome` it lands in
+  `connector.rejected` for the nurse to resolve and is never retried or dropped
+  quietly.
+
+The server assigns the ids of notes and observations, so the next sync
+replaces the local row with the server's.
+
 ### Organizations, teams and profiles
 
 The same pattern covers the organization switcher, teams and the user's

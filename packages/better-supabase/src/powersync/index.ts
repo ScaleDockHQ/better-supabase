@@ -126,3 +126,19 @@ export type {
   PowerSyncProfilesOptions,
   ProfileWrites,
 } from "./profiles.ts";
+
+export {
+  activityLinksRoute,
+  careUploadOutcome,
+  medicationAdministrationRoute,
+  observationRoute,
+  progressNoteRoute,
+} from "./care.ts";
+
+export type {
+  MedicationWrites,
+  ObservationRouteOptions,
+  ObservationWrites,
+  ProgressNoteRouteOptions,
+  ProgressNoteWrites,
+} from "./care.ts";
