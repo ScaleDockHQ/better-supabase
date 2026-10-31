@@ -40,6 +40,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "audit_event audit_event_many audit_events_tenants count_audit_events list_audit_events purge_audit_log",
   automations:
     "matching_rules rank_rule record_rule_evaluation remove_rule reset_default_rule rule_evaluations_list rule_fields_list rule_get rule_versions_list rules_list run_rules save_rule set_rule_enabled sync_rule_fields",
+  banking:
+    "apply_bank_rules bank_reconciliation_status delete_bank_rule get_bank_transaction ignore_bank_transaction import_bank_statement list_bank_accounts list_bank_rules list_bank_statements list_bank_transactions match_bank_transaction save_bank_account save_bank_rule suggest_bank_matches unmatch_bank_transaction",
   "billable-time":
     "delete_time_rate invoice_from_time list_invoiced_time list_time_rates project_costs set_time_rate time_rate unbilled_time",
   billing:

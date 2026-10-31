@@ -51,6 +51,16 @@ msgctxt "aiTasks.6W7U7e"
 msgid "Prompts on the ai-schedules block that the assistant runs on a schedule."
 msgstr "Prompts op het ai-schedules-blok die de assistent volgens een schema uitvoert."
 
+#: src/app/[locale]/(app)/banking/page.tsx
+msgctxt "banking.wWUTla"
+msgid "Banking"
+msgstr "Bank"
+
+#: src/app/[locale]/(app)/banking/page.tsx
+msgctxt "banking.i8Lz3Y"
+msgid "Imported bank statements matched to invoices and booked through the journals, account by account."
+msgstr "Geïmporteerde bankafschriften, gekoppeld aan facturen en geboekt via de dagboeken, per rekening."
+
 #: src/app/[locale]/(app)/beta/page.tsx
 msgctxt "beta.riw_yc"
 msgid "Beta"
@@ -2231,6 +2241,131 @@ msgstr "Account maken"
 msgctxt "auth.uCk8r-"
 msgid "Already have an account?"
 msgstr "Heb je al een account?"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.opUqaV"
+msgid "The bank accounts didn't load"
+msgstr "De bankrekeningen zijn niet geladen"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.ZAVCO9"
+msgid "No bank accounts yet"
+msgstr "Nog geen bankrekeningen"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.73iVjh"
+msgid "Add a bank account with its IBAN, then import a camt.053 or MT940 statement to start matching."
+msgstr "Voeg een bankrekening met IBAN toe en importeer een camt.053- of MT940-afschrift om te beginnen met koppelen."
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.XvyQLC"
+msgid "Read the banking guide"
+msgstr "Lees de handleiding voor bankieren"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.Kth4Dg"
+msgid "Statement balance"
+msgstr "Saldo volgens afschrift"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.UM1wq9"
+msgid "Reconciled"
+msgstr "Afgestemd"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.oL-mW-"
+msgid "Left to match"
+msgstr "Nog te koppelen"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.sBPuPX"
+msgid "{count, plural, one {# transaction} other {# transactions}}"
+msgstr "{count, plural, one {# transactie} other {# transacties}}"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.5x8STJ"
+msgid "Difference with the books"
+msgstr "Verschil met de boekhouding"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.RfPpSj"
+msgid "The latest transactions on this account."
+msgstr "De laatste transacties op deze rekening."
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.N2G8Lr"
+msgid "No transactions yet"
+msgstr "Nog geen transacties"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.LrUPS6"
+msgid "Import a statement or sync a bank feed; a transaction seen before is skipped."
+msgstr "Importeer een afschrift of synchroniseer een bankkoppeling; een transactie die al bekend is, wordt overgeslagen."
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.tTTOnQ"
+msgid "Read how to import statements"
+msgstr "Lees hoe je afschriften importeert"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.o6v3D_"
+msgid "Unmatched"
+msgstr "Niet gekoppeld"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.mcDm_r"
+msgid "Matched"
+msgstr "Gekoppeld"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.TckqjB"
+msgid "Ignored"
+msgstr "Genegeerd"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.n0uPnX"
+msgid "Match {invoice} ({balance})"
+msgstr "Koppel {invoice} ({balance})"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.paBpxN"
+msgid "Ignore"
+msgstr "Negeren"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.kHkPdE"
+msgid "Booked"
+msgstr "Geboekt"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.SzEtQB"
+msgid "Counterparty"
+msgstr "Tegenpartij"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking._0TOL5"
+msgid "Amount"
+msgstr "Bedrag"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.tzMNF3"
+msgid "Status"
+msgstr "Status"
 
 #: src/features/billing/components/billing-overview.tsx
 #: src/features/billing/components/plan-picker.tsx
@@ -9334,6 +9469,11 @@ msgstr "Voorraad"
 msgctxt "navigation.z3FEm2"
 msgid "Manufacturing"
 msgstr "Productie"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.wWUTla"
+msgid "Banking"
+msgstr "Bank"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.X7jl6w"

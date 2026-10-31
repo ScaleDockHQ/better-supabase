@@ -120,6 +120,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "cases.*",
     "inspections.*",
     "manufacturing.*",
+    "banking.*",
   ],
   member: [
     "organization.read",
@@ -249,6 +250,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "cases.create",
     "manufacturing.read",
     "manufacturing.produce",
+    "banking.read",
+    "banking.reconcile",
   ],
   viewer: ["organization.read"],
 };
@@ -613,6 +616,10 @@ export const OPERATIONS = {
   "manufacturing.write": "manufacturing.write",
   "manufacturing.produce": "manufacturing.produce",
   "manufacturing.manage": "manufacturing.manage",
+  "banking.read": "banking.read",
+  "banking.import": "banking.import",
+  "banking.reconcile": "banking.reconcile",
+  "banking.manage": "banking.manage",
 } as const;
 
 /** An operation name, `<module>.<action>`. */

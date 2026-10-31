@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@8 managed
--- @bsb-hash sha256:9d62f77ae5aa5844f49ffe1388d90edc28e4af9f22b36051596c27fa2e0015b3
+-- @bsb-hash sha256:d1b943a3343ae31bbe175e23fec082946d86f99773c0366e0a8462d355a669ac
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1066,7 +1066,12 @@ as $$
     ('organization', 'better_supabase.production_orders', '"better_supabase"."production_orders"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.production_order_operations', '"better_supabase"."production_order_operations"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.production_consumptions', '"better_supabase"."production_consumptions"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.stock_lot_links', '"better_supabase"."stock_lot_links"', 'tenant_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.stock_lot_links', '"better_supabase"."stock_lot_links"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.bank_accounts', '"better_supabase"."bank_accounts"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.bank_rules', '"better_supabase"."bank_rules"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.bank_statements', '"better_supabase"."bank_statements"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.bank_transactions', '"better_supabase"."bank_transactions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.bank_matches', '"better_supabase"."bank_matches"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
@@ -1514,6 +1519,12 @@ begin
       from "better_supabase"."work_centers" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'better_supabase.work_centers';
       v_reveal := 'work_centers_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'bank_account' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."bank_accounts" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.bank_accounts';
+      v_reveal := 'bank_accounts_reveal';
       v_reveal_schema := 'better_supabase';
     when 'care_plan' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant

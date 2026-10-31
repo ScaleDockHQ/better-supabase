@@ -1090,6 +1090,11 @@
       "types": "./dist/blocks/manufacturing/index.d.ts",
       "default": "./dist/blocks/manufacturing/index.js"
     },
+    "./blocks/banking": {
+      "@better-supabase/source": "./src/blocks/banking/index.ts",
+      "types": "./dist/blocks/banking/index.d.ts",
+      "default": "./dist/blocks/banking/index.js"
+    },
     "./blocks/shifts": {
       "@better-supabase/source": "./src/blocks/shifts/index.ts",
       "types": "./dist/blocks/shifts/index.d.ts",
@@ -2001,6 +2006,10 @@
       "./blocks/manufacturing": {
         "types": "./dist/blocks/manufacturing/index.d.ts",
         "default": "./dist/blocks/manufacturing/index.js"
+      },
+      "./blocks/banking": {
+        "types": "./dist/blocks/banking/index.d.ts",
+        "default": "./dist/blocks/banking/index.js"
       },
       "./blocks/shifts": {
         "types": "./dist/blocks/shifts/index.d.ts",

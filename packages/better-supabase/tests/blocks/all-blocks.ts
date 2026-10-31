@@ -16,6 +16,7 @@ import type { assignmentBlock } from "../../src/blocks/assignment/manifest.ts";
 import type { attachmentsBlock } from "../../src/blocks/attachments/manifest.ts";
 import type { auditBlock } from "../../src/blocks/audit/manifest.ts";
 import type { automationsBlock } from "../../src/blocks/automations/manifest.ts";
+import type { bankingBlock } from "../../src/blocks/banking/manifest.ts";
 import type { billableTimeBlock } from "../../src/blocks/billable-time/manifest.ts";
 import type { billingBlock } from "../../src/blocks/billing/manifest.ts";
 import type { bookingsBlock } from "../../src/blocks/bookings/manifest.ts";
@@ -231,6 +232,7 @@ export type AllBlocks = {
   readonly incidents: typeof incidentsBlock;
   readonly inspections: typeof inspectionsBlock;
   readonly manufacturing: typeof manufacturingBlock;
+  readonly banking: typeof bankingBlock;
   readonly courses: typeof coursesBlock;
   readonly sequences: typeof sequencesBlock;
   readonly "lead-scoring": typeof leadScoringBlock;

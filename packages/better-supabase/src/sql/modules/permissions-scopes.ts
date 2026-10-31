@@ -302,4 +302,10 @@ export const MODULE_PERMISSION_SCOPES: {
     produce: "tenant",
     manage: "tenant",
   },
+  banking: {
+    read: "tenant",
+    import: "tenant",
+    reconcile: "tenant",
+    manage: "tenant",
+  },
 };

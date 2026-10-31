@@ -18,6 +18,7 @@ import { assignmentBlock } from "./assignment/manifest.ts";
 import { attachmentsBlock } from "./attachments/manifest.ts";
 import { auditBlock } from "./audit/manifest.ts";
 import { automationsBlock } from "./automations/manifest.ts";
+import { bankingBlock } from "./banking/manifest.ts";
 import { billableTimeBlock } from "./billable-time/manifest.ts";
 import { billingBlock } from "./billing/manifest.ts";
 import { bookingsBlock } from "./bookings/manifest.ts";
@@ -219,6 +220,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   casesBlock,
   inspectionsBlock,
   manufacturingBlock,
+  bankingBlock,
   shiftsBlock,
   consentsBlock,
   observationsBlock,

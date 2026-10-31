@@ -51,6 +51,16 @@ msgctxt "aiTasks.6W7U7e"
 msgid "Prompts on the ai-schedules block that the assistant runs on a schedule."
 msgstr "Prompts on the ai-schedules block that the assistant runs on a schedule."
 
+#: src/app/[locale]/(app)/banking/page.tsx
+msgctxt "banking.wWUTla"
+msgid "Banking"
+msgstr "Banking"
+
+#: src/app/[locale]/(app)/banking/page.tsx
+msgctxt "banking.i8Lz3Y"
+msgid "Imported bank statements matched to invoices and booked through the journals, account by account."
+msgstr "Imported bank statements matched to invoices and booked through the journals, account by account."
+
 #: src/app/[locale]/(app)/beta/page.tsx
 msgctxt "beta.riw_yc"
 msgid "Beta"
@@ -2231,6 +2241,131 @@ msgstr "Create account"
 msgctxt "auth.uCk8r-"
 msgid "Already have an account?"
 msgstr "Already have an account?"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.opUqaV"
+msgid "The bank accounts didn't load"
+msgstr "The bank accounts didn't load"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.ZAVCO9"
+msgid "No bank accounts yet"
+msgstr "No bank accounts yet"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.73iVjh"
+msgid "Add a bank account with its IBAN, then import a camt.053 or MT940 statement to start matching."
+msgstr "Add a bank account with its IBAN, then import a camt.053 or MT940 statement to start matching."
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.XvyQLC"
+msgid "Read the banking guide"
+msgstr "Read the banking guide"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.Kth4Dg"
+msgid "Statement balance"
+msgstr "Statement balance"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.UM1wq9"
+msgid "Reconciled"
+msgstr "Reconciled"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.oL-mW-"
+msgid "Left to match"
+msgstr "Left to match"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.sBPuPX"
+msgid "{count, plural, one {# transaction} other {# transactions}}"
+msgstr "{count, plural, one {# transaction} other {# transactions}}"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.5x8STJ"
+msgid "Difference with the books"
+msgstr "Difference with the books"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.RfPpSj"
+msgid "The latest transactions on this account."
+msgstr "The latest transactions on this account."
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.N2G8Lr"
+msgid "No transactions yet"
+msgstr "No transactions yet"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.LrUPS6"
+msgid "Import a statement or sync a bank feed; a transaction seen before is skipped."
+msgstr "Import a statement or sync a bank feed; a transaction seen before is skipped."
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.tTTOnQ"
+msgid "Read how to import statements"
+msgstr "Read how to import statements"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.o6v3D_"
+msgid "Unmatched"
+msgstr "Unmatched"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.mcDm_r"
+msgid "Matched"
+msgstr "Matched"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.TckqjB"
+msgid "Ignored"
+msgstr "Ignored"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.n0uPnX"
+msgid "Match {invoice} ({balance})"
+msgstr "Match {invoice} ({balance})"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.paBpxN"
+msgid "Ignore"
+msgstr "Ignore"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.kHkPdE"
+msgid "Booked"
+msgstr "Booked"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.SzEtQB"
+msgid "Counterparty"
+msgstr "Counterparty"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking._0TOL5"
+msgid "Amount"
+msgstr "Amount"
+
+#: src/features/banking/components/bank-transaction-grid.tsx
+msgctxt "banking.tzMNF3"
+msgid "Status"
+msgstr "Status"
 
 #: src/features/billing/components/billing-overview.tsx
 #: src/features/billing/components/plan-picker.tsx
@@ -9334,6 +9469,11 @@ msgstr "Inventory"
 msgctxt "navigation.z3FEm2"
 msgid "Manufacturing"
 msgstr "Manufacturing"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.wWUTla"
+msgid "Banking"
+msgstr "Banking"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.X7jl6w"

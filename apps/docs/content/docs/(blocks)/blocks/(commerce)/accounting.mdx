@@ -159,6 +159,7 @@ the lowest code and against the account roles:
 | [expenses](/docs/blocks/expenses)           | `expense_reimbursement` | a report is reimbursed                  | bank: payable against bank                                                     |
 | [inventory](/docs/blocks/inventory)         | `stock_movement`        | a costed movement posts                 | general: inventory against payable, cost of goods, work in progress or expense |
 | [manufacturing](/docs/blocks/manufacturing) | `production_order`      | a production order completes with labor | general: work in progress against expense                                      |
+| [banking](/docs/blocks/banking)             | `bank_transaction`      | a bank rule matches a transaction       | bank: bank against the rule's account, or the reverse                          |
 | [leases](/docs/blocks/leases)               | `lease_rent`            | a rent charge posts                     | sales: receivable against revenue                                              |
 | [leases](/docs/blocks/leases)               | `lease_payment`         | a rent payment is recorded              | bank: bank against the receivable                                              |
 | [donations](/docs/blocks/donations)         | `gift`                  | a gift posts                            | bank: bank against revenue                                                     |

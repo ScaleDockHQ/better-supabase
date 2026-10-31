@@ -4,6 +4,80 @@ import { fail, raise, userGrant } from "../shared.ts";
 import { accountingJson, requireSettings } from "./accounting-setup.ts";
 import { accountingSql } from "./accounting-shared.ts";
 
+/**
+ * `accounting_period_close_blockers(period_id)`: draft entries dated in the
+ * period and, with the banking block, bank transactions booked in it that no
+ * one has matched or ignored. The banking tables come after accounting's, so
+ * that check is PL/pgSQL, which resolves them when it runs.
+ */
+function closeBlockers(ctx: BlockSqlContext): string {
+  const p = (column: string): string => ctx.col("periods", column);
+  const e = (column: string): string => ctx.col("entries", column);
+  const fn = ctx.fn("accounting_period_close_blockers");
+  const entries = ctx.table("entries");
+  const periods = ctx.table("periods");
+
+  const drafts = (period: string): string => `exists (
+      select 1 from ${entries} y
+      where y.${e("tenant")} = ${period}.${p("tenant")} and y.${e("status")} = 'draft'
+        and y.${e("entryDate")} >= ${period}.${p("startsOn")} and y.${e("entryDate")} <= ${period}.${p("endsOn")}
+    )`;
+
+  const banking =
+    ctx.installed("banking") && ctx.of("banking").mode !== "custom"
+      ? ctx.of("banking")
+      : undefined;
+
+  if (banking === undefined) {
+    return `-- What keeps a period from closing: draft entries dated in it.
+create or replace function ${fn}(period_id uuid)
+returns text[]
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(array_remove(array[
+    case when ${drafts("x")} then 'draft_entries' end
+  ], null), '{}'::text[])
+  from ${periods} x where x.${p("id")} = accounting_period_close_blockers.period_id
+$$;`;
+  }
+
+  const t = (column: string): string => banking.col("transactions", column);
+
+  return `-- What keeps a period from closing: draft entries dated in it, and bank
+-- transactions booked in it that are neither matched nor ignored.
+create or replace function ${fn}(period_id uuid)
+returns text[]
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_period ${periods}%rowtype;
+  v_blockers text[] := '{}';
+begin
+  select * into v_period from ${periods} x where x.${p("id")} = accounting_period_close_blockers.period_id;
+  if not found then
+    return null;
+  end if;
+  if ${drafts("v_period")} then
+    v_blockers := v_blockers || 'draft_entries'::text;
+  end if;
+  if exists (
+    select 1 from ${banking.table("transactions")} y
+    where y.${t("tenant")} = v_period.${p("tenant")} and y.${t("status")} = 'unmatched'
+      and y.${t("bookedOn")} >= v_period.${p("startsOn")} and y.${t("bookedOn")} <= v_period.${p("endsOn")}
+  ) then
+    v_blockers := v_blockers || 'unreconciled_bank_transactions'::text;
+  end if;
+  return v_blockers;
+end;
+$$;`;
+}
+
 /** Period close and reopen, the lock date's companion, and the year-end close. */
 export function accountingCloseFunctions(ctx: BlockSqlContext): string {
   const accounts = ctx.table("accounts");
@@ -65,23 +139,7 @@ export function accountingCloseFunctions(ctx: BlockSqlContext): string {
     ${recordPeriod("accounting_period.closed", "v_period")}`;
 
   return `
--- What keeps a period from closing: draft entries dated in it.
-create or replace function ${fn("accounting_period_close_blockers")}(period_id uuid)
-returns text[]
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(array_remove(array[
-    case when exists (
-      select 1 from ${entries} y
-      where y.${e("tenant")} = x.${p("tenant")} and y.${e("status")} = 'draft'
-        and y.${e("entryDate")} >= x.${p("startsOn")} and y.${e("entryDate")} <= x.${p("endsOn")}
-    ) then 'draft_entries' end
-  ], null), '{}'::text[])
-  from ${periods} x where x.${p("id")} = accounting_period_close_blockers.period_id
-$$;
+${closeBlockers(ctx)}
 ${userGrant(`${fn("accounting_period_close_blockers")}(uuid)`)}
 
 -- Closes a period: nothing posts into it until it reopens. Closing a closed

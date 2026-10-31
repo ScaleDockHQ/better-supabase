@@ -147,6 +147,12 @@ may be your own enum or domain.
   - `better_supabase.automation_versions`: `rule_id`, `version`, `organization_id`, `name`, `conditions`, `actions`, `saved_at`
   - `better_supabase.automation_evaluations`: `id`, `organization_id`, `rule_id`, `version`, `subject_type`, `trigger`, `matched`, `mode`, `evaluated_at`; typed: `mode`
   - `better_supabase.automation_fields`: `subject_type`, `field_id`, `label`, `type`, `path`, `column_type`; typed: `type`
+- `banking`
+  - `better_supabase.bank_accounts`: `id`, `tenant_id`, `name`, `iban`, `bic`, `currency`, `journal_id`, `archived_at`, `created_at`, `updated_at`
+  - `better_supabase.bank_rules`: `id`, `tenant_id`, `name`, `conditions`, `account_id`, `party_id`, `dimensions`, `priority`, `active`, `created_at`, `updated_at`
+  - `better_supabase.bank_statements`: `id`, `tenant_id`, `account_id`, `reference`, `from_on`, `until_on`, `opening_balance`, `closing_balance`, `format`, `attachment_id`, `imported_by`, `created_at`
+  - `better_supabase.bank_transactions`: `id`, `tenant_id`, `account_id`, `statement_id`, `booked_on`, `value_on`, `amount`, `currency`, `counterparty_name`, `counterparty_iban`, `remittance`, `structured_reference`, `end_to_end_id`, `external_id`, `status`, `rule_id`, `matched_at`, `matched_by`, `created_at`, `updated_at`
+  - `better_supabase.bank_matches`: `id`, `tenant_id`, `transaction_id`, `target_type`, `target_id`, `amount`, `created_by`, `created_at`
 - `billable-time`
   - `better_supabase.time_rates`: `id`, `tenant_id`, `user_id`, `subject_type`, `subject_id`, `rate`, `currency`, `effective_from`
   - `better_supabase.time_invoice_entries`: `entry_id`, `tenant_id`, `invoice_id`, `rate`, `currency`, `seconds`

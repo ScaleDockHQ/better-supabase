@@ -141,9 +141,15 @@ begin
   end if;
   v_date := coalesce((v_doc ->> 'entryDate')::date, current_date);
   v_kind := coalesce(v_doc ->> 'journal', v_kind);
-  select * into v_journal from ${journals} y
-  where y.${j("tenant")} = v_tenant and y.${j("type")} = v_kind order by y.${j("code")} limit 1;
-  if not found then
+  if coalesce(v_doc ->> 'journalId', '') ~ '^[0-9a-fA-F-]{36}$' then
+    select * into v_journal from ${journals} y
+    where y.${j("tenant")} = v_tenant and y.${j("id")} = (v_doc ->> 'journalId')::uuid;
+  end if;
+  if v_journal.${j("id")} is null then
+    select * into v_journal from ${journals} y
+    where y.${j("tenant")} = v_tenant and y.${j("type")} = v_kind order by y.${j("code")} limit 1;
+  end if;
+  if v_journal.${j("id")} is null then
     ${fail("ACCOUNTING_JOURNAL_NOT_FOUND", "the organization has no journal of the type this document books in", "P0002")}
   end if;
   for v_line in select q.value from jsonb_array_elements(v_doc -> 'lines') q loop
@@ -164,6 +170,8 @@ begin
     v_account := null;
     if v_line.value ->> 'role' in ('tax_payable', 'tax_receivable') and v_tax.${t("id")} is not null then
       v_account := v_tax.${t("account")};
+    elsif coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      ${account(`y.${a("id")} = (v_line.value ->> 'accountId')::uuid`)};
     elsif v_line.value ->> 'accountCode' is not null then
       ${account(`y.${a("code")} = v_line.value ->> 'accountCode'`)};
     elsif v_line.value ->> 'role' is not null then

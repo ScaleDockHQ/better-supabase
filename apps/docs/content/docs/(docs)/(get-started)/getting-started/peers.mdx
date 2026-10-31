@@ -10,67 +10,67 @@ reason, so with `strictPeerDependencies` an install fails when the version is
 outside the range below. [`doctor`](/docs/cli/doctor#bs601) reports such a
 peer as BS601.
 
-| Peer                                    | Range                     | Needed by                                                                                                              |
-| --------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `@supabase/supabase-js`                 | `^2.118.0`                | Everything (required)                                                                                                  |
-| `@supabase/pg-delta`                    | `>=1.0.0-alpha.60 <1.0.0` | The CLI: `db diff` plans the migration                                                                                 |
-| `@supabase/pg-topo`                     | `>=1.0.0-alpha.8 <1.0.0`  | The CLI: pg-delta orders the schema files                                                                              |
-| `@supabase/postgrest-typegen`           | `>=0.6.0 <0.7`            | The CLI: `gen` and `doctor`                                                                                            |
-| `pg`                                    | `>=8.15 <9`               | The CLI's database commands, `better-supabase/postgres`, `better-supabase/workflow-sdk/world`                          |
-| `oxfmt`                                 | `>=0.66.0 <1`             | The CLI, to format `database.types.ts`                                                                                 |
-| `@supabase/config`                      | `>=0.9.0 <0.12`           | The CLI, to read `supabase/config.toml` (it falls back to its own parser)                                              |
-| `@supabase/lite`                        | `>=0.11.0 <0.12`          | `liteStack()` in `better-supabase/testing`, and the CLI's `gen` and `doctor` on a Supabase Lite project                |
-| `@supabase/mcp-server-supabase`         | `>=0.13.0 <0.15`          | `supabaseMcp` in `better-supabase/ai-sdk/mcp` and `supabaseMcpHandler` in `better-supabase/mcp/sdk`                    |
-| `temporal-polyfill`                     | `>=1`                     | Runtimes without a native `Temporal` ([Temporal](/docs/concepts/temporal))                                             |
-| `better-result`                         | `>=3 <4`                  | The types of `better-supabase/better-result` ([better-result](/docs/concepts/better-result))                           |
-| `react`                                 | `^19`                     | `better-supabase/react`, `react/native`, `next/client` and the `/react` entries of blocks, `ai-sdk` and `chat-sdk`     |
-| `@tanstack/query-core`                  | `^5.62.0`                 | `better-supabase/query`, `react`, `vue`, `solid`, `svelte`, `tanstack-db`                                              |
-| `vue`                                   | `^3.3`                    | `better-supabase/vue`                                                                                                  |
-| `solid-js`                              | `^1.8`                    | `better-supabase/solid`                                                                                                |
-| `svelte`                                | `^5.7`                    | `better-supabase/svelte`                                                                                               |
-| `next`                                  | `>=16.3 <17`              | `better-supabase/next`, `next/client`, `next/image`                                                                    |
-| `@next/playwright`                      | `>=16.2 <17`              | `expectInstant` in `better-supabase/testing`                                                                           |
-| `hono`                                  | `>=4 <5`                  | `better-supabase/hono`                                                                                                 |
-| `react-router`                          | `>=7.9 <9`                | `better-supabase/react-router`                                                                                         |
-| `@sveltejs/kit`                         | `>=2 <4`                  | `better-supabase/sveltekit`                                                                                            |
-| `h3`                                    | `>=1 <3`                  | `better-supabase/h3` (H3 2) and `h3/v1` (H3 1)                                                                         |
-| `nuxt`                                  | `>=3 <5`                  | `better-supabase/nuxt`                                                                                                 |
-| `nuqs`                                  | `>=2.3 <3`                | the files the `nuqs()` generator writes (`nuqs/server`)                                                                |
-| `astro`                                 | `>=7 <8`                  | `better-supabase/astro`                                                                                                |
-| `@solidjs/start`                        | `>=2 <3`                  | `better-supabase/solid-start`                                                                                          |
-| `@tanstack/react-start`                 | `>=1 <2`                  | `better-supabase/tanstack-start`                                                                                       |
-| `elysia`                                | `>=1 <2`                  | `better-supabase/elysia`                                                                                               |
-| `express`                               | `>=5 <6`                  | `toExpress` in `better-supabase/node`                                                                                  |
-| `fastify`                               | `>=5 <6`                  | `toFastify` in `better-supabase/node`                                                                                  |
-| `koa`                                   | `>=3 <4`                  | `toKoa` in `better-supabase/node`                                                                                      |
-| `@orpc/server`                          | `>=2.0.0-beta.40 <3`      | `better-supabase/orpc`                                                                                                 |
-| `@nestjs/common`                        | `>=11 <13`                | `better-supabase/nestjs`                                                                                               |
-| `expo-server`                           | `>=55 <59`                | `better-supabase/expo`                                                                                                 |
-| `@modelcontextprotocol/server`          | `>=2.3.0 <3`              | `better-supabase/mcp/sdk`                                                                                              |
-| `@opentelemetry/api`                    | `>=1.9 <2`                | `better-supabase/otel`                                                                                                 |
-| `stripe`                                | `>=17 <24`                | `better-supabase/stripe`, and `better-supabase/blocks/billing`, `blocks/usage` and `commerce` unless you pass a client |
-| `redis`                                 | `>=5 <7`                  | `better-supabase/streams/redis` with the `url` option                                                                  |
-| `yjs`                                   | `>=13.6 <14`              | `better-supabase/yjs`, unless you pass the module                                                                      |
-| `fast-xml-parser`                       | `>=5 <6`                  | `fromUbl()` in `better-supabase/e-invoicing`, unless you pass the module                                               |
-| `jsonpath-rfc9535`                      | `>=1.3.0 <2`              | Overlays in `better-supabase/spec`, unless you pass a JSONPath engine                                                  |
-| `ai`                                    | `>=7 <8`                  | `better-supabase/ai-sdk` and its subpaths                                                                              |
-| `@ai-sdk/react`                         | `>=4 <5`                  | `better-supabase/ai-sdk/react`, `ai-sdk/workflow/react`                                                                |
-| `@ai-sdk/mcp`                           | `>=2 <3`                  | `better-supabase/ai-sdk/mcp`                                                                                           |
-| `@ai-sdk/workflow`                      | `>=2 <3`                  | `better-supabase/ai-sdk/workflow`                                                                                      |
-| `chat`                                  | `>=4.41 <5`               | `better-supabase/chat-sdk`, and the `chat` state of `better-supabase/testing`                                          |
-| `workflow`                              | `>=5.1 <6`                | `better-supabase/workflow-sdk`, `workflow-sdk/builder`, `ai-sdk/workflow`                                              |
-| `@workflow/world`                       | `>=5.0.2 <5.1`            | `better-supabase/workflow-sdk/world`, `workflow-sdk/builder`                                                           |
-| `@workflow/world-postgres`              | `>=5.0.2 <5.1`            | `better-supabase/workflow-sdk/world`                                                                                   |
-| `eve`                                   | `>=0.71 <1`               | `better-supabase/eve`                                                                                                  |
-| `@ai-sdk/anthropic`                     | `>=4 <5`                  | `anthropicMemory` in `better-supabase/ai-sdk/memory`                                                                   |
-| `@openfeature/server-sdk`               | `>=1 <2`                  | `createFlagsProvider` in `better-supabase/blocks/flags`, as an OpenFeature server provider                             |
-| `@supabase-labs/middleware-openfeature` | `>=0.2.0 <0.3`            | `createFlagClient` in `better-supabase/blocks/flags`                                                                   |
-| `@powersync/common`                     | `>=1 <3`                  | `better-supabase/powersync`                                                                                            |
-| `@vercel/connect`                       | `>=2 <3`                  | `better-supabase/vercel-connect`                                                                                       |
-| `@vercel/queue`                         | `>=0.8 <0.9`              | `vercelQueueProvider` and `vercelQueueRoute` in `better-supabase/blocks/queue`                                         |
-| `@vercel/sandbox`                       | `>=3 <4`                  | `better-supabase/vercel-sandbox`                                                                                       |
-| `@ai-sdk/sandbox-vercel`                | `>=1 <2`                  | `better-supabase/vercel-sandbox`                                                                                       |
-| `flags`                                 | `>=4.2 <5`                | `better-supabase/flags-sdk`                                                                                            |
+| Peer                                    | Range                     | Needed by                                                                                                                        |
+| --------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `@supabase/supabase-js`                 | `^2.118.0`                | Everything (required)                                                                                                            |
+| `@supabase/pg-delta`                    | `>=1.0.0-alpha.60 <1.0.0` | The CLI: `db diff` plans the migration                                                                                           |
+| `@supabase/pg-topo`                     | `>=1.0.0-alpha.8 <1.0.0`  | The CLI: pg-delta orders the schema files                                                                                        |
+| `@supabase/postgrest-typegen`           | `>=0.6.0 <0.7`            | The CLI: `gen` and `doctor`                                                                                                      |
+| `pg`                                    | `>=8.15 <9`               | The CLI's database commands, `better-supabase/postgres`, `better-supabase/workflow-sdk/world`                                    |
+| `oxfmt`                                 | `>=0.66.0 <1`             | The CLI, to format `database.types.ts`                                                                                           |
+| `@supabase/config`                      | `>=0.9.0 <0.12`           | The CLI, to read `supabase/config.toml` (it falls back to its own parser)                                                        |
+| `@supabase/lite`                        | `>=0.11.0 <0.12`          | `liteStack()` in `better-supabase/testing`, and the CLI's `gen` and `doctor` on a Supabase Lite project                          |
+| `@supabase/mcp-server-supabase`         | `>=0.13.0 <0.15`          | `supabaseMcp` in `better-supabase/ai-sdk/mcp` and `supabaseMcpHandler` in `better-supabase/mcp/sdk`                              |
+| `temporal-polyfill`                     | `>=1`                     | Runtimes without a native `Temporal` ([Temporal](/docs/concepts/temporal))                                                       |
+| `better-result`                         | `>=3 <4`                  | The types of `better-supabase/better-result` ([better-result](/docs/concepts/better-result))                                     |
+| `react`                                 | `^19`                     | `better-supabase/react`, `react/native`, `next/client` and the `/react` entries of blocks, `ai-sdk` and `chat-sdk`               |
+| `@tanstack/query-core`                  | `^5.62.0`                 | `better-supabase/query`, `react`, `vue`, `solid`, `svelte`, `tanstack-db`                                                        |
+| `vue`                                   | `^3.3`                    | `better-supabase/vue`                                                                                                            |
+| `solid-js`                              | `^1.8`                    | `better-supabase/solid`                                                                                                          |
+| `svelte`                                | `^5.7`                    | `better-supabase/svelte`                                                                                                         |
+| `next`                                  | `>=16.3 <17`              | `better-supabase/next`, `next/client`, `next/image`                                                                              |
+| `@next/playwright`                      | `>=16.2 <17`              | `expectInstant` in `better-supabase/testing`                                                                                     |
+| `hono`                                  | `>=4 <5`                  | `better-supabase/hono`                                                                                                           |
+| `react-router`                          | `>=7.9 <9`                | `better-supabase/react-router`                                                                                                   |
+| `@sveltejs/kit`                         | `>=2 <4`                  | `better-supabase/sveltekit`                                                                                                      |
+| `h3`                                    | `>=1 <3`                  | `better-supabase/h3` (H3 2) and `h3/v1` (H3 1)                                                                                   |
+| `nuxt`                                  | `>=3 <5`                  | `better-supabase/nuxt`                                                                                                           |
+| `nuqs`                                  | `>=2.3 <3`                | the files the `nuqs()` generator writes (`nuqs/server`)                                                                          |
+| `astro`                                 | `>=7 <8`                  | `better-supabase/astro`                                                                                                          |
+| `@solidjs/start`                        | `>=2 <3`                  | `better-supabase/solid-start`                                                                                                    |
+| `@tanstack/react-start`                 | `>=1 <2`                  | `better-supabase/tanstack-start`                                                                                                 |
+| `elysia`                                | `>=1 <2`                  | `better-supabase/elysia`                                                                                                         |
+| `express`                               | `>=5 <6`                  | `toExpress` in `better-supabase/node`                                                                                            |
+| `fastify`                               | `>=5 <6`                  | `toFastify` in `better-supabase/node`                                                                                            |
+| `koa`                                   | `>=3 <4`                  | `toKoa` in `better-supabase/node`                                                                                                |
+| `@orpc/server`                          | `>=2.0.0-beta.40 <3`      | `better-supabase/orpc`                                                                                                           |
+| `@nestjs/common`                        | `>=11 <13`                | `better-supabase/nestjs`                                                                                                         |
+| `expo-server`                           | `>=55 <59`                | `better-supabase/expo`                                                                                                           |
+| `@modelcontextprotocol/server`          | `>=2.3.0 <3`              | `better-supabase/mcp/sdk`                                                                                                        |
+| `@opentelemetry/api`                    | `>=1.9 <2`                | `better-supabase/otel`                                                                                                           |
+| `stripe`                                | `>=17 <24`                | `better-supabase/stripe`, and `better-supabase/blocks/billing`, `blocks/usage` and `commerce` unless you pass a client           |
+| `redis`                                 | `>=5 <7`                  | `better-supabase/streams/redis` with the `url` option                                                                            |
+| `yjs`                                   | `>=13.6 <14`              | `better-supabase/yjs`, unless you pass the module                                                                                |
+| `fast-xml-parser`                       | `>=5 <6`                  | `fromUbl()` in `better-supabase/e-invoicing` (unless you pass the module) and `parseCamt053` in `better-supabase/blocks/banking` |
+| `jsonpath-rfc9535`                      | `>=1.3.0 <2`              | Overlays in `better-supabase/spec`, unless you pass a JSONPath engine                                                            |
+| `ai`                                    | `>=7 <8`                  | `better-supabase/ai-sdk` and its subpaths                                                                                        |
+| `@ai-sdk/react`                         | `>=4 <5`                  | `better-supabase/ai-sdk/react`, `ai-sdk/workflow/react`                                                                          |
+| `@ai-sdk/mcp`                           | `>=2 <3`                  | `better-supabase/ai-sdk/mcp`                                                                                                     |
+| `@ai-sdk/workflow`                      | `>=2 <3`                  | `better-supabase/ai-sdk/workflow`                                                                                                |
+| `chat`                                  | `>=4.41 <5`               | `better-supabase/chat-sdk`, and the `chat` state of `better-supabase/testing`                                                    |
+| `workflow`                              | `>=5.1 <6`                | `better-supabase/workflow-sdk`, `workflow-sdk/builder`, `ai-sdk/workflow`                                                        |
+| `@workflow/world`                       | `>=5.0.2 <5.1`            | `better-supabase/workflow-sdk/world`, `workflow-sdk/builder`                                                                     |
+| `@workflow/world-postgres`              | `>=5.0.2 <5.1`            | `better-supabase/workflow-sdk/world`                                                                                             |
+| `eve`                                   | `>=0.71 <1`               | `better-supabase/eve`                                                                                                            |
+| `@ai-sdk/anthropic`                     | `>=4 <5`                  | `anthropicMemory` in `better-supabase/ai-sdk/memory`                                                                             |
+| `@openfeature/server-sdk`               | `>=1 <2`                  | `createFlagsProvider` in `better-supabase/blocks/flags`, as an OpenFeature server provider                                       |
+| `@supabase-labs/middleware-openfeature` | `>=0.2.0 <0.3`            | `createFlagClient` in `better-supabase/blocks/flags`                                                                             |
+| `@powersync/common`                     | `>=1 <3`                  | `better-supabase/powersync`                                                                                                      |
+| `@vercel/connect`                       | `>=2 <3`                  | `better-supabase/vercel-connect`                                                                                                 |
+| `@vercel/queue`                         | `>=0.8 <0.9`              | `vercelQueueProvider` and `vercelQueueRoute` in `better-supabase/blocks/queue`                                                   |
+| `@vercel/sandbox`                       | `>=3 <4`                  | `better-supabase/vercel-sandbox`                                                                                                 |
+| `@ai-sdk/sandbox-vercel`                | `>=1 <2`                  | `better-supabase/vercel-sandbox`                                                                                                 |
+| `flags`                                 | `>=4.2 <5`                | `better-supabase/flags-sdk`                                                                                                      |
 
 Two ranges are narrower than the rest. `@modelcontextprotocol/server` starts
 at 2.3.0 because the MCP adapter

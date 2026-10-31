@@ -28,6 +28,7 @@ import { ASSIGNMENT } from "./modules/assignment.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { RULES } from "./modules/automations.ts";
+import { BANKING } from "./modules/banking.ts";
 import { BILLABLE_TIME } from "./modules/billable-time.ts";
 import { BILLING } from "./modules/billing.ts";
 import { BOOKINGS } from "./modules/bookings.ts";
@@ -404,6 +405,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(CASES),
       built(INSPECTIONS),
       built(MANUFACTURING),
+      built(BANKING),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

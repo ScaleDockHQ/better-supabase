@@ -1,6 +1,6 @@
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:e18d9cf7027660a75b3577e7846887f29ef0b5f7f976330c221a3b2b6f6d4c81
+-- @bsb-hash sha256:2d27b012f6670f1015c53b7df9cdb38d6467f924d425c56d5378dbd587e33393
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1631,7 +1631,7 @@ declare
   v_descriptions text[] := '{}';
 begin
   if accounting_post_source.source_type is null or accounting_post_source.source_id is null
-    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'invoice_charge', 'invoice_write_off', 'invoice_party_payment', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift', 'production_order') then
+    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'invoice_charge', 'invoice_write_off', 'invoice_party_payment', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift', 'production_order', 'bank_transaction') then
     raise exception 'no installed block books this source type' using errcode = '22023', hint = 'ACCOUNTING_SOURCE_INVALID';
   end if;
   v_doc := case accounting_post_source.source_type
@@ -1649,6 +1649,7 @@ begin
     when 'expense_reimbursement' then "better_supabase"."accounting_expense_reimbursement_lines"(accounting_post_source.source_id)
     when 'gift' then "better_supabase"."accounting_gift_lines"(accounting_post_source.source_id)
     when 'production_order' then "better_supabase"."accounting_production_order_lines"(accounting_post_source.source_id)
+    when 'bank_transaction' then "better_supabase"."accounting_bank_transaction_lines"(accounting_post_source.source_id)
   end;
   v_kind := case accounting_post_source.source_type
     when 'stock_movement' then 'general'
@@ -1665,6 +1666,7 @@ begin
     when 'expense_reimbursement' then 'bank'
     when 'gift' then 'bank'
     when 'production_order' then 'general'
+    when 'bank_transaction' then 'bank'
   end;
   if v_doc is null or jsonb_typeof(v_doc -> 'lines') is distinct from 'array' then
     return null;
@@ -1684,9 +1686,15 @@ begin
   end if;
   v_date := coalesce((v_doc ->> 'entryDate')::date, current_date);
   v_kind := coalesce(v_doc ->> 'journal', v_kind);
-  select * into v_journal from "better_supabase"."accounting_journals" y
-  where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
-  if not found then
+  if coalesce(v_doc ->> 'journalId', '') ~ '^[0-9a-fA-F-]{36}$' then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."id" = (v_doc ->> 'journalId')::uuid;
+  end if;
+  if v_journal."id" is null then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
+  end if;
+  if v_journal."id" is null then
     raise exception 'the organization has no journal of the type this document books in' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
   for v_line in select q.value from jsonb_array_elements(v_doc -> 'lines') q loop
@@ -1707,6 +1715,8 @@ begin
     v_account := null;
     if v_line.value ->> 'role' in ('tax_payable', 'tax_receivable') and v_tax."id" is not null then
       v_account := v_tax."account_id";
+    elsif coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'accountCode' is not null then
       select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'role' is not null then
@@ -1857,22 +1867,39 @@ end;
 $$;
 revoke execute on function "better_supabase"."accounting_sync_dimension_value"(uuid, text, text, text, text, boolean) from public, anon, authenticated;
 
--- What keeps a period from closing: draft entries dated in it.
+-- What keeps a period from closing: draft entries dated in it, and bank
+-- transactions booked in it that are neither matched nor ignored.
 create or replace function "better_supabase"."accounting_period_close_blockers"(period_id uuid)
 returns text[]
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(array_remove(array[
-    case when exists (
+declare
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_blockers text[] := '{}';
+begin
+  select * into v_period from "better_supabase"."accounting_periods" x where x."id" = accounting_period_close_blockers.period_id;
+  if not found then
+    return null;
+  end if;
+  if exists (
       select 1 from "better_supabase"."accounting_entries" y
-      where y."tenant_id" = x."tenant_id" and y."status" = 'draft'
-        and y."entry_date" >= x."starts_on" and y."entry_date" <= x."ends_on"
-    ) then 'draft_entries' end
-  ], null), '{}'::text[])
-  from "better_supabase"."accounting_periods" x where x."id" = accounting_period_close_blockers.period_id
+      where y."tenant_id" = v_period."tenant_id" and y."status" = 'draft'
+        and y."entry_date" >= v_period."starts_on" and y."entry_date" <= v_period."ends_on"
+    ) then
+    v_blockers := v_blockers || 'draft_entries'::text;
+  end if;
+  if exists (
+    select 1 from "better_supabase"."bank_transactions" y
+    where y."tenant_id" = v_period."tenant_id" and y."status" = 'unmatched'
+      and y."booked_on" >= v_period."starts_on" and y."booked_on" <= v_period."ends_on"
+  ) then
+    v_blockers := v_blockers || 'unreconciled_bank_transactions'::text;
+  end if;
+  return v_blockers;
+end;
 $$;
 revoke execute on function "better_supabase"."accounting_period_close_blockers"(uuid) from public, anon;
 grant execute on function "better_supabase"."accounting_period_close_blockers"(uuid) to authenticated, service_role;

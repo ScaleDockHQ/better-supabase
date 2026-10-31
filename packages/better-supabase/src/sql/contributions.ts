@@ -42,9 +42,11 @@ export interface AccountingContribution {
   /**
    * The qualified function `(source_id text) returns jsonb` that describes the
    * entry: `{ organizationId, entryDate, currency, reference, memo, journal?,
-   * lines: [{ role | accountCode, debit | credit, currency?, taxRateBps? |
-   * taxCode?, partyId?, dimensions?, description? }] }`, with amounts in the
-   * document's currency, or `null` when there is nothing to book.
+   * journalId?, lines: [{ role | accountId | accountCode, debit | credit,
+   * currency?, taxRateBps? | taxCode?, partyId?, dimensions?, description? }]
+   * }`, with amounts in the document's currency, or `null` when there is
+   * nothing to book. `journalId` picks one journal of the organization over the
+   * first journal of the type.
    */
   readonly lines: string;
 }
