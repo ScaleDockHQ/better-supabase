@@ -45,6 +45,7 @@ import type { EnrollmentsSqlOptions } from "./enrollments/options.ts";
 import type { ExpensesSqlOptions } from "./expenses/options.ts";
 import type { FlagsSqlOptions } from "./flags/options.ts";
 import type { FormsSqlOptions } from "./forms/options.ts";
+import type { FundingSqlOptions } from "./funding/options.ts";
 import type { GoalsSqlOptions } from "./goals/options.ts";
 import type { GrantsSqlOptions } from "./grants/options.ts";
 import type { GuestsSqlOptions } from "./guests/options.ts";
@@ -188,6 +189,7 @@ import { enrollmentsSqlOptions } from "./enrollments/options.ts";
 import { expensesSqlOptions } from "./expenses/options.ts";
 import { flagsSqlOptions } from "./flags/options.ts";
 import { formsSqlOptions } from "./forms/options.ts";
+import { fundingSqlOptions } from "./funding/options.ts";
 import { goalsSqlOptions } from "./goals/options.ts";
 import { grantsSqlOptions } from "./grants/options.ts";
 import { guestsSqlOptions } from "./guests/options.ts";
@@ -373,6 +375,7 @@ export interface BlockOptionsRegistry {
   readonly "legal-entities": LegalEntitiesSqlOptions;
   readonly "mail-sync": MailSyncSqlOptions;
   readonly manufacturing: ManufacturingSqlOptions;
+  readonly funding: FundingSqlOptions;
   readonly memberships: MembershipsSqlOptions;
   readonly memory: MemorySqlOptions;
   readonly messaging: MessagingSqlOptions;
@@ -473,6 +476,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   approvals: approvalsSqlOptions,
   assets: assetsSqlOptions,
   manufacturing: manufacturingSqlOptions,
+  funding: fundingSqlOptions,
   passes: passesSqlOptions,
   assignment: NO_OPTIONS,
   attachments: attachmentsSqlOptions,

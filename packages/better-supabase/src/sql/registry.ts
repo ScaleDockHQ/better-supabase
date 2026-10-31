@@ -68,6 +68,7 @@ import { FIELD_HISTORY } from "./modules/field-history.ts";
 import { FLAGS } from "./modules/flags.ts";
 import { FORECASTS } from "./modules/forecasts.ts";
 import { FORMS } from "./modules/forms.ts";
+import { FUNDING } from "./modules/funding.ts";
 import { TARGETS } from "./modules/goals.ts";
 import { GRANTS } from "./modules/grants.ts";
 import { GUESTS } from "./modules/guests.ts";
@@ -410,6 +411,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(BANKING),
       built(MEETINGS),
       built(LEGAL_ENTITIES),
+      built(FUNDING),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

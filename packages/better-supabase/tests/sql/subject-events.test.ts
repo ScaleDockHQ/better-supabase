@@ -230,6 +230,11 @@ const SUBJECT_EVENTS = [
   "care_plan_action.ended",
   "care_plan_action.review_date_reached",
   "care_plan_action.reviewed",
+  "funding_award.created",
+  "funding_award.updated",
+  "funding_award.ended",
+  "funding_award.exceeded",
+  "funding_delivery.registered",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**

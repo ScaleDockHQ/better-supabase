@@ -327,6 +327,12 @@ may be your own enum or domain.
   - `better_supabase.form_versions`: `id`, `tenant_id`, `form_id`, `number`, `definition`, `schema`, `created_by`, `created_at`
   - `better_supabase.form_submissions`: `id`, `tenant_id`, `form_id`, `version_id`, `subject_type`, `subject_id`, `respondent_id`, `answers`, `status`, `source`, `reviewed_by`, `reviewed_at`, `created_at`, `submitted_at`, `updated_at`; typed: `status`
   - `better_supabase.form_answer_keys`, once mapped: `version_id`, `tenant_id`, `answers`, `created_at`
+- `funding`
+  - `better_supabase.funding_products`: `id`, `tenant_id`, `code`, `title`, `unit`, `rate`, `currency`, `valid_from`, `valid_until`
+  - `better_supabase.funding_awards`: `id`, `tenant_id`, `subject_type`, `subject_id`, `funder_id`, `product_id`, `units`, `period`, `starts_on`, `ends_on`, `reference`, `status`
+  - `better_supabase.funding_deliveries`: `id`, `tenant_id`, `award_id`, `source_type`, `source_id`, `delivered_on`, `units`, `performer_id`, `status`, `claim_line_id`
+  - `better_supabase.funding_claims`: `id`, `tenant_id`, `funder_id`, `number`, `period_start`, `period_end`, `format`, `status`, `external_ref`, `sent_at`, `payload_sha256`, `response`, `total`, `currency`
+  - `better_supabase.funding_claim_lines`: `id`, `tenant_id`, `claim_id`, `award_id`, `product_id`, `units`, `amount`, `status`, `rejection_code`
 - `goals`
   - `better_supabase.goals`: `id`, `tenant_id`, `name`, `metric`, `owner_user_id`, `period_start`, `period_end`, `currency`, `goal`, `actual`
 - `guests`

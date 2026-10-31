@@ -56,6 +56,7 @@ import type { fieldHistoryBlock } from "../../src/blocks/field-history/manifest.
 import type { flagsBlock } from "../../src/blocks/flags/manifest.ts";
 import type { forecastsBlock } from "../../src/blocks/forecasts/manifest.ts";
 import type { formsBlock } from "../../src/blocks/forms/manifest.ts";
+import type { fundingBlock } from "../../src/blocks/funding/manifest.ts";
 import type { goalsBlock } from "../../src/blocks/goals/manifest.ts";
 import type { grantsBlock } from "../../src/blocks/grants/manifest.ts";
 import type { guestsBlock } from "../../src/blocks/guests/manifest.ts";
@@ -237,6 +238,7 @@ export type AllBlocks = {
   readonly meetings: typeof meetingsBlock;
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
+  readonly funding: typeof fundingBlock;
   readonly courses: typeof coursesBlock;
   readonly sequences: typeof sequencesBlock;
   readonly "lead-scoring": typeof leadScoringBlock;

@@ -1105,6 +1105,11 @@
       "types": "./dist/blocks/banking/index.d.ts",
       "default": "./dist/blocks/banking/index.js"
     },
+    "./blocks/funding": {
+      "@better-supabase/source": "./src/blocks/funding/index.ts",
+      "types": "./dist/blocks/funding/index.d.ts",
+      "default": "./dist/blocks/funding/index.js"
+    },
     "./blocks/shifts": {
       "@better-supabase/source": "./src/blocks/shifts/index.ts",
       "types": "./dist/blocks/shifts/index.d.ts",
@@ -2028,6 +2033,10 @@
       "./blocks/banking": {
         "types": "./dist/blocks/banking/index.d.ts",
         "default": "./dist/blocks/banking/index.js"
+      },
+      "./blocks/funding": {
+        "types": "./dist/blocks/funding/index.d.ts",
+        "default": "./dist/blocks/funding/index.js"
       },
       "./blocks/shifts": {
         "types": "./dist/blocks/shifts/index.d.ts",

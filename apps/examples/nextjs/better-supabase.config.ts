@@ -490,6 +490,9 @@ export default defineConfig({
         ],
       },
     },
+    // Funded care: products a funder pays per unit, awards per customer,
+    // deliveries from approved time and claims the funder answers per line.
+    funding: {},
     // Members acknowledge the current version of each policy they are
     // assigned, directly, through a team or through their role.
     acknowledgements: {

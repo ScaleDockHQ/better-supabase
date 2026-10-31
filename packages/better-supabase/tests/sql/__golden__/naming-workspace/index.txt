@@ -122,3 +122,4 @@ manufacturing
 banking
 meetings
 legal-entities
+funding

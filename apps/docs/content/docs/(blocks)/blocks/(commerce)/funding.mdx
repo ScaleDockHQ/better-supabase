@@ -1,0 +1,295 @@
+---
+title: Funding
+description: Funding products with a rate per unit, awards that grant a record units per period from a funder, deliveries registered by hand or from approved time, and claims a funder answers line by line, sent through a claim format and a channel.
+---
+
+`funding` tracks care or services a third party pays for. A funder (a
+contact with the role `funder`) pays for products at a rate per unit, an
+award grants a person a number of units of one product per week, month or in
+total, the work delivered is registered against the award, and a claim
+gathers the approved deliveries of a period for the funder to accept or
+reject line by line.
+
+```bash
+better-supabase add funding
+```
+
+```ts
+import { createFunding } from "better-supabase/blocks/funding";
+```
+
+The module requires `tenant`, `permissions`, [subjects](/docs/blocks/subjects)
+and [contacts](/docs/blocks/contacts). An award belongs to a record of any
+type in `config.subjects`, usually a client. With
+[time-tracking](/docs/blocks/time-tracking) approved time entries register as
+deliveries, with [bookings](/docs/blocks/bookings) a delivery can name the
+booking it came from, with [invoices](/docs/blocks/invoices) an accepted
+claim becomes an invoice to the funder, and with
+[numbering](/docs/blocks/numbering) claims are numbered from the
+`funding_claim` sequence. With `notifications` the managers hear when an
+award runs over, with `outbox` it records the events, and with `audit` every
+change is audited.
+
+## Tables
+
+| Table                 | Holds                                                                            |
+| --------------------- | -------------------------------------------------------------------------------- |
+| `funding_products`    | What a funder pays for: a code, a title, a unit, a rate and the dates it applies |
+| `funding_awards`      | Units of a product per period for a record, from a funder, with a status         |
+| `funding_deliveries`  | The units delivered on a day against an award, with their source and status      |
+| `funding_claims`      | A funder's claim for a period: number, format, status, total and reference       |
+| `funding_claim_lines` | One line per award on a claim, with its units, amount, status and rejection code |
+
+Members with `funding.read` read products and claims, and the awards and
+deliveries of the records `can_subject` lets them read. Writes go through
+the functions below.
+
+| Permission         | Allows                                            | Default roles        |
+| ------------------ | ------------------------------------------------- | -------------------- |
+| `funding.read`     | reading products, awards, deliveries and claims   | owner, admin, member |
+| `funding.write`    | creating, changing and ending awards              | owner, admin         |
+| `funding.register` | registering deliveries                            | owner, admin, member |
+| `funding.approve`  | approving or rejecting deliveries for a claim     | owner, admin         |
+| `funding.claim`    | building, sending, answering and invoicing claims | owner, admin         |
+| `funding.manage`   | changing products and their rates                 | owner, admin         |
+
+## Products and awards
+
+A product has a `unit`: `minute`, `hour`, `day_part`, `day`, `visit` or
+`piece`. Its `rate` is the amount per unit, and `validFrom` and `validUntil`
+bound the days it applies to. An award grants `units` of one product per
+`period` (`week`, `month` or `total`) from `startsOn`, and runs until
+`endsOn` or until `endAward`.
+
+```ts
+const product = await db.funding
+  .saveProduct(organizationId, {
+    code: "H300",
+    title: "Individual support",
+    unit: "hour",
+    rate: money(6850n, "EUR"),
+  })
+  .orThrow();
+
+const award = await db.funding
+  .createAward(
+    organizationId,
+    { type: "client", id: clientId },
+    {
+      funderId,
+      productId: product.id,
+      units: 6,
+      period: "week",
+      startsOn: Temporal.PlainDate.from("2026-11-02"),
+      reference: "WLZ-2026-118",
+    },
+  )
+  .orThrow();
+```
+
+The funder must be a contact with the role `funder`, or the call fails with
+`FUNDING_FUNDER_INVALID`. An award starts `active`, or `requested` while the
+funder hasn't decided. `endAward(awardId, { endsOn })` ends it, and
+`{ canceled: true }` cancels it; the deliveries registered on it stay.
+
+`usage(awardId)` returns the units awarded and used in every period from the
+start of the award to its end (today while it runs), with what each period
+went over or under. Rejected deliveries don't count.
+
+```ts
+const usage = await db.funding.usage(award.id).orThrow();
+// usage.periods: [{ start, end, awarded: 6, used: 6.5, over: 0.5, under: 0 }]
+```
+
+## Deliveries
+
+`registerDelivery(awardId, input)` registers `units` delivered on
+`deliveredOn` against an active award. The source is `manual` by default,
+or a `time_entry` or a `booking` with its id; a source registered before
+returns its delivery, so registering it twice is safe. When a delivery takes
+a period over the award's units, the award records `funding_award.exceeded`
+and, with notifications, the members with `funding.manage` hear about it.
+
+```ts
+await db.funding
+  .registerDelivery(award.id, {
+    deliveredOn: Temporal.PlainDate.from("2026-11-03"),
+    units: 1.5,
+    note: "Morning visit",
+  })
+  .orThrow();
+```
+
+A delivery starts `registered`. `approveDeliveries(ids)` approves the ones a
+claim may take, and `approveDeliveries(ids, { approved: false })` rejects
+them. A delivery on a claim can't change and fails with
+`FUNDING_DELIVERY_CLAIMED`. `deliveries(organizationId, filter)` lists them,
+newest first, by `awardId`, `status`, `since` and `until`.
+
+### From time entries
+
+With time-tracking installed, `registerFromTime(organizationId, since, until)`
+registers the time entries that started in that range on an approved
+timesheet. Each entry delivers on the one active award of its record that
+covers its day. Minutes and hours count the entry's duration; other units
+count one per entry. An entry with no award, or with several, comes back in
+`unmatched` with the reason. An entry registered before is skipped, so the
+import can run again. Only the service role may call it, so pass a
+service-role transport as `service` when you build the client.
+
+```ts
+const run = await db.funding
+  .registerFromTime(
+    organizationId,
+    Temporal.PlainDate.from("2026-11-02"),
+    Temporal.PlainDate.from("2026-11-08"),
+  )
+  .orThrow();
+// run.registered, and run.unmatched for the entries without one award
+```
+
+`timeCategory` names a time entry column that holds the product code, so an
+entry only delivers on an award of the product with that code.
+
+## Claims
+
+`buildClaim(organizationId, { funderId, periodStart, periodEnd, format })`
+gathers the funder's approved deliveries of the period into a `draft` claim,
+one line per award, priced at the product's rate. Its deliveries become
+`claimed`. The `format` names the claim format that renders it; with the
+`formats` option set, other keys fail with `FUNDING_FORMAT_UNKNOWN`. A claim
+with no approved deliveries fails with `FUNDING_CLAIM_EMPTY`.
+
+| Status               | Reached through        | What happens                                         |
+| -------------------- | ---------------------- | ---------------------------------------------------- |
+| `draft`              | `buildClaim`           | the deliveries are held; `deleteClaim` releases them |
+| `sent`               | `send` or `markSent`   | the reference and the file's SHA-256 are kept        |
+| `accepted`           | `recordResponse`, poll | every line was accepted                              |
+| `partially_accepted` | `recordResponse`, poll | some lines were rejected                             |
+| `rejected`           | `recordResponse`, poll | every line was rejected                              |
+
+`recordResponse(claimId, { lines, raw })` records the funder's answer: each
+line is `accepted` or `rejected` with a `rejectionCode`, and a line the
+response leaves out is accepted. The deliveries of a rejected line go back to
+`approved`, so they can be corrected and claimed again.
+`invoiceClaim(claimId)` invoices the funder for the accepted lines once,
+through the invoices block's `create_invoice`.
+
+### Claim formats and channels
+
+The block doesn't ship a funder's file format or its portal. You pass them as
+two ports, both with `apiVersion: 1`. A `FundingClaimFormat` has a `key`, a
+`render(claim, lines, ctx)` that returns the file (`body`, `filename`,
+`contentType`), and a `parseResponse(body)` that reads the funder's answer
+into lines. A `FundingClaimChannel` has `send(rendered, ctx)`, which delivers
+the file and returns the funder's `externalRef`, and an optional
+`poll(externalRef, ctx)` that returns the response body once there is one.
+
+```ts
+const funding = createFunding({
+  transport,
+  formats: [iwlzFormat],
+  channel: vecozoChannel,
+});
+
+await funding.send(claim.id).orThrow();
+// later, from a job
+const answered = await funding.poll(claim.id).orThrow();
+```
+
+`send` renders the claim, sends it and marks it `sent` with the reference and
+the SHA-256 of the body. `poll` returns `undefined` until the channel has a
+response, then records it. Without a channel, both fail with
+`FUNDING_NO_CHANNEL`, and `markSent` records a claim you sent another way.
+`testFundingClaimFormat` and `testFundingClaimChannel` from
+`better-supabase/testing` check a format and a channel against the contract.
+
+```ts
+import {
+  testFundingClaimChannel,
+  testFundingClaimFormat,
+} from "better-supabase/testing";
+
+await testFundingClaimFormat(iwlzFormat, { claim, lines, response });
+await testFundingClaimChannel(sandboxChannel, { claim, rendered });
+```
+
+## Methods
+
+| Method                                              | Returns                                                     |
+| --------------------------------------------------- | ----------------------------------------------------------- |
+| `saveProduct(orgId, input)`                         | the product, new or changed (`input.productId`)             |
+| `products(orgId, { includeExpired })`               | the products, by code                                       |
+| `createAward(orgId, subject, input)`                | the award                                                   |
+| `updateAward(orgId, subject, awardId, patch)`       | the changed award                                           |
+| `endAward(awardId, { endsOn, canceled })`           | the ended or canceled award                                 |
+| `awards(orgId, { subject, includeEnded })`          | the awards with their product                               |
+| `usage(awardId)`                                    | the units awarded and used per period                       |
+| `registerDelivery(awardId, input)`                  | the delivery                                                |
+| `registerFromTime(orgId, since, until)`             | the deliveries registered and the entries left unmatched    |
+| `approveDeliveries(ids, { approved })`              | how many deliveries changed                                 |
+| `deliveries(orgId, filter)`                         | the deliveries, newest first                                |
+| `buildClaim(orgId, input)`                          | the draft claim with its lines                              |
+| `claim(claimId)`                                    | the claim with its lines and their deliveries               |
+| `claims(orgId, { status, funderId })`               | the claims, newest first                                    |
+| `send(claimId)`                                     | the sent claim                                              |
+| `markSent(claimId, { externalRef, payloadSha256 })` | the sent claim                                              |
+| `recordResponse(claimId, response)`                 | the answered claim with its lines                           |
+| `poll(claimId)`                                     | the answered claim, or `undefined` while there is no answer |
+| `deleteClaim(claimId)`                              | `true` once the draft claim is gone                         |
+| `invoiceClaim(claimId, attrs)`                      | the claim and the invoice                                   |
+
+## Options
+
+| Option         | Default | Does                                                           |
+| -------------- | ------- | -------------------------------------------------------------- |
+| `formats`      | none    | The claim format keys `buildClaim` accepts; any key when empty |
+| `timeCategory` | none    | The time entry column that holds a product code                |
+| `extraColumns` | none    | Extra columns on the awards table                              |
+
+The client's `fields` schema types the extra columns on every award it
+returns.
+
+## Errors
+
+| Hint                           | Cause                                                            |
+| ------------------------------ | ---------------------------------------------------------------- |
+| `FUNDING_FORBIDDEN`            | the caller lacks the permission                                  |
+| `FUNDING_INVALID`              | a field is invalid, such as zero units or an inverted range      |
+| `FUNDING_FUNDER_INVALID`       | the funder isn't a contact with the role `funder`                |
+| `FUNDING_PRODUCT_NOT_FOUND`    | no product with this id in the organization                      |
+| `FUNDING_AWARD_NOT_FOUND`      | no award with this id that the caller sees                       |
+| `FUNDING_AWARD_INACTIVE`       | the award isn't active on that day                               |
+| `FUNDING_DELIVERY_NOT_FOUND`   | no delivery with this id that the caller sees                    |
+| `FUNDING_DELIVERY_CLAIMED`     | a claim holds the delivery                                       |
+| `FUNDING_CLAIM_NOT_FOUND`      | no claim with this id that the caller sees                       |
+| `FUNDING_CLAIM_EMPTY`          | the funder has no approved deliveries in the period              |
+| `FUNDING_CLAIM_STATUS_INVALID` | the call doesn't fit the status, such as answering a draft       |
+| `FUNDING_FORMAT_UNKNOWN`       | the format isn't one of `formats`, or the client doesn't have it |
+| `FUNDING_NO_CHANNEL`           | `send` or `poll` without a channel, or one without `poll`        |
+| `FUNDING_CHANNEL_FAILED`       | the format or the channel threw                                  |
+
+## Events
+
+`funding_award.created`, `funding_award.updated`, `funding_award.ended`,
+`funding_award.exceeded`, `funding_delivery.registered`,
+`funding_claim.created`, `funding_claim.sent`, `funding_claim.responded` and
+`funding_claim.deleted`. The [events page](/docs/extending/events) lists
+their payloads.
+
+## Not in this release
+
+Awards don't post to the [ledger](/docs/blocks/ledger) yet, and a claim
+doesn't wait for an [approval](/docs/blocks/approvals) before it is sent.
+Gate `send` in your own code until they do.
+
+## Without the client
+
+`db.funding` is this client. Code that does not go through `bsb.db()` builds
+it with a transport:
+
+```ts
+const funding = createFunding({ transport, service: serviceTransport });
+
+const open = await funding.claims(organizationId, { status: "sent" }).orThrow();
+```

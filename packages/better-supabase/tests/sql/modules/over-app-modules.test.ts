@@ -112,6 +112,7 @@ const MODULES = [
   "meetings",
   "manufacturing",
   "legal-entities",
+  "funding",
 ] as const;
 
 interface Setup {
@@ -126,6 +127,7 @@ const SETUP: Readonly<Partial<Record<(typeof MODULES)[number], Setup>>> = {
   attachments: { options: { offline: true } },
   billing: { options: { subscriptions: "webhook" } },
   contacts: { with: ["inbox"] },
+  funding: { with: ["time-tracking", "invoices"] },
   orders: { options: { kitchen: true } },
   push: { with: ["notifications"] },
   queue: { options: { backend: "table", scheduler: "drain" } },

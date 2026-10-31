@@ -310,4 +310,12 @@ export const MODULE_PERMISSION_SCOPES: {
     reconcile: "tenant",
     manage: "tenant",
   },
+  funding: {
+    read: "tenant",
+    write: "tenant",
+    register: "tenant",
+    approve: "tenant",
+    claim: "tenant",
+    manage: "tenant",
+  },
 };

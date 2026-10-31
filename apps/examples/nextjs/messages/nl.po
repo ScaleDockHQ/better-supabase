@@ -356,6 +356,16 @@ msgctxt "forms.pBbsi1"
 msgid "Build forms and read the responses."
 msgstr "Bouw formulieren en lees de antwoorden."
 
+#: src/app/[locale]/(app)/funding/page.tsx
+msgctxt "funding.fZb224"
+msgid "Funding"
+msgstr "Financiering"
+
+#: src/app/[locale]/(app)/funding/page.tsx
+msgctxt "funding.aldyzy"
+msgid "The units funders award your customers and how much of each award this period used."
+msgstr "De eenheden die financiers aan je klanten toekennen en hoeveel van elke toekenning deze periode is gebruikt."
+
 #: src/app/[locale]/(app)/imports/page.tsx
 msgctxt "imports.ofHC1Q"
 msgid "Imports"
@@ -7849,6 +7859,71 @@ msgctxt "forms.0HT-Ib"
 msgid "Archived"
 msgstr "Gearchiveerd"
 
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.sybwM3"
+msgid "The awards didn't load"
+msgstr "De toekenningen zijn niet geladen"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.6bVVJ8"
+msgid "No awards yet"
+msgstr "Nog geen toekenningen"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.y4Dw4R"
+msgid "Add a funding product with its rate, then record the units a funder awards a customer."
+msgstr "Voeg een financieringsproduct met zijn tarief toe en leg daarna de eenheden vast die een financier een klant toekent."
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.-4qGDl"
+msgid "Read the funding guide"
+msgstr "Lees de handleiding over financiering"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.3z2eee"
+msgid "{units} per week"
+msgstr "{units} per week"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.9t9CtO"
+msgid "{units} per month"
+msgstr "{units} per maand"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.JkALWQ"
+msgid "{units} in total"
+msgstr "{units} in totaal"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.FqvBgl"
+msgid "Awards"
+msgstr "Toekenningen"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.z8n0tw"
+msgid "The units each award grants and the units used this period."
+msgstr "De eenheden die elke toekenning geeft en de eenheden die deze periode zijn gebruikt."
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.qDlgDs"
+msgid "{used} used, {over} over"
+msgstr "{used} gebruikt, {over} te veel"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.Mt4DNK"
+msgid "{used} used"
+msgstr "{used} gebruikt"
+
 #: src/features/imports/components/csv-import-wizard.tsx
 msgctxt "imports.HAlOn1"
 msgid "Name"
@@ -10024,6 +10099,11 @@ msgstr "Medicatie"
 msgctxt "navigation.y10hgk"
 msgid "Care plans"
 msgstr "Zorgplannen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.fZb224"
+msgid "Funding"
+msgstr "Financiering"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"

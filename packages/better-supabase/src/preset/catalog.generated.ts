@@ -8982,6 +8982,156 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "funding",
+      "title": "Funding",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "contacts"
+      ],
+      "integrates": [
+        "time-tracking",
+        "bookings",
+        "invoices",
+        "numbering",
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "funding",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "awards",
+      "entities": {
+        "specs": {
+          "funding_product": {
+            "table": "products",
+            "singular": "funding_product"
+          },
+          "funding_award": {
+            "table": "awards",
+            "singular": "funding_award",
+            "primary": true
+          },
+          "funding_delivery": {
+            "table": "deliveries",
+            "singular": "funding_delivery"
+          },
+          "funding_claim": {
+            "table": "claims",
+            "singular": "funding_claim"
+          },
+          "funding_claim_line": {
+            "table": "claimLines",
+            "singular": "funding_claim_line"
+          }
+        },
+        "tables": {
+          "products": {
+            "name": "funding_products",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "code": "code",
+              "title": "title",
+              "unit": "unit",
+              "rate": "rate",
+              "currency": "currency",
+              "validFrom": "valid_from",
+              "validUntil": "valid_until",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "awards": {
+            "name": "funding_awards",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "funder": "funder_id",
+              "product": "product_id",
+              "units": "units",
+              "period": "period",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "reference": "reference",
+              "status": "status",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "deliveries": {
+            "name": "funding_deliveries",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "award": "award_id",
+              "sourceType": "source_type",
+              "sourceId": "source_id",
+              "deliveredOn": "delivered_on",
+              "units": "units",
+              "performer": "performer_id",
+              "status": "status",
+              "claimLine": "claim_line_id",
+              "note": "note",
+              "createdAt": "created_at"
+            }
+          },
+          "claims": {
+            "name": "funding_claims",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "funder": "funder_id",
+              "number": "number",
+              "periodStart": "period_start",
+              "periodEnd": "period_end",
+              "format": "format",
+              "status": "status",
+              "externalRef": "external_ref",
+              "sentAt": "sent_at",
+              "payloadSha256": "payload_sha256",
+              "response": "response",
+              "total": "total",
+              "currency": "currency",
+              "invoice": "invoice_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "claimLines": {
+            "name": "funding_claim_lines",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "claim": "claim_id",
+              "award": "award_id",
+              "product": "product_id",
+              "units": "units",
+              "amount": "amount",
+              "status": "status",
+              "rejectionCode": "rejection_code"
+            }
+          }
+        },
+        "keys": {
+          "read": "funding.read",
+          "write": "funding.write",
+          "register": "funding.register",
+          "approve": "funding.approve",
+          "claim": "funding.claim",
+          "manage": "funding.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -20081,6 +20231,244 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "legal_entity.created",
           "legal_entity.updated"
+        ]
+      }
+    },
+    {
+      "name": "funding",
+      "sql": [
+        "funding"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "fundingBlock",
+        "subpath": "better-supabase/blocks/funding"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "FundingAward",
+          "fields": true
+        },
+        {
+          "name": "FundingAwardCreatedEventData"
+        },
+        {
+          "name": "FundingAwardEndedEventData"
+        },
+        {
+          "name": "FundingAwardExceededEventData"
+        },
+        {
+          "name": "FundingAwardInput",
+          "fields": true
+        },
+        {
+          "name": "FundingAwardPatch",
+          "fields": true
+        },
+        {
+          "name": "FundingAwardStatus"
+        },
+        {
+          "name": "FundingAwardUpdatedEventData"
+        },
+        {
+          "name": "FundingAwardUsage"
+        },
+        {
+          "name": "FundingAwardWithProduct",
+          "fields": true
+        },
+        {
+          "name": "FundingClaim"
+        },
+        {
+          "name": "FundingClaimChannel"
+        },
+        {
+          "name": "FundingClaimContext"
+        },
+        {
+          "name": "FundingClaimCreatedEventData"
+        },
+        {
+          "name": "FundingClaimDeletedEventData"
+        },
+        {
+          "name": "FundingClaimDelivery"
+        },
+        {
+          "name": "FundingClaimFormat"
+        },
+        {
+          "name": "FundingClaimLine"
+        },
+        {
+          "name": "FundingClaimLineStatus"
+        },
+        {
+          "name": "FundingClaimRespondedEventData"
+        },
+        {
+          "name": "FundingClaimResponse"
+        },
+        {
+          "name": "FundingClaimSentEventData"
+        },
+        {
+          "name": "FundingClaimStatus"
+        },
+        {
+          "name": "FundingClaimWithLines"
+        },
+        {
+          "name": "FundingDelivery"
+        },
+        {
+          "name": "FundingDeliveryFilter"
+        },
+        {
+          "name": "FundingDeliveryInput"
+        },
+        {
+          "name": "FundingDeliveryRegisteredEventData"
+        },
+        {
+          "name": "FundingDeliverySource"
+        },
+        {
+          "name": "FundingDeliveryStatus"
+        },
+        {
+          "name": "FundingProduct"
+        },
+        {
+          "name": "FundingProductInput"
+        }
+      ],
+      "entitySchemas": {
+        "funding_award": {
+          "input": {
+            "title": "FundingAwardInput",
+            "fields": {
+              "funderId": {
+                "kind": "uuid"
+              },
+              "productId": {
+                "kind": "uuid"
+              },
+              "units": {
+                "kind": "number",
+                "minimum": 0
+              },
+              "period": {
+                "kind": "enum",
+                "values": [
+                  "week",
+                  "month",
+                  "total"
+                ]
+              },
+              "startsOn": {
+                "kind": "plainDate"
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "reference": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "status": {
+                "kind": "enum",
+                "optional": true,
+                "values": [
+                  "requested",
+                  "active"
+                ]
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "FundingAwardInput",
+              "type": "object",
+              "properties": {
+                "funderId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "productId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "units": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "period": {
+                  "type": "string",
+                  "enum": [
+                    "week",
+                    "month",
+                    "total"
+                  ]
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "reference": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "requested",
+                    "active"
+                  ]
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "funderId",
+                "productId",
+                "units",
+                "period",
+                "startsOn"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "FundingEvents",
+        "types": [
+          "funding_award.created",
+          "funding_award.updated",
+          "funding_award.ended",
+          "funding_award.exceeded",
+          "funding_delivery.registered",
+          "funding_claim.created",
+          "funding_claim.sent",
+          "funding_claim.responded",
+          "funding_claim.deleted"
         ]
       }
     },

@@ -1656,6 +1656,7 @@
               "flags",
               "forecasts",
               "forms",
+              "funding",
               "goals",
               "grants",
               "guests",
@@ -1826,6 +1827,7 @@
                   "flags",
                   "forecasts",
                   "forms",
+                  "funding",
                   "goals",
                   "grants",
                   "guests",
@@ -2106,6 +2108,9 @@
             },
             "forms": {
               "$ref": "#/$defs/blocks/forms"
+            },
+            "funding": {
+              "$ref": "#/$defs/blocks/funding"
             },
             "goals": {
               "$ref": "#/$defs/blocks/goals"
@@ -5283,6 +5288,34 @@
             "properties": {
               "handlers": {},
               "publicLimit": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "funding": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "formats": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "timeCategory": {
+                "type": "string"
+              },
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {

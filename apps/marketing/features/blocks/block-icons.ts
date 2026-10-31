@@ -257,6 +257,7 @@ export const BLOCK_ICONS = {
   manufacturing: FactoryIcon,
   banking: BanknoteIcon,
   "legal-entities": LandmarkIcon,
+  funding: LandmarkIcon,
   orders: ShoppingCartIcon,
   promotions: TicketPercentIcon,
   invoices: ReceiptIcon,
