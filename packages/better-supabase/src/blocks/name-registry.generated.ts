@@ -1335,6 +1335,23 @@ export interface BlockNameRegistry {
     readonly primary: "legal_entity";
     readonly formerKeys: never;
   };
+  readonly "lims": {
+    readonly tables: {
+      readonly "methods": "id" | "tenant" | "key" | "name" | "unit" | "lowerLimit" | "upperLimit" | "form" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "samples": "id" | "tenant" | "number" | "sequence" | "title" | "kind" | "lot" | "receivedOn" | "status" | "notes" | "rejectionReason" | "completedAt" | "releasedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "results": "id" | "tenant" | "sample" | "method" | "value" | "outcome" | "instrument" | "submission" | "case" | "note" | "testedBy" | "testedAt" | "createdAt";
+    };
+    readonly functions: "archive_lims_method" | "complete_sample" | "get_sample" | "instrument_status" | "list_lims_methods" | "list_samples" | "record_lims_result" | "register_sample" | "reject_sample" | "release_sample" | "save_lims_method";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: "before_lims_sample_register" | "after_lims_sample_register" | "before_lims_result_record" | "after_lims_result_record";
+    readonly entities: {
+      readonly "lims_sample": "id" | "tenant_id" | "number" | "sequence" | "title" | "kind" | "lot" | "received_on" | "status" | "notes" | "rejection_reason" | "completed_at" | "released_at" | "created_by" | "created_at" | "updated_at";
+      readonly "lims_method": "id" | "tenant_id" | "key" | "name" | "unit" | "lower_limit" | "upper_limit" | "form_id" | "archived_at" | "created_at" | "updated_at";
+      readonly "lims_result": "id" | "tenant_id" | "sample_id" | "method_id" | "value" | "outcome" | "instrument_id" | "submission_id" | "case_id" | "note" | "tested_by" | "tested_at" | "created_at";
+    };
+    readonly primary: "lims_sample";
+    readonly formerKeys: never;
+  };
   readonly "mail-sync": {
     readonly tables: {
       readonly "accounts": "id" | "tenant" | "user" | "provider" | "address" | "credentialRef" | "share" | "status" | "cursor" | "lastSyncedAt" | "lastError" | "createdAt" | "updatedAt";

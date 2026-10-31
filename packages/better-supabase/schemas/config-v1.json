@@ -1705,6 +1705,7 @@
               "leave",
               "ledger",
               "legal-entities",
+              "lims",
               "mail-sync",
               "maintenance",
               "manufacturing",
@@ -1881,6 +1882,7 @@
                   "leave",
                   "ledger",
                   "legal-entities",
+                  "lims",
                   "mail-sync",
                   "maintenance",
                   "manufacturing",
@@ -2215,6 +2217,9 @@
             },
             "legal-entities": {
               "$ref": "#/$defs/blocks/legal-entities"
+            },
+            "lims": {
+              "$ref": "#/$defs/blocks/lims"
             },
             "mail-sync": {
               "$ref": "#/$defs/blocks/mail-sync"
@@ -6011,6 +6016,24 @@
                 "items": {
                   "type": "string"
                 }
+              }
+            }
+          }
+        }
+      },
+      "lims": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "instrumentQualification": {
+                "type": "string"
+              },
+              "nonconformityKind": {
+                "type": "string"
               }
             }
           }

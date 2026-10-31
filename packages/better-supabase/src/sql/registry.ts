@@ -91,6 +91,7 @@ import { LEASES } from "./modules/leases.ts";
 import { LEAVE } from "./modules/leave.ts";
 import { LEDGER } from "./modules/ledger.ts";
 import { LEGAL_ENTITIES } from "./modules/legal-entities.ts";
+import { LIMS } from "./modules/lims.ts";
 import { MAIL_SYNC } from "./modules/mail-sync.ts";
 import { MAINTENANCE } from "./modules/maintenance.ts";
 import { MANUFACTURING } from "./modules/manufacturing.ts";
@@ -422,6 +423,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(DAM),
       built(TAX),
       built(DOCUMENT_TEMPLATES),
+      built(LIMS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

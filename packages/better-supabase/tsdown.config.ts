@@ -112,6 +112,7 @@ const entries = [
   "blocks/inspections/index",
   "blocks/meetings/index",
   "blocks/dam/index",
+  "blocks/lims/index",
   "blocks/maintenance/index",
   "blocks/manufacturing/index",
   "blocks/banking/index",

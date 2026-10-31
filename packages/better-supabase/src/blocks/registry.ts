@@ -79,6 +79,7 @@ import { leasesBlock } from "./leases/manifest.ts";
 import { leaveBlock } from "./leave/manifest.ts";
 import { ledgerBlock } from "./ledger/manifest.ts";
 import { legalEntitiesBlock } from "./legal-entities/manifest.ts";
+import { limsBlock } from "./lims/manifest.ts";
 import { mailSyncBlock } from "./mail-sync/manifest.ts";
 import { maintenanceBlock } from "./maintenance/manifest.ts";
 import { manufacturingBlock } from "./manufacturing/manifest.ts";
@@ -230,6 +231,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   meetingsBlock,
   maintenanceBlock,
   damBlock,
+  limsBlock,
   manufacturingBlock,
   bankingBlock,
   legalEntitiesBlock,

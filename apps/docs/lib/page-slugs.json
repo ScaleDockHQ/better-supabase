@@ -122,6 +122,7 @@
   "blocks/leave",
   "blocks/ledger",
   "blocks/legal-entities",
+  "blocks/lims",
   "blocks/mail-sync",
   "blocks/maintenance",
   "blocks/manufacturing",

@@ -9652,6 +9652,115 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "lims",
+      "title": "Laboratory information system",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "forms",
+        "cases",
+        "assets",
+        "qualifications",
+        "numbering",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "lims",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "lims_sample": {
+            "table": "samples",
+            "singular": "lims_sample",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          },
+          "lims_method": {
+            "table": "methods",
+            "singular": "lims_method"
+          },
+          "lims_result": {
+            "table": "results",
+            "singular": "lims_result"
+          }
+        },
+        "tables": {
+          "samples": {
+            "name": "lims_samples",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "number": "number",
+              "sequence": "sequence",
+              "title": "title",
+              "kind": "kind",
+              "lot": "lot",
+              "receivedOn": "received_on",
+              "status": "status",
+              "notes": "notes",
+              "rejectionReason": "rejection_reason",
+              "completedAt": "completed_at",
+              "releasedAt": "released_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "methods": {
+            "name": "lims_methods",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "unit": "unit",
+              "lowerLimit": "lower_limit",
+              "upperLimit": "upper_limit",
+              "form": "form_id",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "results": {
+            "name": "lims_results",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "sample": "sample_id",
+              "method": "method_id",
+              "value": "value",
+              "outcome": "outcome",
+              "instrument": "instrument_id",
+              "submission": "submission_id",
+              "case": "case_id",
+              "note": "note",
+              "testedBy": "tested_by",
+              "testedAt": "tested_at",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "lims.read",
+          "write": "lims.write",
+          "manage": "lims.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -20388,6 +20497,239 @@ export const PRESET_CATALOG: PresetCatalog = {
           "dam_usage_right.granted",
           "dam_usage_right.revoked",
           "dam_usage_right.expiry_notified"
+        ]
+      }
+    },
+    {
+      "name": "lims",
+      "sql": [
+        "lims"
+      ],
+      "category": "work",
+      "client": {
+        "export": "limsBlock",
+        "subpath": "better-supabase/blocks/lims"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "LimsMethod"
+        },
+        {
+          "name": "LimsMethodEventData"
+        },
+        {
+          "name": "LimsMethodInput"
+        },
+        {
+          "name": "LimsResult"
+        },
+        {
+          "name": "LimsResultEventData"
+        },
+        {
+          "name": "LimsResultInput"
+        },
+        {
+          "name": "LimsResultOutcome"
+        },
+        {
+          "name": "LimsSample"
+        },
+        {
+          "name": "LimsSampleDetail"
+        },
+        {
+          "name": "LimsSampleEventData"
+        },
+        {
+          "name": "LimsSampleInput"
+        },
+        {
+          "name": "LimsSampleListOptions"
+        },
+        {
+          "name": "LimsSampleStatus"
+        }
+      ],
+      "entitySchemas": {
+        "lims_sample": {
+          "input": {
+            "title": "LimsSampleInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "kind": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 100
+              },
+              "lot": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 100
+              },
+              "receivedOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "notes": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 4000
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "LimsSampleInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "kind": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 100
+                },
+                "lot": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 100
+                },
+                "receivedOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 4000
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "lims_method": {
+          "input": {
+            "title": "LimsMethodInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 41,
+                "description": "Lowercase letters, digits and underscores, starting with a letter."
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "unit": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 40
+              },
+              "lowerLimit": {
+                "kind": "number",
+                "optional": true,
+                "nullable": true
+              },
+              "upperLimit": {
+                "kind": "number",
+                "optional": true,
+                "nullable": true
+              },
+              "formId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "LimsMethodInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 41,
+                  "description": "Lowercase letters, digits and underscores, starting with a letter."
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "unit": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 40
+                },
+                "lowerLimit": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "upperLimit": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "formId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "LimsEvents",
+        "types": [
+          "lims_method.created",
+          "lims_method.updated",
+          "lims_method.archived",
+          "lims_sample.registered",
+          "lims_sample.completed",
+          "lims_sample.released",
+          "lims_sample.rejected",
+          "lims_result.recorded",
+          "lims_result.flagged"
         ]
       }
     },

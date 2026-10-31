@@ -63,6 +63,7 @@ import type { LeadScoringSqlOptions } from "./lead-scoring/options.ts";
 import type { LeasesSqlOptions } from "./leases/options.ts";
 import type { LeaveSqlOptions } from "./leave/options.ts";
 import type { LegalEntitiesSqlOptions } from "./legal-entities/options.ts";
+import type { LimsSqlOptions } from "./lims/options.ts";
 import type { MailSyncSqlOptions } from "./mail-sync/options.ts";
 import type { ManufacturingSqlOptions } from "./manufacturing/options.ts";
 import type { MedicationsSqlOptions } from "./medications/options.ts";
@@ -208,6 +209,7 @@ import { leadScoringSqlOptions } from "./lead-scoring/options.ts";
 import { leasesSqlOptions } from "./leases/options.ts";
 import { leaveSqlOptions } from "./leave/options.ts";
 import { legalEntitiesSqlOptions } from "./legal-entities/options.ts";
+import { limsSqlOptions } from "./lims/options.ts";
 import { mailSyncSqlOptions } from "./mail-sync/options.ts";
 import { manufacturingSqlOptions } from "./manufacturing/options.ts";
 import { medicationsSqlOptions } from "./medications/options.ts";
@@ -370,6 +372,7 @@ export interface BlockOptionsRegistry {
   readonly meetings: MeetingsSqlOptions;
   readonly maintenance: Record<never, never>;
   readonly dam: Record<never, never>;
+  readonly lims: LimsSqlOptions;
   readonly inventory: InventorySqlOptions;
   readonly invitations: InvitationsSqlOptions;
   readonly invoices: InvoicesSqlOptions;
@@ -556,6 +559,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "mail-sync": mailSyncSqlOptions,
   maintenance: NO_OPTIONS,
   dam: NO_OPTIONS,
+  lims: limsSqlOptions,
   memberships: membershipsSqlOptions,
   memory: memorySqlOptions,
   messaging: messagingSqlOptions,
