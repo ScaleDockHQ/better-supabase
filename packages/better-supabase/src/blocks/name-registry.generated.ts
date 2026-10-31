@@ -19,25 +19,26 @@ export interface BlockNameRegistry {
   readonly "accounting": {
     readonly tables: {
       readonly "settings": "tenant" | "functionalCurrency" | "fiscalYearStartMonth" | "lockDate" | "createdAt" | "updatedAt";
-      readonly "accounts": "id" | "tenant" | "code" | "name" | "type" | "subtype" | "parent" | "currency" | "reconcilable" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "accounts": "id" | "tenant" | "code" | "name" | "type" | "subtype" | "parent" | "currency" | "reconcilable" | "normalSide" | "level" | "defaultTaxCode" | "active" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "roles": "tenant" | "role" | "account" | "updatedAt";
-      readonly "journals": "id" | "tenant" | "code" | "name" | "type" | "defaultAccount" | "currency" | "createdAt" | "updatedAt";
-      readonly "periods": "id" | "tenant" | "fiscalYear" | "number" | "startsOn" | "endsOn" | "status" | "closedAt" | "closedBy" | "createdAt";
+      readonly "journals": "id" | "tenant" | "code" | "name" | "type" | "defaultAccount" | "currency" | "contraAccount" | "bankAccount" | "createdAt" | "updatedAt";
+      readonly "periods": "id" | "tenant" | "fiscalYear" | "number" | "startsOn" | "endsOn" | "status" | "closedAt" | "closedBy" | "lockedAt" | "lockedBy" | "createdAt";
       readonly "entries": "id" | "tenant" | "journal" | "fiscalYear" | "sequence" | "number" | "entryDate" | "period" | "status" | "reference" | "sourceType" | "sourceId" | "reverses" | "memo" | "postedAt" | "postedBy" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "lines": "id" | "tenant" | "entry" | "position" | "account" | "debit" | "credit" | "currency" | "amountCurrency" | "fxRate" | "taxCode" | "party" | "dimensions" | "description";
+      readonly "lines": "id" | "tenant" | "entry" | "position" | "account" | "debit" | "credit" | "currency" | "amountCurrency" | "fxRate" | "taxCode" | "taxAmount" | "party" | "dimensions" | "description";
       readonly "dimensions": "id" | "tenant" | "key" | "name" | "createdAt";
       readonly "dimensionValues": "id" | "tenant" | "dimension" | "code" | "name" | "archivedAt";
       readonly "fxRates": "tenant" | "base" | "quote" | "onDate" | "rate" | "createdAt";
+      readonly "openingBalances": "id" | "tenant" | "fiscalYear" | "account" | "party" | "amount" | "source" | "createdAt" | "updatedAt";
       readonly "budgets": "id" | "tenant" | "name" | "fiscalYear" | "status" | "createdBy" | "createdAt" | "updatedAt";
       readonly "budgetLines": "id" | "tenant" | "budget" | "account" | "periodNumber" | "dimensions" | "amount";
     };
-    readonly functions: "accounting_balance_sheet" | "accounting_budget_vs_actual" | "accounting_entry_guard" | "accounting_entry_line_guard" | "accounting_fx_rate" | "accounting_general_ledger" | "accounting_period_close_blockers" | "accounting_post" | "accounting_post_source" | "accounting_profit_and_loss" | "accounting_reverse" | "accounting_reverse_source" | "accounting_sync_dimension_value" | "accounting_tax_report" | "accounting_trial_balance" | "archive_accounting_account" | "close_accounting_period" | "close_fiscal_year" | "delete_accounting_entry" | "get_accounting_budget" | "get_accounting_entry" | "get_accounting_settings" | "list_accounting_accounts" | "list_accounting_budgets" | "list_accounting_dimensions" | "list_accounting_entries" | "list_accounting_journals" | "list_accounting_periods" | "open_fiscal_year" | "post_accounting_entry" | "post_accounting_source" | "reopen_accounting_period" | "reverse_accounting_entry" | "save_accounting_account" | "save_accounting_budget" | "save_accounting_dimension" | "save_accounting_dimension_value" | "save_accounting_entry" | "save_accounting_journal" | "set_accounting_account_role" | "set_accounting_fx_rate" | "set_accounting_lock_date" | "setup_accounting" | "tax_rate_on";
+    readonly functions: "accounting_account_level" | "accounting_account_level_children" | "accounting_balance_sheet" | "accounting_budget_vs_actual" | "accounting_column_balance" | "accounting_entry_guard" | "accounting_entry_line_guard" | "accounting_fx_rate" | "accounting_general_ledger" | "accounting_journal_listing" | "accounting_opening_posted" | "accounting_opening_write" | "accounting_period_close_blockers" | "accounting_period_trial_balance" | "accounting_post" | "accounting_post_source" | "accounting_profit_and_loss" | "accounting_reverse" | "accounting_reverse_source" | "accounting_sync_dimension_value" | "accounting_tax_report" | "accounting_trial_balance" | "archive_accounting_account" | "close_accounting_period" | "close_fiscal_year" | "delete_accounting_entry" | "get_accounting_budget" | "get_accounting_entry" | "get_accounting_settings" | "import_accounting_account" | "import_accounting_entry" | "import_accounting_journal" | "import_accounting_opening_balance" | "list_accounting_accounts" | "list_accounting_budgets" | "list_accounting_dimensions" | "list_accounting_entries" | "list_accounting_journals" | "list_accounting_opening_balances" | "list_accounting_periods" | "lock_accounting_period" | "open_fiscal_year" | "post_accounting_entry" | "post_accounting_opening_balances" | "post_accounting_source" | "reopen_accounting_period" | "reverse_accounting_entry" | "save_accounting_account" | "save_accounting_budget" | "save_accounting_dimension" | "save_accounting_dimension_value" | "save_accounting_entry" | "save_accounting_journal" | "save_accounting_opening_balances" | "set_accounting_account_role" | "set_accounting_fx_rate" | "set_accounting_lock_date" | "setup_accounting" | "tax_rate_on" | "unlock_accounting_period";
     readonly actions: "read" | "write" | "post" | "close" | "manage";
     readonly hooks: "before_accounting_entry_post" | "after_accounting_entry_post" | "before_accounting_entry_reverse" | "after_accounting_entry_reverse";
     readonly entities: {
-      readonly "accounting_account": "id" | "tenant_id" | "code" | "name" | "type" | "subtype" | "parent_id" | "currency" | "reconcilable" | "archived_at" | "created_at" | "updated_at";
-      readonly "accounting_journal": "id" | "tenant_id" | "code" | "name" | "type" | "default_account_id" | "currency" | "created_at" | "updated_at";
-      readonly "accounting_period": "id" | "tenant_id" | "fiscal_year" | "number" | "starts_on" | "ends_on" | "status" | "closed_at" | "closed_by" | "created_at";
+      readonly "accounting_account": "id" | "tenant_id" | "code" | "name" | "type" | "subtype" | "parent_id" | "currency" | "reconcilable" | "normal_side" | "level" | "default_tax_code_id" | "active" | "archived_at" | "created_at" | "updated_at";
+      readonly "accounting_journal": "id" | "tenant_id" | "code" | "name" | "type" | "default_account_id" | "currency" | "contra_account_id" | "bank_account_id" | "created_at" | "updated_at";
+      readonly "accounting_period": "id" | "tenant_id" | "fiscal_year" | "number" | "starts_on" | "ends_on" | "status" | "closed_at" | "closed_by" | "locked_at" | "locked_by" | "created_at";
       readonly "accounting_entry": "id" | "tenant_id" | "journal_id" | "fiscal_year" | "sequence" | "number" | "entry_date" | "period_id" | "status" | "reference" | "source_type" | "source_id" | "reverses_id" | "memo" | "posted_at" | "posted_by" | "created_by" | "created_at" | "updated_at";
       readonly "accounting_dimension": "id" | "tenant_id" | "key" | "name" | "created_at";
       readonly "accounting_budget": "id" | "tenant_id" | "name" | "fiscal_year" | "status" | "created_by" | "created_at" | "updated_at";
@@ -324,7 +325,7 @@ export interface BlockNameRegistry {
       readonly "rates": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "rate" | "currency" | "effectiveFrom" | "cost" | "createdBy" | "createdAt";
       readonly "billed": "entry" | "tenant" | "invoice" | "rate" | "currency" | "seconds" | "createdAt";
     };
-    readonly functions: "billable_time_guard" | "billable_time_release" | "delete_time_rate" | "invoice_from_time" | "list_invoiced_time" | "list_time_rates" | "set_time_rate" | "time_rate" | "unbilled_time";
+    readonly functions: "billable_time_guard" | "billable_time_release" | "delete_time_rate" | "invoice_from_time" | "list_invoiced_time" | "list_time_rates" | "set_time_rate" | "time_rate" | "unbilled_time" | "wip_valuation";
     readonly actions: "read" | "manage" | "invoice";
     readonly hooks: never;
     readonly entities: {

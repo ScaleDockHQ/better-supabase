@@ -210,6 +210,36 @@ describe("createBillableTime", () => {
     ]);
   });
 
+  it("values the unbilled time as work in progress", async () => {
+    const fake = fakeTransport({
+      wip_valuation: {
+        asOf: "2026-10-31",
+        hours: 12.5,
+        uncostedHours: 2,
+        unratedHours: 0,
+        totals: [{ currency: "EUR", cost: "50000", billable: "90000" }],
+      },
+    });
+
+    const time = createBillableTime({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const today = await time.wipValuation().orThrow();
+
+    await time.wipValuation(Temporal.PlainDate.from("2026-10-31")).orThrow();
+
+    expect(fake.calls).toEqual([
+      ["wip_valuation", { tenant: "org-1", as_of: null }],
+      ["wip_valuation", { tenant: "org-1", as_of: "2026-10-31" }],
+    ]);
+    expect(today.asOf.toString()).toBe("2026-10-31");
+    expect(today.totals).toEqual([
+      { currency: "EUR", cost: 50_000n, billable: 90_000n },
+    ]);
+  });
+
   it("previews unbilled time with a scope that leaves out absent fields", async () => {
     const fake = fakeTransport({ unbilled_time: PREVIEW });
 

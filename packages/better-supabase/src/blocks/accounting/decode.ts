@@ -10,6 +10,7 @@ import type {
   AccountingLineInput,
   AccountingPeriod,
   AccountingPeriodStatus,
+  AccountNormalSide,
   AccountingSettings,
   AccountRole,
   AccountType,
@@ -74,7 +75,13 @@ const JOURNAL_TYPES: readonly JournalType[] = [
   "general",
 ];
 
-const PERIOD_STATUSES: readonly AccountingPeriodStatus[] = ["open", "closed"];
+const PERIOD_STATUSES: readonly AccountingPeriodStatus[] = [
+  "open",
+  "closed",
+  "locked",
+];
+
+const NORMAL_SIDES: readonly AccountNormalSide[] = ["debit", "credit"];
 
 const ENTRY_STATUSES: readonly AccountingEntryStatus[] = [
   "draft",
@@ -152,6 +159,9 @@ export function accountOf(value: unknown, fn: string): AccountingAccount {
     name: textOf(row["name"]),
     type: enumOrThrow(row["type"], ACCOUNT_TYPES, "account type"),
     reconcilable: row["reconcilable"] === true,
+    normalSide: enumOrThrow(row["normalSide"], NORMAL_SIDES, "normal side"),
+    level: numberOf(row["level"]),
+    active: row["active"] !== false,
     roles: roles.map((role) =>
       enumOrThrow(role, ACCOUNT_ROLES, "account role"),
     ),
@@ -160,6 +170,7 @@ export function accountOf(value: unknown, fn: string): AccountingAccount {
     ...optional("subtype", optionalText(row["subtype"])),
     ...optional("parentId", optionalText(row["parentId"])),
     ...optional("currency", optionalText(row["currency"])),
+    ...optional("defaultTaxCodeId", optionalText(row["defaultTaxCodeId"])),
     ...optional("archivedAt", optionalInstant(row["archivedAt"])),
   };
 }
@@ -176,6 +187,8 @@ export function journalOf(value: unknown, fn: string): AccountingJournal {
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("defaultAccountId", optionalText(row["defaultAccountId"])),
+    ...optional("contraAccountId", optionalText(row["contraAccountId"])),
+    ...optional("bankAccountId", optionalText(row["bankAccountId"])),
     ...optional("currency", optionalText(row["currency"])),
   };
 }
@@ -193,6 +206,8 @@ export function periodOf(value: unknown, fn: string): AccountingPeriod {
     status: enumOrThrow(row["status"], PERIOD_STATUSES, "period status"),
     ...optional("closedAt", optionalInstant(row["closedAt"])),
     ...optional("closedBy", optionalText(row["closedBy"])),
+    ...optional("lockedAt", optionalInstant(row["lockedAt"])),
+    ...optional("lockedBy", optionalText(row["lockedBy"])),
   };
 }
 
@@ -224,6 +239,7 @@ function lineOf(row: Readonly<Record<string, unknown>>): AccountingLine {
     credit: bigintOf(row["credit"], "credit"),
     currency: textOf(row["currency"]),
     amountCurrency: bigintOf(row["amountCurrency"], "amountCurrency"),
+    taxAmount: bigintOf(row["taxAmount"] ?? "0", "taxAmount"),
     dimensions: textRecord(row["dimensions"]),
     ...optional("fxRate", optionalDecimal(row["fxRate"])),
     ...optional("taxCodeId", optionalText(row["taxCodeId"])),
@@ -407,6 +423,7 @@ export const lineArg = (line: AccountingLineInput): Record<string, unknown> => {
     ...optional("amountCurrency", amountArg(foreign)),
     ...optional("fxRate", line.fxRate),
     ...optional("taxCodeId", line.taxCodeId),
+    ...optional("taxAmount", amountArg(line.taxAmount)),
     ...optional("partyId", line.partyId),
     ...optional("dimensions", line.dimensions),
     ...optional("description", line.description),

@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:67ad438588ae0be45c42819f2fa63dfb81e88ecd8a2ed4f79fe26d4a77cf0c53
+-- @bsb-hash sha256:be206182105e3bfb8864812327efedade4d4653112745ad377e5e204aff202ea
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -375,7 +375,7 @@ declare
   v_hint text;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'order', 'quote', 'invoice', 'credit_note', 'tax_code', 'tax_rate', 'customer']::text[]) then
+  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'order', 'quote', 'invoice', 'credit_note', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'customer']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -494,6 +494,18 @@ begin
       when 'credit_note' then
         v_subject_type := 'invoice';
         v_out := "better_supabase"."import_credit_note"(v_run_id, v_call, v_subject_id);
+      when 'accounting_account' then
+        v_subject_type := 'accounting_account';
+        v_out := "better_supabase"."import_accounting_account"(v_run_id, v_call, v_subject_id);
+      when 'accounting_journal' then
+        v_subject_type := 'accounting_journal';
+        v_out := "better_supabase"."import_accounting_journal"(v_run_id, v_call, v_subject_id);
+      when 'accounting_entry' then
+        v_subject_type := 'accounting_entry';
+        v_out := "better_supabase"."import_accounting_entry"(v_run_id, v_call, v_subject_id);
+      when 'accounting_opening_balance' then
+        v_subject_type := 'accounting_opening_balance';
+        v_out := "better_supabase"."import_accounting_opening_balance"(v_run_id, v_call, v_subject_id);
       when 'tax_code' then
         v_subject_type := 'tax_code';
         v_out := "better_supabase"."import_tax_code"(v_run_id, v_call, v_subject_id);

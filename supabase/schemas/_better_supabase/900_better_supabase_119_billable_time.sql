@@ -1,6 +1,6 @@
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:6652d02a421b5201541e33a450c208b1de3eff6b83b81bcfca0497478d63a930
+-- @bsb-hash sha256:b39d886db45cf639819ed9255e8a787e5aca6d1b36649533c0da7aa23ec98aa1
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -803,6 +803,68 @@ $$;
 revoke execute on function "better_supabase"."project_costs"(uuid) from public, anon;
 grant execute on function "better_supabase"."project_costs"(uuid) to authenticated, service_role;
 
+-- The work in progress of unbilled time on as_of (today by default): the
+-- finished, billable entries started on or before it that no invoice has
+-- billed, per currency at the rate card's cost and at the billing rate (an
+-- entry's own rate first). Entries without a cost or a rate are counted in
+-- uncostedHours and unratedHours and left out of the amounts. Stock
+-- consumed into production is not part of it (ADR 0144).
+create or replace function "better_supabase"."wip_valuation"(tenant uuid, as_of date default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_as_of date := coalesce(wip_valuation.as_of, current_date);
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', wip_valuation.tenant, 'billable_time.read'), false)) then
+    raise exception 'not allowed to read billable time' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
+  end if;
+  return (
+    with open as (
+      select extract(epoch from x."ended_at" - x."started_at") as seconds,
+        card.cost, card.currency as cost_currency,
+        coalesce(x."rate", card.rate) as rate, coalesce(x."rate_currency", card.currency) as rate_currency
+      from "better_supabase"."time_entries" x
+      left join lateral (
+        select c."cost_amount" as cost, c."rate" as rate, c."currency"::text as currency
+        from "better_supabase"."time_rates" c
+        where c."tenant_id" = x."tenant_id"
+          and (c."user_id" is null or c."user_id" = x."user_id")
+          and (c."subject_type" is null or (c."subject_type" = x."subject_type" and c."subject_id" = x."subject_id"))
+          and c."effective_from" <= (x."started_at" at time zone 'UTC')::date
+        order by (c."subject_type" is not null) desc, (c."user_id" is not null) desc, c."effective_from" desc
+        limit 1
+      ) card on true
+      where x."tenant_id" = wip_valuation.tenant
+        and x."billable" and x."ended_at" is not null
+        and (x."started_at" at time zone 'UTC')::date <= v_as_of
+        and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
+    ),
+    amounts as (
+      select o.cost_currency as currency, round(o.seconds / 3600.0 * o.cost)::bigint as cost, 0::bigint as billable
+      from open o where o.cost is not null
+      union all
+      select o.rate_currency, 0, round(o.seconds / 3600.0 * o.rate)::bigint
+      from open o where o.rate is not null
+    )
+    select jsonb_build_object(
+      'asOf', v_as_of,
+      'hours', (select round(coalesce(sum(o.seconds), 0) / 3600.0, 2) from open o),
+      'uncostedHours', (select round(coalesce(sum(o.seconds) filter (where o.cost is null), 0) / 3600.0, 2) from open o),
+      'unratedHours', (select round(coalesce(sum(o.seconds) filter (where o.rate is null), 0) / 3600.0, 2) from open o),
+      'totals', (select coalesce(jsonb_agg(jsonb_build_object('currency', t.currency, 'cost', t.cost::text, 'billable', t.billable::text) order by t.currency), '[]'::jsonb)
+        from (select a.currency, sum(a.cost)::bigint as cost, sum(a.billable)::bigint as billable from amounts a group by a.currency) t)
+    )
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."wip_valuation"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."wip_valuation"(uuid, date) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -956,6 +1018,15 @@ set search_path = ''
 as $$ select "better_supabase"."project_costs"($1) $$;
 revoke execute on function "api"."project_costs"(uuid) from public, anon;
 grant execute on function "api"."project_costs"(uuid) to authenticated, service_role;
+
+create or replace function "api"."wip_valuation"(tenant uuid, as_of date default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."wip_valuation"($1, $2) $$;
+revoke execute on function "api"."wip_valuation"(uuid, date) from public, anon;
+grant execute on function "api"."wip_valuation"(uuid, date) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

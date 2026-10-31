@@ -221,3 +221,18 @@ await billing
   })
   .orThrow();
 ```
+
+## Work in progress
+
+`wipValuation(asOf)` values the unbilled time on a day (today by default): the
+finished, billable entries no invoice has billed, at the rate card's cost and
+at its billing rate, per currency. It needs `billable_time.read`.
+
+```ts
+const wip = await db.billableTime.wipValuation().orThrow();
+
+wip.totals; // [{ currency, cost, billable }]
+wip.uncostedHours; // time the rate card has no cost for
+```
+
+Materials are not part of it: stock movements are costed on the ledger.

@@ -24,6 +24,9 @@ export const accountingAccountInputSchema: EntitySchema<AccountingAccountInput> 
       parentId: { kind: "uuid", optional: true },
       currency: { ...CURRENCY, optional: true },
       reconcilable: { kind: "boolean", optional: true },
+      normalSide: { kind: "enum", values: ["debit", "credit"], optional: true },
+      defaultTaxCodeId: { kind: "uuid", optional: true },
+      active: { kind: "boolean", optional: true },
       accountId: { kind: "uuid", optional: true },
     },
   });
@@ -40,6 +43,8 @@ export const accountingJournalInputSchema: EntitySchema<AccountingJournalInput> 
         values: ["sales", "purchase", "bank", "cash", "general"],
       },
       defaultAccountId: { kind: "uuid", optional: true },
+      contraAccountId: { kind: "uuid", optional: true },
+      bankAccountId: { kind: "uuid", optional: true },
       currency: { ...CURRENCY, optional: true },
       journalId: { kind: "uuid", optional: true },
     },

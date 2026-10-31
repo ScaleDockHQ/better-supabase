@@ -56,15 +56,16 @@ may be your own enum or domain.
   - `better_supabase.access_requests`: `id`, `tenant_id`, `user_id`, `role`, `previous_role`, `duration`, `approval_id`, `granted_at`, `expires_at`, `ended_at`, `created_at`
 - `accounting`
   - `better_supabase.accounting_settings`: `tenant_id`, `functional_currency`, `fiscal_year_start_month`, `lock_date`, `created_at`, `updated_at`
-  - `better_supabase.accounting_accounts`: `id`, `tenant_id`, `code`, `name`, `type`, `subtype`, `parent_id`, `currency`, `reconcilable`, `archived_at`, `created_at`, `updated_at`
+  - `better_supabase.accounting_accounts`: `id`, `tenant_id`, `code`, `name`, `type`, `subtype`, `parent_id`, `currency`, `reconcilable`, `normal_side`, `level`, `default_tax_code_id`, `active`, `archived_at`, `created_at`, `updated_at`
   - `better_supabase.accounting_account_roles`: `tenant_id`, `role`, `account_id`, `updated_at`
-  - `better_supabase.accounting_journals`: `id`, `tenant_id`, `code`, `name`, `type`, `default_account_id`, `currency`, `created_at`, `updated_at`
-  - `better_supabase.accounting_periods`: `id`, `tenant_id`, `fiscal_year`, `number`, `starts_on`, `ends_on`, `status`, `closed_at`, `closed_by`, `created_at`
+  - `better_supabase.accounting_journals`: `id`, `tenant_id`, `code`, `name`, `type`, `default_account_id`, `currency`, `contra_account_id`, `bank_account_id`, `created_at`, `updated_at`
+  - `better_supabase.accounting_periods`: `id`, `tenant_id`, `fiscal_year`, `number`, `starts_on`, `ends_on`, `status`, `closed_at`, `closed_by`, `locked_at`, `locked_by`, `created_at`
   - `better_supabase.accounting_entries`: `id`, `tenant_id`, `journal_id`, `fiscal_year`, `sequence`, `number`, `entry_date`, `period_id`, `status`, `reference`, `source_type`, `source_id`, `reverses_id`, `memo`, `posted_at`, `posted_by`, `created_by`, `created_at`, `updated_at`
-  - `better_supabase.accounting_entry_lines`: `id`, `tenant_id`, `entry_id`, `position`, `account_id`, `debit`, `credit`, `currency`, `amount_currency`, `fx_rate`, `tax_code_id`, `party_id`, `dimensions`, `description`
+  - `better_supabase.accounting_entry_lines`: `id`, `tenant_id`, `entry_id`, `position`, `account_id`, `debit`, `credit`, `currency`, `amount_currency`, `fx_rate`, `tax_code_id`, `tax_amount`, `party_id`, `dimensions`, `description`
   - `better_supabase.accounting_dimensions`: `id`, `tenant_id`, `key`, `name`, `created_at`
   - `better_supabase.accounting_dimension_values`: `id`, `tenant_id`, `dimension_id`, `code`, `name`, `archived_at`
   - `better_supabase.accounting_fx_rates`: `tenant_id`, `base`, `quote`, `on_date`, `rate`, `created_at`
+  - `better_supabase.accounting_opening_balances`: `id`, `tenant_id`, `fiscal_year`, `account_id`, `party_id`, `amount`, `source`, `created_at`, `updated_at`
   - `better_supabase.accounting_budgets`: `id`, `tenant_id`, `name`, `fiscal_year`, `status`, `created_by`, `created_at`, `updated_at`
   - `better_supabase.accounting_budget_lines`: `id`, `tenant_id`, `budget_id`, `account_id`, `period_number`, `dimensions`, `amount`
 - `acknowledgements`

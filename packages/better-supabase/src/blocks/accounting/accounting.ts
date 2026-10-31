@@ -10,6 +10,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type { AccountingLedger } from "./ledger.ts";
 import type { AccountingPostings } from "./postings.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
@@ -35,6 +36,7 @@ import {
   settingsOf,
   trialBalanceOf,
 } from "./decode.ts";
+import { accountingLedger } from "./ledger.ts";
 import { accountingPostings } from "./postings.ts";
 
 export interface AccountingOptions<
@@ -90,7 +92,11 @@ export type AccountRole =
 
 export type JournalType = "sales" | "purchase" | "bank" | "cash" | "general";
 
-export type AccountingPeriodStatus = "open" | "closed";
+/** A locked period is closed and refuses every post, imports included. */
+export type AccountingPeriodStatus = "open" | "closed" | "locked";
+
+/** The side an account's balance normally sits on. */
+export type AccountNormalSide = "debit" | "credit";
 
 export type AccountingEntryStatus = "draft" | "posted" | "reversed";
 
@@ -126,6 +132,13 @@ export interface AccountingAccount {
   /** Lines on the account must be in this currency. */
   readonly currency?: string;
   readonly reconcilable: boolean;
+  readonly normalSide: AccountNormalSide;
+  /** 1 for a top-level account, one more than its parent's otherwise. */
+  readonly level: number;
+  /** A line on the account takes this tax code when it names none. */
+  readonly defaultTaxCodeId?: string;
+  /** An inactive account takes no new lines. */
+  readonly active: boolean;
   readonly roles: readonly AccountRole[];
   readonly archivedAt?: Temporal.Instant;
   readonly createdAt: Temporal.Instant;
@@ -142,6 +155,11 @@ export interface AccountingAccountInput {
   readonly parentId?: string;
   readonly currency?: string;
   readonly reconcilable?: boolean;
+  /** Default: debit for assets and expenses, credit for the rest. */
+  readonly normalSide?: AccountNormalSide;
+  readonly defaultTaxCodeId?: string;
+  /** Default: true. */
+  readonly active?: boolean;
   /** Changes this account, code included. */
   readonly accountId?: string;
 }
@@ -154,6 +172,10 @@ export interface AccountingJournal {
   readonly type: JournalType;
   /** The bank or cash account a bank or cash journal posts against. */
   readonly defaultAccountId?: string;
+  /** The account a bank or cash journal's lines post against. */
+  readonly contraAccountId?: string;
+  /** The bank account of the banking block the journal belongs to. */
+  readonly bankAccountId?: string;
   readonly currency?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
@@ -165,6 +187,8 @@ export interface AccountingJournalInput {
   readonly name: string;
   readonly type: JournalType;
   readonly defaultAccountId?: string;
+  readonly contraAccountId?: string;
+  readonly bankAccountId?: string;
   readonly currency?: string;
   readonly journalId?: string;
 }
@@ -181,6 +205,8 @@ export interface AccountingPeriod {
   readonly status: AccountingPeriodStatus;
   readonly closedAt?: Temporal.Instant;
   readonly closedBy?: string;
+  readonly lockedAt?: Temporal.Instant;
+  readonly lockedBy?: string;
 }
 
 /** An analysis dimension such as project or department, with its values. */
@@ -233,6 +259,8 @@ export interface AccountingLineInput {
   /** One unit of the line's currency in the functional currency. */
   readonly fxRate?: string;
   readonly taxCodeId?: string;
+  /** The tax in the amount, in minor units; at most the line's amount. */
+  readonly taxAmount?: bigint;
   /** The customer, supplier or employee the line concerns. */
   readonly partyId?: string;
   /** Dimension keys to value codes. */
@@ -253,6 +281,7 @@ export interface AccountingLine {
   readonly amountCurrency: bigint;
   readonly fxRate?: string;
   readonly taxCodeId?: string;
+  readonly taxAmount: bigint;
   readonly partyId?: string;
   readonly dimensions: Readonly<Record<string, string>>;
   readonly description?: string;
@@ -404,9 +433,8 @@ export interface FiscalYearClose {
   readonly closingEntryId?: string;
 }
 
-export interface Accounting<
-  F extends object = Record<never, never>,
-> extends AccountingPostings {
+export interface Accounting<F extends object = Record<never, never>>
+  extends AccountingPostings, AccountingLedger {
   /**
    * Sets the functional currency and fiscal year start, and with the `generic`
    * chart adds its accounts, roles and journals. Needs `accounting.manage`.
@@ -562,6 +590,7 @@ export function createAccounting<
 
   const client: Accounting<F> = {
     ...accountingPostings(call),
+    ...accountingLedger(call),
     setup: (organizationId, input = {}) =>
       call(
         "setup_accounting",
@@ -597,6 +626,9 @@ export function createAccounting<
           currency: input.currency ?? null,
           reconcilable: input.reconcilable ?? null,
           account_id: input.accountId ?? null,
+          normal_side: input.normalSide ?? null,
+          default_tax_code_id: input.defaultTaxCodeId ?? null,
+          active: input.active ?? null,
         },
         (value) => accountOf(value, "save_accounting_account"),
       ),
@@ -632,6 +664,8 @@ export function createAccounting<
           default_account_id: input.defaultAccountId ?? null,
           currency: input.currency ?? null,
           journal_id: input.journalId ?? null,
+          contra_account_id: input.contraAccountId ?? null,
+          bank_account_id: input.bankAccountId ?? null,
         },
         (value) => journalOf(value, "save_accounting_journal"),
       ),

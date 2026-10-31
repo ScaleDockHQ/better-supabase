@@ -49,6 +49,7 @@ export function accountingTables(ctx: BlockSqlContext): string {
   const dimensions = ctx.table("dimensions");
   const values = ctx.table("dimensionValues");
   const rates = ctx.table("fxRates");
+  const openings = ctx.table("openingBalances");
   const tax = ctx.of("tax");
   const taxes = tax.table("codes");
   const s = (column: string): string => ctx.col("settings", column);
@@ -61,6 +62,7 @@ export function accountingTables(ctx: BlockSqlContext): string {
   const d = (column: string): string => ctx.col("dimensions", column);
   const v = (column: string): string => ctx.col("dimensionValues", column);
   const x = (column: string): string => ctx.col("fxRates", column);
+  const o = (column: string): string => ctx.col("openingBalances", column);
   const t = (column: string): string => tax.col("codes", column);
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
@@ -110,12 +112,21 @@ create table if not exists ${accounts} (
   -- Lines on the account must be in this currency; null takes any.
   ${a("currency")} text ${currency(a("currency"))},
   ${a("reconcilable")} boolean not null default false,
+  -- The side a positive balance sits on; reports show it next to the amount.
+  ${a("normalSide")} text not null default 'debit' check (${a("normalSide")} in ('debit', 'credit')),
+  -- 1 for a top-level account, one more than the parent's for the rest.
+  ${a("level")} smallint not null default 1 check (${a("level")} >= 1),
+  -- The tax code a line on this account takes when it names none.
+  ${a("defaultTaxCode")} uuid references ${taxes} (${t("id")}) on delete set null,
+  -- An inactive account stays on the chart and in reports but takes no new lines.
+  ${a("active")} boolean not null default true,
   ${a("archivedAt")} timestamptz,
   ${a("createdAt")} timestamptz not null default now(),
   ${a("updatedAt")} timestamptz not null default now(),
   unique (${a("tenant")}, ${a("code")})
 );${appUniqueIndex(ctx, "accounts", ["tenant", "code"])}
 create index if not exists ${name("accounts", "parent_idx")} on ${accounts} (${a("parent")}) where ${a("parent")} is not null;
+create index if not exists ${name("accounts", "tax_idx")} on ${accounts} (${a("defaultTaxCode")}) where ${a("defaultTaxCode")} is not null;
 ${readPolicy("accounts", a("tenant"))}
 
 create table if not exists ${roles} (
@@ -137,11 +148,16 @@ create table if not exists ${journals} (
   -- The bank or cash account a bank or cash journal posts against.
   ${j("defaultAccount")} uuid references ${accounts} (${a("id")}) on delete restrict,
   ${j("currency")} text ${currency(j("currency"))},
+  -- The counter account a bank or cash journal's lines offset by default.
+  ${j("contraAccount")} uuid references ${accounts} (${a("id")}) on delete restrict,
+  -- The bank account (banking block) the journal books; its statements post here.
+  ${j("bankAccount")} uuid,
   ${j("createdAt")} timestamptz not null default now(),
   ${j("updatedAt")} timestamptz not null default now(),
   unique (${j("tenant")}, ${j("code")})
 );${appUniqueIndex(ctx, "journals", ["tenant", "code"])}
 create index if not exists ${name("journals", "account_idx")} on ${journals} (${j("defaultAccount")}) where ${j("defaultAccount")} is not null;
+create index if not exists ${name("journals", "contra_idx")} on ${journals} (${j("contraAccount")}) where ${j("contraAccount")} is not null;
 ${readPolicy("journals", j("tenant"))}
 
 create table if not exists ${periods} (
@@ -152,9 +168,12 @@ create table if not exists ${periods} (
   ${p("number")} smallint not null check (${p("number")} >= 1 and ${p("number")} <= 12),
   ${p("startsOn")} date not null,
   ${p("endsOn")} date not null,
-  ${p("status")} text not null default 'open' check (${p("status")} in ('open', 'closed')),
+  ${p("status")} text not null default 'open' check (${p("status")} in ('open', 'closed', 'locked')),
   ${p("closedAt")} timestamptz,
   ${p("closedBy")} uuid,
+  -- A locked period takes no posting at all, not even an import.
+  ${p("lockedAt")} timestamptz,
+  ${p("lockedBy")} uuid,
   ${p("createdAt")} timestamptz not null default now(),
   check (${p("endsOn")} >= ${p("startsOn")}),
   unique (${p("tenant")}, ${p("fiscalYear")}, ${p("number")})
@@ -244,17 +263,75 @@ create table if not exists ${lines} (
   ${l("amountCurrency")} bigint not null,
   ${l("fxRate")} numeric check (${l("fxRate")} is null or ${l("fxRate")} > 0),
   ${l("taxCode")} uuid references ${taxes} (${t("id")}) on delete restrict,
+  -- The part of the line that is tax, in minor units of the functional currency.
+  ${l("taxAmount")} bigint not null default 0 check (${l("taxAmount")} >= 0),
   -- The customer, supplier or employee the line concerns.
   ${l("party")} uuid,
   ${l("dimensions")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${l("dimensions")}) = 'object'),
   ${l("description")} text check (${l("description")} is null or length(${l("description")}) <= 500),
-  check ((${l("debit")} = 0) <> (${l("credit")} = 0))
+  check ((${l("debit")} = 0) <> (${l("credit")} = 0)),
+  check (${l("taxAmount")} <= ${l("debit")} + ${l("credit")})
 );
 create index if not exists ${name("lines", "entry_idx")} on ${lines} (${l("entry")}, ${l("position")});
 create index if not exists ${name("lines", "account_idx")} on ${lines} (${l("account")});
 create index if not exists ${name("lines", "party_idx")} on ${lines} (${l("tenant")}, ${l("party")}) where ${l("party")} is not null;
 create index if not exists ${name("lines", "tax_idx")} on ${lines} (${l("taxCode")}) where ${l("taxCode")} is not null;
 ${readPolicy("lines", l("tenant"))}
+
+create table if not exists ${openings} (
+  ${o("id")} uuid primary key default gen_random_uuid(),
+  ${o("tenant")} ${idType} not null,
+  ${o("fiscalYear")} integer not null check (${o("fiscalYear")} >= 1900 and ${o("fiscalYear")} <= 9999),
+  ${o("account")} uuid not null references ${accounts} (${a("id")}) on delete restrict,
+  ${o("party")} uuid,
+  -- Signed minor units of the functional currency; a debit balance is positive.
+  ${o("amount")} bigint not null check (${o("amount")} <> 0),
+  -- imported rows come from the old books, carried rows from close_fiscal_year.
+  ${o("source")} text not null default 'imported' check (${o("source")} in ('imported', 'carried')),
+  ${o("createdAt")} timestamptz not null default now(),
+  ${o("updatedAt")} timestamptz not null default now()
+);
+create unique index if not exists ${name("openingBalances", "key_idx")} on ${openings} (${o("tenant")}, ${o("fiscalYear")}, ${o("account")}, coalesce(${o("party")}, '00000000-0000-0000-0000-000000000000'::uuid));
+create index if not exists ${name("openingBalances", "account_idx")} on ${openings} (${o("account")});
+${readPolicy("openingBalances", o("tenant"))}
+
+-- An account's level follows its parent's; moving an account moves its children.
+create or replace function ${fn("accounting_account_level")}()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' or new.${a("parent")} is distinct from old.${a("parent")} then
+    new.${a("level")} := coalesce((select y.${a("level")} from ${accounts} y where y.${a("id")} = new.${a("parent")}), 0) + 1;
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function ${fn("accounting_account_level")}() from public, anon, authenticated;
+drop trigger if exists ${ctx.trigger("accounting_accounts_level")} on ${accounts};
+create trigger ${ctx.trigger("accounting_accounts_level")} before insert or update of ${a("parent")} on ${accounts}
+  for each row execute function ${fn("accounting_account_level")}();
+
+create or replace function ${fn("accounting_account_level_children")}()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  with recursive down (id, level) as (
+    select y.${a("id")}, new.${a("level")} + 1 from ${accounts} y where y.${a("parent")} = new.${a("id")}
+    union all
+    select y.${a("id")}, down.level + 1 from ${accounts} y join down on y.${a("parent")} = down.id
+  )
+  update ${accounts} y set ${a("level")} = down.level from down where y.${a("id")} = down.id and y.${a("level")} <> down.level;
+  return null;
+end;
+$$;
+revoke execute on function ${fn("accounting_account_level_children")}() from public, anon, authenticated;
+drop trigger if exists ${ctx.trigger("accounting_accounts_level_children")} on ${accounts};
+create trigger ${ctx.trigger("accounting_accounts_level_children")} after update of ${a("parent")} on ${accounts}
+  for each row when (old.${a("parent")} is distinct from new.${a("parent")}) execute function ${fn("accounting_account_level_children")}();
 
 -- A posted entry changes only from posted to reversed; its lines never change.
 create or replace function ${fn("accounting_entry_guard")}()
