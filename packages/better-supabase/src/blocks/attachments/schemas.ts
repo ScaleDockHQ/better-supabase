@@ -15,5 +15,9 @@ export const attachmentInputSchema: EntitySchema<NewAttachment> =
       width: { kind: "integer", minimum: 1, optional: true },
       height: { kind: "integer", minimum: 1, optional: true },
       pages: { kind: "integer", minimum: 1, optional: true },
+      documentType: { kind: "string", minLength: 1, optional: true },
+      source: { kind: "string", minLength: 1, maxLength: 100, optional: true },
+      externalId: { kind: "string", minLength: 1, optional: true },
+      sourcePath: { kind: "string", minLength: 1, optional: true },
     },
   });

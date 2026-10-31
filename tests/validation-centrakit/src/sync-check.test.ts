@@ -86,6 +86,12 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           !(
             finding.code === "BS213" &&
             finding.message.includes("reaction_subject_visible")
+          ) &&
+          // The attachments upgrade drops the old create_attachment overloads;
+          // the schema migration that creates the new one isn't in this project.
+          !(
+            finding.code === "BS235" &&
+            finding.message.includes("create_attachment")
           )
         ) {
           (warnings[`${finding.severity} ${finding.code}`] ??= []).push(

@@ -234,4 +234,24 @@ const entity = "invoice";
     expect(result.review.map((entry) => entry.line)).toEqual([1]);
     expect(result.review[0]?.message).toContain("FIELD_ENTITY_UNKNOWN");
   });
+
+  it("lists the create_attachment calls", () => {
+    const source = `await supabase.rpc("create_attachment", { name: "a.pdf" });
+const create_attachment = 1;
+`;
+
+    const result = applyCodemod(v047, source, "src/files.ts");
+
+    expect(result.text).toBe(source);
+    expect(result.review.map((entry) => entry.line)).toEqual([]);
+  });
+
+  it("lists SQL that calls create_attachment", () => {
+    const source = `select better_supabase.create_attachment(a, b);
+`;
+
+    const result = applyCodemod(v047, source, "supabase/q.sql");
+
+    expect(result.review[0]?.message).toContain("document_type");
+  });
 });

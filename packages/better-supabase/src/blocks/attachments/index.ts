@@ -14,6 +14,7 @@ export {
   type AttachmentsOptions,
   type AttachmentStatus,
   type AttachmentStorage,
+  type AttachmentStorageStatus,
   type AttachmentUpload,
   type AttachmentImages,
   type AttachmentImageUrlOptions,
@@ -30,6 +31,12 @@ export {
   type ScannedObject,
   type ScanVerdict,
 } from "./attachments.ts";
+
+export {
+  type DocumentField,
+  type DocumentType,
+  documentTypeOf,
+} from "./document-types.ts";
 
 export {
   type AttachmentSweeper,

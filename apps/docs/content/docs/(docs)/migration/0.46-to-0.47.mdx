@@ -549,6 +549,41 @@ you can check each against the registered types. `better_supabase.subject_types(
 returns the registered names. Field packs, per-entity values and the
 `field_value` import target are new (see [custom fields](/docs/blocks/custom-fields)).
 
+## Attachment document types
+
+Attachments carry a document type, a source and an external id (ADR 0160), so
+`create_attachment` changes signature, and this is a breaking change:
+
+| 0.46                                  | 0.47                                                                                     |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `create_attachment(..., pages)`       | the same, plus `document_type`, `source`, `external_id` and `source_path` (all nullable) |
+| `attachments` has no document columns | `document_type_id`, `source`, `external_id`, `storage_status` and `source_path`          |
+| `subject_type` is any text            | it is validated against `better_supabase.subject_types()` when the subjects block exists |
+| none                                  | `attachment_document_types`, `claim_attachment_upload`, `mark_attachment_missing`        |
+
+`upgrade` drops the old `create_attachment` overloads, adds the columns, the
+unique index on the organization, source and external id, and the new table.
+Existing files get `storage_status` from `uploaded_at`. A table you adopted
+for `tables.attachments` maps the five columns or sets each to `null`:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  attachments: {
+    tables: {
+      attachments: {
+        name: "documents",
+        columns: { documentType: null, source: null, externalId: null, storage: null, sourcePath: null },
+      },
+    },
+  },
+},
+```
+
+Rows whose `subject_type` is not registered keep working until they are
+written again; register the type or map it first. Declare `options.sources`
+for every source your app writes besides import runs. The codemod lists calls
+of `create_attachment` so you can check them. See [attachments](/docs/blocks/attachments).
+
 ## Table names
 
 A module table is its entity's plural, or starts with its entity's singular.

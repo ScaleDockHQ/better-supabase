@@ -40,6 +40,16 @@ import {
   ATTACHMENTS_CONTRIBUTES,
   attachmentsContract,
 } from "./attachments-contract.ts";
+import {
+  attachmentImportsOn,
+  documentColumnsSql,
+  documentGuardSql,
+  documentsOn,
+  documentTypesSql,
+  typesOn,
+  importAttachmentSql,
+  metadataFirstSql,
+} from "./attachments-documents.ts";
 import { NAMES, RESERVED } from "./attachments-names.ts";
 import {
   attachmentsOfflineSql,
@@ -115,9 +125,19 @@ function scanBucketsOf(ctx: BlockSqlContext): readonly string[] {
   return buckets;
 }
 
-/** The argument types of `create_attachment`, before `fields`. */
-const CREATE_ARGS = (id: string): string =>
+/** The argument types of `create_attachment` before 0.47, before `fields`. */
+const OLD_CREATE_ARGS = (id: string): string =>
   `${id}, text, text, bigint, text, text, jsonb, integer, integer, integer`;
+
+/**
+ * The argument types of `create_attachment`, before `fields`: with document
+ * types it also takes the document type key, the source, the external id and
+ * the source path.
+ */
+const CREATE_ARGS = (id: string, documents: boolean): string =>
+  documents
+    ? `${OLD_CREATE_ARGS(id)}, text, text, text, text`
+    : OLD_CREATE_ARGS(id);
 
 /** A Storage bucket id: Supabase allows 1 to 100 characters. */
 function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
@@ -128,6 +148,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const id = ctx.idType;
   const t = ctx.table("attachments");
   const metadata = ctx.has("attachments", "metadata");
+  const documents = documentsOn(ctx);
   const c = (logical: string): string => ctx.col("attachments", logical);
   const fn = (name: string): string => ctx.fn(name);
   const versions = ctx.table("versions");
@@ -272,7 +293,34 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     c("subjectId"),
     ...(metadata ? [c("metadata")] : []),
     ...sizes.map(c),
+    ...(documents
+      ? [c("documentType"), c("source"), c("externalId"), c("sourcePath")]
+      : []),
   ];
+
+  const fieldsValue =
+    extras.length === 0
+      ? "'{}'::jsonb"
+      : "coalesce(create_attachment.fields, '{}'::jsonb)";
+
+  const extraNames =
+    extras.length === 0
+      ? "array[]::text[]"
+      : `array[${extras.map((extra) => sqlString(extra.name)).join(", ")}]`;
+
+  const documentAssign = documents
+    ? `
+  if create_attachment.document_type is not null then
+    select y.${ctx.col("documentTypes", "id")} into v_row.${c("documentType")} from ${ctx.table("documentTypes")} y
+    where y.${ctx.col("documentTypes", "tenant")} = create_attachment.tenant and y.${ctx.col("documentTypes", "key")} = create_attachment.document_type;
+    if not found then
+      ${fail("ATTACHMENT_DOCUMENT_TYPE_UNKNOWN", "the document type doesn't exist in this organization", "22023")}
+    end if;
+  end if;
+  v_row.${c("source")} := create_attachment.source;
+  v_row.${c("externalId")} := create_attachment.external_id;
+  v_row.${c("sourcePath")} := create_attachment.source_path;`
+    : "";
 
   const createWithExtras = `
 declare
@@ -281,8 +329,8 @@ declare
 begin
   v_row := jsonb_populate_record(null::${t}, (
     select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
-    from jsonb_each(coalesce(create_attachment.fields, '{}'::jsonb)) as e (field_key, field_value)
-    where e.field_key = any (array[${extras.map((extra) => sqlString(extra.name)).join(", ")}])
+    from jsonb_each(${fieldsValue}) as e (field_key, field_value)
+    where e.field_key = any (${extraNames})
   ));
   v_row.${c("tenant")} := create_attachment.tenant;
   v_row.${c("bucket")} := ${bucketFor};
@@ -291,11 +339,12 @@ begin
   v_row.${c("size")} := create_attachment.size;
   v_row.${c("subjectType")} := create_attachment.subject_type;
   v_row.${c("subjectId")} := create_attachment.subject_id;${metadata ? `\n  v_row.${c("metadata")} := coalesce(create_attachment.metadata, '{}');` : ""}
-${sizes.map((logical) => `  v_row.${c(logical)} := create_attachment.${logical};\n`).join("")}  select string_agg(column_name, ', ')
+${sizes.map((logical) => `  v_row.${c(logical)} := create_attachment.${logical};\n`).join("")}${documentAssign}
+  select string_agg(column_name, ', ')
   into v_columns
   from unnest(array[${insertColumns.map((column) => sqlString(column)).join(", ")}]
-    || array(select quote_ident(k) from jsonb_object_keys(coalesce(create_attachment.fields, '{}'::jsonb)) as k
-      where k = any (array[${extras.map((extra) => sqlString(extra.name)).join(", ")}]))) as column_name;
+    || array(select quote_ident(k) from jsonb_object_keys(${fieldsValue}) as k
+      where k = any (${extraNames}))) as column_name;
   execute format('insert into ${t.replaceAll("'", "''")} as x (%1$s) select %1$s from (select ($1).*) r returning x.*', v_columns)
   into v_row
   using v_row;
@@ -416,7 +465,14 @@ end;`;
 -- Files linked to records. Each object lives at options.path (default
 -- {organization_id}/attachments/{id}) in the ${bucket} bucket, or its
 -- subject's bucket; the record is created first, so the storage policies
--- below only accept an upload a pending record expects.
+-- below only accept an upload a pending record expects.${
+    typesOn(ctx)
+      ? documentTypesSql(ctx, {
+          manage: ctx.permission("manage", permissions.manage),
+          read: ctx.permission("read", permissions.read),
+        })
+      : ""
+  }
 create table if not exists ${t} (
   ${c("id")} uuid primary key default gen_random_uuid(),
   ${c("tenant")} ${id} not null,
@@ -446,7 +502,7 @@ alter table ${t} add column if not exists ${c("version")} integer not null defau
 -- App data about the file (a caption, the source, a page count), set on create.
 alter table ${t} add column if not exists ${c("metadata")} jsonb not null default '{}' check (jsonb_typeof(${c("metadata")}) = 'object');`
       : ""
-  }
+  }${documents ? `\n${documentColumnsSql(ctx, t, c)}` : ""}
 -- The bucket, size limit and MIME types come from the module options, so a
 -- re-run applies changed options to an existing table.${
     ctx.owns("attachments")
@@ -509,11 +565,20 @@ ${ensureCheck(t, "bsb_attachments_size", `${c("size")} between 0 and ${String(ma
 ${mimeCheck}
 create unique index if not exists ${ctx.naming.rename("attachments_object_idx")} on ${t} (${c("bucket")}, ${c("path")});
 create index if not exists ${ctx.naming.rename("attachments_subject_idx")} on ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")});
-create index if not exists ${ctx.naming.rename("attachments_uploaded_by_idx")} on ${t} (${c("uploadedBy")});${addExtraColumns(t, extras)}
+create index if not exists ${ctx.naming.rename("attachments_uploaded_by_idx")} on ${t} (${c("uploadedBy")});${addExtraColumns(t, extras)}${
+    documents
+      ? documentGuardSql(
+          ctx,
+          t,
+          c,
+          subjects.map(([type]) => type),
+        )
+      : ""
+  }
 alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select, delete on ${t} to authenticated;
-grant insert (${[...(offline ? [c("id")] : []), c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("name"), c("mimeType"), c("size"), ...(metadata ? [c("metadata")] : []), ...sizes.map(c), ...extras.map((extra) => extra.ident)].join(", ")}) on ${t} to authenticated;
+grant insert (${[...(offline ? [c("id")] : []), c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("name"), c("mimeType"), c("size"), ...(metadata ? [c("metadata")] : []), ...sizes.map(c), ...(documents ? [c("documentType"), c("source"), c("externalId"), c("sourcePath")] : []), ...extras.map((extra) => extra.ident)].join(", ")}) on ${t} to authenticated;
 grant all on ${t} to service_role;
 ${insertDefaults}-- Whether the caller may read a subject: its row is visible to them (the
 -- subject table's own policies apply) and they hold its permission. Files
@@ -633,8 +698,12 @@ ${renderPolicy(makePolicy({ table: "storage.objects", name: policy("delete"), co
 -- The caller's new record, for a signed upload URL to its object_path.
 drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text);
 drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb);
-drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb, jsonb);
-${extraFieldsArg(extras).drop(fn("create_attachment"), CREATE_ARGS(id))}
+drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb, jsonb);${
+    documents
+      ? `\ndrop function if exists ${fn("create_attachment")}(${OLD_CREATE_ARGS(id)});\ndrop function if exists ${fn("create_attachment")}(${OLD_CREATE_ARGS(id)}, jsonb);`
+      : ""
+  }
+${extraFieldsArg(extras).drop(fn("create_attachment"), CREATE_ARGS(id, documents))}
 create or replace function ${fn("create_attachment")}(
   tenant ${id},
   name text,
@@ -645,14 +714,14 @@ create or replace function ${fn("create_attachment")}(
   metadata jsonb default null,
   width integer default null,
   height integer default null,
-  pages integer default null${extraFieldsArg(extras).param}
+  pages integer default null${documents ? ",\n  document_type text default null,\n  source text default null,\n  external_id text default null,\n  source_path text default null" : ""}${extraFieldsArg(extras).param}
 )
 returns jsonb
-language ${extras.length === 0 ? "sql" : "plpgsql"}
+language ${extras.length === 0 && !documents ? "sql" : "plpgsql"}
 security invoker
 set search_path = ''
 as $$${
-    extras.length === 0
+    extras.length === 0 && !documents
       ? `
   insert into ${t} as x (${insertColumns.join(", ")})
   values (create_attachment.tenant, ${bucketFor}, create_attachment.name, lower(create_attachment.mime_type), create_attachment.size, create_attachment.subject_type, create_attachment.subject_id${metadata ? ", coalesce(create_attachment.metadata, '{}')" : ""}${sizes.map((logical) => `, create_attachment.${logical}`).join("")})
@@ -696,6 +765,15 @@ begin
 end;
 $$;
 
+${
+  documents
+    ? metadataFirstSql(ctx, t, c, {
+        mayUpload: inTenant("v_row", "upload"),
+        mayManage: canManage("v_row"),
+        json,
+      })
+    : ""
+}${attachmentImportsOn(ctx) ? importAttachmentSql(ctx, t, c) : ""}
 -- Records a scan result (service role). A clean or infected file keeps its
 -- status, so a replayed job changes nothing.
 create or replace function ${fn("set_attachment_status")}(id uuid, status text, detail text default null)
@@ -900,13 +978,13 @@ revoke execute on function ${fn("set_object_scan")}(text, text, text, text) from
 grant execute on function ${fn("object_clean")}(text, text) to authenticated, service_role;
 grant execute on function ${fn("object_scan")}(text, text) to service_role;
 grant execute on function ${fn("set_object_scan")}(text, text, text, text) to service_role;
-revoke execute on function ${fn("create_attachment")}(${CREATE_ARGS(id)}${extraFieldsArg(extras).type}) from public, anon;
+revoke execute on function ${fn("create_attachment")}(${CREATE_ARGS(id, documents)}${extraFieldsArg(extras).type}) from public, anon;
 revoke execute on function ${fn("confirm_attachment")}(uuid) from public, anon;
 revoke execute on function ${fn("set_attachment_status")}(uuid, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("list_attachments")}(${id}, text, text) from public, anon;
 revoke execute on function ${fn("get_attachment")}(uuid) from public, anon;
 revoke execute on function ${fn("delete_attachment")}(uuid) from public, anon;
-grant execute on function ${fn("create_attachment")}(${CREATE_ARGS(id)}${extraFieldsArg(extras).type}) to authenticated, service_role;
+grant execute on function ${fn("create_attachment")}(${CREATE_ARGS(id, documents)}${extraFieldsArg(extras).type}) to authenticated, service_role;
 grant execute on function ${fn("confirm_attachment")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("set_attachment_status")}(uuid, text, text) to service_role;
 grant execute on function ${fn("list_attachments")}(${id}, text, text) to authenticated, service_role;
@@ -958,10 +1036,10 @@ export const ATTACHMENTS: BlockSqlDefinition = {
   description:
     "Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.",
   requires: ["memberships", "permissions"],
-  integrates: ["profiles"],
+  integrates: ["profiles", "subjects", "imports"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 7,
+  version: 8,
   upgrades: [
     {
       from: 1,
@@ -999,6 +1077,15 @@ export const ATTACHMENTS: BlockSqlDefinition = {
       description:
         "object_path is a plain column a trigger fills, so logical replication sends it, and attachments broadcast changed to <topic>:<tenant> (options.topic, default attachments) when a tenant's files change.",
       sql: () => "",
+    },
+    {
+      from: 7,
+      description:
+        "Attachments gain document types with typed metadata fields, a source and external id that are unique per organization, a storage status and a source path; create_attachment takes the document type key, source, external id and source path after pages, a subject type must be registered, and claim_attachment_upload, mark_attachment_missing and an attachment import target register records before their files exist.",
+      sql: (ctx) =>
+        documentsOn(ctx)
+          ? `drop function if exists ${ctx.fn("create_attachment")}(${OLD_CREATE_ARGS(ctx.idType)});\ndrop function if exists ${ctx.fn("create_attachment")}(${OLD_CREATE_ARGS(ctx.idType)}, jsonb);`
+          : "",
     },
   ],
   names: NAMES,

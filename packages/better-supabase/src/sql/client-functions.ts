@@ -35,7 +35,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   assignment:
     "assign_subject assignment_history list_assignment_queues remove_assignment_queue save_assignment_queue set_assignment_members",
   attachments:
-    "confirm_attachment create_attachment delete_attachment get_attachment list_attachment_versions list_attachments object_scan replace_attachment restore_attachment_version set_attachment_status set_object_scan",
+    "claim_attachment_upload confirm_attachment create_attachment define_attachment_document_type delete_attachment delete_attachment_document_type get_attachment list_attachment_document_types list_attachment_versions list_attachments mark_attachment_missing object_scan replace_attachment restore_attachment_version set_attachment_status set_object_scan",
   audit:
     "audit_event audit_event_many audit_events_tenants count_audit_events list_audit_events purge_audit_log",
   automations:

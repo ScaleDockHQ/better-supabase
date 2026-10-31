@@ -14,6 +14,7 @@ export type AttachmentsSqlOptions = {
   readonly offline?: boolean;
   readonly extraColumns?: ExtraColumns;
   readonly topic?: string;
+  readonly sources?: readonly string[];
 };
 
 export const attachmentsSqlOptions: BlockOptionsSchema<AttachmentsSqlOptions> =
@@ -29,4 +30,5 @@ export const attachmentsSqlOptions: BlockOptionsSchema<AttachmentsSqlOptions> =
     offline: option.boolean({ client: true }),
     extraColumns: option.extraColumns(),
     topic: option.string({ default: "attachments", client: true }),
+    sources: option.strings({ default: [] }),
   });

@@ -4220,6 +4220,13 @@
               "topic": {
                 "type": "string",
                 "default": "attachments"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
               }
             }
           }
