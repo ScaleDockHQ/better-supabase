@@ -13,6 +13,7 @@ import {
 } from "../line-items-sql.ts";
 import { fail, userGrant } from "../shared.ts";
 import { quoteParty, quotePartyType } from "./quotes-kit.ts";
+import { quoteVariantGuard } from "./quotes-variants.ts";
 
 /** The sales line columns a quote's lines hand to the invoice. */
 const SALES_KEYS: readonly string[] = [
@@ -317,7 +318,7 @@ begin
   end if;
   if ${quotes.is("quotes", "status", `v_quote.${q("status")}`, ["accepted"], true)} then
     ${fail("INVOICE_QUOTE_NOT_ACCEPTED", "only an accepted quote is invoiced", "55000")}
-  end if;
+  end if;${quoteVariantGuard(quotes, "v_quote", quotes.table("quotes"))}
   if invoice_from_quote.deposit_bps is not null and (invoice_from_quote.deposit_bps <= 0 or invoice_from_quote.deposit_bps >= 10000) then
     ${fail("INVOICE_DEPOSIT_INVALID", "a deposit is between 0 and 100 percent", "22023")}
   end if;

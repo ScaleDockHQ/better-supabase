@@ -16,6 +16,7 @@ import type {
   Totals,
 } from "../sales-lines.ts";
 import type { RecordRef } from "../sales-shared.ts";
+import type { QuoteVariants } from "../sales-variants.ts";
 import type { BlockTemporalOptions, TransitionActor } from "../shared.ts";
 
 import {
@@ -33,6 +34,7 @@ import {
 } from "../money-codec.ts";
 import { lineAmounts, lineArg, lineOf, totalsOf } from "../sales-lines.ts";
 import { attrsArg, compact, plainDate, refOf } from "../sales-shared.ts";
+import { quoteVariants } from "../sales-variants.ts";
 import {
   applyTemporal,
   blockCall,
@@ -270,7 +272,9 @@ export interface QuoteActorOptions {
   readonly actor?: TransitionActor;
 }
 
-export interface Quotes<F extends object = Record<never, never>> {
+export interface Quotes<
+  F extends object = Record<never, never>,
+> extends QuoteVariants {
   create(
     organizationId: string,
     input: QuoteInput<F> & { readonly title: string },
@@ -384,6 +388,9 @@ const KNOWN = new Set([
   "tenant_id",
   "number",
   "identifier",
+  "variant_of",
+  "variant_label",
+  "is_selected",
   "revision",
   "title",
   "company_type",
@@ -746,6 +753,7 @@ export function createQuotes<
         },
         quoteOf,
       ),
+    ...quoteVariants(call),
     versions: (quoteId) =>
       call("quote_versions", { quote: quoteId }, (value) =>
         recordsOf(value, "quote versions").map(versionSummaryOf),

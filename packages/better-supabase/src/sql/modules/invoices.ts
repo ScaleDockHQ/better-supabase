@@ -68,6 +68,12 @@ import {
 } from "./invoices-open-items.ts";
 import { PURCHASE_COLUMNS, purchaseNames } from "./invoices-purchase.ts";
 import {
+  LINE_SOURCES_TABLE,
+  lineSourcesTableSql,
+  sourceContract,
+  sourceFunctions,
+} from "./invoices-sources.ts";
+import {
   HANDOVER_COLUMNS,
   TERMS_COLUMNS,
   termsColumnsSql,
@@ -292,6 +298,7 @@ const NAMES: BlockSqlNames = {
     dunningRunItems: DUNNING_RUN_ITEMS_TABLE,
     dunningHistory: DUNNING_HISTORY_TABLE,
     allocations: ALLOCATIONS_TABLE,
+    lineSources: LINE_SOURCES_TABLE,
     approvalLevels: APPROVAL_LEVELS_TABLE,
     approvals: APPROVALS_TABLE,
   },
@@ -443,7 +450,7 @@ ${renderPolicy(
   }),
   { drop: true, target: t("invoices") },
 )}
-${charges}${dunningTableSql(ctx, n.read)}${dunningRunTablesSql(ctx, t("invoices"), i("id"), n.read)}${allocationTableSql(ctx, t("invoices"), i("id"), n.read)}${approvalTablesSql(ctx, t("invoices"), i("id"), n.read)}
+${charges}${dunningTableSql(ctx, n.read)}${dunningRunTablesSql(ctx, t("invoices"), i("id"), n.read)}${allocationTableSql(ctx, t("invoices"), i("id"), n.read)}${lineSourcesTableSql(ctx, t("invoices"), i("id"), n.read)}${approvalTablesSql(ctx, t("invoices"), i("id"), n.read)}
 `;
 }
 
@@ -638,7 +645,7 @@ function build(ctx: BlockSqlContext): string {
 -- Invoices an organization sends its own customers and the bills its
 -- suppliers send it: drafts with lines, a number on issue, payments, credit
 -- notes, void and write-off, aging and the three-way match of a bill.
-${tables(ctx, n)}${invoiceFunctions(ctx, n)}${invoiceImportFunctions(ctx, n)}${billingPartyReportSql(ctx, { name: n.fn("document_totals_by_billing_party"), argument: "document", lines: "lines" })}${accountingSourcesSql(ctx, invoiceAccountingSources(ctx))}`;
+${tables(ctx, n)}${invoiceFunctions(ctx, n)}${sourceFunctions(ctx, n)}${invoiceImportFunctions(ctx, n)}${billingPartyReportSql(ctx, { name: n.fn("document_totals_by_billing_party"), argument: "document", lines: "lines" })}${accountingSourcesSql(ctx, invoiceAccountingSources(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -741,6 +748,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       : []),
     ...collectionContract(ctx),
     ...openItemContract(ctx),
+    ...sourceContract(ctx),
     ...approvalContract(ctx),
   ];
 }
@@ -766,6 +774,8 @@ export const INVOICES: BlockSqlDefinition = {
     "inventory",
     "contacts",
     "orders",
+    "shipments",
+    "billable-time",
   ],
   target: "schema",
   modes: ["managed", "custom"],

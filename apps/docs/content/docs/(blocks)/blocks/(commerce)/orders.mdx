@@ -474,3 +474,20 @@ export const orders = createOrders({
 `import_order` writes an order with its number, dates, final status, buyer
 and totals as given, with free-text and variant lines, and no stock
 movement. See [importing historical documents](/docs/blocks/imports#importing-historical-documents).
+
+## Variants
+
+Orders can be grouped as variants, for example a quoted order in two versions. `setVariant(orderId, variantOf, label)` puts an order into the group of another order (the first order of the group) and labels it, or takes it out of its group with `null`. A new member starts not selected. `selectVariant(orderId)` marks one order selected and the others not selected, and `listVariants(orderId)` returns the group. Invoicing accepts only the selected order of a group.
+
+```ts
+await bsb.orders.setVariant(second.id, first.id, "Wide format").orThrow();
+await bsb.orders.selectVariant(second.id).orThrow();
+```
+
+The SQL functions are `set_order_variant`, `select_order_variant` and `list_order_variants`.
+
+| Hint                           | Cause                                                             |
+| ------------------------------ | ----------------------------------------------------------------- |
+| `ORDER_NOT_FOUND`              | no such order, or no order to group with                          |
+| `ORDER_VARIANT_INVALID`        | different currencies, or the target isn't the group's first order |
+| `ORDER_VARIANT_NOT_SELECTABLE` | a cancelled or refunded order can't be selected                   |

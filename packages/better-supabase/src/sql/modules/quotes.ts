@@ -37,6 +37,7 @@ import {
 import { quoteHolds } from "./quotes-holds.ts";
 import { quoteImportFunctions, quoteImportTargets } from "./quotes-import.ts";
 import { versionLinesOn } from "./quotes-kit.ts";
+import { hasVariants, quoteVariantFunctions } from "./quotes-variants.ts";
 
 const QUOTE = [
   "organizationId",
@@ -147,6 +148,9 @@ const NAMES: BlockSqlNames = {
         depositDue: "deposit_due",
         unpublishedChanges: "unpublished_changes",
         buyer: "buyer",
+        variantOf: "variant_of",
+        variantLabel: "variant_label",
+        isSelected: "is_selected",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -175,6 +179,9 @@ const NAMES: BlockSqlNames = {
         "depositDue",
         "unpublishedChanges",
         "buyer",
+        "variantOf",
+        "variantLabel",
+        "isSelected",
         "createdBy",
         "listTotal",
         "discountTotal",
@@ -285,6 +292,12 @@ function tables(ctx: BlockSqlContext, n: QuoteNames): string {
     ["depositRequired", () => "boolean not null default false"],
     ["unpublishedChanges", () => "boolean not null default false"],
     ["buyer", () => "jsonb"],
+    ["variantOf", () => "uuid"],
+    [
+      "variantLabel",
+      (name) => `text check (length(${name}) between 1 and 100)`,
+    ],
+    ["isSelected", () => "boolean not null default false"],
   ];
 
   const added = later
@@ -320,13 +333,13 @@ create table if not exists ${t("quotes")} (
   ${q("tokenHash")} text unique,
   ${q("sentAt")} timestamptz,${column("viewedAt", "timestamptz")}
   ${q("decidedAt")} timestamptz,
-  ${q("decidedBy")} text,${column("decisionNote", "text")}${column("decidedUser", "uuid")}${column("decidedIp", "text")}${column("decidedUserAgent", "text")}${column("pricesIncludeTax", "boolean not null default false")}${column("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${column("discountAmount", (amount) => `bigint not null default 0 check (${amount} >= 0)`)}${column("depositBps", (bps) => `integer check (${bps} > 0 and ${bps} < 10000)`)}${column("depositAmount", (amount) => `bigint check (${amount} > 0)`)}${column("depositRequired", "boolean not null default false")}${column("depositDue", "bigint not null default 0")}${column("unpublishedChanges", "boolean not null default false")}${column("buyer", "jsonb")}${column("createdBy", "uuid")}
+  ${q("decidedBy")} text,${column("decisionNote", "text")}${column("decidedUser", "uuid")}${column("decidedIp", "text")}${column("decidedUserAgent", "text")}${column("pricesIncludeTax", "boolean not null default false")}${column("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${column("discountAmount", (amount) => `bigint not null default 0 check (${amount} >= 0)`)}${column("depositBps", (bps) => `integer check (${bps} > 0 and ${bps} < 10000)`)}${column("depositAmount", (amount) => `bigint check (${amount} > 0)`)}${column("depositRequired", "boolean not null default false")}${column("depositDue", "bigint not null default 0")}${column("unpublishedChanges", "boolean not null default false")}${column("buyer", "jsonb")}${column("variantOf", "uuid")}${column("variantLabel", (label) => `text check (length(${label}) between 1 and 100)`)}${column("isSelected", "boolean not null default false")}${column("createdBy", "uuid")}
   ${q("createdAt")} timestamptz not null default now(),
   ${q("updatedAt")} timestamptz not null default now(),
   ${totalColumnsSql(ctx, "quotes")},
   ${constraints.join(",\n  ")}
 );
-${added}create index if not exists ${ctx.naming.rename("quotes_tenant_status_idx")} on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);${origin ? `\ncreate index if not exists ${ctx.naming.rename("quotes_origin_idx")} on ${t("quotes")} (${q("originType")}, ${q("originId")});` : ""}
+${added}create index if not exists ${ctx.naming.rename("quotes_tenant_status_idx")} on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);${ctx.has("quotes", "variantOf") ? `\ncreate index if not exists ${ctx.naming.rename("quotes_variant_idx")} on ${t("quotes")} (${q("variantOf")}) where ${q("variantOf")} is not null;` : ""}${origin ? `\ncreate index if not exists ${ctx.naming.rename("quotes_origin_idx")} on ${t("quotes")} (${q("originType")}, ${q("originId")});` : ""}
 ${addExtraColumns(t("quotes"), n.extras)}${appUniqueIndex(ctx, "quotes", ["tokenHash"])}
 ${lockModuleTable(ctx, "quotes", { read: true })}
 ${renderPolicy(makePolicy({ table: t("quotes"), name: ctx.naming.rename("quotes_read"), command: "select", roles: ["authenticated"], using: guestOr(ctx.scope.check(q("tenant"), n.read), [quoteGuest(ctx, n, "")]) }), { drop: true, target: t("quotes") })}
@@ -510,7 +523,7 @@ function build(ctx: BlockSqlContext): string {
 -- Quotes: line items, sections, optional lines, discounts and tax per rate,
 -- published versions, sending with a public link or to the signed-in portal
 -- the customer accepts, rejects or asks changes through, and expiry.
-${tables(ctx, n)}${quoteFunctions(ctx, n)}${quoteImportFunctions(ctx, n)}${billingPartyReportSql(ctx, { name: n.fn("quote_totals_by_billing_party"), argument: "quote", lines: "lines" })}`;
+${tables(ctx, n)}${quoteFunctions(ctx, n)}${quoteVariantFunctions(ctx, n)}${quoteImportFunctions(ctx, n)}${billingPartyReportSql(ctx, { name: n.fn("quote_totals_by_billing_party"), argument: "quote", lines: "lines" })}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -550,6 +563,21 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "expire_quotes", args: [], returns: "integer" },
     { name: "quote_totals_by_billing_party", args: ["uuid"], returns: "jsonb" },
+    ...(hasVariants(ctx)
+      ? [
+          {
+            name: "create_quote_variant",
+            args: ["uuid", "text", "jsonb"],
+            returns: "jsonb",
+          },
+          { name: "list_quote_variants", args: ["uuid"], returns: "jsonb" },
+          {
+            name: "select_quote_variant",
+            args: ["uuid", "jsonb"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
     ...(ctx.installed("deals")
       ? [{ name: "quote_from_deal", args: ["uuid"], returns: "jsonb" }]
       : []),
@@ -576,6 +604,7 @@ export const QUOTES: BlockSqlDefinition = {
     "catalog",
     "automations",
     "orders",
+    "invoices",
     "inventory",
   ],
   target: "schema",
