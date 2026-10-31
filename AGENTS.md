@@ -247,6 +247,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0130: One naming convention for blocks: entity keys, tables, `<area>.<verb>` permission keys, `<entity>.<past tense>` events, hint codes, functions and docs titles (partly supersedes 0093).
 - 0131: Inbox contacts, sequence enrollments, AI file versions and postmortem actions move onto `contacts`, `enrollments`, `versions` and `tasks`.
 - 0132: Quality management is five cross-cutting blocks (`acknowledgements`, `cases`, `inspections`, `risks`, `qualifications`) linked through `relations` kinds.
+- 0155: Payroll runs collect hours and leave in SQL, lock behind an exported file and render through a versioned `PayrollExportFormat`.
 - 0133: Drive gets commenter and upload-only roles, link passwords and download control with previews on their own path, versioned text and preview ports, and controlled documents.
 - 0134: Record teams (`subjects.<type>.team`, `subject_members`) grant per-record actions in `can_subject`; emergency access and read logging build on them.
 - 0135: Care plans, observations, medications, consents and funding are domain-neutral blocks keyed on any subject, with FHIR R4 mappers and ports for national formats.

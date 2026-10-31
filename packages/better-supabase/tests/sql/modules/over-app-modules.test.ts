@@ -110,6 +110,7 @@ const MODULES = [
   "cases",
   "inspections",
   "meetings",
+  "payroll-export",
   "manufacturing",
   "legal-entities",
   "funding",

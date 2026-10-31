@@ -24876,6 +24876,139 @@ export function BankReconciliationSkeleton() {
 }
 ```
 
+## Payroll runs
+
+The organization's payroll runs, newest period first, with their line count, export format and whether they are locked. It loads its data on the server through the block's client; the [payroll-export block](https://bettersupabase.com/blocks/payroll-export) must be installed (`npx better-supabase add payroll-export`). Page: https://bettersupabase.com/recipes/payroll-runs.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button empty skeleton table @reui/frame
+```
+
+```tsx title="apps/examples/nextjs/src/features/payroll-export/components/payroll-runs.tsx"
+// oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
+async function retry() {
+  "use server";
+  refresh();
+}
+
+/**
+ * Render inside `<Suspense>`: the organization's payroll runs, newest period
+ * first, with how many lines each holds and the format it was exported in.
+ */
+export async function PayrollRuns() {
+  const [state, t] = await Promise.all([
+    getPayrollRuns(),
+    getExtracted("payroll-export"),
+  ]);
+
+  if (state.kind === "no-organization") {
+    return null;
+  }
+
+  if (state.kind === "error") {
+    return (
+      <Alert variant="destructive" data-recipe="payroll-runs">
+        <TriangleAlertIcon />
+        <AlertTitle>{t("The payroll runs didn't load")}</AlertTitle>
+        <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+        <AlertAction>
+          <form action={retry}>
+            <Button size="sm" variant="outline" type="submit">
+              {t("Retry")}
+            </Button>
+          </form>
+        </AlertAction>
+      </Alert>
+    );
+  }
+
+  if (state.data.length === 0) {
+    return (
+      <Empty className="border" data-recipe="payroll-runs">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <WalletIcon />
+          </EmptyMedia>
+          <EmptyTitle>{t("No payroll runs yet")}</EmptyTitle>
+          <EmptyDescription>
+            {t(
+              "Create a run for a period to add up the approved hours and leave, then export it in your payroll provider's format.",
+            )}
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <a
+            className="text-sm underline underline-offset-4"
+            href="https://bettersupabase.com/docs/blocks/payroll-export"
+          >
+            {t("Read the payroll export guide")}
+          </a>
+        </EmptyContent>
+      </Empty>
+    );
+  }
+
+  return (
+    <Frame spacing="sm" data-recipe="payroll-runs">
+      <FrameHeader className="gap-0.5">
+        <FrameTitle>{t("Payroll runs")}</FrameTitle>
+        <FrameDescription>
+          {t("An exported run is locked; its checksum proves the file.")}
+        </FrameDescription>
+      </FrameHeader>
+      <FramePanel>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("Period")}</TableHead>
+              <TableHead>{t("Label")}</TableHead>
+              <TableHead>{t("Lines")}</TableHead>
+              <TableHead>{t("Format")}</TableHead>
+              <TableHead>{t("Status")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {state.data.map((run) => (
+              <TableRow key={run.id}>
+                <TableCell>
+                  {run.periodFrom} – {run.periodTo}
+                </TableCell>
+                <TableCell>{run.label ?? "–"}</TableCell>
+                <TableCell>{run.lineCount}</TableCell>
+                <TableCell>{run.format ?? "–"}</TableCell>
+                <TableCell>
+                  {run.status === "exported" ? (
+                    <Badge variant="success-light">{t("Exported")}</Badge>
+                  ) : (
+                    <Badge variant="warning-light">{t("Draft")}</Badge>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </FramePanel>
+    </Frame>
+  );
+}
+
+export function PayrollRunsSkeleton() {
+  return (
+    <Frame spacing="sm">
+      <FrameHeader className="gap-1">
+        <Skeleton className="h-4 w-36" />
+        <Skeleton className="h-4 w-64" />
+      </FrameHeader>
+      <FramePanel>
+        <Skeleton className="h-48" />
+      </FramePanel>
+    </Frame>
+  );
+}
+```
+
 ## Record grid
 
 An app table as a data grid with search, filters, saved views and bulk actions on the selected rows, including a Set field action. It loads its data on the server through the block's client; the [saved-views block](https://bettersupabase.com/blocks/saved-views) must be installed (`npx better-supabase add saved-views`). Page: https://bettersupabase.com/recipes/record-grid.

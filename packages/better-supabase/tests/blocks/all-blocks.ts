@@ -95,6 +95,7 @@ import type { ordersBlock } from "../../src/blocks/orders/manifest.ts";
 import type { organizationsBlock } from "../../src/blocks/organizations/manifest.ts";
 import type { outboxBlock } from "../../src/blocks/outbox/manifest.ts";
 import type { passesBlock } from "../../src/blocks/passes/manifest.ts";
+import type { payrollExportBlock } from "../../src/blocks/payroll-export/manifest.ts";
 import type { permissionsBlock } from "../../src/blocks/permissions/manifest.ts";
 import type { pgtapBlock } from "../../src/blocks/pgtap/manifest.ts";
 import type { pipelinesBlock } from "../../src/blocks/pipelines/manifest.ts";
@@ -239,6 +240,7 @@ export type AllBlocks = {
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
   readonly funding: typeof fundingBlock;
+  readonly "payroll-export": typeof payrollExportBlock;
   readonly courses: typeof coursesBlock;
   readonly sequences: typeof sequencesBlock;
   readonly "lead-scoring": typeof leadScoringBlock;

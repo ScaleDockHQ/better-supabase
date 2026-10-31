@@ -108,6 +108,7 @@ import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PASSES } from "./modules/passes.ts";
+import { PAYROLL_EXPORT } from "./modules/payroll-export.ts";
 import { ACCESS } from "./modules/permissions.ts";
 import { PGTAP } from "./modules/pgtap.ts";
 import { PIPELINES } from "./modules/pipelines.ts";
@@ -412,6 +413,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(MEETINGS),
       built(LEGAL_ENTITIES),
       built(FUNDING),
+      built(PAYROLL_EXPORT),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

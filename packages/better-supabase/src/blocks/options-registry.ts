@@ -85,6 +85,7 @@ import type {
 } from "./organizations/options.ts";
 import type { OutboxSqlOptions } from "./outbox/options.ts";
 import type { PassesSqlOptions } from "./passes/options.ts";
+import type { PayrollExportSqlOptions } from "./payroll-export/options.ts";
 import type { PermissionsSqlOptions } from "./permissions/options.ts";
 import type { PipelinesSqlOptions } from "./pipelines/options.ts";
 import type { PostsSqlOptions } from "./posts/options.ts";
@@ -229,6 +230,7 @@ import {
 } from "./organizations/options.ts";
 import { outboxSqlOptions } from "./outbox/options.ts";
 import { passesSqlOptions } from "./passes/options.ts";
+import { payrollExportSqlOptions } from "./payroll-export/options.ts";
 import { permissionsSqlOptions } from "./permissions/options.ts";
 import { pipelinesSqlOptions } from "./pipelines/options.ts";
 import { postsSqlOptions } from "./posts/options.ts";
@@ -313,6 +315,7 @@ export interface BlockOptionsRegistry {
   readonly audit: AuditSqlOptions;
   readonly automations: AutomationsSqlOptions;
   readonly banking: BankingSqlOptions;
+  readonly "payroll-export": PayrollExportSqlOptions;
   readonly "billable-time": None;
   readonly billing: BillingSqlOptions;
   readonly bookings: BookingsSqlOptions;
@@ -483,6 +486,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   audit: auditSqlOptions,
   automations: automationsSqlOptions,
   banking: bankingSqlOptions,
+  "payroll-export": payrollExportSqlOptions,
   "billable-time": NO_OPTIONS,
   billing: billingSqlOptions,
   bookings: bookingsSqlOptions,

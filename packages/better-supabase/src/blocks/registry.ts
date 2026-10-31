@@ -96,6 +96,7 @@ import { ordersBlock } from "./orders/manifest.ts";
 import { organizationsBlock } from "./organizations/manifest.ts";
 import { outboxBlock } from "./outbox/manifest.ts";
 import { passesBlock } from "./passes/manifest.ts";
+import { payrollExportBlock } from "./payroll-export/manifest.ts";
 import { permissionsBlock } from "./permissions/manifest.ts";
 import { pgtapBlock } from "./pgtap/manifest.ts";
 import { pipelinesBlock } from "./pipelines/manifest.ts";
@@ -227,6 +228,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   bankingBlock,
   legalEntitiesBlock,
   fundingBlock,
+  payrollExportBlock,
   shiftsBlock,
   consentsBlock,
   observationsBlock,

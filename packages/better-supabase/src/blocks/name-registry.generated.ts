@@ -1590,6 +1590,21 @@ export interface BlockNameRegistry {
     readonly primary: "pass";
     readonly formerKeys: never;
   };
+  readonly "payroll-export": {
+    readonly tables: {
+      readonly "runs": "id" | "tenant" | "periodFrom" | "periodTo" | "label" | "status" | "format" | "checksum" | "exportedAt" | "exportedBy" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "lines": "id" | "tenant" | "run" | "user" | "employee" | "employeeName" | "kind" | "code" | "paid" | "unit" | "quantity" | "sourceCount" | "createdAt";
+    };
+    readonly functions: "collect_payroll_lines" | "create_payroll_run" | "delete_payroll_run" | "get_payroll_run" | "list_payroll_runs" | "mark_payroll_run_exported" | "refresh_payroll_run";
+    readonly actions: "read" | "export";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "payroll_run": "id" | "tenant_id" | "period_from" | "period_to" | "label" | "status" | "format" | "checksum" | "exported_at" | "exported_by" | "created_by" | "created_at" | "updated_at";
+      readonly "payroll_line": "id" | "tenant_id" | "run_id" | "user_id" | "employee_id" | "employee_name" | "kind" | "code" | "paid" | "unit" | "quantity" | "source_count" | "created_at";
+    };
+    readonly primary: "payroll_run";
+    readonly formerKeys: never;
+  };
   readonly "permissions": {
     readonly tables: {
       readonly "roles": "id" | "key" | "scope" | "tenant";

@@ -318,4 +318,5 @@ export const MODULE_PERMISSION_SCOPES: {
     claim: "tenant",
     manage: "tenant",
   },
+  "payroll-export": { read: "tenant", export: "tenant" },
 };

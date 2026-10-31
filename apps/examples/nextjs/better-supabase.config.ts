@@ -493,6 +493,9 @@ export default defineConfig({
     // Funded care: products a funder pays per unit, awards per customer,
     // deliveries from approved time and claims the funder answers per line.
     funding: {},
+    // Payroll runs add up the worked and leave hours of a period for the
+    // payroll provider, rendered by a pluggable file format.
+    "payroll-export": {},
     // Members acknowledge the current version of each policy they are
     // assigned, directly, through a team or through their role.
     acknowledgements: {

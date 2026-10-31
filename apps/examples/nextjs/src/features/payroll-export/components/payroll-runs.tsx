@@ -1,0 +1,161 @@
+import { TriangleAlertIcon, WalletIcon } from "lucide-react";
+import { getExtracted } from "next-intl/server";
+import { refresh } from "next/cache";
+
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/reui/alert";
+import { Badge } from "@/components/reui/badge";
+import {
+  Frame,
+  FrameDescription,
+  FrameHeader,
+  FramePanel,
+  FrameTitle,
+} from "@/components/reui/frame";
+import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+import { getPayrollRuns } from "../payroll-export-queries";
+
+// #region recipe:payroll-runs
+// oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
+async function retry() {
+  "use server";
+  refresh();
+}
+
+/**
+ * Render inside `<Suspense>`: the organization's payroll runs, newest period
+ * first, with how many lines each holds and the format it was exported in.
+ */
+export async function PayrollRuns() {
+  const [state, t] = await Promise.all([
+    getPayrollRuns(),
+    getExtracted("payroll-export"),
+  ]);
+
+  if (state.kind === "no-organization") {
+    return null;
+  }
+
+  if (state.kind === "error") {
+    return (
+      <Alert variant="destructive" data-recipe="payroll-runs">
+        <TriangleAlertIcon />
+        <AlertTitle>{t("The payroll runs didn't load")}</AlertTitle>
+        <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+        <AlertAction>
+          <form action={retry}>
+            <Button size="sm" variant="outline" type="submit">
+              {t("Retry")}
+            </Button>
+          </form>
+        </AlertAction>
+      </Alert>
+    );
+  }
+
+  if (state.data.length === 0) {
+    return (
+      <Empty className="border" data-recipe="payroll-runs">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <WalletIcon />
+          </EmptyMedia>
+          <EmptyTitle>{t("No payroll runs yet")}</EmptyTitle>
+          <EmptyDescription>
+            {t(
+              "Create a run for a period to add up the approved hours and leave, then export it in your payroll provider's format.",
+            )}
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <a
+            className="text-sm underline underline-offset-4"
+            href="https://bettersupabase.com/docs/blocks/payroll-export"
+          >
+            {t("Read the payroll export guide")}
+          </a>
+        </EmptyContent>
+      </Empty>
+    );
+  }
+
+  return (
+    <Frame spacing="sm" data-recipe="payroll-runs">
+      <FrameHeader className="gap-0.5">
+        <FrameTitle>{t("Payroll runs")}</FrameTitle>
+        <FrameDescription>
+          {t("An exported run is locked; its checksum proves the file.")}
+        </FrameDescription>
+      </FrameHeader>
+      <FramePanel>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("Period")}</TableHead>
+              <TableHead>{t("Label")}</TableHead>
+              <TableHead>{t("Lines")}</TableHead>
+              <TableHead>{t("Format")}</TableHead>
+              <TableHead>{t("Status")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {state.data.map((run) => (
+              <TableRow key={run.id}>
+                <TableCell>
+                  {run.periodFrom} – {run.periodTo}
+                </TableCell>
+                <TableCell>{run.label ?? "–"}</TableCell>
+                <TableCell>{run.lineCount}</TableCell>
+                <TableCell>{run.format ?? "–"}</TableCell>
+                <TableCell>
+                  {run.status === "exported" ? (
+                    <Badge variant="success-light">{t("Exported")}</Badge>
+                  ) : (
+                    <Badge variant="warning-light">{t("Draft")}</Badge>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </FramePanel>
+    </Frame>
+  );
+}
+
+export function PayrollRunsSkeleton() {
+  return (
+    <Frame spacing="sm">
+      <FrameHeader className="gap-1">
+        <Skeleton className="h-4 w-36" />
+        <Skeleton className="h-4 w-64" />
+      </FrameHeader>
+      <FramePanel>
+        <Skeleton className="h-48" />
+      </FramePanel>
+    </Frame>
+  );
+}
+// #endregion recipe:payroll-runs

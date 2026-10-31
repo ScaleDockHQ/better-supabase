@@ -523,6 +523,9 @@ may be your own enum or domain.
 - `passes`
   - `better_supabase.passes`: `id`, `tenant_id`, `kind`, `holder_user_id`, `booking_id`, `resource_id`, `uses_allowed`, `uses`, `valid_from`, `valid_until`, `status`, `nonce`, `created_at`; typed: `status`
   - `better_supabase.pass_check_ins`: `id`, `tenant_id`, `pass_id`, `resource_id`, `booking_id`, `method`, `admitted`, `reason`, `created_at`; typed: `method`, `reason`
+- `payroll-export`
+  - `better_supabase.payroll_runs`: `id`, `tenant_id`, `period_from`, `period_to`, `label`, `status`, `format`, `checksum`, `exported_at`, `exported_by`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.payroll_lines`: `id`, `tenant_id`, `run_id`, `user_id`, `employee_id`, `employee_name`, `kind`, `code`, `paid`, `unit`, `quantity`, `source_count`, `created_at`
 - `permissions`
   - `better_supabase.roles`: `id`, `key`
   - `better_supabase.permissions`: `id`, `key`
