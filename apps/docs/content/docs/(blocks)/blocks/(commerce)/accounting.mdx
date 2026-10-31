@@ -122,6 +122,13 @@ organization maps every role to one of its accounts with
 The generic chart maps all of them. A posting or a year-end close that needs
 an unmapped role fails with `ACCOUNTING_ACCOUNT_ROLE_MISSING`.
 
+Accounts also carry a `normalSide` (`debit` or `credit`, taken from the type
+unless you set it), a `level` computed from the `parentId` chain, a
+`defaultTaxCodeId` that lines without a `taxCodeId` use, and `active`;
+an inactive account refuses new lines. Journals take a `contraAccountId` and a
+`bankAccountId`. Entry lines take a `taxAmount` in minor units, and `setup`
+creates the `cost_center` and `cost_object` dimensions.
+
 ## Import a chart of accounts
 
 `importChart` reads a reference scheme, such as the Dutch RGS, through an
@@ -236,6 +243,44 @@ carries. `closeFiscalYear(organizationId, 2026)` posts one closing entry in
 the general journal that moves the year's income and expenses to the
 `retained_earnings` account, then closes every period of the year.
 
+### Locked periods
+
+`lockPeriod(periodId)` locks a closed period (it needs `accounting.close`).
+Posting into a locked period fails with `ACCOUNTING_PERIOD_LOCKED`, and so does
+a ledger import. `unlockPeriod(periodId, reason)` puts it back to closed. A
+closed period still refuses normal posting, but an import run (the `imports`
+block's `accounting_entry` target) may post into it.
+
+## Opening balances and the year-end carry forward
+
+A fiscal year's opening balances are one row per account, and per party for
+receivable and payable accounts. Amounts are signed minor units, a debit
+balance positive.
+
+```ts
+await books
+  .saveOpeningBalances(orgId, 2026, [
+    { accountCode: "1300", partyId: customerId, amount: 12_100n },
+    { accountCode: "2000", amount: -12_100n },
+  ])
+  .orThrow();
+
+await books.postOpeningBalances(orgId, 2026).orThrow();
+```
+
+`saveOpeningBalances` replaces the row of each account and party.
+`postOpeningBalances` posts the imported rows as one entry on the year's first
+day, fails with `ACCOUNTING_ENTRY_UNBALANCED` unless they sum to zero, and
+returns the same entry when called again. Once posted, saving more rows for
+that year fails with `ACCOUNTING_OPENING_POSTED`.
+
+`closeFiscalYear` also writes the next year's `carried` rows from the closing
+balances of the balance sheet accounts, per party where the account is
+reconcilable. Reports sum posted lines over all dates, so the carried rows
+are the opening balances you read with `openingBalances(org, 2027)`, not a
+second entry that would count twice. Closing a year again rewrites its
+carried rows and leaves imported ones alone.
+
 ## Reports
 
 | Method                                 | Returns                                                                   |
@@ -244,6 +289,10 @@ the general journal that moves the year's income and expenses to the
 | `profitAndLoss(org, { since, until })` | income and expense lines and net income, without year-end closing entries |
 | `balanceSheet(org, { asOf })`          | assets, liabilities, equity, the unclosed current earnings and `balanced` |
 | `generalLedger(accountId, { since })`  | the account's posted lines with a running balance                         |
+
+| `periodTrialBalance(periodId)` | the trial balance of one period |
+| `columnBalance(org, { since, until, rollup })` | per account the opening, period and closing balance as debit and credit columns; `rollup` adds children to their parent |
+| `journalListing(org, { since, until, journalId })` | posted entries with their lines, per journal, with totals |
 
 Every report takes `dimensions` to sum only lines with those values. Reports
 run with the caller's rights, so a caller without `accounting.read` gets
@@ -336,13 +385,15 @@ the balance sheet totals, net income, net tax and the trial balance on a page.
 | `ACCOUNTING_PERIOD_NOT_FOUND`     | no period covers the entry date; open its fiscal year first                    |
 | `ACCOUNTING_PERIOD_CLOSED`        | the date is in a closed period or on or before the lock date                   |
 | `ACCOUNTING_PERIOD_CLOSE_BLOCKED` | the period has blockers such as draft entries                                  |
+| `ACCOUNTING_PERIOD_LOCKED`        | the period is locked; unlock it first                                          |
+| `ACCOUNTING_OPENING_POSTED`       | the year's opening entry is posted                                             |
 | `FISCAL_YEAR_CLOSED`              | the fiscal year is already closed                                              |
 
 ## Events
 
 `accounting_entry.posted`, `accounting_entry.reversed`,
 `accounting_period.closed`, `accounting_period.reopened`,
-`fiscal_year.closed`, `accounting_budget.created` and
+`accounting_period.locked`, `accounting_period.unlocked`, `fiscal_year.closed`, `accounting_budget.created` and
 `accounting_budget.updated`. The [events page](/docs/extending/events) lists their
 payloads.
 
@@ -358,3 +409,12 @@ const accounting = createAccounting({ transport });
 
 const trial = await accounting.trialBalance(organizationId).orThrow();
 ```
+
+## Import the ledger
+
+The block registers four targets with the [imports](/docs/blocks/imports)
+block: `accounting_account` (key: the account code), `accounting_journal`
+(the journal code), `accounting_entry` and `accounting_opening_balance`. Entry
+items name accounts and journals by code. Debits and credits that differ fail
+that item with `IMPORT_ITEM_INVALID`; the other items go on. Running the same
+file again writes nothing, because equal content is skipped.

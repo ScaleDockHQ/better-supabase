@@ -9691,6 +9691,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "AccountingPeriodStatus"
+        },
+        {
+          "name": "AccountingPeriodUnlockedEventData"
         }
       ],
       "entitySchemas": {

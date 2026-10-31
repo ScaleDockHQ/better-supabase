@@ -58,3 +58,22 @@ there.
   again, compare after canonicalization.
 - Country audit formats beyond SAF-T and XAF come as adapters under the same
   interface. Revisit the lock model if a country needs per-journal locks.
+
+## As built: general ledger (PR 11)
+
+- **Carry forward stores rows, not an entry.** Reports sum all posted lines, so
+  an opening entry on the next year's first day would count the balances twice.
+  `close_fiscal_year` writes `carried` rows to `accounting_opening_balances` for
+  the next year. Imported rows (`source = 'imported'`) post as one entry with
+  `post_accounting_opening_balances`, which is idempotent.
+- **Locked beats import mode.** A closed period accepts an import-mode post, a
+  locked one refuses, and the lock date still applies to both.
+- **`wip_valuation` covers unbilled time only.** Materials are costed on the
+  ledger and booked by the accounting postings, so adding them would count
+  them twice. The function returns hours, uncosted hours, unrated hours and
+  cost and billable totals per currency.
+- **`trial_balance` per period** is `accounting_period_trial_balance(period_id)`
+  over the existing function. `accounting_column_balance` and
+  `accounting_journal_listing` are new.
+- **Import entities:** `accounting_account`, `accounting_journal`,
+  `accounting_entry`, `accounting_opening_balance`.
