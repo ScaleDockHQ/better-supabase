@@ -380,17 +380,15 @@ export async function fromUbl(
   }
 
   const identifier = required(root, "ID", "number");
-  const Temporal = temporal();
+  const { PlainDate } = temporal();
 
-  const issuedOn = Temporal.PlainDate.from(
-    required(root, "IssueDate", "issue date"),
-  );
+  const issuedOn = PlainDate.from(required(root, "IssueDate", "issue date"));
 
   const due =
     text(root, "DueDate") ??
     text(child(root, "PaymentMeans"), "PaymentDueDate");
 
-  const dueOn = due === undefined ? undefined : Temporal.PlainDate.from(due);
+  const dueOn = due === undefined ? undefined : PlainDate.from(due);
   const seller = partyOf(root, "AccountingSupplierParty");
   const buyer = partyOf(root, "AccountingCustomerParty");
   const note = text(root, "Note");
