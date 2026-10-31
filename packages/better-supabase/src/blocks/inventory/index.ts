@@ -25,6 +25,18 @@ export {
 } from "./inventory.ts";
 
 export {
+  COUNT_STATUSES,
+  inventoryCounts,
+  type CountLine,
+  type CountLineInput,
+  type CountStatus,
+  type InventoryCounts,
+  type OpenCountInput,
+  type OpenedCount,
+  type PostedCount,
+} from "./counts.ts";
+
+export {
   ALLOCATION_STATUSES,
   COSTING_METHODS,
   TRACKING_MODES,

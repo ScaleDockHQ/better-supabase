@@ -34,6 +34,12 @@ import { registeredSubjects } from "../subject-registry.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import {
+  INTRASTAT_TABLE,
+  intrastatContract,
+  intrastatFunctions,
+  intrastatTable,
+} from "./shipments-intrastat.ts";
+import {
   LINES_TABLE,
   lineFunctions,
   linesJson,
@@ -169,6 +175,7 @@ const NAMES: BlockSqlNames = {
       typed: ["status"],
     },
     lines: LINES_TABLE,
+    intrastatLines: INTRASTAT_TABLE,
   },
 };
 
@@ -298,7 +305,7 @@ create index if not exists ${index("trackingEvents", "timeline_idx")} on ${event
 ${lockModuleTable(ctx, "trackingEvents", { read: true })}
 drop policy if exists ${index("trackingEvents", "read")} on ${events};
 ${renderPolicy(makePolicy({ table: events, name: index("trackingEvents", "read"), command: "select", roles: ["authenticated"], using: readable(e("tenant")) }), { target: events })}${locationKey}
-${linesTable(ctx)}`;
+${linesTable(ctx)}${intrastatTable(ctx)}`;
 }
 
 function functions(
@@ -773,7 +780,7 @@ ${findForWrite("cancel_shipment.shipment_id")}
 end;
 $$;
 ${userGrant(`${fn("cancel_shipment")}(uuid)`)}
-${lineFunctions(ctx, findForWrite, shipmentJson)}
+${lineFunctions(ctx, findForWrite, shipmentJson)}${intrastatFunctions(ctx)}
 -- A shipment's tracking timeline, oldest first.
 create or replace function ${fn("list_tracking_events")}(shipment_id uuid)
 returns jsonb
@@ -909,6 +916,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "jsonb"],
       returns: "jsonb",
     },
+    ...intrastatContract(ctx),
   ];
 }
 
@@ -922,12 +930,18 @@ export const SHIPMENTS: BlockSqlDefinition = {
   integrates: ["outbox", "audit", "assets", "inventory"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "Adds shipment_lines: the stock a shipment carries out, taken from inventory when it gets its label and put back when it is cancelled, and the returns received against it with a restock, hold or scrap disposition.",
+      sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "Adds intrastat_lines and prepare_intrastat: the shipment lines that cross a member state border, derived into arrival and dispatch lines with trade code, country, net mass and value, and the exceptions that lack one.",
       sql: () => "",
     },
   ],

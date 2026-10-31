@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:194a2106dd6b67e4dfadbad72e79b83fa28464f09deefc56ebe78eed7219e910
+-- @bsb-hash sha256:ed21ca03c810eb0c89538b974731ccbde2fe517f464e87e3cc0d63aac28a294d
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1483,6 +1483,8 @@ declare
   v_item record;
   v_lines jsonb := '[]';
   v_unit bigint;
+  v_rule jsonb;
+  v_disc bigint;
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
@@ -1520,23 +1522,27 @@ begin
       or (v_item.raw ? 'tax' and case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end is null) then
       raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
-    v_unit := coalesce(case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end,
+    v_rule := null;
+    
+    v_unit := coalesce(case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end, (v_rule ->> 'fixedPrice')::bigint,
       case when v_item.variant is not null then ("better_supabase"."variant_price"(v_item.variant, v_currency, null, null) ->> 'amount')::bigint end);
     if v_unit is null then
       raise exception 'a line has no unitAmount and its variant no price in this currency' using errcode = '22023', hint = 'ORDERS_LINE_UNPRICED';
     end if;
-    if coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0) > v_unit * v_item.quantity::bigint then
+    v_disc := coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end,
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > v_unit * v_item.quantity::bigint then
       raise exception 'a line''s discount is more than its subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
       'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
-      'discount', coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0)::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0))::text,
+      'discount', v_disc::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
+      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
       'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
     v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
-    v_discount := v_discount + coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0);
+    v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0);
   end loop;
   return "better_supabase"."order_from_document"(order_from_lines.tenant, v_attrs || jsonb_build_object(
@@ -2486,7 +2492,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:a4274928b26210caf0e16426e930e9de3a63549903127e126b2f2d65b43a6762
+-- @bsb-hash sha256:975318ae06a042187dd8b2ace7911539e60efc5e8efe37ccf905888d3a3bc6d4
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4083,6 +4089,8 @@ declare
   v_item record;
   v_lines jsonb := '[]';
   v_unit bigint;
+  v_rule jsonb;
+  v_disc bigint;
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
@@ -4120,23 +4128,27 @@ begin
       or (v_item.raw ? 'tax' and case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end is null) then
       raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
-    v_unit := coalesce(case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end,
+    v_rule := null;
+    
+    v_unit := coalesce(case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end, (v_rule ->> 'fixedPrice')::bigint,
       case when v_item.variant is not null then ("better_supabase"."variant_price"(v_item.variant, v_currency, null, null) ->> 'amount')::bigint end);
     if v_unit is null then
       raise exception 'a line has no unitAmount and its variant no price in this currency' using errcode = '22023', hint = 'ORDERS_LINE_UNPRICED';
     end if;
-    if coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0) > v_unit * v_item.quantity::bigint then
+    v_disc := coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end,
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > v_unit * v_item.quantity::bigint then
       raise exception 'a line''s discount is more than its subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
       'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
-      'discount', coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0)::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0))::text,
+      'discount', v_disc::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
+      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
       'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
     v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
-    v_discount := v_discount + coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0);
+    v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0);
   end loop;
   return "better_supabase"."order_from_document"(order_from_lines.tenant, v_attrs || jsonb_build_object(
@@ -5194,7 +5206,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:fe759c75afd6fc98ff49d92334eb6c0667148be4b8a24f5b65c61850c373ecfa
+-- @bsb-hash sha256:96bd93b1c8d271381ff39e70e8bc21a4b1b8ee8050a76ac135e0364ee348108f
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6681,6 +6693,8 @@ declare
   v_item record;
   v_lines jsonb := '[]';
   v_unit bigint;
+  v_rule jsonb;
+  v_disc bigint;
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
@@ -6718,23 +6732,27 @@ begin
       or (v_item.raw ? 'tax' and case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end is null) then
       raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
-    v_unit := coalesce(case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end,
+    v_rule := null;
+    
+    v_unit := coalesce(case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end, (v_rule ->> 'fixedPrice')::bigint,
       case when v_item.variant is not null then ("better_supabase"."variant_price"(v_item.variant, v_currency, null, null) ->> 'amount')::bigint end);
     if v_unit is null then
       raise exception 'a line has no unitAmount and its variant no price in this currency' using errcode = '22023', hint = 'ORDERS_LINE_UNPRICED';
     end if;
-    if coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0) > v_unit * v_item.quantity::bigint then
+    v_disc := coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end,
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > v_unit * v_item.quantity::bigint then
       raise exception 'a line''s discount is more than its subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
       'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
-      'discount', coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0)::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0))::text,
+      'discount', v_disc::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
+      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
       'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
     v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
-    v_discount := v_discount + coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0);
+    v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0);
   end loop;
   return "app_private"."order_from_document"(order_from_lines.tenant, v_attrs || jsonb_build_object(
@@ -7684,7 +7702,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:493e2adbe0d0a43246ced16e02c25bd03e09c7772109e0924de8b55186f3ba3c
+-- @bsb-hash sha256:50c213b97071ec79652a28bd0ea9c60c047194c99bc2c54bf6ab870cbdd43bf0
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9166,6 +9184,8 @@ declare
   v_item record;
   v_lines jsonb := '[]';
   v_unit bigint;
+  v_rule jsonb;
+  v_disc bigint;
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
@@ -9203,23 +9223,27 @@ begin
       or (v_item.raw ? 'tax' and case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end is null) then
       raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
-    v_unit := coalesce(case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end,
+    v_rule := null;
+    
+    v_unit := coalesce(case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end, (v_rule ->> 'fixedPrice')::bigint,
       case when v_item.variant is not null then ("better_supabase"."variant_price"(v_item.variant, v_currency, null, null) ->> 'amount')::bigint end);
     if v_unit is null then
       raise exception 'a line has no unitAmount and its variant no price in this currency' using errcode = '22023', hint = 'ORDERS_LINE_UNPRICED';
     end if;
-    if coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0) > v_unit * v_item.quantity::bigint then
+    v_disc := coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end,
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > v_unit * v_item.quantity::bigint then
       raise exception 'a line''s discount is more than its subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
       'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
-      'discount', coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0)::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0))::text,
+      'discount', v_disc::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
+      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
       'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
     v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
-    v_discount := v_discount + coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0);
+    v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0);
   end loop;
   return "better_supabase"."order_from_document"(order_from_lines.tenant, v_attrs || jsonb_build_object(
@@ -10463,7 +10487,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:62d5d2e3ef634aa725b6518e5bdcb7853cfea0491b1840e54c033ae6c706dd21
+-- @bsb-hash sha256:74c118a3e4cdab3f1e45f92e1bbda4b9d9d7d44d3c56378c68cc3cc8a141dbe3
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11936,6 +11960,8 @@ declare
   v_item record;
   v_lines jsonb := '[]';
   v_unit bigint;
+  v_rule jsonb;
+  v_disc bigint;
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
@@ -11973,23 +11999,27 @@ begin
       or (v_item.raw ? 'tax' and case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end is null) then
       raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
-    v_unit := coalesce(case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end,
+    v_rule := null;
+    
+    v_unit := coalesce(case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end, (v_rule ->> 'fixedPrice')::bigint,
       case when v_item.variant is not null then ("better_supabase"."variant_price"(v_item.variant, v_currency, null, null) ->> 'amount')::bigint end);
     if v_unit is null then
       raise exception 'a line has no unitAmount and its variant no price in this currency' using errcode = '22023', hint = 'ORDERS_LINE_UNPRICED';
     end if;
-    if coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0) > v_unit * v_item.quantity::bigint then
+    v_disc := coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end,
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > v_unit * v_item.quantity::bigint then
       raise exception 'a line''s discount is more than its subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
       'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
-      'discount', coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0)::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0))::text,
+      'discount', v_disc::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
+      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
       'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
     v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
-    v_discount := v_discount + coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0);
+    v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0);
   end loop;
   return "better_supabase"."order_from_document"(order_from_lines.tenant, v_attrs || jsonb_build_object(
@@ -12939,7 +12969,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:9da393cd1034beac4d0cdf407411f72e83bb2f668dbdd745166309492550e733
+-- @bsb-hash sha256:ce21e60efd886aa344d92b387815b4cd0b0de922d163be5a79ee3070e3af2e53
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14421,6 +14451,8 @@ declare
   v_item record;
   v_lines jsonb := '[]';
   v_unit bigint;
+  v_rule jsonb;
+  v_disc bigint;
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
@@ -14458,23 +14490,27 @@ begin
       or (v_item.raw ? 'tax' and case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end is null) then
       raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
-    v_unit := coalesce(case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end,
+    v_rule := null;
+    
+    v_unit := coalesce(case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end, (v_rule ->> 'fixedPrice')::bigint,
       case when v_item.variant is not null then ("better_supabase"."variant_price"(v_item.variant, v_currency, null, null) ->> 'amount')::bigint end);
     if v_unit is null then
       raise exception 'a line has no unitAmount and its variant no price in this currency' using errcode = '22023', hint = 'ORDERS_LINE_UNPRICED';
     end if;
-    if coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0) > v_unit * v_item.quantity::bigint then
+    v_disc := coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end,
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > v_unit * v_item.quantity::bigint then
       raise exception 'a line''s discount is more than its subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
       'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
-      'discount', coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0)::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0))::text,
+      'discount', v_disc::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
+      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
       'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
     v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
-    v_discount := v_discount + coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0);
+    v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0);
   end loop;
   return "better_supabase"."order_from_document"(order_from_lines.tenant, v_attrs || jsonb_build_object(

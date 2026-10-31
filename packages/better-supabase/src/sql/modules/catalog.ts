@@ -26,6 +26,14 @@ import {
   channelTables,
 } from "./catalog-channels.ts";
 import {
+  discountColumns,
+  catalogImportTargets,
+  DISCOUNT_ENTITIES,
+  discountContract,
+  discountFunctions,
+  discountTables,
+} from "./catalog-discounts.ts";
+import {
   SLUG,
   categoryExtras,
   optionFunctions,
@@ -46,7 +54,6 @@ import {
   supplyColumns,
   supplyContract,
   supplyFunctions,
-  supplyImportTargets,
   supplyTables,
 } from "./catalog-supply.ts";
 import { variantStatusFunction } from "./catalog-variant-status.ts";
@@ -212,6 +219,7 @@ const NAMES: BlockSqlNames = {
         barcode: "barcode",
         weight: "weight_grams",
         tradeCode: "trade_code",
+        discountGroup: "discount_group_id",
         trackInventory: "track_inventory",
         allowBackorder: "allow_backorder",
         rank: "rank",
@@ -225,6 +233,7 @@ const NAMES: BlockSqlNames = {
         "barcode",
         "weight",
         "tradeCode",
+        "discountGroup",
         "trackInventory",
         "price",
         "status",
@@ -475,6 +484,7 @@ const NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
       },
     },
+    ...DISCOUNT_ENTITIES,
   },
   migrations: [
     {
@@ -698,7 +708,7 @@ create table if not exists ${t("storefronts")} (
 );
 ${lockTable(t("storefronts"), { read: true })}
 ${read("storefronts")}
-${channelTables(ctx, names)}${supplyTables(ctx, names)}
+${channelTables(ctx, names)}${supplyTables(ctx, names)}${discountTables(ctx, names)}
 `;
 }
 
@@ -817,7 +827,7 @@ function build(ctx: BlockSqlContext): string {
 -- categories, collections, price lists, sales channels, translations,
 -- product media and an optional public storefront.
 ${currencyMinorUnitsFunction(names.fn("currency_minor_units"))}
-${tables(ctx, names)}${supplyColumns(ctx)}${productFunctions(ctx, names)}${variantStatusFunction(ctx, names)}${optionFunctions(ctx, names)}${priceFunctions(ctx, names)}${categoryFunctions(ctx, names)}${collectionFunctions(ctx, names)}${storefrontFunctions(ctx, names)}${channelModuleFunctions(ctx, names)}${supplyFunctions(ctx, names)}
+${tables(ctx, names)}${supplyColumns(ctx)}${discountColumns(ctx)}${productFunctions(ctx, names)}${variantStatusFunction(ctx, names)}${optionFunctions(ctx, names)}${priceFunctions(ctx, names)}${categoryFunctions(ctx, names)}${collectionFunctions(ctx, names)}${storefrontFunctions(ctx, names)}${channelModuleFunctions(ctx, names)}${supplyFunctions(ctx, names)}${discountFunctions(ctx, names)}
 ${ctx.hasTable("storefronts") ? storefrontPolicies(ctx, names) : ""}
 `;
 }
@@ -985,6 +995,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       : []),
     ...channelContract(ctx),
     ...supplyContract(ctx),
+    ...discountContract(ctx),
   ];
 }
 
@@ -999,7 +1010,7 @@ export const CATALOG: BlockSqlDefinition = {
   integrates: ["outbox", "state-machine", "inventory", "attachments"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   names: NAMES,
   upgrades: [
     {
@@ -1014,8 +1025,14 @@ export const CATALOG: BlockSqlDefinition = {
         "Product identifiers, product relations, supplier items with per-supplier column mappings, a trade code on variants, and import targets for supplier items and identifiers.",
       sql: () => "",
     },
+    {
+      from: 5,
+      description:
+        "Discount groups for customers and products, a discount matrix with validity dates, quantity breaks and fixed prices, resolve_line_discount, a discount group on variants, and import targets for groups and rules.",
+      sql: () => "",
+    },
   ],
-  contributes: { imports: supplyImportTargets },
+  contributes: { imports: catalogImportTargets },
   contract,
   build,
 };

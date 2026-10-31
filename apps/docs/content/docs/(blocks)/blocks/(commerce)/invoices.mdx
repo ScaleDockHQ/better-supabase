@@ -463,6 +463,10 @@ open sales invoices to a collection agency. It needs `invoices.collect`, sets
 `INVOICE_HAND_OVER_INVALID`, `INVOICE_ALREADY_HANDED_OVER` or
 `INVOICE_NOT_PAYABLE`.
 
+## Discount matrix
+
+With `options.discountMatrix: true` and the [catalog](/docs/blocks/catalog) block installed, `set_invoice_lines` prices each line that names a catalog variant through the [discount matrix](/docs/blocks/catalog#discount-groups-and-the-matrix) for the invoice's company (else its contact) on the day the lines are set. A line without a `discountBps` takes the rule's discount, and a line without a `unitAmount` takes the rule's fixed price. Values on the line win. The option is off by default.
+
 ## Recurring invoices
 
 A recurring invoice is a [template schedule](/docs/blocks/templates#schedules):

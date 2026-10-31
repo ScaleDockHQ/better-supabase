@@ -815,7 +815,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:539bcfa682a2a8256d90e2953f2866497ac9470beab8d68b90f87b76ca9ddf59
+-- @bsb-hash sha256:5136c4ae51771b9957e69b2e67dbfd31a71429de74ba7140b1e1f961f0095538
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1190,7 +1190,7 @@ declare
   v_hint text;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'order', 'payment_term', 'document_delivery_preference', 'quote', 'invoice', 'credit_note', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'document_template', 'document_text_block']::text[]) then
+  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'discount_group', 'discount_rule', 'stock_count', 'order', 'payment_term', 'document_delivery_preference', 'quote', 'invoice', 'credit_note', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'document_template', 'document_text_block']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -1256,6 +1256,12 @@ begin
           v_current := "better_supabase"."supplier_item_updated_at"(v_rec."subject_id");
         when 'product_identifier' then
           v_current := "better_supabase"."product_identifier_updated_at"(v_rec."subject_id");
+        when 'discount_group' then
+          v_current := "better_supabase"."discount_group_updated_at"(v_rec."subject_id");
+        when 'discount_rule' then
+          v_current := "better_supabase"."discount_rule_updated_at"(v_rec."subject_id");
+        when 'stock_count' then
+          v_current := "better_supabase"."stock_count_updated_at"(v_rec."subject_id");
         when 'order' then
           v_current := "better_supabase"."order_updated_at"(v_rec."subject_id");
         when 'payment_term' then
@@ -1303,6 +1309,15 @@ begin
       when 'product_identifier' then
         v_subject_type := 'product_identifier';
         v_out := "better_supabase"."import_product_identifier"(v_run_id, v_call, v_subject_id);
+      when 'discount_group' then
+        v_subject_type := 'discount_group';
+        v_out := "better_supabase"."import_discount_group"(v_run_id, v_call, v_subject_id);
+      when 'discount_rule' then
+        v_subject_type := 'discount_rule';
+        v_out := "better_supabase"."import_discount_rule"(v_run_id, v_call, v_subject_id);
+      when 'stock_count' then
+        v_subject_type := 'stock_count';
+        v_out := "better_supabase"."import_stock_count"(v_run_id, v_call, v_subject_id);
       when 'order' then
         v_subject_type := 'order';
         v_out := "better_supabase"."import_order"(v_run_id, v_call, v_subject_id);

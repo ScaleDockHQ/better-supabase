@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
--- @bsb-block shipments@2 managed
+-- @bsb-block shipments@3 managed
 -- @bsb-hash sha256:a8752e79916f1392bb990db12e32024e4153ad8540dc7f82648d2f0097188fc7
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -745,21 +745,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block-data shipments
--- @bsb-hash sha256:00b866bfbfdf49e28afaca776e11cb39cfb66b84a94438dfed6465486f196d59
+-- @bsb-hash sha256:11114c45bc76d3e4028398e28ee2c2a1d6e35189ca63081e232f2d14217adcd7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('shipments', 2, 'managed')
+values ('shipments', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
--- @bsb-block shipments@2 managed
--- @bsb-hash sha256:1a052d71844473f480558bec06813d570e8af30b74fb355da815a4c0fda35595
+-- @bsb-block shipments@3 managed
+-- @bsb-hash sha256:f8899dabced807ff28f9b61baa0f0d50c3ba4a7dd37911557129338e53fc096e
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -849,6 +849,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipment_lines";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipment_lines";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."intrastat_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."intrastat_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."intrastat_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."intrastat_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."intrastat_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -994,6 +1002,38 @@ grant select on "better_supabase"."shipment_lines" to authenticated;
 grant all on "better_supabase"."shipment_lines" to service_role;
 drop policy if exists "shipment_lines_read" on "better_supabase"."shipment_lines";
 create policy shipment_lines_read on "better_supabase"."shipment_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
+
+-- One line of the monthly Intrastat declaration. A shipment line that leaves for
+-- or comes back from another member state is derived into a line by
+-- prepare_intrastat; a line of another source (a purchase receipt) is saved by
+-- hand and stays when the month is prepared again.
+create table if not exists "better_supabase"."intrastat_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "period" date not null check ("period" = date_trunc('month', "period")::date),
+  "flow" text not null check ("flow" in ('arrival', 'dispatch')),
+  "source" text not null default 'shipment' check ("source" in ('shipment', 'manual')),
+  "shipment_line_id" uuid unique references "better_supabase"."shipment_lines" ("id") on delete cascade,
+  "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete set null,
+  "trade_code" text check ("trade_code" is null or "trade_code" ~ '^[0-9]{4,10}$'),
+  "country" char(2) check ("country" is null or "country" ~ '^[A-Z]{2}$'),
+  "net_mass_kg" numeric(20, 3) check ("net_mass_kg" is null or "net_mass_kg" >= 0),
+  "quantity" numeric(20, 6) check ("quantity" is null or "quantity" > 0),
+  "value" bigint check ("value" is null or "value" >= 0),
+  "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists "intrastat_lines_period_idx" on "better_supabase"."intrastat_lines" ("tenant_id", "period");
+create index if not exists "intrastat_lines_variant_idx" on "better_supabase"."intrastat_lines" ("variant_id") where "variant_id" is not null;
+alter table "better_supabase"."intrastat_lines" enable row level security;
+revoke all on "better_supabase"."intrastat_lines" from public, anon, authenticated;
+grant select on "better_supabase"."intrastat_lines" to authenticated;
+grant all on "better_supabase"."intrastat_lines" to service_role;
+drop policy if exists "intrastat_lines_read" on "better_supabase"."intrastat_lines";
+create policy intrastat_lines_read on "better_supabase"."intrastat_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 
@@ -1618,6 +1658,163 @@ $$;
 revoke execute on function "better_supabase"."receive_shipment_return"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."receive_shipment_return"(uuid, jsonb) to authenticated, service_role;
 
+-- Derives the Intrastat lines of a month (period is any date in it) from the
+-- shipment lines moved in it, and lists them with their exceptions. An outbound
+-- line to another member state is a dispatch and a return line from one an
+-- arrival; the partner country is the shipment's destination, and the shipment's
+-- own country (its from address) is left out. Trade code and net mass come from
+-- the variant (mass is its weight times the quantity), value from the line's
+-- detail or, in a known currency, the variant's price; a line's detail can
+-- carry netMassKg, value and currency instead. A line that lacks a trade code,
+-- a country, a net mass or a value is an exception. Preparing again replaces the
+-- derived lines of the month and keeps the manual ones. Returns { period,
+-- lines, exceptions }.
+create or replace function "better_supabase"."prepare_intrastat"(tenant uuid, period date)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_start date := date_trunc('month', prepare_intrastat.period)::date;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', prepare_intrastat.tenant, 'shipments.manage'), false)) then
+    raise exception 'not allowed to manage shipments' using errcode = '42501', hint = 'SHIPMENT_FORBIDDEN';
+  end if;
+  if prepare_intrastat.period is null then
+    raise exception 'name the month to prepare' using errcode = '22023', hint = 'SHIPMENT_INTRASTAT_INVALID';
+  end if;
+  delete from "better_supabase"."intrastat_lines" x where x."tenant_id" = prepare_intrastat.tenant and x."period" = v_start and x."source" = 'shipment';
+  insert into "better_supabase"."intrastat_lines" ("tenant_id", "period", "flow", "source", "shipment_line_id", "variant_id", "trade_code", "country", "net_mass_kg", "quantity", "value", "currency")
+  select s.tenant, v_start, s.flow, 'shipment', s.line, s.variant, s.trade_code, s.partner, s.net_mass, s.quantity, s.value, s.currency
+  from (
+    select sl."tenant_id" as tenant, sl."id" as line, sl."variant_id" as variant, sl."quantity" as quantity,
+      case when sl."direction" = 'return' then 'arrival' else 'dispatch' end as flow,
+      upper(sh."to_address" ->> 'country') as partner,
+      upper(sh."from_address" ->> 'country') as own,
+      cv."trade_code" as trade_code,
+      coalesce(nullif(sl."detail" ->> 'netMassKg', '')::numeric, case when cv."weight_grams" is not null then round(cv."weight_grams"::numeric * sl."quantity" / 1000, 3) end) as net_mass,
+      coalesce(nullif(sl."detail" ->> 'currency', ''), sh."currency") as currency,
+      coalesce(nullif(sl."detail" ->> 'value', '')::bigint, (select round(("better_supabase"."variant_price"(sl."variant_id", coalesce(nullif(sl."detail" ->> 'currency', ''), sh."currency"), null, null) ->> 'amount')::numeric * sl."quantity")::bigint
+        where coalesce(nullif(sl."detail" ->> 'currency', ''), sh."currency") is not null)) as value
+    from "better_supabase"."shipment_lines" sl
+    join "better_supabase"."shipments" sh on sh."id" = sl."shipment_id"
+    left join "better_supabase"."product_variants" cv on cv."id" = sl."variant_id"
+    where sl."tenant_id" = prepare_intrastat.tenant and sl."moved_at" is not null and sh."cancelled_at" is null
+      and sl."moved_at" >= v_start::timestamptz and sl."moved_at" < (v_start + interval '1 month')::timestamptz
+  ) s
+  where s.partner = any (array['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE']) and s.partner is distinct from s.own;
+  return jsonb_build_object(
+    'period', v_start,
+    'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'period', x."period", 'flow', x."flow", 'source', x."source",
+      'shipmentLineId', x."shipment_line_id", 'variantId', x."variant_id", 'tradeCode', x."trade_code", 'country', x."country",
+      'netMassKg', x."net_mass_kg"::text, 'quantity', x."quantity"::text, 'value', x."value"::text, 'currency', x."currency") order by x."flow", x."trade_code" nulls first, x."created_at", x."id"), '[]'::jsonb) from "better_supabase"."intrastat_lines" x
+      where x."tenant_id" = prepare_intrastat.tenant and x."period" = v_start),
+    'exceptions', (select coalesce(jsonb_agg(jsonb_build_object('lineId', e.id, 'shipmentLineId', e.shipment_line, 'variantId', e.variant, 'code', e.code) order by e.code, e.id), '[]'::jsonb)
+      from (
+        select x."id" as id, x."shipment_line_id" as shipment_line, x."variant_id" as variant, c.code
+        from "better_supabase"."intrastat_lines" x
+        cross join lateral (values
+          ('INTRASTAT_TRADE_CODE_MISSING', x."trade_code" is null),
+          ('INTRASTAT_COUNTRY_MISSING', x."country" is null),
+          ('INTRASTAT_NET_MASS_MISSING', x."net_mass_kg" is null or x."net_mass_kg" = 0),
+          ('INTRASTAT_VALUE_MISSING', x."value" is null)
+        ) c (code, failed)
+        where x."tenant_id" = prepare_intrastat.tenant and x."period" = v_start and c.failed
+      ) e)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."prepare_intrastat"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."prepare_intrastat"(uuid, date) to authenticated, service_role;
+
+-- Saves a line the shipments don't derive, such as a purchase receipt (line
+-- null creates one). attrs: { period, flow, country, tradeCode?, netMassKg?,
+-- quantity?, value? (minor units as text), currency?, variantId? }. Returns the
+-- line's id and whether it was created.
+create or replace function "better_supabase"."save_intrastat_line"(tenant uuid, line uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_attrs jsonb := coalesce(save_intrastat_line.attrs, '{}'::jsonb);
+  v_period date;
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_intrastat_line.tenant, 'shipments.manage'), false)) then
+    raise exception 'not allowed to manage shipments' using errcode = '42501', hint = 'SHIPMENT_FORBIDDEN';
+  end if;
+  begin
+    v_period := date_trunc('month', (v_attrs ->> 'period')::date)::date;
+    perform (v_attrs ->> 'netMassKg')::numeric, (v_attrs ->> 'quantity')::numeric, (v_attrs ->> 'value')::bigint, (v_attrs ->> 'variantId')::uuid;
+  exception when invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
+    raise exception 'period is a date and the amounts and variantId are numbers and a uuid' using errcode = '22023', hint = 'SHIPMENT_INTRASTAT_INVALID';
+  end;
+  if v_period is null or v_attrs ->> 'flow' is null or v_attrs ->> 'flow' not in ('arrival', 'dispatch')
+    or coalesce(v_attrs ->> 'country', '') !~ '^[A-Z]{2}$' or not (v_attrs ->> 'country') = any (array['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE']) then
+    raise exception 'a line needs a period, a flow (arrival or dispatch) and the country of a member state' using errcode = '22023', hint = 'SHIPMENT_INTRASTAT_INVALID';
+  end if;
+  if (v_attrs ->> 'variantId') is not null and not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (v_attrs ->> 'variantId')::uuid and cv."tenant_id" = save_intrastat_line.tenant) then
+    raise exception 'the variant isn''t in this organization' using errcode = 'P0002', hint = 'SHIPMENT_INTRASTAT_INVALID';
+  end if;
+  if save_intrastat_line.line is null then
+    insert into "better_supabase"."intrastat_lines" as x ("tenant_id", "period", "flow", "source", "variant_id", "trade_code", "country", "net_mass_kg", "quantity", "value", "currency")
+    values (save_intrastat_line.tenant, v_period, v_attrs ->> 'flow', 'manual', nullif(v_attrs ->> 'variantId', '')::uuid, nullif(v_attrs ->> 'tradeCode', ''), v_attrs ->> 'country',
+      (v_attrs ->> 'netMassKg')::numeric, (v_attrs ->> 'quantity')::numeric, (v_attrs ->> 'value')::bigint, nullif(v_attrs ->> 'currency', ''))
+    returning x."id" into v_id;
+    return jsonb_build_object('id', v_id, 'created', true);
+  end if;
+  update "better_supabase"."intrastat_lines" x set "period" = v_period, "flow" = v_attrs ->> 'flow', "variant_id" = nullif(v_attrs ->> 'variantId', '')::uuid, "trade_code" = nullif(v_attrs ->> 'tradeCode', ''),
+    "country" = v_attrs ->> 'country', "net_mass_kg" = (v_attrs ->> 'netMassKg')::numeric, "quantity" = (v_attrs ->> 'quantity')::numeric,
+    "value" = (v_attrs ->> 'value')::bigint, "currency" = nullif(v_attrs ->> 'currency', ''), "updated_at" = now()
+  where x."id" = save_intrastat_line.line and x."tenant_id" = save_intrastat_line.tenant and x."source" = 'manual'
+  returning x."id" into v_id;
+  if v_id is null then
+    raise exception 'a manual Intrastat line of this organization wasn''t found' using errcode = 'P0002', hint = 'SHIPMENT_INTRASTAT_NOT_FOUND';
+  end if;
+  return jsonb_build_object('id', v_id, 'created', false);
+end;
+$$;
+revoke execute on function "better_supabase"."save_intrastat_line"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_intrastat_line"(uuid, uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a manual line; derived lines come from the shipments.
+create or replace function "better_supabase"."delete_intrastat_line"(line uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."intrastat_lines" x where x."id" = delete_intrastat_line.line and x."source" = 'manual';
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'shipments.manage'), false)) then
+    raise exception 'not allowed to manage shipments' using errcode = '42501', hint = 'SHIPMENT_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."intrastat_lines" x where x."id" = delete_intrastat_line.line;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_intrastat_line"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_intrastat_line"(uuid) to authenticated, service_role;
+
 -- A shipment's tracking timeline, oldest first.
 create or replace function "better_supabase"."list_tracking_events"(shipment_id uuid)
 returns jsonb
@@ -1743,6 +1940,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_lin
 create policy bsb_tenant_scope_delete on "better_supabase"."shipment_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."intrastat_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."intrastat_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."intrastat_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."intrastat_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."intrastat_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."intrastat_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."intrastat_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."intrastat_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."intrastat_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1760,20 +1978,20 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block-data shipments
--- @bsb-hash sha256:00b866bfbfdf49e28afaca776e11cb39cfb66b84a94438dfed6465486f196d59
+-- @bsb-hash sha256:11114c45bc76d3e4028398e28ee2c2a1d6e35189ca63081e232f2d14217adcd7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('shipments', 2, 'managed')
+values ('shipments', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
--- @bsb-block shipments@2 managed
+-- @bsb-block shipments@3 managed
 -- @bsb-hash sha256:30ed75ca65546fb5a522e74c566da5a2e157c9881214f5b7c5ee7c9864ba0078
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2523,20 +2741,20 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block-data shipments
--- @bsb-hash sha256:00b866bfbfdf49e28afaca776e11cb39cfb66b84a94438dfed6465486f196d59
+-- @bsb-hash sha256:11114c45bc76d3e4028398e28ee2c2a1d6e35189ca63081e232f2d14217adcd7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('shipments', 2, 'managed')
+values ('shipments', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
--- @bsb-block shipments@2 managed
+-- @bsb-block shipments@3 managed
 -- @bsb-hash sha256:0b635189e3dc149b825312a215bfa784669a71c2c536d1e054dd74cec673c8be
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3395,20 +3613,20 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block-data shipments
--- @bsb-hash sha256:00b866bfbfdf49e28afaca776e11cb39cfb66b84a94438dfed6465486f196d59
+-- @bsb-hash sha256:11114c45bc76d3e4028398e28ee2c2a1d6e35189ca63081e232f2d14217adcd7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('shipments', 2, 'managed')
+values ('shipments', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
--- @bsb-block shipments@2 managed
+-- @bsb-block shipments@3 managed
 -- @bsb-hash sha256:e6c40920261eac2d79da80f9ea8a83b15cb60266100309283e0a4369c49e9457
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4155,20 +4373,20 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block-data shipments
--- @bsb-hash sha256:00b866bfbfdf49e28afaca776e11cb39cfb66b84a94438dfed6465486f196d59
+-- @bsb-hash sha256:11114c45bc76d3e4028398e28ee2c2a1d6e35189ca63081e232f2d14217adcd7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('shipments', 2, 'managed')
+values ('shipments', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
--- @bsb-block shipments@2 managed
+-- @bsb-block shipments@3 managed
 -- @bsb-hash sha256:1bf0aeda03309b7b16a80d8ae9e6500fd272ea1f4b362cac14f5b4e830bed753
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4913,13 +5131,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block-data shipments
--- @bsb-hash sha256:00b866bfbfdf49e28afaca776e11cb39cfb66b84a94438dfed6465486f196d59
+-- @bsb-hash sha256:11114c45bc76d3e4028398e28ee2c2a1d6e35189ca63081e232f2d14217adcd7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('shipments', 2, 'managed')
+values ('shipments', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

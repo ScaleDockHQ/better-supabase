@@ -226,6 +226,8 @@ declare
   v_item record;
   v_lines jsonb := '[]';
   v_unit bigint;
+  v_rule jsonb;
+  v_disc bigint;
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
@@ -261,23 +263,33 @@ begin
       or (v_item.raw ? 'tax' and ${amount("v_item.raw ->> 'tax'")} is null) then
       ${fail("ORDERS_AMOUNT_INVALID", "amounts are minor units of zero or more", "22023")}
     end if;
-    v_unit := coalesce(${amount("v_item.raw ->> 'unitAmount'")},
+    v_rule := null;
+    ${
+      ctx.flag("discountMatrix", false) && catalog.hasTable("discountRules")
+        ? `if v_item.variant is not null then
+      v_rule := ${catalog.fn("resolve_line_discount")}(order_from_lines.tenant, nullif(v_attrs ->> 'customerId', ''), v_item.variant, v_item.quantity::numeric, current_date, v_currency);
+    end if;`
+        : ""
+    }
+    v_unit := coalesce(${amount("v_item.raw ->> 'unitAmount'")}, (v_rule ->> 'fixedPrice')::bigint,
       case when v_item.variant is not null then (${catalog.fn("variant_price")}(v_item.variant, v_currency, null, null) ->> 'amount')::bigint end);
     if v_unit is null then
       ${fail("ORDERS_LINE_UNPRICED", "a line has no unitAmount and its variant no price in this currency", "22023")}
     end if;
-    if coalesce(${amount("v_item.raw ->> 'discount'")}, 0) > v_unit * v_item.quantity::bigint then
+    v_disc := coalesce(${amount("v_item.raw ->> 'discount'")},
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > v_unit * v_item.quantity::bigint then
       ${fail("ORDERS_AMOUNT_INVALID", "a line's discount is more than its subtotal", "22023")}
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
       'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
-      'discount', coalesce(${amount("v_item.raw ->> 'discount'")}, 0)::text, 'tax', coalesce(${amount("v_item.raw ->> 'tax'")}, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - coalesce(${amount("v_item.raw ->> 'discount'")}, 0))::text,
+      'discount', v_disc::text, 'tax', coalesce(${amount("v_item.raw ->> 'tax'")}, 0)::text,
+      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
       'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
     v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
-    v_discount := v_discount + coalesce(${amount("v_item.raw ->> 'discount'")}, 0);
+    v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(${amount("v_item.raw ->> 'tax'")}, 0);
   end loop;
   return ${fn("order_from_document")}(order_from_lines.tenant, v_attrs || jsonb_build_object(

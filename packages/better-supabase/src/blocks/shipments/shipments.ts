@@ -17,6 +17,7 @@ import type {
   ShipmentParcel,
   ShipmentRate,
 } from "./carrier.ts";
+import type { ShipmentsIntrastat } from "./intrastat.ts";
 import type {
   ShipmentLine,
   ShipmentLineInput,
@@ -50,6 +51,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { shipmentCarrierOf } from "./carrier.ts";
+import { shipmentsIntrastat } from "./intrastat.ts";
 import { lineOf, linesArg, returnsArg } from "./lines.ts";
 import {
   LABEL_FORMATS,
@@ -186,7 +188,9 @@ export interface TrackingIngested {
  * Shipments with packages, carrier labels and a tracking timeline. `F` is the
  * extra fields `options.fields` describes.
  */
-export interface Shipments<F extends object = Record<never, never>> {
+export interface Shipments<
+  F extends object = Record<never, never>,
+> extends ShipmentsIntrastat {
   /** Creates a draft shipment in the block's tenant. */
   create(input: ShipmentInput<F>): AsyncResult<Shipment<F>>;
   /** `null` when it doesn't exist or the caller can't read it. */
@@ -465,6 +469,7 @@ export function createShipments<
     );
 
   const client: Shipments<F> = {
+    ...shipmentsIntrastat(call, tenant),
     create: (input) =>
       tenant().andThen((organizationId) =>
         fields

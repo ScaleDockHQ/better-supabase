@@ -147,6 +147,7 @@ const NAMES: BlockSqlNames = {
     "depositKind",
     "depositLine",
     "quoteLineValues",
+    "discountMatrix",
     "purchasePrefix",
     "purchaseCreditPrefix",
     "matchTolerance",
@@ -728,6 +729,7 @@ export const INVOICES: BlockSqlDefinition = {
   integrates: [
     "outbox",
     "audit",
+    "catalog",
     "notifications",
     "numbering",
     "legal-entities",

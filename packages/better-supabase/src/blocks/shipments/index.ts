@@ -13,6 +13,17 @@ export {
 } from "./shipments.ts";
 
 export {
+  INTRASTAT_FLOWS,
+  shipmentsIntrastat,
+  type IntrastatException,
+  type IntrastatFlow,
+  type IntrastatLine,
+  type ManualIntrastatLine,
+  type PreparedIntrastat,
+  type ShipmentsIntrastat,
+} from "./intrastat.ts";
+
+export {
   flatRateCarrier,
   invalidShipmentRequest,
   shipmentCarrierOf,

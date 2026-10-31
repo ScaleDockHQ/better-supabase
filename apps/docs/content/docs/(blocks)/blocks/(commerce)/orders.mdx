@@ -289,6 +289,10 @@ without one, so edit the draft before placing it. Saving the draft needs
 `inventory.purchase`, and a blocked supplier fails with
 `PURCHASE_ORDER_SUPPLIER_BLOCKED`.
 
+## Discount matrix
+
+With `options.discountMatrix: true` and the [catalog](/docs/blocks/catalog) block installed, an order made from lines (`order_from_lines`) prices each line that names a catalog variant through the [discount matrix](/docs/blocks/catalog#discount-groups-and-the-matrix) for `attrs.customerId`. A line without a `discount` takes the rule's discount on its subtotal, and a line without a `unitAmount` takes the rule's fixed price before the catalog price. Values on the line win. The option is off by default.
+
 ## Kitchen
 
 With `options.kitchen`, each order line gets a preparation state at a

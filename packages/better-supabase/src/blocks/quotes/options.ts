@@ -59,6 +59,13 @@ export type QuotesSqlOptions = {
    * and when an order is made from it. Needs the inventory block.
    */
   readonly holds?: boolean;
+  /**
+   * Catalog variant lines without a `discountBps` or `unitAmount` take the
+   * discount matrix's rule for the customer and quantity: its discount and its
+   * fixed price (catalog `resolve_line_discount`). Needs the catalog block.
+   * Default `false`, so lines price as before.
+   */
+  readonly discountMatrix?: boolean;
 };
 
 export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
@@ -77,4 +84,5 @@ export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
     resend: option.boolean({ default: false }),
     notifications: option.boolean({ default: true }),
     holds: option.boolean({ default: false }),
+    discountMatrix: option.boolean({ default: false }),
   });

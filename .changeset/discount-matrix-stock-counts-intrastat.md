@@ -1,0 +1,5 @@
+---
+"better-supabase": minor
+---
+
+The `catalog` block now keeps discount groups for customers and products and a matrix of rules between them, with a validity window, a quantity break, a discount in basis points and an optional fixed price. `resolveLineDiscount` returns the most specific rule for a customer, variant, quantity and date. The new `options.discountMatrix` of `quotes`, `orders` and `invoices` prices catalog lines through it; it is off by default, so existing documents price as before. The `inventory` block gains stock count documents (`openStockCount`, `recordCountLine`, `postStockCount`, `cancelStockCount`) that post adjustment movements once, and `shipments` gains `intrastat_lines` with `prepareIntrastat`, which derives arrival and dispatch lines and lists the ones that miss a trade code, country, net mass or value. The catalog and inventory contribute `discount_group`, `discount_rule` and `stock_count` import targets. Existing installations get the new tables from `better-supabase upgrade`; `catalog` moves to version 6, `inventory` to 5 and `shipments` to 3.

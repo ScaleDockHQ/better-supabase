@@ -160,3 +160,34 @@ export function createTerms(ctx: BlockSqlContext): CreateTerms {
     days: (fallback) => termsDays(ctx, fallback),
   };
 }
+
+/**
+ * The `discountMatrix` option of the invoice line setter: it prices catalog
+ * lines for the invoice's company, else its contact, on the day the lines are
+ * set. Empty while the block option is off.
+ */
+export function lineMatrix(
+  ctx: BlockSqlContext,
+  t: (table: string) => string,
+  i: (column: string) => string,
+  has: (column: string) => boolean,
+): {
+  readonly discountMatrix?: { readonly party: string; readonly on: string };
+} {
+  if (!ctx.flag("discountMatrix", false)) {
+    return {};
+  }
+
+  const parties =
+    ["companyId", "contactId"]
+      .filter((column) => has(column))
+      .map((column) => `x.${i(column)}`)
+      .join(", ") || "null";
+
+  return {
+    discountMatrix: {
+      party: `(select coalesce(${parties}) from ${t("invoices")} x where x.${i("id")} = v_parent)`,
+      on: "current_date",
+    },
+  };
+}
