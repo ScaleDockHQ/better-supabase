@@ -743,6 +743,7 @@ overrides:
   shell-quote: '>=1.11.0'
   launch-editor: '>=2.14.2'
   systeminformation: '>=5.33.16'
+  node-forge: '>=1.4.2'
   shadcn>@modelcontextprotocol/sdk: '>=1.31.0'
   xcode>uuid: 11.1.1
   devalue@<5.9.3: ^5.9.3
