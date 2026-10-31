@@ -17,6 +17,11 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { inventoryAccountingSources } from "./inventory-accounting.ts";
 import {
+  addressColumn,
+  addressContract,
+  addressFunctions,
+} from "./inventory-address.ts";
+import {
   ALLOCATION_TABLES,
   allocationFunctions,
   allocationTable,
@@ -192,9 +197,11 @@ const NAMES: BlockSqlNames = {
         name: "name",
         kind: "kind",
         active: "active",
+        address: "address",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["address"],
     },
     levels: {
       name: "stock_levels",
@@ -566,7 +573,7 @@ function build(ctx: BlockSqlContext): string {
 -- weighted average cost, reservations with expiry, allocations with
 -- backorders, transfers, purchase requisitions and purchase orders with
 -- receiving into goods receipts.
-${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${locationFunctions(ctx, names)}${stockFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${requisitionFunctions(ctx, names)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
+${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${addressColumn(ctx)}${locationFunctions(ctx, names)}${addressFunctions(ctx, names)}${stockFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${requisitionFunctions(ctx, names)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -576,6 +583,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ctx.hasTable("purchaseOrders") && ctx.hasTable("purchaseOrderLines");
 
   return [
+    ...addressContract(ctx),
     {
       name: "save_location",
       args: ["{id}", "uuid", "text", "text", "text", "jsonb"],
@@ -724,7 +732,7 @@ export const INVENTORY: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -736,6 +744,11 @@ export const INVENTORY: BlockSqlDefinition = {
       from: 2,
       description:
         "Quantities become numeric with a unit and scale per variant, posted to the ledger in base units. Adds lots, serial numbers, expiry, bins, weighted average cost and allocations with backorders; stock already on hand stays outside any bin or lot, so no data moves.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description: "Locations gain an address, set with set_location_address.",
       sql: () => "",
     },
   ],

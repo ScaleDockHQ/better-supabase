@@ -206,6 +206,14 @@ describe("inventory block", () => {
         true,
         (i) => i.setLocationActive("l1", false).orThrow(),
       ],
+      [
+        "set_location_address",
+        true,
+        (i) =>
+          i
+            .setLocationAddress("l1", { city: "Amsterdam", country: "NL" })
+            .orThrow(),
+      ],
       ["delete_location", true, (i) => i.deleteLocation("l1").orThrow()],
       [
         "set_reorder_point",

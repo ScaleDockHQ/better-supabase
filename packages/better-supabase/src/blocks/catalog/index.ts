@@ -42,6 +42,31 @@ export {
 } from "./catalog.ts";
 
 export {
+  catalogSupply,
+  IDENTIFIER_TYPES,
+  RELATION_KINDS,
+  type CatalogSupply,
+  type FindByIdentifierOptions,
+  type IdentifierInput,
+  type IdentifierMatch,
+  type IdentifierType,
+  type MappedSupplierItem,
+  type MappingField,
+  type PromotedSupplierItem,
+  type RelationInput,
+  type RelationKind,
+  type SavedIdentifier,
+  type SavedSupplierItem,
+  type SupplierItem,
+  type SupplierItemInput,
+  type SupplierItemMapping,
+  type SupplierItemMappingInput,
+  type SupplierItemSearchOptions,
+  type VariantIdentifier,
+  type VariantRelation,
+} from "./supply.ts";
+
+export {
   extendBlock,
   withBlockHooks,
   wrapTransport,

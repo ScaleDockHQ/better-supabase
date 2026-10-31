@@ -703,4 +703,180 @@ describe("catalog block", () => {
       { fn: "product_media", args: { product: "p1", locale: null } },
     ]);
   });
+
+  it("saves identifiers and finds variants by code", async () => {
+    const { calls, transport } = recorder({ id: "i1", created: true }, [
+      {
+        identifierId: "i1",
+        variantId: "v1",
+        productId: "p1",
+        sku: "MUG",
+        type: "ean",
+        value: "4006381333931",
+        partyId: null,
+      },
+    ]);
+
+    const catalog = createCatalog({ transport });
+
+    expect(
+      await catalog
+        .saveProductIdentifier("org", {
+          variantId: "v1",
+          type: "ean",
+          value: "4006381333931",
+        })
+        .orThrow(),
+    ).toEqual({ id: "i1", created: true });
+    expect(
+      await catalog
+        .findVariantsByIdentifier("org", "4006381333931", { type: "ean" })
+        .orThrow(),
+    ).toEqual([
+      {
+        identifierId: "i1",
+        variantId: "v1",
+        productId: "p1",
+        sku: "MUG",
+        type: "ean",
+        value: "4006381333931",
+        partyId: null,
+      },
+    ]);
+    expect(calls).toEqual([
+      {
+        fn: "save_product_identifier",
+        args: {
+          tenant: "org",
+          variant: "v1",
+          type: "ean",
+          value: "4006381333931",
+          party: null,
+        },
+      },
+      {
+        fn: "find_variants_by_identifier",
+        args: {
+          tenant: "org",
+          value: "4006381333931",
+          type: "ean",
+          party: null,
+        },
+      },
+    ]);
+  });
+
+  it("links variants and follows replacements", async () => {
+    const { calls, transport } = recorder(
+      { created: true },
+      [
+        {
+          kind: "superseded_by",
+          direction: "outgoing",
+          variantId: "v2",
+          sku: "B",
+        },
+      ],
+      "v2",
+    );
+
+    const catalog = createCatalog({ transport });
+
+    await catalog
+      .saveProductRelation("org", {
+        fromVariantId: "v1",
+        toVariantId: "v2",
+        kind: "superseded_by",
+      })
+      .orThrow();
+    expect(await catalog.variantRelations("v1").orThrow()).toEqual([
+      {
+        kind: "superseded_by",
+        direction: "outgoing",
+        variantId: "v2",
+        sku: "B",
+      },
+    ]);
+    expect(await catalog.replacementVariant("v1").orThrow()).toBe("v2");
+    expect(calls.map((call) => call.fn)).toEqual([
+      "save_product_relation",
+      "variant_relations",
+      "replacement_variant",
+    ]);
+    expect(calls[0]?.args).toEqual({
+      tenant: "org",
+      from_variant: "v1",
+      to_variant: "v2",
+      kind: "superseded_by",
+    });
+  });
+
+  it("saves supplier items, maps rows and promotes an item", async () => {
+    const { calls, transport } = recorder(
+      { id: "s1", code: "GV-1" },
+      {
+        code: "GV-1",
+        description: null,
+        price: 1250,
+        currency: "EUR",
+        unit: null,
+        keywords: null,
+      },
+      { productId: "p1", variantId: "v1", created: true },
+    );
+
+    const catalog = createCatalog({ transport });
+
+    await catalog
+      .saveSupplierItem("org", {
+        supplierId: "sup",
+        code: "GV-1",
+        price: 1250n,
+      })
+      .orThrow();
+    expect(
+      (
+        await catalog
+          .mapSupplierRow("org", "sup", { Artikel: "GV-1" })
+          .orThrow()
+      ).price,
+    ).toBe(1250n);
+    expect(
+      await catalog.promoteSupplierItem("s1", { sku: "VALVE" }).orThrow(),
+    ).toEqual({ productId: "p1", variantId: "v1", created: true });
+    expect(calls[0]?.args).toMatchObject({
+      tenant: "org",
+      item: null,
+      supplier: "sup",
+      code: "GV-1",
+      price: "1250",
+    });
+    expect(calls[1]).toEqual({
+      fn: "supplier_item_from_row",
+      args: { tenant: "org", supplier: "sup", source: { Artikel: "GV-1" } },
+    });
+    expect(calls[2]).toEqual({
+      fn: "promote_supplier_item",
+      args: { item: "s1", sku: "VALVE" },
+    });
+  });
+
+  it("sets and clears a variant trade code", async () => {
+    const { calls, transport } = recorder(true);
+
+    const catalog = createCatalog({ transport });
+
+    await catalog.setVariantTradeCode("v1", "8481 80 99").orThrow();
+    await catalog.setVariantTradeCode("v1", null).orThrow();
+    expect(calls).toEqual([
+      {
+        fn: "set_variant_trade_code",
+        args: { variant: "v1", trade_code: "8481 80 99" },
+      },
+      {
+        fn: "set_variant_trade_code",
+        args: { variant: "v1", trade_code: null },
+      },
+    ]);
+  });
 });

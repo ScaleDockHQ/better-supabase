@@ -99,6 +99,7 @@ describe("blocks.<name>.entities in the SQL", () => {
   // JSON payload keys the TypeScript client reads, ledger account keys stored
   // in rows, option defaults and columns another block owns keep their names.
   const CONTRACT: Readonly<Record<string, readonly string[]>> = {
+    catalog: ["'productId'", "'variantId'"],
     announcements: ["'announcement_changed'"],
     automations: ["'rules'", "'rules[]'", '"rules"', "'ruleId'"],
     hiring: ["'interviews[]'", "'interviews'"],

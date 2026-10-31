@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:defc405dfbb78aa02ca895c1fd78d2241e329082e8470ce2a3eae29a7eca14a3
+-- @bsb-hash sha256:e9aae4f4ad01848a0b4d7f5fa95821ec4e61c27f43ee45c95e352873da699629
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -374,7 +374,7 @@ declare
   v_hint text;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array['customer']::text[]) then
+  if v_entity <> all (array['supplier_item', 'product_identifier', 'customer']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -436,6 +436,10 @@ begin
         -- A row a user changed after the last import stays as it is.
         v_current := null;
         case v_entity
+        when 'supplier_item' then
+          v_current := "better_supabase"."supplier_item_updated_at"(v_rec."subject_id");
+        when 'product_identifier' then
+          v_current := "better_supabase"."product_identifier_updated_at"(v_rec."subject_id");
         when 'customer' then
           v_current := "public"."import_customer_updated_at"(v_rec."subject_id");
           else null;
@@ -452,6 +456,12 @@ begin
         v_subject_id := case when v_found then v_rec."subject_id" else null end;
         v_call := v_item || jsonb_build_object('tenant', v_run."tenant_id", 'scope', v_scope);
         case v_entity
+      when 'supplier_item' then
+        v_subject_type := 'supplier_item';
+        v_out := "better_supabase"."import_supplier_item"(v_run_id, v_call, v_subject_id);
+      when 'product_identifier' then
+        v_subject_type := 'product_identifier';
+        v_out := "better_supabase"."import_product_identifier"(v_run_id, v_call, v_subject_id);
       when 'customer' then
         v_subject_type := 'customer';
         v_out := "public"."import_customer"(v_run_id, v_call, v_subject_id);

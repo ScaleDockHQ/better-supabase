@@ -2400,7 +2400,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "state-machine",
         "inventory",
-        "attachments"
+        "attachments",
+        "imports"
       ],
       "manifest": "catalog",
       "scopes": [
@@ -2478,6 +2479,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "title": "title",
               "barcode": "barcode",
               "weight": "weight_grams",
+              "tradeCode": "trade_code",
               "trackInventory": "track_inventory",
               "allowBackorder": "allow_backorder",
               "rank": "rank",
@@ -2547,6 +2549,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "name": "name",
               "kind": "kind",
               "active": "active",
+              "address": "address",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }

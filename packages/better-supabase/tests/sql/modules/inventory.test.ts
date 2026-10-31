@@ -93,4 +93,14 @@ describe("inventory module", () => {
     expect(sql).not.toContain("save_purchase_order");
     expect(sql).not.toContain("stock_transfers");
   });
+
+  it("gives locations an address with a validated setter", () => {
+    const sql = sqlOf("inventory");
+
+    expect(sql).toContain('add column if not exists "address" jsonb');
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."set_location_address"(location uuid, address jsonb)',
+    );
+    expect(sql).toContain("INVENTORY_ADDRESS_INVALID");
+  });
 });

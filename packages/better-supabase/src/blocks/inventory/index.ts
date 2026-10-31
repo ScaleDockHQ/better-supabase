@@ -6,6 +6,7 @@ export {
   type AdjustReason,
   type Inventory,
   type InventoryOptions,
+  type LocationAddress,
   type LocationInput,
   type LocationKind,
   type PurchaseOrderInput,

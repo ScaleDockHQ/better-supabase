@@ -42,6 +42,13 @@ import {
   storefrontFunctions,
 } from "./catalog-merchandising.ts";
 import { catalogRank } from "./catalog-names.ts";
+import {
+  supplyColumns,
+  supplyContract,
+  supplyFunctions,
+  supplyImportTargets,
+  supplyTables,
+} from "./catalog-supply.ts";
 import { variantStatusFunction } from "./catalog-variant-status.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -204,6 +211,7 @@ const NAMES: BlockSqlNames = {
         title: "title",
         barcode: "barcode",
         weight: "weight_grams",
+        tradeCode: "trade_code",
         trackInventory: "track_inventory",
         allowBackorder: "allow_backorder",
         rank: "rank",
@@ -216,6 +224,7 @@ const NAMES: BlockSqlNames = {
         "title",
         "barcode",
         "weight",
+        "tradeCode",
         "trackInventory",
         "price",
         "status",
@@ -401,6 +410,69 @@ const NAMES: BlockSqlNames = {
         position: "position",
         alt: "alt",
         createdAt: "created_at",
+      },
+    },
+    identifiers: {
+      name: "product_identifiers",
+      lifecycle: tenantExport,
+      optionalTable: true,
+      app: { onlyWhenMapped: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        variant: "variant_id",
+        type: "type",
+        value: "value",
+        party: "party_id",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    relations: {
+      name: "product_relations",
+      lifecycle: tenantExport,
+      optionalTable: true,
+      app: { onlyWhenMapped: true },
+      columns: {
+        tenant: "tenant_id",
+        from: "from_variant_id",
+        to: "to_variant_id",
+        kind: "kind",
+        createdAt: "created_at",
+      },
+    },
+    supplierItems: {
+      name: "supplier_items",
+      lifecycle: tenantExport,
+      optionalTable: true,
+      app: { onlyWhenMapped: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        supplier: "supplier_id",
+        code: "code",
+        description: "description",
+        price: "price",
+        currency: "currency",
+        unit: "unit",
+        keywordsText: "keywords_text",
+        keywords: "keywords",
+        variant: "variant_id",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    supplierItemMappings: {
+      name: "supplier_item_mappings",
+      lifecycle: tenantExport,
+      optionalTable: true,
+      app: { onlyWhenMapped: true },
+      columns: {
+        tenant: "tenant_id",
+        supplier: "supplier_id",
+        columns: "columns",
+        defaults: "defaults",
+        updatedAt: "updated_at",
       },
     },
   },
@@ -626,7 +698,7 @@ create table if not exists ${t("storefronts")} (
 );
 ${lockTable(t("storefronts"), { read: true })}
 ${read("storefronts")}
-${channelTables(ctx, names)}
+${channelTables(ctx, names)}${supplyTables(ctx, names)}
 `;
 }
 
@@ -745,7 +817,7 @@ function build(ctx: BlockSqlContext): string {
 -- categories, collections, price lists, sales channels, translations,
 -- product media and an optional public storefront.
 ${currencyMinorUnitsFunction(names.fn("currency_minor_units"))}
-${tables(ctx, names)}${productFunctions(ctx, names)}${variantStatusFunction(ctx, names)}${optionFunctions(ctx, names)}${priceFunctions(ctx, names)}${categoryFunctions(ctx, names)}${collectionFunctions(ctx, names)}${storefrontFunctions(ctx, names)}${channelModuleFunctions(ctx, names)}
+${tables(ctx, names)}${supplyColumns(ctx)}${productFunctions(ctx, names)}${variantStatusFunction(ctx, names)}${optionFunctions(ctx, names)}${priceFunctions(ctx, names)}${categoryFunctions(ctx, names)}${collectionFunctions(ctx, names)}${storefrontFunctions(ctx, names)}${channelModuleFunctions(ctx, names)}${supplyFunctions(ctx, names)}
 ${ctx.hasTable("storefronts") ? storefrontPolicies(ctx, names) : ""}
 `;
 }
@@ -912,6 +984,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         ]
       : []),
     ...channelContract(ctx),
+    ...supplyContract(ctx),
   ];
 }
 
@@ -926,7 +999,7 @@ export const CATALOG: BlockSqlDefinition = {
   integrates: ["outbox", "state-machine", "inventory", "attachments"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 4,
+  version: 5,
   names: NAMES,
   upgrades: [
     {
@@ -935,7 +1008,14 @@ export const CATALOG: BlockSqlDefinition = {
         "Sales channels with product listings, translations per locale and, with attachments, product media.",
       sql: () => "",
     },
+    {
+      from: 4,
+      description:
+        "Product identifiers, product relations, supplier items with per-supplier column mappings, a trade code on variants, and import targets for supplier items and identifiers.",
+      sql: () => "",
+    },
   ],
+  contributes: { imports: supplyImportTargets },
   contract,
   build,
 };
