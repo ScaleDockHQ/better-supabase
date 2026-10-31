@@ -63,7 +63,9 @@ function textOf(value: ObservationValue | null): string {
   return String(value);
 }
 
-async function loadVitals(): Promise<VitalsData | null> {
+async function loadVitals(
+  customerId: string | undefined,
+): Promise<VitalsData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
 
@@ -72,7 +74,12 @@ async function loadVitals(): Promise<VitalsData | null> {
   }
 
   const [customer] = await db.customers
-    .list({ select: ["id", "name"], orderBy: { name: "asc" }, limit: 1 })
+    .list({
+      select: ["id", "name"],
+      where: customerId === undefined ? {} : { id: customerId },
+      orderBy: { name: "asc" },
+      limit: 1,
+    })
     .orThrow();
 
   if (customer === undefined) {
@@ -116,7 +123,10 @@ async function loadVitals(): Promise<VitalsData | null> {
   };
 }
 
-/** The first customer's latest vital signs, each with its recent values. */
-export function getVitals(): Promise<Loaded<VitalsData>> {
-  return settle(loadVitals);
+/**
+ * The customer's latest vital signs, each with its recent values, or the first
+ * customer's without an id.
+ */
+export function getVitals(customerId?: string): Promise<Loaded<VitalsData>> {
+  return settle(() => loadVitals(customerId));
 }

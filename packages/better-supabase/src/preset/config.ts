@@ -3,6 +3,7 @@ import type {
   BlockConfig,
   AnyBlocksConfig,
   BlocksConfig,
+  EntityConfig,
 } from "../config/blocks.ts";
 import type {
   BetterSupabaseConfig,
@@ -144,11 +145,34 @@ export function presetConfig(
   };
 }
 
-/** A preset instance as a flat `blocks` entry: `names` is `entities` there. */
+/**
+ * A preset instance as a flat `blocks` entry: `names` is `entities` there, and
+ * an entity with `subjects` settings becomes `{ name, team, auditReads }`.
+ */
 function flatInstance(instance: PresetInstance): BlockConfig {
-  const { names, ...rest } = instance;
+  const { names = {}, subjects = {}, ...rest } = instance;
 
-  return names === undefined ? rest : { ...rest, entities: names };
+  const keys = [...new Set([...Object.keys(names), ...Object.keys(subjects)])];
+
+  if (keys.length === 0) {
+    return rest;
+  }
+
+  const entities = Object.fromEntries(
+    keys.map((key) => {
+      const name = names[key];
+      const settings = subjects[key];
+
+      return [
+        key,
+        settings === undefined
+          ? name
+          : { ...(name === undefined ? {} : { name }), ...settings },
+      ];
+    }),
+  );
+
+  return { ...rest, entities };
 }
 
 /**
@@ -229,6 +253,51 @@ export function expandPreset(
   return groupConfig(expandFlatPreset(flattenConfig(config)));
 }
 
+type Entities = BlockConfig["entities"];
+
+type EntityEntry = string | EntityConfig | undefined;
+
+/** One entity: a name given as a string keeps the preset's other settings. */
+function mergedEntity(preset: EntityEntry, own: EntityEntry): EntityEntry {
+  if (own === undefined) {
+    return preset;
+  }
+
+  if (preset === undefined || typeof preset === "string") {
+    return own;
+  }
+
+  return typeof own === "string"
+    ? { ...preset, name: own }
+    : { ...preset, ...own };
+}
+
+/** `entities` entity by entity, or the config's own when either is shorthand. */
+function mergedEntities(preset: Entities, own: Entities): Entities {
+  if (own === undefined || preset === undefined) {
+    return own ?? preset;
+  }
+
+  if (typeof preset === "string" || typeof own === "string") {
+    return own;
+  }
+
+  const presetEntries: Readonly<Record<string, EntityEntry>> = preset;
+  const ownEntries: Readonly<Record<string, EntityEntry>> = own;
+
+  const keys = new Set([
+    ...Object.keys(presetEntries),
+    ...Object.keys(ownEntries),
+  ]);
+
+  return Object.fromEntries(
+    [...keys].map((key) => [
+      key,
+      mergedEntity(presetEntries[key], ownEntries[key]),
+    ]),
+  );
+}
+
 /** `expandPreset` on the flat shape `resolveConfig` reads. */
 export function expandFlatPreset(config: FlatConfig): FlatConfig {
   if (config.preset === undefined) {
@@ -257,11 +326,13 @@ export function expandFlatPreset(config: FlatConfig): FlatConfig {
   for (const [name, entry] of Object.entries(own)) {
     const preset = blocks[name];
     const options = { ...preset?.options, ...entry?.options };
+    const entities = mergedEntities(preset?.entities, entry?.entities);
 
     blocks[name] = {
       ...preset,
       ...entry,
       ...(Object.keys(options).length === 0 ? {} : { options }),
+      ...(entities === undefined ? {} : { entities }),
     };
   }
 

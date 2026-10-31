@@ -213,4 +213,87 @@ describe("preset instances", () => {
       presetFromSpec({ instances: { labels: { kind: "tags" } } }),
     ).toThrow("preset.instances.labels.kind: not an instance key");
   });
+
+  it("give a block's subject a record team and a read log", () => {
+    const care = resolveConfig({ preset: "care" }, "/app");
+
+    expect(care.instances["contacts"]?.config.entities).toEqual({
+      person: { auditReads: true, team: { actions: ["read", "write"] } },
+    });
+    expect(care.subjects["person"]).toMatchObject({
+      auditReads: true,
+      team: { actions: ["read", "write"] },
+    });
+    expect(care.subjects["company"]?.auditReads).toBeUndefined();
+  });
+
+  it("keep a subject's settings when the config renames the entity", () => {
+    const expanded = expandPreset({
+      preset: "care",
+      blocks: { contacts: { names: { person: "client", company: "funder" } } },
+    });
+
+    expect(expanded.blocks).toMatchObject({
+      contacts: {
+        names: {
+          person: {
+            name: "client",
+            auditReads: true,
+            team: { actions: ["read", "write"] },
+          },
+          company: "funder",
+        },
+      },
+    });
+    expect(expandPreset(expanded)).toEqual(expanded);
+
+    const own = expandPreset({
+      preset: "care",
+      blocks: { contacts: { names: { person: { auditReads: false } } } },
+    });
+
+    expect(own.blocks).toMatchObject({
+      contacts: { names: { person: { auditReads: false } } },
+    });
+    expect(
+      expandPreset({
+        preset: "care",
+        blocks: { contacts: { names: "client" } },
+      }).blocks,
+    ).toMatchObject({ contacts: { names: "client" } });
+  });
+
+  it("names a name and its subject settings together", () => {
+    const preset = {
+      ...namedPreset("saas"),
+      blocks: ["contacts"],
+      instances: {
+        contacts: {
+          names: { person: "client" },
+          subjects: { person: { auditReads: true } },
+        },
+      },
+    };
+
+    expect(presetFromSpec(presetSpec(preset))).toEqual(preset);
+    expect(expandPreset({ preset: presetSpec(preset) }).blocks).toHaveProperty(
+      "contacts",
+      { names: { person: { name: "client", auditReads: true } } },
+    );
+  });
+
+  it("reject subject settings that aren't a team or auditReads", () => {
+    expect(() =>
+      presetFromSpec({
+        instances: { contacts: { subjects: { person: { audit: true } } } },
+      }),
+    ).toThrow("preset.instances.contacts.subjects: expected an object");
+    expect(() =>
+      presetFromSpec({
+        instances: {
+          contacts: { subjects: { person: { team: { actions: "read" } } } },
+        },
+      }),
+    ).toThrow("preset.instances.contacts.subjects: expected an object");
+  });
 });

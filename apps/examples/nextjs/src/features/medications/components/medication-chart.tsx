@@ -52,11 +52,13 @@ const DOSE_VARIANT = {
  * per row with its dose and route and each of today's doses with its status.
  * Members with `medications.read` and read access to the record see it.
  */
-export async function MedicationChart() {
+export async function MedicationChart({
+  clientId,
+}: { clientId?: string } = {}) {
   await connection();
 
   const [state, t, format] = await Promise.all([
-    getCustomerChart(),
+    getCustomerChart(clientId),
     getExtracted("medications"),
     getFormatter(),
   ]);

@@ -12444,7 +12444,7 @@ const ICONS = new Map<string, LucideIcon>([
 export async function ActivityTimeline({
   subject,
 }: {
-  subject: { type: ContactKind; id: string };
+  subject: { type: TimelineSubjectType; id: string };
 }) {
   const [t, format, permissions] = await Promise.all([
     getExtracted("crm"),
@@ -15536,11 +15536,13 @@ const DOSE_VARIANT = {
  * per row with its dose and route and each of today's doses with its status.
  * Members with `medications.read` and read access to the record see it.
  */
-export async function MedicationChart() {
+export async function MedicationChart({
+  clientId,
+}: { clientId?: string } = {}) {
   await connection();
 
   const [state, t, format] = await Promise.all([
-    getCustomerChart(),
+    getCustomerChart(clientId),
     getExtracted("medications"),
     getFormatter(),
   ]);
@@ -27576,9 +27578,11 @@ function Sparkline({
  * Render inside `<Suspense>`: a record's latest vital signs, each with its flag
  * against the reference range and a sparkline of its recent values.
  */
-export async function ObservationChart() {
+export async function ObservationChart({
+  clientId,
+}: { clientId?: string } = {}) {
   const [state, t, format] = await Promise.all([
-    getVitals(),
+    getVitals(clientId),
     getExtracted("observations"),
     getFormatter(),
   ]);

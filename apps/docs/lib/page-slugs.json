@@ -344,6 +344,7 @@
   "platform/realtime",
   "platform/storage",
   "presets",
+  "presets/care",
   "presets/claims",
   "presets/clinic",
   "presets/cms",

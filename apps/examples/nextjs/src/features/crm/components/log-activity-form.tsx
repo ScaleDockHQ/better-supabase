@@ -11,14 +11,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type { TimelineSubjectType } from "../crm-queries";
+
 import { logActivity } from "../crm-actions";
 import { FormSelect } from "./form-select";
 
-/** Logs a call, email, meeting or note on a company or a person. */
+/** Logs a call, email, meeting or note on a contact or a care client. */
 export function LogActivityForm({
   subject,
 }: {
-  subject: { type: "company" | "person"; id: string };
+  subject: { type: TimelineSubjectType; id: string };
 }) {
   const t = useExtracted("crm");
   const fieldId = useId();

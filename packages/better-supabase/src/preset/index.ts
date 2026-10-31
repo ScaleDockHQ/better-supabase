@@ -97,6 +97,7 @@ export type {
   PresetFramework,
   PresetPlatforms,
   PresetScope,
+  PresetSubjectSettings,
   PresetValueInfo,
 } from "./fields.ts";
 

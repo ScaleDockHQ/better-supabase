@@ -49,6 +49,7 @@ export type NavId =
   | "shifts"
   | "finance"
   | "payables"
+  | "care"
   | "observations"
   | "medications"
   | "carePlans"
@@ -299,6 +300,7 @@ export const navItems: readonly NavItem[] = [
     group: "workspace",
     requires: "invoices.read",
   },
+  { id: "care", href: "/care", group: "workspace", requires: "customers.read" },
   {
     id: "observations",
     href: "/observations",

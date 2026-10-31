@@ -30,6 +30,37 @@ describe("withBlockSubjects", () => {
     expect(subjects["product_variant"]?.title).toBe("sku");
   });
 
+  it("gives an entity's subject the team and auditReads its config sets", () => {
+    const subjects = withBlockSubjects({}, ["contacts"], {
+      contacts: {
+        entities: { person: { auditReads: true, team: { actions: ["read"] } } },
+      },
+    });
+
+    expect(subjects["person"]).toMatchObject({
+      auditReads: true,
+      team: { actions: ["read"] },
+    });
+    expect(subjects["company"]).not.toHaveProperty("auditReads");
+  });
+
+  it("refuses team or auditReads on an entity that isn't a subject", () => {
+    expect(() =>
+      withBlockSubjects({}, ["contacts"], {
+        contacts: {
+          entities: { person: { subject: false, auditReads: true } },
+        },
+      }),
+    ).toThrow(
+      'blocks.contacts.names.person: team and auditReads apply to a subject, and "person" sets subject: false',
+    );
+    expect(() =>
+      withBlockSubjects({}, ["tasks"], {
+        tasks: { entities: { project: { team: { actions: ["read"] } } } },
+      }),
+    ).toThrow(/"project" is not one/);
+  });
+
   it("registers the entities of the blocks a block requires", () => {
     expect(
       Object.keys(withBlockSubjects({}, ["inventory"], {})).toSorted(),

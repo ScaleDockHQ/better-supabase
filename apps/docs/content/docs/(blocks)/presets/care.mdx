@@ -1,0 +1,189 @@
+---
+title: Care
+description: The care preset installs clients and their representatives with record teams and a read log, consents, progress notes, care plans, vital signs, medication rounds, funding, shifts, training, incidents and complaints, and controlled protocols.
+---
+
+The `care` preset is for an electronic client record in home care, nursing
+homes, disability care or youth care. Each client has a team and a dossier:
+progress notes, a care plan with goals and measures, vital signs, a
+medication chart, consents and a log of who read the record. Around the
+client the app plans shifts for qualified staff, claims the care it delivered
+from the funder, handles incidents and complaints, and keeps the protocols
+staff work by.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "care" });
+```
+
+`npx better-supabase init --preset care` starts a new project from it, and
+`npx better-supabase add --preset care` adds it to one you have
+([CLI](/docs/cli/presets)). For appointments and session notes in a
+practice, start from the [`clinic`](/docs/presets/clinic) preset.
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                             | Role in the app                                                      |
+| ------------------------------------------------- | -------------------------------------------------------------------- |
+| [contacts](/docs/blocks/contacts)                 | Clients and their representatives, with a record team and a read log |
+| [guests](/docs/blocks/guests)                     | The portal for a client and their representatives                    |
+| [field-encryption](/docs/blocks/field-encryption) | Data keys in Vault for the sensitive columns of your own tables      |
+| [data-lifecycle](/docs/blocks/data-lifecycle)     | Retention policies, legal holds and exports of one client's record   |
+| [consents](/docs/blocks/consents)                 | Consent per client and purpose, with evidence and withdrawal         |
+| [activities](/docs/blocks/activities)             | Progress notes, calls and visits on the client                       |
+| [care-plans](/docs/blocks/care-plans)             | Goals, actions and restrictive measures, with evaluations            |
+| [observations](/docs/blocks/observations)         | Vital signs with ranges and critical alerts                          |
+| [medications](/docs/blocks/medications)           | Orders, the medication round and the chart                           |
+| [forms](/docs/blocks/forms)                       | Intake and assessment forms                                          |
+| [bookings](/docs/blocks/bookings)                 | Visits and appointments without double booking                       |
+| [calendar](/docs/blocks/calendar)                 | Staff calendars and availability                                     |
+| [reminders](/docs/blocks/reminders)               | Reviews and follow-ups that come due                                 |
+| [time-tracking](/docs/blocks/time-tracking)       | Time spent with each client, on weekly timesheets                    |
+| [funding](/docs/blocks/funding)                   | Awards per client, deliveries and claims to the funder               |
+| [shifts](/docs/blocks/shifts)                     | The roster, checked for leave, rest and qualifications               |
+| [qualifications](/docs/blocks/qualifications)     | Registrations and certificates that expire                           |
+| [courses](/docs/blocks/courses)                   | Mandatory training                                                   |
+| [cases](/docs/blocks/cases)                       | Client incidents, employee incidents and complaints                  |
+| [acknowledgements](/docs/blocks/acknowledgements) | Staff confirming they read a protocol                                |
+| [drive](/docs/blocks/drive)                       | Protocols, policies and procedures as controlled documents           |
+| [signatures](/docs/blocks/signatures)             | Signed consents, agreements and care plans                           |
+
+Controlled documents need `approvals`, `versions`, `numbering`,
+`state-machine` and `attachments`, so the preset installs those too. It sets
+these options:
+
+| Setting                              | Value                                                                        |
+| ------------------------------------ | ---------------------------------------------------------------------------- |
+| `contacts.names.person`              | `team: { actions: ["read", "write"] }` and `auditReads: true`                |
+| `observations.options.defaults`      | `vitals`                                                                     |
+| `medications.options.missedCaseKind` | `incident`                                                                   |
+| `cases.options.kinds`                | `incident` (`INC`), `employee_incident` (`EINC`) and `complaint` (`CMP`)     |
+| `drive.options.control.types`        | `protocol`, `policy`, `procedure`, `work_instruction` and `form`             |
+| `approvals.options.policies`         | one decision by a holder of `approvals.manage` to release a document version |
+
+Your own `blocks` entry merges over these. Renaming the client keeps its
+team and read log:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  preset: "care",
+  blocks: { contacts: { names: { person: "client" } } },
+});
+```
+
+Add [access-requests](/docs/blocks/access-requests) for break-the-glass
+access to a client outside your team, and [invoices](/docs/blocks/invoices)
+to turn funding claims into invoices.
+
+## How the blocks connect
+
+The blocks pick each other up when they are installed together, with no
+more config.
+
+### The client and their team
+
+- A client is a `person` from contacts, and a representative is a person
+  linked to them ([representatives](/docs/blocks/contacts#representatives)).
+  A client or representative who signs in is a guest, never a member, and
+  reads only what you grant them.
+- Each client has a record team in `subject_members`: the nurses and carers
+  on it read and write the client's record, on top of what their role grants
+  ([record teams](/docs/blocks/sql#record-teams)). A member reads a client's
+  care plans and observations only when they can read the client.
+- Every read through a block's read function, such as `record_summary` or
+  the activity list, writes a `subject.accessed` entry to the audit log.
+  `subject_access_log` shows who read the client and when, to holders of
+  `audit.read` and the leads on the client's team
+  ([record read log](/docs/blocks/sql#record-read-log)). Log a read from a
+  screen that reads plain tables with `reads.log`.
+
+### The dossier
+
+- Consents are stored per client and purpose, with the lawful basis and
+  evidence. A purpose with `requiresSignature` needs a signature, which
+  keeps the version the client signed ([consents](/docs/blocks/consents)).
+- Progress notes are activities of type `note` on the client. A restricted
+  note is read only by its author and holders of
+  `activities.read_restricted`
+  ([progress notes](/docs/blocks/activities#progress-notes)).
+- A care plan sets goals and actions for a client. A restrictive measure
+  waits for an approval before it starts, and evaluations record progress
+  per goal ([care plans](/docs/blocks/care-plans#restrictive-measures)).
+- Observations install nine vital sign definitions with LOINC codes and
+  ranges. A critical value notifies the leads on the client's team
+  ([observations](/docs/blocks/observations#recording)).
+- A high-risk medication needs a second member to check each dose. A dose
+  nobody recorded in time becomes missed, and with this preset each missed
+  dose opens an `incident` case titled with the medication's name
+  ([medications](/docs/blocks/medications)).
+
+### Staff, time and funding
+
+- Time spent with a client is a time entry on the client. Once its timesheet
+  is approved, `db.funding.registerFromTime` books it as a delivery on the
+  client's active award, and claims bundle the deliveries for the funder
+  ([from time entries](/docs/blocks/funding#from-time-entries)).
+- Assigning a member to a shift fails when they are on leave, rest too
+  little or lack a qualification the shift requires
+  ([shifts](/docs/blocks/shifts)). Qualifications expire, and courses hold
+  the mandatory training staff take to renew them.
+
+### Incidents and protocols
+
+- Client incidents, employee incidents and complaints are cases of their own
+  kind, each numbered with its prefix ([cases](/docs/blocks/cases)).
+- A protocol in the drive is a controlled document: a new version becomes
+  effective once its release request is approved, and members below the
+  write role read only the effective version
+  ([controlled documents](/docs/blocks/drive-documents)). Acknowledgements
+  ask staff to confirm they read it.
+
+## Retention
+
+Client records are kept for a fixed term after care ends. The Dutch WGBO
+sets 20 years for medical records; confirm the term that applies to your
+sector and country before you set it. Retention policies are set with the
+service role ([retention policies](/docs/blocks/data-lifecycle#retention-policies-and-legal-holds)):
+
+```ts title="lib/retention.ts"
+import {
+  createRetention,
+  sqlTransport,
+} from "better-supabase/blocks/data-lifecycle";
+
+const retention = createRetention({ transport: sqlTransport(postgres.admin) });
+
+await retention.setPolicy("client_records", "20 years").orThrow();
+```
+
+`client_records` is a kind of your own: the job that purges closed client
+records reads the term with `better_supabase.retention_for('client_records', tenant)`
+and skips a tenant while `is_held('client_records', tenant)` is true. The
+example app sets this policy when `next dev` starts, in
+`features/onboarding/seed-new-tenants.ts`.
+
+## With ReUI
+
+Each part of the dossier has a recipe built from ReUI components:
+
+- [Care plan editor](/docs/registry/ui-recipes/care-plan-editor) and
+  [evaluations](/docs/registry/ui-recipes/care-plan-evaluations): goals and
+  actions, and the progress recorded against them.
+- [Observation chart](/docs/registry/ui-recipes/observation-chart): vital
+  signs over time with their ranges.
+- [Medication chart](/docs/registry/ui-recipes/medication-chart): the doses
+  of a day per order, with the second check.
+- [Consent register](/docs/registry/ui-recipes/consent-register): the
+  client's decisions per purpose.
+- [Roster board](/docs/registry/ui-recipes/roster-board): shifts per day and
+  team.
+
+The example app lists clients under `/care` and shows one client's dossier
+under `/care/<id>`, with tabs for notes, the plan, observations, medication,
+consents and the access log.

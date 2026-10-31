@@ -79,11 +79,11 @@ export const linkPerson = bsb.action(
   },
 );
 
-/** Logs a call, email, meeting or note on a contact. */
+/** Logs a call, email, meeting or note on a contact or a care client. */
 export const logActivity = bsb.action(
   {
     input: v.object({
-      subjectType: v.picklist(["company", "person"]),
+      subjectType: v.picklist(["company", "person", "customer"]),
       subjectId: Id,
       type: v.picklist(["call", "email", "meeting", "note"]),
       title: Name,

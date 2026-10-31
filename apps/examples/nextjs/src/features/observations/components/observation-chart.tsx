@@ -105,9 +105,11 @@ function Sparkline({
  * Render inside `<Suspense>`: a record's latest vital signs, each with its flag
  * against the reference range and a sparkline of its recent values.
  */
-export async function ObservationChart() {
+export async function ObservationChart({
+  clientId,
+}: { clientId?: string } = {}) {
   const [state, t, format] = await Promise.all([
-    getVitals(),
+    getVitals(clientId),
     getExtracted("observations"),
     getFormatter(),
   ]);

@@ -153,6 +153,26 @@ export default defineConfig({
 });
 ```
 
+An entity also takes `team` and `auditReads`, as a type in `subjects` does. A care app gives each client a record team and logs who reads their record ([Record teams](/docs/blocks/sql#record-teams), [Record read log](/docs/blocks/sql#record-read-log)):
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    contacts: {
+      names: {
+        person: {
+          name: "client",
+          team: { actions: ["read", "write"] },
+          auditReads: true,
+        },
+      },
+    },
+  },
+});
+```
+
+The [`care`](/docs/presets/care) preset sets both on `person`.
+
 With the [notifications](/docs/blocks/notifications) module installed, the owner watches a company or person when they become its owner, and a level they already chose stays.
 
 ## Identities

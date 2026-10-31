@@ -1563,6 +1563,12 @@ the team grants it too, so a care team reads its patients without
 `patient`, is granted to the team alone. A type with a team needs a tenant
 column, because each membership row belongs to the record's tenant.
 
+A type a block registers, such as `person` from
+[contacts](/docs/blocks/contacts#use-them-as-subjects), takes `team` and
+`auditReads` on its entity in `blocks.<name>.names`. Setting either on an
+entity that isn't a subject, or that sets `subject: false`, fails when the
+config loads.
+
 The `subjects` block stores the members in `subject_members`. A row names a
 user or a team from the [`teams`](/docs/blocks/teams) block, a role and the
 days it counts (`starts_on` and `ends_on`, both included). A membership

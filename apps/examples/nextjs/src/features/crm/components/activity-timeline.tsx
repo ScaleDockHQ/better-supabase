@@ -31,7 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
-import type { ContactKind } from "../crm-queries";
+import type { TimelineSubjectType } from "../crm-queries";
 
 import { loadTimeline, settle } from "../crm-queries";
 import { CrmLoadError } from "./crm-load-error";
@@ -53,7 +53,7 @@ const ICONS = new Map<string, LucideIcon>([
 export async function ActivityTimeline({
   subject,
 }: {
-  subject: { type: ContactKind; id: string };
+  subject: { type: TimelineSubjectType; id: string };
 }) {
   const [t, format, permissions] = await Promise.all([
     getExtracted("crm"),

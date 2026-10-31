@@ -102,6 +102,21 @@ msgctxt "care-plans.rTFlYI"
 msgid "A client's problems, goals and actions in the active plan, and what each goal evaluation found."
 msgstr "De problemen, doelen en acties van een cliënt in het actieve plan, en wat elke doelevaluatie vond."
 
+#: src/app/[locale]/(app)/care/[clientId]/page.tsx
+msgctxt "care.yp16Oy"
+msgid "All clients"
+msgstr "Alle cliënten"
+
+#: src/app/[locale]/(app)/care/page.tsx
+msgctxt "care.iCpuph"
+msgid "Clients"
+msgstr "Cliënten"
+
+#: src/app/[locale]/(app)/care/page.tsx
+msgctxt "care.y1nMyB"
+msgid "The clients in your care. Open one for their notes, care plan, observations, medication, consents and access log."
+msgstr "De cliënten in je zorg. Open er een voor de notities, het zorgplan, de observaties, de medicatie, de toestemmingen en het inzagelog."
+
 #: src/app/[locale]/(app)/cases/page.tsx
 msgctxt "cases.TTLDST"
 msgid "Cases"
@@ -3297,6 +3312,198 @@ msgstr "Evalueer een doel van het actieve plan om vast te leggen wat het bereikt
 msgctxt "care-plans.2ncFXE"
 msgid "Read about evaluations"
 msgstr "Lees over evaluaties"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.JX0502"
+msgid "Client"
+msgstr "Cliënt"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.rKbDyw"
+msgid "Granted"
+msgstr "Gegeven"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.NT-3fY"
+msgid "Refused"
+msgstr "Geweigerd"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.GH4LtS"
+msgid "Withdrawn"
+msgstr "Ingetrokken"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.RahCRH"
+msgid "Expired"
+msgstr "Verlopen"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.m0RdHL"
+msgid "Purpose"
+msgstr "Doel"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.I3b4hn"
+msgid "Version"
+msgstr "Versie"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.R0YuTC"
+msgid "Decided"
+msgstr "Besloten"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.C3Fz7P"
+msgid "Valid until"
+msgstr "Geldig tot"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.Pr2pvL"
+msgid "Unknown member"
+msgstr "Onbekend lid"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.S8paqM"
+msgid "Emergency"
+msgstr "Noodgeval"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.mdT403"
+msgid "Read by"
+msgstr "Ingezien door"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.McnLsx"
+msgid "When"
+msgstr "Wanneer"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.L7g_1g"
+msgid "Through"
+msgstr "Via"
+
+#: src/features/care/components/care-load-error.tsx
+msgctxt "care.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het over een moment opnieuw."
+
+#: src/features/care/components/care-load-error.tsx
+msgctxt "care.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.EBv8Ot"
+msgid "Clients could not be loaded"
+msgstr "De cliënten konden niet worden geladen"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.9ou3eL"
+msgid "No clients yet"
+msgstr "Nog geen cliënten"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.DHgmLA"
+msgid "Clients are the customers of your organization. Add one to open their dossier."
+msgstr "Cliënten zijn de klanten van je organisatie. Voeg er een toe om het dossier te openen."
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.JOqbzN"
+msgid "Add a client"
+msgstr "Cliënt toevoegen"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.TV30vm"
+msgid "This client could not be loaded"
+msgstr "Deze cliënt kon niet worden geladen"
+
+#: src/features/care/components/care-sections.tsx
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.HIBQqX"
+msgid "Consents"
+msgstr "Toestemmingen"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.JbasEf"
+msgid "The client's latest decision on each purpose, given by them or a representative."
+msgstr "Het laatste besluit van de cliënt per doel, gegeven door de cliënt of een vertegenwoordiger."
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.cDvtgU"
+msgid "Consents could not be loaded"
+msgstr "De toestemmingen konden niet worden geladen"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.zhbMj_"
+msgid "No consents recorded"
+msgstr "Geen toestemmingen vastgelegd"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.RdEJM7"
+msgid "Record a decision against a purpose in the consent register."
+msgstr "Leg een besluit per doel vast in het toestemmingsregister."
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care._vUzm4"
+msgid "Open the consent register"
+msgstr "Open het toestemmingsregister"
+
+#: src/features/care/components/care-sections.tsx
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.qxdQ2B"
+msgid "Access log"
+msgstr "Inzagelog"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.0LCeKg"
+msgid "Every read of this client's record, newest first. Repeated reads within a minute count once."
+msgstr "Elke inzage van het dossier van deze cliënt, nieuwste eerst. Herhaalde inzages binnen een minuut tellen één keer."
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.FAHeXx"
+msgid "The access log could not be loaded"
+msgstr "Het inzagelog kon niet worden geladen"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.3b3JFH"
+msgid "No reads logged"
+msgstr "Geen inzages gelogd"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.cFs2XI"
+msgid "Opening this dossier logs a read; it shows here once it's written."
+msgstr "Het openen van dit dossier logt een inzage; die verschijnt hier zodra hij is geschreven."
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.Q3wtNe"
+msgid "Back to clients"
+msgstr "Terug naar cliënten"
+
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.7-Domh"
+msgid "Notes"
+msgstr "Notities"
+
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.Du3mXR"
+msgid "Care plan"
+msgstr "Zorgplan"
+
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.M_xDHn"
+msgid "Observations"
+msgstr "Observaties"
+
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.venWl7"
+msgid "Medication"
+msgstr "Medicatie"
 
 #: src/features/cases/components/case-board.tsx
 msgctxt "cases.Z3SH1K"
@@ -9021,6 +9228,91 @@ msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nog niets gevonden. Een nieuw document is doorzoekbaar zodra het klaar is."
 
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.UybXB6"
+msgid "Records without a legal entity belong to the default one. Settings fall back from the entity to the organization."
+msgstr "Records zonder rechtspersoon horen bij de standaard. Instellingen vallen terug van de rechtspersoon naar de organisatie."
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.fmTLpn"
+msgid "The legal entities didn't load"
+msgstr "De rechtspersonen zijn niet geladen"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het over een moment opnieuw."
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.R6A9ZR"
+msgid "No legal entities"
+msgstr "Geen rechtspersonen"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.dC5NSh"
+msgid "A single-company organization needs none. Add one through the API when you invoice from several companies."
+msgstr "Een organisatie met één bedrijf heeft er geen nodig. Voeg er een toe via de API wanneer je vanuit meerdere bedrijven factureert."
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.jaYSv1"
+msgid "Read the legal entities guide"
+msgstr "Lees de gids over rechtspersonen"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.h2vipu"
+msgid "Code"
+msgstr "Code"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.5VJ7dT"
+msgid "VAT number"
+msgstr "Btw-nummer"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.55hdQy"
+msgid "Currency"
+msgstr "Valuta"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.30HC4Q"
+msgid "Tax period"
+msgstr "Aangifteperiode"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.wYsv4Z"
+msgid "Monthly"
+msgstr "Maandelijks"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.b1Ou36"
+msgid "Quarterly"
+msgstr "Per kwartaal"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.lKv8ex"
+msgid "Default"
+msgstr "Standaard"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
 #: src/features/manufacturing/components/material-requirements-grid.tsx
 msgctxt "production.eq1e8s"
 msgid "Unknown product"
@@ -9120,91 +9412,6 @@ msgstr "Elk artikel met een bestelpunt heeft genoeg voorraad en inkomende orders
 msgctxt "production.9MRsjL"
 msgid "Read the manufacturing guide"
 msgstr "Lees de handleiding voor productie"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.UybXB6"
-msgid "Records without a legal entity belong to the default one. Settings fall back from the entity to the organization."
-msgstr "Records zonder rechtspersoon horen bij de standaard. Instellingen vallen terug van de rechtspersoon naar de organisatie."
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.fmTLpn"
-msgid "The legal entities didn't load"
-msgstr "De rechtspersonen zijn niet geladen"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het over een moment opnieuw."
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.R6A9ZR"
-msgid "No legal entities"
-msgstr "Geen rechtspersonen"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.dC5NSh"
-msgid "A single-company organization needs none. Add one through the API when you invoice from several companies."
-msgstr "Een organisatie met één bedrijf heeft er geen nodig. Voeg er een toe via de API wanneer je vanuit meerdere bedrijven factureert."
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.jaYSv1"
-msgid "Read the legal entities guide"
-msgstr "Lees de gids over rechtspersonen"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.h2vipu"
-msgid "Code"
-msgstr "Code"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.HAlOn1"
-msgid "Name"
-msgstr "Naam"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.5VJ7dT"
-msgid "VAT number"
-msgstr "Btw-nummer"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.55hdQy"
-msgid "Currency"
-msgstr "Valuta"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.30HC4Q"
-msgid "Tax period"
-msgstr "Aangifteperiode"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.tzMNF3"
-msgid "Status"
-msgstr "Status"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.wYsv4Z"
-msgid "Monthly"
-msgstr "Maandelijks"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.b1Ou36"
-msgid "Quarterly"
-msgstr "Per kwartaal"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.lKv8ex"
-msgid "Default"
-msgstr "Standaard"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.0HT-Ib"
-msgid "Archived"
-msgstr "Gearchiveerd"
 
 #: src/features/manufacturing/components/production-order-board.tsx
 msgctxt "manufacturing.W6nwjo"
@@ -10084,6 +10291,11 @@ msgstr "Financiën"
 msgctxt "navigation.Yhu2Vp"
 msgid "Payables"
 msgstr "Crediteuren"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.iCpuph"
+msgid "Clients"
+msgstr "Cliënten"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.M_xDHn"

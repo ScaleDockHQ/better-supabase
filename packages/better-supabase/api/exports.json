@@ -534,6 +534,7 @@
       "PresetPlatforms",
       "PresetScope",
       "PresetSpec",
+      "PresetSubjectSettings",
       "PresetValueInfo",
       "ResolvedPreset",
       "ResolvedPresetBlock"

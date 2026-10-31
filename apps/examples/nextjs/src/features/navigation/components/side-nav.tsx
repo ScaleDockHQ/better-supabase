@@ -6,6 +6,7 @@ import {
   BanknoteIcon,
   ActivityIcon,
   HeartPulseIcon,
+  HeartHandshakeIcon,
   BadgeCheckIcon,
   IdCardIcon,
   BriefcaseIcon,
@@ -136,6 +137,7 @@ const ICONS = {
   shifts: CalendarDaysIcon,
   finance: LandmarkIcon,
   payables: ReceiptTextIcon,
+  care: HeartHandshakeIcon,
   observations: HeartPulseIcon,
   medications: PillIcon,
   carePlans: ClipboardPlusIcon,
@@ -348,6 +350,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "payables": {
         return t("Payables");
+      }
+
+      case "care": {
+        return t("Clients");
       }
 
       case "observations": {

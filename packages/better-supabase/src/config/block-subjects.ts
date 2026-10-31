@@ -319,6 +319,7 @@ function subjectsOf(
               ),
             }),
         ...(subject.cascade === true ? { cascade: true } : {}),
+        ...entity.subjectSettings,
       };
 
       return [[entity.to.singular, entry]];

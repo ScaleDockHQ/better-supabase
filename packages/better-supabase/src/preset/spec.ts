@@ -150,11 +150,28 @@ export function presetFromSpec(value: unknown): Preset {
   };
 }
 
-const INSTANCE_KEYS = ["block", "names", "options", "tables", "on", "uses"];
+const INSTANCE_KEYS = [
+  "block",
+  "names",
+  "subjects",
+  "options",
+  "tables",
+  "on",
+  "uses",
+];
 
 const isStringRecord = (value: unknown): boolean =>
   isRecord(value) &&
   Object.values(value).every((each) => typeof each === "string");
+
+/** `{ team?: { actions: string[] }, auditReads?: boolean }`, nothing else. */
+const isSubjectSettings = (value: unknown): boolean =>
+  isRecord(value) &&
+  Object.entries(value).every(([key, each]) =>
+    key === "auditReads"
+      ? typeof each === "boolean"
+      : key === "team" && isRecord(each) && isStringList(each["actions"]),
+  );
 
 function validInstanceValue(key: string, given: unknown): boolean {
   if (key === "block") {
@@ -167,6 +184,10 @@ function validInstanceValue(key: string, given: unknown): boolean {
 
   if (key === "on") {
     return isStringList(given) || isRecord(given);
+  }
+
+  if (key === "subjects") {
+    return isRecord(given) && Object.values(given).every(isSubjectSettings);
   }
 
   if (key === "tables") {

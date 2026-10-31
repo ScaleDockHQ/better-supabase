@@ -4,6 +4,7 @@ import type {
   NamesOf,
 } from "../blocks/name-registry.ts";
 import type { BlockOptionsRegistry } from "../blocks/options-registry.ts";
+import type { SubjectTeam } from "./types/subjects.ts";
 
 /**
  * `blocks` in `better-supabase.config.ts`: how each SQL module maps onto the
@@ -68,6 +69,17 @@ export interface EntityConfig<Columns extends string = string> {
   readonly url?: `${string}{${Columns}}${string}` | (string & {});
   /** `false` keeps the entity out of `config.subjects`. */
   readonly subject?: false;
+  /**
+   * The record team of the subject the entity registers, as
+   * `subjects.<type>.team` sets it for a type of your own: the users and teams
+   * on a record's team get `actions` on it.
+   */
+  readonly team?: SubjectTeam;
+  /**
+   * Log reads of the subject the entity registers in the audit log, as
+   * `subjects.<type>.auditReads` does for a type of your own.
+   */
+  readonly auditReads?: boolean;
 }
 
 /**

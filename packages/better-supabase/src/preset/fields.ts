@@ -1,4 +1,4 @@
-import type { InstanceKeys } from "../config/blocks.ts";
+import type { EntityConfig, InstanceKeys } from "../config/blocks.ts";
 import type { IntegrationName } from "../config/types/tooling.ts";
 
 import { INTEGRATION_INFO, INTEGRATION_NAMES } from "../config/names.ts";
@@ -292,9 +292,18 @@ export interface Preset extends PresetConventions {
 /** A `blocks` entry a preset writes, with the keys a config file uses. */
 export interface PresetInstance extends InstanceKeys {
   readonly names?: Readonly<Record<string, string>>;
+  /**
+   * The record team and read log of the subjects the block's entities register,
+   * by entity key: `{ person: { auditReads: true } }`. They land on
+   * `blocks.<name>.entities.<entity>` next to its name.
+   */
+  readonly subjects?: Readonly<Record<string, PresetSubjectSettings>>;
   readonly options?: Readonly<Record<string, unknown>>;
   readonly tables?: Readonly<Record<string, string | null>>;
 }
+
+/** `team` and `auditReads` for one subject a block registers. */
+export type PresetSubjectSettings = Pick<EntityConfig, "team" | "auditReads">;
 
 /** Every convention at its default. */
 export const DEFAULT_CONVENTIONS: PresetConventions = {
