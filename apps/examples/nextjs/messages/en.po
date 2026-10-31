@@ -11429,14 +11429,29 @@ msgid "Heatmap"
 msgstr "Heatmap"
 
 #: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.x6NOqj"
+msgid "Create a risk matrix to see where the risks sit."
+msgstr "Create a risk matrix to see where the risks sit."
+
+#: src/features/risks/components/risk-heatmap.tsx
 msgctxt "risks.CAjgWt"
 msgid "{total, plural, =0 {No open risks} one {# open risk} other {# open risks}} on the {matrix} matrix, by residual rating."
 msgstr "{total, plural, =0 {No open risks} one {# open risk} other {# open risks}} on the {matrix} matrix, by residual rating."
 
 #: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.Ci91To"
+msgid "No risk matrix yet"
+msgstr "No risk matrix yet"
+
+#: src/features/risks/components/risk-heatmap.tsx
 msgctxt "risks.I6E7Lp"
 msgid "Nothing assessed yet"
 msgstr "Nothing assessed yet"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.fE5HNa"
+msgid "Add a matrix with its likelihood and impact levels and bands, then assess risks against it."
+msgstr "Add a matrix with its likelihood and impact levels and bands, then assess risks against it."
 
 #: src/features/risks/components/risk-heatmap.tsx
 msgctxt "risks.A39el3"

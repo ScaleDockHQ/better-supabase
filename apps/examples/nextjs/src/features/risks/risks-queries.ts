@@ -126,7 +126,8 @@ export interface HeatmapCell {
 }
 
 export interface HeatmapData {
-  readonly matrixName: string;
+  /** The default matrix's name, or null while the organization has none. */
+  readonly matrixName: string | null;
   /** Labels by level, lowest first. */
   readonly likelihoods: readonly {
     readonly level: number;
@@ -148,7 +149,20 @@ async function loadHeatmap(): Promise<HeatmapData | null> {
     return null;
   }
 
-  const { matrix, cells } = await db.risks.heatmap().orThrow();
+  const call = db.risks.heatmap();
+  const heatmap = await call;
+
+  if (!heatmap.ok && heatmap.error.hint === "RISK_MATRIX_NOT_FOUND") {
+    return {
+      matrixName: null,
+      likelihoods: [],
+      impacts: [],
+      cells: [],
+      total: 0,
+    };
+  }
+
+  const { matrix, cells } = heatmap.ok ? heatmap.data : await call.orThrow();
   const tones = tonesOf(matrix.bands);
   const labels = new Map(matrix.bands.map((band) => [band.key, band.label]));
 
