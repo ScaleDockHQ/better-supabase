@@ -68,6 +68,7 @@ const QUALITY: readonly string[] = [
   "acknowledgements",
   "cases",
   "inspections",
+  "meetings",
   "risks",
   "qualifications",
   "courses",

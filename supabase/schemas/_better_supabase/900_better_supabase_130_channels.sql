@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:07fd88658a76a15df02570e10e2bc3e36201d19bfa4449430036d1af63606b4a
+-- @bsb-hash sha256:7396e4d226b9c1ac4138b11707ee69c0ee5d48ab56658e0ca11fc4281c863cd5
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -163,6 +163,8 @@ begin
       when 'inspection_program' then (select s."tenant_id"::text from "better_supabase"."inspection_programs" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'inspection_finding' then (select s."tenant_id"::text from "better_supabase"."inspection_findings" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'meeting' then (select s."tenant_id"::text from "better_supabase"."meetings" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'meeting_decision' then (select s."tenant_id"::text from "better_supabase"."meeting_decisions" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)

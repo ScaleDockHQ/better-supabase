@@ -1,0 +1,173 @@
+---
+title: Meetings
+description: Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
+---
+
+`meetings` plans and records meetings. A meeting has an agenda, a list of
+attendees with a role, minutes per agenda item, decisions that the attendees
+vote on, and action items that open as [tasks](/docs/blocks/tasks). It covers
+board meetings, management reviews, one-on-ones and toolbox talks; the kinds
+are an option.
+
+```bash
+better-supabase add meetings
+```
+
+```ts
+import { createMeetings } from "better-supabase/blocks/meetings";
+```
+
+The module requires `memberships`, `permissions`, `subjects` and
+[tasks](/docs/blocks/tasks). With [reactions](/docs/blocks/reactions) the
+attendees vote on a decision. With [documents](/docs/blocks/documents) a
+meeting opens a collaborative minutes document through its subject. With
+[calendar](/docs/blocks/calendar) and `options.calendar` a planned meeting
+appears in a calendar, and with
+[notifications](/docs/blocks/notifications) an invited attendee gets a
+`meeting.invited` notification. With `outbox` it records the events, and with
+`audit` every change is audited.
+
+## Tables
+
+| Table                  | Holds                                                                                  |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| `meetings`             | A meeting with its kind, title, location, start and end, status and summary            |
+| `meeting_attendees`    | Who is invited: the role of chair, secretary, attendee or guest, and whether they came |
+| `meeting_agenda_items` | The agenda, numbered 1, 2, 3 per meeting, with a presenter, minutes and an outcome     |
+| `meeting_decisions`    | The decisions, with the agenda item they belong to and their status                    |
+| `meeting_action_items` | The link from a meeting, an agenda item or a decision to the task it opened            |
+
+A meeting has at most one chair. Members with `meetings.read` read every
+table. Everyone else reads only the meetings they are invited to, with their
+attendees, agenda, decisions and action items. Writes go through the functions
+below. Meetings and decisions are subjects of type `meeting` and
+`meeting_decision`, so comments, attachments, tags and the other subject blocks
+work on them.
+
+| Permission        | Allows                                                                       | Default roles |
+| ----------------- | ---------------------------------------------------------------------------- | ------------- |
+| `meetings.read`   | reading every meeting                                                        | owner, admin  |
+| `meetings.write`  | creating meetings and running the ones the member created, chairs or minutes | owner, admin  |
+| `meetings.manage` | running every meeting                                                        | owner, admin  |
+
+A member with `meetings.write` runs a meeting when they created it or are its
+chair or secretary. Running a meeting means changing it, its attendees and its
+agenda, starting and holding it, and recording decisions and action items.
+`meetings.manage` runs every meeting.
+
+## Plan a meeting
+
+`create` plans a meeting of one of `options.kinds` with its attendees and agenda
+in one call. Every attendee must belong to the organization, and the creator
+runs the meeting even when they are not an attendee.
+
+```ts
+const meeting = await db.meetings
+  .create({
+    kind: "board",
+    title: "Quarterly board",
+    startsAt: Temporal.Instant.from("2027-01-14T14:00:00Z"),
+    attendees: [
+      { userId: chairId, role: "chair" },
+      { userId: secretaryId, role: "secretary" },
+      { userId: memberId },
+    ],
+    agenda: [{ title: "Budget" }, { title: "Hiring plan" }],
+  })
+  .orThrow();
+```
+
+`update` changes the fields you pass. `setAttendee` invites a user or changes
+their role and attendance, and `removeAttendee` takes them off. `saveAgendaItem`
+adds an item or, with `id`, changes one; `ordinal` moves it and the items from
+there move down. `deleteAgendaItem` removes one and closes the gap.
+
+## Hold a meeting
+
+A meeting goes from `planned` to `in_progress` with `start`, and to `held` with
+`hold`, which takes the summary. `cancel` stops a planned meeting and keeps the
+reason in the `meeting.cancelled` event. `delete` removes a meeting nobody held.
+
+```ts
+await db.meetings.start(meeting.id).orThrow();
+
+await db.meetings
+  .saveAgendaItem(meeting.id, {
+    id: budgetItemId,
+    minutes: "The budget passes with one amendment.",
+    status: "covered",
+    outcome: "Approved",
+  })
+  .orThrow();
+
+await db.meetings
+  .hold(meeting.id, "Budget approved, hiring postponed.")
+  .orThrow();
+```
+
+The minutes of an item are Markdown in `minutes`. For minutes that several
+people write at once, open a document on the meeting subject with the
+[documents](/docs/blocks/documents) block.
+
+## Decisions and votes
+
+`recordDecision` adds a decision with the status `proposed`. Attendees vote
+with the [reactions](/docs/blocks/reactions) block on the `meeting_decision`
+subject, and `get` returns the tally as `votes`. `decide` settles a decision:
+without a status it follows the votes (more up than down passes, more down than
+up rejects, a tie defers), and with a status it records that one.
+
+```ts
+const decision = await db.meetings
+  .recordDecision(meeting.id, { title: "Approve the budget", agendaItemId })
+  .orThrow();
+
+await db.meetings.decide(decision.id).orThrow();
+```
+
+## Action items
+
+`addActionItem` opens a task through the tasks block and links it to the
+meeting, an agenda item or a decision. The task is a normal task: it has its
+assignees, due date and state, and the tasks block owns it.
+
+```ts
+await db.meetings
+  .addActionItem(meeting.id, {
+    task: { title: "Send the budget to the bank" },
+    assignees: [memberId],
+    decisionId: decision.id,
+  })
+  .orThrow();
+```
+
+## Read and list
+
+`get` returns a meeting with its attendees, agenda, decisions (with `votes`) and
+action items (with the task's title and state). `list` filters by `kind`,
+`status`, a start range, an attendee and a search over the title, location and
+summary, and pages with `limit` and `offset`.
+
+## Options
+
+| Option     | Default                                                               | Does                                                 |
+| ---------- | --------------------------------------------------------------------- | ---------------------------------------------------- |
+| `kinds`    | `meeting`, `board`, `management_review`, `one_on_one`, `toolbox_talk` | The allowed kinds; lowercase letters, digits, `_`    |
+| `calendar` | none                                                                  | The name of a calendar that mirrors planned meetings |
+
+## Events
+
+| Event                                                                                                                | Data                                                   |
+| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `meeting.created`, `meeting.updated`, `meeting.started`, `meeting.concluded`, `meeting.cancelled`, `meeting.deleted` | `organizationId`, `id`, `kind`, `title`, `status`      |
+| `meeting_decision.recorded`, `meeting_decision.decided`                                                              | `organizationId`, `id`, `meetingId`, `title`, `status` |
+| `meeting_action_item.created`                                                                                        | `organizationId`, `meetingId`, `workItemId`, `title`   |
+
+The hooks are `before_meeting_create`, `after_meeting_create`,
+`before_meeting_hold`, `after_meeting_hold` and `after_meeting_decision`.
+
+## Recipes
+
+`better-supabase add --recipe meeting-agenda` adds the agenda editor, and
+`meeting-minutes` adds the minutes, decisions and action items of a meeting.
+See [UI recipes](/docs/registry/ui-recipes).

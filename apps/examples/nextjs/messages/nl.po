@@ -448,6 +448,17 @@ msgctxt "medications.ydg6xP"
 msgid "Today's medication chart: what each order gives and which doses are given, refused or missed."
 msgstr "Het medicatieoverzicht van vandaag: wat elk voorschrift geeft en welke doses gegeven, geweigerd of gemist zijn."
 
+#: src/app/[locale]/(app)/meetings/page.tsx
+#: src/features/meetings/components/meeting-agenda.tsx
+msgctxt "meetings.dMaTpi"
+msgid "Meetings"
+msgstr "Vergaderingen"
+
+#: src/app/[locale]/(app)/meetings/page.tsx
+msgctxt "meetings.IWewHP"
+msgid "The organization's meetings, and the agenda, decisions and action items of the one you open."
+msgstr "De vergaderingen van de organisatie, met de agenda, besluiten en actiepunten van de vergadering die je opent."
+
 #: src/app/[locale]/(app)/metrics/page.tsx
 msgctxt "metrics.HNBpJ4"
 msgid "Metrics"
@@ -9189,6 +9200,194 @@ msgctxt "medications.Z-K9mc"
 msgid "No doses today"
 msgstr "Geen doses vandaag"
 
+#: src/features/meetings/components/meeting-agenda.tsx
+msgctxt "meetings.9anxhq"
+msgid "Starts"
+msgstr "Begint"
+
+#: src/features/meetings/components/meeting-agenda.tsx
+#: src/features/meetings/components/meeting-labels.tsx
+msgctxt "meetings.wmi6TT"
+msgid "Meeting"
+msgstr "Vergadering"
+
+#: src/features/meetings/components/meeting-agenda.tsx
+msgctxt "meetings.e5x8FT"
+msgid "Kind"
+msgstr "Soort"
+
+#: src/features/meetings/components/meeting-agenda.tsx
+msgctxt "meetings.rvirM2"
+msgid "Location"
+msgstr "Locatie"
+
+#: src/features/meetings/components/meeting-agenda.tsx
+msgctxt "meetings.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/meetings/components/meeting-agenda.tsx
+msgctxt "meetings.6IZFvW"
+msgid "Every meeting, the most recent first. Open one for its minutes."
+msgstr "Alle vergaderingen, de meest recente eerst. Open er een voor de notulen."
+
+#: src/features/meetings/components/meeting-agenda.tsx
+msgctxt "meetings.Tehzb8"
+msgid "The meetings didn't load"
+msgstr "De vergaderingen zijn niet geladen"
+
+#: src/features/meetings/components/meeting-agenda.tsx
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/meetings/components/meeting-agenda.tsx
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/meetings/components/meeting-agenda.tsx
+msgctxt "meetings.s7l2ai"
+msgid "No meetings yet"
+msgstr "Nog geen vergaderingen"
+
+#: src/features/meetings/components/meeting-agenda.tsx
+msgctxt "meetings.RUK_LH"
+msgid "Plan a meeting with its attendees and agenda, then record the minutes and decisions while it runs."
+msgstr "Plan een vergadering met deelnemers en agenda en leg de notulen en besluiten vast tijdens de vergadering."
+
+#: src/features/meetings/components/meeting-agenda.tsx
+msgctxt "meetings.nUobo1"
+msgid "Read the meetings guide"
+msgstr "Lees de handleiding voor vergaderingen"
+
+#: src/features/meetings/components/meeting-labels.tsx
+msgctxt "meetings.kp0NPF"
+msgid "Planned"
+msgstr "Gepland"
+
+#: src/features/meetings/components/meeting-labels.tsx
+msgctxt "meetings.q1WWIr"
+msgid "In progress"
+msgstr "Bezig"
+
+#: src/features/meetings/components/meeting-labels.tsx
+msgctxt "meetings.MTDDcS"
+msgid "Held"
+msgstr "Gehouden"
+
+#: src/features/meetings/components/meeting-labels.tsx
+msgctxt "meetings.PFtMy9"
+msgid "Canceled"
+msgstr "Geannuleerd"
+
+#: src/features/meetings/components/meeting-labels.tsx
+msgctxt "meetings.X5llHr"
+msgid "Proposed"
+msgstr "Voorgesteld"
+
+#: src/features/meetings/components/meeting-labels.tsx
+msgctxt "meetings.3NHsqm"
+msgid "Passed"
+msgstr "Aangenomen"
+
+#: src/features/meetings/components/meeting-labels.tsx
+msgctxt "meetings.5qaD7s"
+msgid "Rejected"
+msgstr "Afgewezen"
+
+#: src/features/meetings/components/meeting-labels.tsx
+msgctxt "meetings.tKXilC"
+msgid "Deferred"
+msgstr "Uitgesteld"
+
+#: src/features/meetings/components/meeting-labels.tsx
+msgctxt "meetings.RZ-dRo"
+msgid "Board meeting"
+msgstr "Bestuursvergadering"
+
+#: src/features/meetings/components/meeting-labels.tsx
+msgctxt "meetings.hP2xw-"
+msgid "Management review"
+msgstr "Directiebeoordeling"
+
+#: src/features/meetings/components/meeting-labels.tsx
+msgctxt "meetings.llQI-7"
+msgid "One-on-one"
+msgstr "Een-op-eengesprek"
+
+#: src/features/meetings/components/meeting-labels.tsx
+msgctxt "meetings.-q-lIw"
+msgid "Toolbox talk"
+msgstr "Toolboxmeeting"
+
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.1lEoHX"
+msgid "Pick a meeting"
+msgstr "Kies een vergadering"
+
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.PZgkuv"
+msgid "Open a meeting in the list to see its agenda and decisions."
+msgstr "Open een vergadering in de lijst om de agenda en besluiten te zien."
+
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.Fk8C6i"
+msgid "Meeting started"
+msgstr "Vergadering gestart"
+
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.9hJ5SO"
+msgid "Meeting held"
+msgstr "Vergadering gehouden"
+
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.05dMag"
+msgid "Decision settled"
+msgstr "Besluit vastgesteld"
+
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.KZ4doI"
+msgid "The meeting didn't load"
+msgstr "De vergadering is niet geladen"
+
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.bV5qPz"
+msgid "{count, plural, =0 {No attendees yet} one {# attendee} other {# attendees}}"
+msgstr "{count, plural, =0 {Nog geen deelnemers} one {# deelnemer} other {# deelnemers}}"
+
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.8SjgIB"
+msgid "No agenda yet"
+msgstr "Nog geen agenda"
+
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings._NfKDH"
+msgid "The chair adds the agenda items before the meeting."
+msgstr "De voorzitter voegt de agendapunten toe voor de vergadering."
+
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.RQUvuq"
+msgid "{up} for, {down} against"
+msgstr "{up} voor, {down} tegen"
+
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.AfVEPK"
+msgid "Settle from votes"
+msgstr "Vaststellen op basis van stemmen"
+
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.piYveY"
+msgid "Start meeting"
+msgstr "Vergadering starten"
+
+#: src/features/meetings/components/meeting-minutes.tsx
+msgctxt "meetings.dcUbOM"
+msgid "Hold meeting"
+msgstr "Vergadering afronden"
+
 #: src/features/members/components/invitation-list.tsx
 msgctxt "organization.SpBqjJ"
 msgid "Invitation revoked"
@@ -9689,6 +9888,11 @@ msgstr "Cases"
 msgctxt "navigation.PcgHMz"
 msgid "Audits and inspections"
 msgstr "Audits en inspecties"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.dMaTpi"
+msgid "Meetings"
+msgstr "Vergaderingen"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.poLbhw"

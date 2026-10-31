@@ -56,6 +56,7 @@ import {
   FunnelIcon,
   FolderOpenIcon,
   GaugeIcon,
+  GavelIcon,
   GitCommitHorizontalIcon,
   GlobeIcon,
   GraduationCapIcon,
@@ -326,6 +327,7 @@ export const BLOCK_ICONS = {
   risks: Grid3x3Icon,
   cases: FileWarningIcon,
   inspections: SearchCheckIcon,
+  meetings: GavelIcon,
   "care-plans": ClipboardPlusIcon,
   // Database primitives
   "updated-at": ClockIcon,

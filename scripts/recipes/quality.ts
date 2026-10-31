@@ -6,8 +6,12 @@ const RISKS = `${WEB_APP}/src/features/risks/components`;
 const OBSERVATIONS = `${WEB_APP}/src/features/observations/components`;
 const CASES = `${WEB_APP}/src/features/cases/components`;
 const INSPECTIONS = `${WEB_APP}/src/features/inspections/components`;
+const MEETINGS = `${WEB_APP}/src/features/meetings/components`;
 
-/** Recipes for the quality, risk, observation, case and inspection blocks. */
+/**
+ * Recipes for the quality, risk, observation, case, inspection and meeting
+ * blocks.
+ */
 export const QUALITY_RECIPES: readonly RecipeSource[] = [
   {
     slug: "risk-register",
@@ -128,6 +132,40 @@ export const QUALITY_RECIPES: readonly RecipeSource[] = [
       "One inspection with its status, checklist and team, its findings with a Raise case button for each nonconformity, and a Close button once every one has its case.",
     web: {
       file: `${INSPECTIONS}/inspection-run.tsx`,
+      components: ["alert", "badge", "button", "empty", "@reui/frame"],
+      glue: [],
+    },
+  },
+  {
+    slug: "meeting-agenda",
+    title: "Meeting agenda",
+    blocks: ["meetings"],
+    kind: "component",
+    description:
+      "The organization's meetings in a data grid with their kind, place and status, the most recent first, each linking to its minutes.",
+    web: {
+      file: `${MEETINGS}/meeting-agenda.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "empty",
+        "skeleton",
+        "@reui/data-grid",
+        "@reui/frame",
+      ],
+      glue: [],
+    },
+  },
+  {
+    slug: "meeting-minutes",
+    title: "Meeting minutes",
+    blocks: ["meetings"],
+    kind: "component",
+    description:
+      "One meeting with the minutes of each agenda item, its decisions with the votes so far and a Settle button, the tasks it opened, and Start and Hold buttons for the people who run it.",
+    web: {
+      file: `${MEETINGS}/meeting-minutes.tsx`,
       components: ["alert", "badge", "button", "empty", "@reui/frame"],
       glue: [],
     },

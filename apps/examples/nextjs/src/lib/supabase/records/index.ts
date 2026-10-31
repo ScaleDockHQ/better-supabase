@@ -26,6 +26,8 @@ export { incidentRecord } from "./incident.ts";
 export { inspectionRecord } from "./inspection.ts";
 export { inspectionFindingRecord } from "./inspection-finding.ts";
 export { inspectionProgramRecord } from "./inspection-program.ts";
+export { meetingRecord } from "./meeting.ts";
+export { meetingDecisionRecord } from "./meeting-decision.ts";
 export { orderRecord } from "./order.ts";
 export { personRecord } from "./person.ts";
 export { postRecord } from "./post.ts";

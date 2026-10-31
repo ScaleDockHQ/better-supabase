@@ -64,6 +64,7 @@ import type { LeaveSqlOptions } from "./leave/options.ts";
 import type { MailSyncSqlOptions } from "./mail-sync/options.ts";
 import type { ManufacturingSqlOptions } from "./manufacturing/options.ts";
 import type { MedicationsSqlOptions } from "./medications/options.ts";
+import type { MeetingsSqlOptions } from "./meetings/options.ts";
 import type { MembershipsSqlOptions } from "./memberships/options.ts";
 import type { MemorySqlOptions } from "./memory/options.ts";
 import type { MessagingSqlOptions } from "./messaging/options.ts";
@@ -205,6 +206,7 @@ import { leaveSqlOptions } from "./leave/options.ts";
 import { mailSyncSqlOptions } from "./mail-sync/options.ts";
 import { manufacturingSqlOptions } from "./manufacturing/options.ts";
 import { medicationsSqlOptions } from "./medications/options.ts";
+import { meetingsSqlOptions } from "./meetings/options.ts";
 import { membershipsSqlOptions } from "./memberships/options.ts";
 import { memorySqlOptions } from "./memory/options.ts";
 import { messagingSqlOptions } from "./messaging/options.ts";
@@ -356,6 +358,7 @@ export interface BlockOptionsRegistry {
   readonly inbox: InboxSqlOptions;
   readonly incidents: IncidentsSqlOptions;
   readonly inspections: InspectionsSqlOptions;
+  readonly meetings: MeetingsSqlOptions;
   readonly inventory: InventorySqlOptions;
   readonly invitations: InvitationsSqlOptions;
   readonly invoices: InvoicesSqlOptions;
@@ -521,6 +524,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   inbox: inboxSqlOptions,
   incidents: incidentsSqlOptions,
   inspections: inspectionsSqlOptions,
+  meetings: meetingsSqlOptions,
   inventory: inventorySqlOptions,
   invitations: invitationsSqlOptions,
   invoices: invoicesSqlOptions,

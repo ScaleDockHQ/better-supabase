@@ -9380,6 +9380,55 @@
       "RpcClient"
     ]
   },
+  "./blocks/meetings": {
+    "values": [
+      "createMeetings",
+      "dbTransport",
+      "extendBlock",
+      "meetingAgendaItemInputSchema",
+      "meetingDecisionInputSchema",
+      "meetingInputSchema",
+      "meetingsBlock",
+      "meetingsEvents",
+      "meetingsSqlOptions",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Meeting",
+      "MeetingActionItem",
+      "MeetingActionItemEventData",
+      "MeetingActionItemInput",
+      "MeetingAgendaItem",
+      "MeetingAgendaItemInput",
+      "MeetingAgendaStatus",
+      "MeetingAttendance",
+      "MeetingAttendee",
+      "MeetingAttendeeRole",
+      "MeetingCanceledEventData",
+      "MeetingChange",
+      "MeetingDecision",
+      "MeetingDecisionEventData",
+      "MeetingDecisionInput",
+      "MeetingDecisionStatus",
+      "MeetingDecisionVotes",
+      "MeetingDetail",
+      "MeetingEventData",
+      "MeetingInput",
+      "MeetingListOptions",
+      "Meetings",
+      "MeetingsEvents",
+      "MeetingsOptions",
+      "MeetingsSqlOptions",
+      "MeetingStatus",
+      "RpcClient"
+    ]
+  },
   "./blocks/manufacturing": {
     "values": [
       "bomInputSchema",

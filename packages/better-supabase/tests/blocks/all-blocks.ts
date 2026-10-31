@@ -77,6 +77,7 @@ import type { ledgerBlock } from "../../src/blocks/ledger/manifest.ts";
 import type { mailSyncBlock } from "../../src/blocks/mail-sync/manifest.ts";
 import type { manufacturingBlock } from "../../src/blocks/manufacturing/manifest.ts";
 import type { medicationsBlock } from "../../src/blocks/medications/manifest.ts";
+import type { meetingsBlock } from "../../src/blocks/meetings/manifest.ts";
 import type { membershipsBlock } from "../../src/blocks/memberships/manifest.ts";
 import type { memoryBlock } from "../../src/blocks/memory/manifest.ts";
 import type { messagingBlock } from "../../src/blocks/messaging/manifest.ts";
@@ -231,6 +232,7 @@ export type AllBlocks = {
   readonly acknowledgements: typeof acknowledgementsBlock;
   readonly incidents: typeof incidentsBlock;
   readonly inspections: typeof inspectionsBlock;
+  readonly meetings: typeof meetingsBlock;
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
   readonly courses: typeof coursesBlock;
