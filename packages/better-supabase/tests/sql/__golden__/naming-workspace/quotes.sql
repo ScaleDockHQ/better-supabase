@@ -1,10 +1,27 @@
 -- ==== schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:9f2b39d5b21fafaf5093f74252d4fa2ba37415e8ecc4af283c1363b637a519fa
+-- @bsb-hash sha256:84921c444d1f85f5fa9df6855264533c36757ea9e8d2d7f2dff86d0213476328
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -238,9 +255,18 @@ begin
   if v_contact_id is not null and not false then
     raise exception 'the contact is unknown or not readable in this organization' using errcode = '42501', hint = 'QUOTE_CONTACT_FORBIDDEN';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_quote.tenant::text || ':quote', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'quote' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'quote' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_quote.tenant::text || ':quote', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."quotes" x where x."tenant_id" = create_quote.tenant;
   v_identifier := 'Q-' || v_seq::text;
+  end if;
   begin
     insert into "better_supabase"."quotes" ("tenant_id", "number", "identifier", "title", "company_type", "company_id", "contact_type", "contact_id",
       "owner_user_id", "currency", "valid_until", "terms", "note", "origin_type", "origin_id", "prices_include_tax", "discount_bps", "discount_amount", "deposit_bps", "deposit_amount", "deposit_required", "created_by")

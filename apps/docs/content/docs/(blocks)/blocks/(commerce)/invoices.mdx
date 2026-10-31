@@ -115,6 +115,8 @@ blocks: {
 }
 ```
 
+During an [import run](/docs/blocks/imports), `issue_invoice` and `credit_invoice` take a historical number (`fixed_number`), and `credit_invoice` takes the issue date (`issued_on`) of the credit note it then issues at once. Outside an import run a fixed number fails with `NUMBER_FIXED_FORBIDDEN`. A credit note copies the legal entity of its invoice, so it counts in that entity's credit note series. See [numbering](/docs/blocks/numbering#imports-and-historical-numbers).
+
 ## Payments, credits and balance
 
 Amounts are `Money` values from [commerce](/docs/concepts/commerce): lines, totals, payments, the paid, credited and outstanding sums and the aging buckets. The database functions send them as text, so they stay exact past 2^53. Every line, credit and payment must be in the invoice's currency: the client returns `CURRENCY_MISMATCH` before calling the database, and `record_invoice_payment` refuses a payment in another currency (`INVOICE_CURRENCY_MISMATCH`). An invoice created without a `currency` takes the currency of its lines.
@@ -549,6 +551,7 @@ The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invo
 | Hint                                 | Cause                                                                                                 |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | `INVOICE_FORBIDDEN`                  | the caller lacks `invoices.write`                                                                     |
+| `NUMBER_FIXED_FORBIDDEN`             | a fixed number outside an import run                                                                  |
 | `INVOICE_ATTRS_INVALID`              | a missing title or a field with a bad value                                                           |
 | `INVOICE_NOT_FOUND`                  | no invoice the caller can edit (or manage, for void)                                                  |
 | `INVOICE_NOT_DRAFT`                  | the invoice was already issued, so it no longer changes and isn't deleted                             |

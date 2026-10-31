@@ -489,7 +489,7 @@ may be your own enum or domain.
   - `better_supabase.notification_preferences`: `id`, `user_id`, `type`, `channel`, `enabled`, `created_at`
   - `better_supabase.notification_suppressions`, once mapped: `id`, `channel`, `address`, `user_id`, `reason`, `provider`, `provider_event_id`, `detail`, `created_at`
 - `numbering`
-  - `better_supabase.number_sequences`: `tenant_id`, `entity`, `period`, `last_number`, `created_at`, `updated_at`; typed: `entity`
+  - `better_supabase.number_sequences`: `tenant_id`, `entity`, `scope`, `period`, `last_number`, `created_at`, `updated_at`; typed: `entity`
 - `oauth-server`
   - `better_supabase.oauth_clients`: `id`, `client_id`, `secret_hash`, `registration_token_hash`, `redirect_uris`, `grant_types`, `token_endpoint_auth_method`, `scope`, `created_at`; typed: `token_endpoint_auth_method`
   - `better_supabase.oauth_grants`: `id`, `user_id`, `client_id`, `scopes`, `created_at`, `revoked_at`

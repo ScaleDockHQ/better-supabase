@@ -1,6 +1,5 @@
-import type { ExtraColumn, BlockSqlContext } from "../context.ts";
-import type { CollectionNames } from "./invoices-collections.ts";
-import type { PurchaseNames } from "./invoices-purchase.ts";
+import type { BlockSqlContext, ExtraColumn } from "../context.ts";
+import type { InvoiceNames } from "./invoices-names.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -17,7 +16,11 @@ import {
   TOTAL_COLUMNS,
 } from "../line-items-sql.ts";
 import { int8Text } from "../money-sql.ts";
-import { assignNumberSql } from "../numbering-sql.ts";
+import {
+  assignNumberSql,
+  hasLegalEntityColumn,
+  scopeSql,
+} from "../numbering-sql.ts";
 import {
   extraFieldsArg,
   extraFieldsJson,
@@ -33,53 +36,8 @@ import { invoiceCollections } from "./invoices-collections.ts";
 import { invoiceFromQuote } from "./invoices-from-quote.ts";
 import { invoiceLedger, paymentKey } from "./invoices-ledger.ts";
 import { invoicePurchase, PURCHASE_VALUES } from "./invoices-purchase.ts";
+import { sequenceEntry } from "./numbering-entities.ts";
 import { createdFromLink } from "./quotes-functions.ts";
-
-export interface InvoiceNames extends PurchaseNames, CollectionNames {
-  readonly fn: (name: string) => string;
-  readonly t: (table: string) => string;
-  readonly c: (table: string, column: string) => string;
-  readonly read: string;
-  readonly write: string;
-  readonly manage: string;
-  readonly create: string;
-  readonly update: string;
-  readonly issue: string;
-  readonly payment: string;
-  readonly credit: string;
-  readonly charge: string;
-  readonly void: string;
-  readonly writeOff: string;
-  readonly reverse: string;
-  readonly remove: string;
-  readonly company: string;
-  readonly contact: string;
-  readonly prefix: string;
-  readonly creditPrefix: string;
-  /** Days from issue to due date by default. */
-  readonly termsDays: number;
-  readonly providerMethods: readonly string[];
-  readonly service: string;
-  /** `options.extraColumns`, which `create_invoice` writes by name. */
-  readonly extras: readonly ExtraColumn[];
-  readonly lineExtras: readonly ExtraColumn[];
-  /**
-   * `options.chargeExtraColumns`, which `add_invoice_charge` writes from
-   * `fields`.
-   */
-  readonly chargeExtras: readonly ExtraColumn[];
-  /** `options.totals: "app"`: the app keeps the totals, the block reads them. */
-  readonly appTotals: boolean;
-  /** `options.depositKind`: the kind value that marks a deposit invoice. */
-  readonly depositKind: string | undefined;
-  readonly depositLine: {
-    readonly description: string;
-    readonly fields: Readonly<Record<string, unknown>>;
-  };
-  readonly quoteLineValues: Readonly<
-    Record<string, Readonly<Record<string, string>>>
-  >;
-}
 
 /**
  * Invoice columns a config opts into by naming them in
@@ -626,7 +584,18 @@ ${userGrant(`${fn("remove_invoice_charge")}(uuid, jsonb)`)}
         prefix,
       },
       "v_issued_on::timestamptz",
+      {
+        scope: scopeSql(ctx, "invoices", `v_row.${i("tenant")}`, "v_row"),
+        fixed: `issue_invoice.fixed_number`,
+      },
     );
+
+  // series "none" on the invoice entity: credit notes take its numbers.
+  const credited = (own: string, shared: string): string =>
+    ctx.installed("numbering") &&
+    sequenceEntry(ctx.of("numbering"), shared)?.["series"] === "none"
+      ? shared
+      : own;
 
   return `
 -- Creates a draft invoice. attrs: title (required), currency, company and
@@ -758,7 +727,11 @@ ${updateInvoiceSql()}${lineItemsSql(
 -- actor: who issued it, for the state machine's history.
 drop function if exists ${fn("issue_invoice")}(uuid, date);
 drop function if exists ${fn("issue_invoice")}(uuid, date, date);
-create or replace function ${fn("issue_invoice")}(invoice uuid, issued_on date, due_on date default null, actor jsonb default null)
+drop function if exists ${fn("issue_invoice")}(uuid, date, date, jsonb);
+-- fixed_number: a historical number to keep as is, only while an import runs
+-- (better_supabase.import_run()); NUMBER_FIXED_FORBIDDEN otherwise. The counter
+-- of its series (kind, direction, legal entity, period) rises to it.
+create or replace function ${fn("issue_invoice")}(invoice uuid, issued_on date, due_on date default null, actor jsonb default null, fixed_number text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -791,7 +764,7 @@ begin
     if v_row.${i("total")} > v_original.${i("total")}${charges ? ` + ${charged("v_original")}` : ""} - v_original.${i("creditedTotal")} then
       ${fail("INVOICE_CREDIT_TOO_LARGE", "a credit note can't exceed the invoice's total less its earlier credits", "23514")}
     end if;
-    ${p.byDirection("v_row", assign("credit_note", "credit_note", n.creditPrefix), assign("purchase_credit_note", "credit_note", n.purchaseCreditPrefix, "purchase"))}
+    ${p.byDirection("v_row", assign(credited("credit_note", "invoice"), "credit_note", n.creditPrefix), assign(credited("purchase_credit_note", "purchase_bill"), "credit_note", n.purchaseCreditPrefix, "purchase"))}
   else
     ${p.byDirection("v_row", assign("invoice", "invoice", n.prefix), assign("purchase_bill", "invoice", n.purchasePrefix, "purchase"))}
   end if;${p.issue("v_row")}
@@ -816,7 +789,7 @@ begin
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("issue_invoice")}(uuid, date, date, jsonb)`)}
+${userGrant(`${fn("issue_invoice")}(uuid, date, date, jsonb, text)`)}
 
 -- Records a payment (a negative amount is a refund) in the invoice's
 -- currency as a ledger transaction from the invoice's receivable account to
@@ -907,8 +880,12 @@ $$;
 ${userGrant(`${fn("list_invoice_payments")}(uuid)`)}
 
 -- A draft credit note against an issued invoice: its lines, or the given
--- lines for a partial credit. Issue it to apply it.
-create or replace function ${fn("credit_invoice")}(invoice uuid, lines jsonb, note text)
+-- lines for a partial credit. Issue it to apply it. fixed_number: during an
+-- import (better_supabase.import_run()), a historical credit note number; the
+-- credit note is then issued at once on issued_on (today by default) with that
+-- number. NUMBER_FIXED_FORBIDDEN outside an import.
+drop function if exists ${fn("credit_invoice")}(uuid, jsonb, text);
+create or replace function ${fn("credit_invoice")}(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -918,6 +895,9 @@ declare
   v_original ${t("invoices")};
   v_row ${t("invoices")};
 begin
+  if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
+    ${fail("NUMBER_FIXED_FORBIDDEN", "a fixed number is only accepted during an import", "42501")}
+  end if;
   select * into v_original from ${t("invoices")} x where x.${i("id")} = credit_invoice.invoice and ${can("x", n.credit)};
   if v_original.${i("id")} is null then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
@@ -936,6 +916,7 @@ begin
       present("companyId", copy("companyId")),
       present("contactType", copy("contactType")),
       present("contactId", copy("contactId")),
+      ...(hasLegalEntityColumn(ctx, "invoices") ? ["legal_entity_id"] : []),
     ],
     [
       i("currency"),
@@ -959,6 +940,9 @@ begin
       present("companyId", `v_original.${copy("companyId")}`),
       present("contactType", `v_original.${copy("contactType")}`),
       present("contactId", `v_original.${copy("contactId")}`),
+      ...(hasLegalEntityColumn(ctx, "invoices")
+        ? ["v_original.legal_entity_id"]
+        : []),
     ],
     [
       `v_original.${i("currency")}`,
@@ -984,10 +968,13 @@ begin
     perform ${fn("set_invoice_lines")}(v_row.${i("id")}, credit_invoice.lines);
   end if;
   ${record("invoice.created", "v_row")}
+  if credit_invoice.fixed_number is not null then
+    perform ${fn("issue_invoice")}(v_row.${i("id")}, coalesce(credit_invoice.issued_on, current_date), null, null, credit_invoice.fixed_number);
+  end if;
   return (select ${row("x")} from ${t("invoices")} x where x.${i("id")} = v_row.${i("id")});
 end;
 $$;
-${userGrant(`${fn("credit_invoice")}(uuid, jsonb, text)`)}
+${userGrant(`${fn("credit_invoice")}(uuid, jsonb, text, text, date)`)}
 
 -- Voids an invoice without payments: a draft, or an issued one sent in
 -- error. Its number stays taken. Needs invoices.manage. The reason and actor

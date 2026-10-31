@@ -1,10 +1,27 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:87824209478f2de0250181859c43dda38ea5d135c05c5f4673d6b70ace6e477c
+-- @bsb-hash sha256:5b20024bc5b83d6b609b3e0869170cc3c34d861ec707a046cf5d2f7e77badbf4
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -295,9 +312,18 @@ begin
         using create_deal.tenant, create_deal.attrs;
     end if;
   end;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_deal.tenant::text || ':deal', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'deal' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'deal' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_deal.tenant::text || ':deal', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."deals" x where x."tenant_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
+  end if;
   begin
     insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
     values (create_deal.tenant,
@@ -1079,7 +1105,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:f594c8b902395c76abd5a86c16d52265e1e35b92e706ca2fcd4e7162c4c75253
+-- @bsb-hash sha256:3747ce5d6f905f4ee2f3f27b66091a4ac494e7a9ea83fd1743e1a2d6e4b93ae1
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1414,9 +1440,18 @@ begin
         using create_deal.tenant, create_deal.attrs;
     end if;
   end;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_deal.tenant::text || ':deal', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'deal' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'deal' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_deal.tenant::text || ':deal', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."deals" x where x."tenant_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
+  end if;
   begin
     insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
     values (create_deal.tenant,
@@ -2204,10 +2239,27 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:309e187085a8dbff18f2b74f74db42ac94253848c69f0cbedf8e128fade4f790
+-- @bsb-hash sha256:71d3f6f4ea41622d6693cabae5d62775006a0afdd93059e6b709f5015e1248ad
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -2503,9 +2555,18 @@ begin
         using create_deal.tenant, create_deal.attrs;
     end if;
   end;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_deal.tenant::text || ':deal', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'deal' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'deal' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_deal.tenant::text || ':deal', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "app_private"."deals" x where x."tenant_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
+  end if;
   begin
     insert into "app_private"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
     values (create_deal.tenant,
@@ -3287,10 +3348,27 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:1d206554473df014f8435b7ffc68f1ebae1f4f79eb882440878e324125f407e8
+-- @bsb-hash sha256:75f838930d834d9ee341f9634fae8eddc8eb16ca02a3920a1c256c0ef8196470
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -3581,9 +3659,18 @@ begin
         using create_deal.tenant, create_deal.attrs;
     end if;
   end;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_deal.tenant::text || ':deal', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'deal' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'deal' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_deal.tenant::text || ':deal', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."deals" x where x."tenant_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
+  end if;
   begin
     insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
     values (create_deal.tenant,
@@ -4339,6 +4426,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."deal_lines" as restr
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -4486,7 +4582,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:20fe0196f56166b29d008ca45434d243be2d6fd7722b181954e5736cdb512f91
+-- @bsb-hash sha256:0ed7830ad6536f874fbe4f06d62757af72ad9fb0fbad55e3654d76310149460b
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4506,6 +4602,22 @@ end;
 $$;
 revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
 grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -4788,9 +4900,18 @@ begin
         using create_deal.tenant, create_deal.attrs;
     end if;
   end;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_deal.tenant::text || ':deal', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'deal' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'deal' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_deal.tenant::text || ':deal', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."deals" x where x."tenant_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
+  end if;
   begin
     insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
     values (create_deal.tenant,
@@ -5571,10 +5692,27 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:1e2e58a8d33e4fda7095f626e7f3a7bdd794adc4d2c7319c9bac6155558fb5f8
+-- @bsb-hash sha256:bc754c003bfd7eb33722e784c2b9596c6f5a4ce46647f5b9b783d076a2cf9da1
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -5865,9 +6003,18 @@ begin
         using create_deal.tenant, create_deal.attrs;
     end if;
   end;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_deal.tenant::text || ':deal', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'deal' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'deal' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_deal.tenant::text || ':deal', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."deals" x where x."org_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
+  end if;
   begin
     insert into "better_supabase"."deals" ("org_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
     values (create_deal.tenant,

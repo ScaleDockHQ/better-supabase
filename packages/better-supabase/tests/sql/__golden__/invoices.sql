@@ -1,10 +1,27 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:a36d95954218b0b541709ee49a4580e815187e56d944b8a7dde28326d1608cab
+-- @bsb-hash sha256:4bf69e3329a61de1367e10b0e44d7b0dfffd23d22137f1e367754694be8125a1
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -601,7 +618,11 @@ grant execute on function "better_supabase"."set_invoice_lines"(uuid, jsonb) to 
 -- actor: who issued it, for the state machine's history.
 drop function if exists "better_supabase"."issue_invoice"(uuid, date);
 drop function if exists "better_supabase"."issue_invoice"(uuid, date, date);
-create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null)
+drop function if exists "better_supabase"."issue_invoice"(uuid, date, date, jsonb);
+-- fixed_number: a historical number to keep as is, only while an import runs
+-- (better_supabase.import_run()); NUMBER_FIXED_FORBIDDEN otherwise. The counter
+-- of its series (kind, direction, legal entity, period) rises to it.
+create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null, fixed_number text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -655,23 +676,59 @@ begin
       raise exception 'a credit note can''t exceed the invoice''s total less its earlier credits' using errcode = '23514', hint = 'INVOICE_CREDIT_TOO_LARGE';
     end if;
     if v_row."direction" = 'purchase' then
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_credit_note', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_credit_note', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'purchase' and k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'BCN-' || v_seq::text;
+  end if;
     else
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':credit_note', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':credit_note', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'sales' and k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'CN-' || v_seq::text;
+  end if;
     end if;
   else
     if v_row."direction" = 'purchase' then
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_bill', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_bill' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_bill' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_bill', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'purchase' and k."kind" = 'invoice') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'BILL-' || v_seq::text;
+  end if;
     else
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':invoice', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'invoice' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'invoice' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':invoice', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'sales' and k."kind" = 'invoice') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'INV-' || v_seq::text;
+  end if;
     end if;
   end if;
   update "better_supabase"."invoices" x set "status" = 'issued', "number" = v_seq, "identifier" = v_identifier,
@@ -723,8 +780,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb) from public, anon;
-grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) to authenticated, service_role;
 
 -- Records a payment (a negative amount is a refund) in the invoice's
 -- currency as a ledger transaction from the invoice's receivable account to
@@ -881,8 +938,12 @@ revoke execute on function "better_supabase"."list_invoice_payments"(uuid) from 
 grant execute on function "better_supabase"."list_invoice_payments"(uuid) to authenticated, service_role;
 
 -- A draft credit note against an issued invoice: its lines, or the given
--- lines for a partial credit. Issue it to apply it.
-create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text)
+-- lines for a partial credit. Issue it to apply it. fixed_number: during an
+-- import (better_supabase.import_run()), a historical credit note number; the
+-- credit note is then issued at once on issued_on (today by default) with that
+-- number. NUMBER_FIXED_FORBIDDEN outside an import.
+drop function if exists "better_supabase"."credit_invoice"(uuid, jsonb, text);
+create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -894,6 +955,9 @@ declare
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
+    raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
   end if;
   select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false));
   if v_original."id" is null then
@@ -916,6 +980,9 @@ begin
     perform "better_supabase"."set_invoice_lines"(v_row."id", credit_invoice.lines);
   end if;
   null;
+  if credit_invoice.fixed_number is not null then
+    perform "better_supabase"."issue_invoice"(v_row."id", coalesce(credit_invoice.issued_on, current_date), null, null, credit_invoice.fixed_number);
+  end if;
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
@@ -927,8 +994,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) from "better_supabase"."invoices" x where x."id" = v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text) from public, anon;
-grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, text, date) from public, anon;
+grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, text, date) to authenticated, service_role;
 
 -- Voids an invoice without payments: a draft, or an issued one sent in
 -- error. Its number stays taken. Needs invoices.manage. The reason and actor
@@ -1872,7 +1939,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:a337b7c3d518d9f83e125d6baf1e83a3bc2b07608bf9cf920849efb1fc838379
+-- @bsb-hash sha256:0967aba884f1b47c794490f774eea93e050b403b7167784c69fb7b81733769b3
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2500,7 +2567,11 @@ grant execute on function "better_supabase"."set_invoice_lines"(uuid, jsonb) to 
 -- actor: who issued it, for the state machine's history.
 drop function if exists "better_supabase"."issue_invoice"(uuid, date);
 drop function if exists "better_supabase"."issue_invoice"(uuid, date, date);
-create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null)
+drop function if exists "better_supabase"."issue_invoice"(uuid, date, date, jsonb);
+-- fixed_number: a historical number to keep as is, only while an import runs
+-- (better_supabase.import_run()); NUMBER_FIXED_FORBIDDEN otherwise. The counter
+-- of its series (kind, direction, legal entity, period) rises to it.
+create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null, fixed_number text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2554,23 +2625,59 @@ begin
       raise exception 'a credit note can''t exceed the invoice''s total less its earlier credits' using errcode = '23514', hint = 'INVOICE_CREDIT_TOO_LARGE';
     end if;
     if v_row."direction" = 'purchase' then
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_credit_note', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_credit_note', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'purchase' and k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'BCN-' || v_seq::text;
+  end if;
     else
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':credit_note', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':credit_note', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'sales' and k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'CN-' || v_seq::text;
+  end if;
     end if;
   else
     if v_row."direction" = 'purchase' then
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_bill', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_bill' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_bill' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_bill', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'purchase' and k."kind" = 'invoice') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'BILL-' || v_seq::text;
+  end if;
     else
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':invoice', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'invoice' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'invoice' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':invoice', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'sales' and k."kind" = 'invoice') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'INV-' || v_seq::text;
+  end if;
     end if;
   end if;
   if v_row."kind" = 'invoice' and not v_row."direction" = 'purchase' and coalesce(v_row."company_id"::text, v_row."contact_id"::text) is not null then
@@ -2639,8 +2746,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb) from public, anon;
-grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) to authenticated, service_role;
 
 -- Records a payment (a negative amount is a refund) in the invoice's
 -- currency as a ledger transaction from the invoice's receivable account to
@@ -2804,8 +2911,12 @@ revoke execute on function "better_supabase"."list_invoice_payments"(uuid) from 
 grant execute on function "better_supabase"."list_invoice_payments"(uuid) to authenticated, service_role;
 
 -- A draft credit note against an issued invoice: its lines, or the given
--- lines for a partial credit. Issue it to apply it.
-create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text)
+-- lines for a partial credit. Issue it to apply it. fixed_number: during an
+-- import (better_supabase.import_run()), a historical credit note number; the
+-- credit note is then issued at once on issued_on (today by default) with that
+-- number. NUMBER_FIXED_FORBIDDEN outside an import.
+drop function if exists "better_supabase"."credit_invoice"(uuid, jsonb, text);
+create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2817,6 +2928,9 @@ declare
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
+    raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
   end if;
   select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false));
   if v_original."id" is null then
@@ -2839,6 +2953,9 @@ begin
     perform "better_supabase"."set_invoice_lines"(v_row."id", credit_invoice.lines);
   end if;
   perform "better_supabase".emit_event('invoice.created', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
+  if credit_invoice.fixed_number is not null then
+    perform "better_supabase"."issue_invoice"(v_row."id", coalesce(credit_invoice.issued_on, current_date), null, null, credit_invoice.fixed_number);
+  end if;
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
@@ -2850,8 +2967,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) from "better_supabase"."invoices" x where x."id" = v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text) from public, anon;
-grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, text, date) from public, anon;
+grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, text, date) to authenticated, service_role;
 
 -- Voids an invoice without payments: a draft, or an issued one sent in
 -- error. Its number stays taken. Needs invoices.manage. The reason and actor
@@ -4192,10 +4309,27 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:b7e9dd0bb0b0de817d47ad35f831035d115f4f2fefa9b51d28f7f375d25947dc
+-- @bsb-hash sha256:36c3d50318f6dfb1cfaeed0d0acdff060ce9aac811ffe47ce6fa772762c65906
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -4797,7 +4931,11 @@ grant execute on function "app_private"."set_invoice_lines"(uuid, jsonb) to auth
 -- actor: who issued it, for the state machine's history.
 drop function if exists "app_private"."issue_invoice"(uuid, date);
 drop function if exists "app_private"."issue_invoice"(uuid, date, date);
-create or replace function "app_private"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null)
+drop function if exists "app_private"."issue_invoice"(uuid, date, date, jsonb);
+-- fixed_number: a historical number to keep as is, only while an import runs
+-- (better_supabase.import_run()); NUMBER_FIXED_FORBIDDEN otherwise. The counter
+-- of its series (kind, direction, legal entity, period) rises to it.
+create or replace function "app_private"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null, fixed_number text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4851,23 +4989,59 @@ begin
       raise exception 'a credit note can''t exceed the invoice''s total less its earlier credits' using errcode = '23514', hint = 'INVOICE_CREDIT_TOO_LARGE';
     end if;
     if v_row."direction" = 'purchase' then
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_credit_note', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_credit_note', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "app_private"."invoices" k where k."direction" = 'purchase' and k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'BCN-' || v_seq::text;
+  end if;
     else
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':credit_note', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':credit_note', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "app_private"."invoices" k where k."direction" = 'sales' and k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'CN-' || v_seq::text;
+  end if;
     end if;
   else
     if v_row."direction" = 'purchase' then
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_bill', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_bill' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_bill' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_bill', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "app_private"."invoices" k where k."direction" = 'purchase' and k."kind" = 'invoice') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'BILL-' || v_seq::text;
+  end if;
     else
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':invoice', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'invoice' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'invoice' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':invoice', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "app_private"."invoices" k where k."direction" = 'sales' and k."kind" = 'invoice') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'INV-' || v_seq::text;
+  end if;
     end if;
   end if;
   update "app_private"."invoices" x set "status" = 'issued', "number" = v_seq, "identifier" = v_identifier,
@@ -4919,8 +5093,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "app_private"."issue_invoice"(uuid, date, date, jsonb) from public, anon;
-grant execute on function "app_private"."issue_invoice"(uuid, date, date, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."issue_invoice"(uuid, date, date, jsonb, text) from public, anon;
+grant execute on function "app_private"."issue_invoice"(uuid, date, date, jsonb, text) to authenticated, service_role;
 
 -- Records a payment (a negative amount is a refund) in the invoice's
 -- currency as a ledger transaction from the invoice's receivable account to
@@ -5077,8 +5251,12 @@ revoke execute on function "app_private"."list_invoice_payments"(uuid) from publ
 grant execute on function "app_private"."list_invoice_payments"(uuid) to authenticated, service_role;
 
 -- A draft credit note against an issued invoice: its lines, or the given
--- lines for a partial credit. Issue it to apply it.
-create or replace function "app_private"."credit_invoice"(invoice uuid, lines jsonb, note text)
+-- lines for a partial credit. Issue it to apply it. fixed_number: during an
+-- import (better_supabase.import_run()), a historical credit note number; the
+-- credit note is then issued at once on issued_on (today by default) with that
+-- number. NUMBER_FIXED_FORBIDDEN outside an import.
+drop function if exists "app_private"."credit_invoice"(uuid, jsonb, text);
+create or replace function "app_private"."credit_invoice"(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5090,6 +5268,9 @@ declare
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
+    raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
   end if;
   select * into v_original from "app_private"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false));
   if v_original."id" is null then
@@ -5112,6 +5293,9 @@ begin
     perform "app_private"."set_invoice_lines"(v_row."id", credit_invoice.lines);
   end if;
   null;
+  if credit_invoice.fixed_number is not null then
+    perform "app_private"."issue_invoice"(v_row."id", coalesce(credit_invoice.issued_on, current_date), null, null, credit_invoice.fixed_number);
+  end if;
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
@@ -5123,8 +5307,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) from "app_private"."invoices" x where x."id" = v_row."id");
 end;
 $$;
-revoke execute on function "app_private"."credit_invoice"(uuid, jsonb, text) from public, anon;
-grant execute on function "app_private"."credit_invoice"(uuid, jsonb, text) to authenticated, service_role;
+revoke execute on function "app_private"."credit_invoice"(uuid, jsonb, text, text, date) from public, anon;
+grant execute on function "app_private"."credit_invoice"(uuid, jsonb, text, text, date) to authenticated, service_role;
 
 -- Voids an invoice without payments: a draft, or an issued one sent in
 -- error. Its number stays taken. Needs invoices.manage. The reason and actor
@@ -6068,10 +6252,27 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:d7bb50c4a275a61311bd7c47895fb0e2ce58406024fe60d2c79a026932c94b14
+-- @bsb-hash sha256:740a355f2fba65995411461ada2c6034913b52db683b0791da1be0595707995a
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -6668,7 +6869,11 @@ grant execute on function "better_supabase"."set_invoice_lines"(uuid, jsonb) to 
 -- actor: who issued it, for the state machine's history.
 drop function if exists "better_supabase"."issue_invoice"(uuid, date);
 drop function if exists "better_supabase"."issue_invoice"(uuid, date, date);
-create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null)
+drop function if exists "better_supabase"."issue_invoice"(uuid, date, date, jsonb);
+-- fixed_number: a historical number to keep as is, only while an import runs
+-- (better_supabase.import_run()); NUMBER_FIXED_FORBIDDEN otherwise. The counter
+-- of its series (kind, direction, legal entity, period) rises to it.
+create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null, fixed_number text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6722,23 +6927,59 @@ begin
       raise exception 'a credit note can''t exceed the invoice''s total less its earlier credits' using errcode = '23514', hint = 'INVOICE_CREDIT_TOO_LARGE';
     end if;
     if v_row."direction" = 'purchase' then
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_credit_note', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_credit_note', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'purchase' and k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'BCN-' || v_seq::text;
+  end if;
     else
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':credit_note', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':credit_note', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'sales' and k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'CN-' || v_seq::text;
+  end if;
     end if;
   else
     if v_row."direction" = 'purchase' then
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_bill', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_bill' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_bill' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_bill', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'purchase' and k."kind" = 'invoice') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'BILL-' || v_seq::text;
+  end if;
     else
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':invoice', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'invoice' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'invoice' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':invoice', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'sales' and k."kind" = 'invoice') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'INV-' || v_seq::text;
+  end if;
     end if;
   end if;
   update "better_supabase"."invoices" x set "status" = 'issued', "number" = v_seq, "identifier" = v_identifier,
@@ -6790,8 +7031,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb) from public, anon;
-grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) to authenticated, service_role;
 
 -- Records a payment (a negative amount is a refund) in the invoice's
 -- currency as a ledger transaction from the invoice's receivable account to
@@ -6948,8 +7189,12 @@ revoke execute on function "better_supabase"."list_invoice_payments"(uuid) from 
 grant execute on function "better_supabase"."list_invoice_payments"(uuid) to authenticated, service_role;
 
 -- A draft credit note against an issued invoice: its lines, or the given
--- lines for a partial credit. Issue it to apply it.
-create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text)
+-- lines for a partial credit. Issue it to apply it. fixed_number: during an
+-- import (better_supabase.import_run()), a historical credit note number; the
+-- credit note is then issued at once on issued_on (today by default) with that
+-- number. NUMBER_FIXED_FORBIDDEN outside an import.
+drop function if exists "better_supabase"."credit_invoice"(uuid, jsonb, text);
+create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6961,6 +7206,9 @@ declare
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
+    raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
   end if;
   select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false));
   if v_original."id" is null then
@@ -6983,6 +7231,9 @@ begin
     perform "better_supabase"."set_invoice_lines"(v_row."id", credit_invoice.lines);
   end if;
   null;
+  if credit_invoice.fixed_number is not null then
+    perform "better_supabase"."issue_invoice"(v_row."id", coalesce(credit_invoice.issued_on, current_date), null, null, credit_invoice.fixed_number);
+  end if;
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
@@ -6994,8 +7245,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) from "better_supabase"."invoices" x where x."id" = v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text) from public, anon;
-grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, text, date) from public, anon;
+grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, text, date) to authenticated, service_role;
 
 -- Voids an invoice without payments: a draft, or an issued one sent in
 -- error. Its number stays taken. Needs invoices.manage. The reason and actor
@@ -7915,10 +8166,12 @@ grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."issue_invoice"(uuid, date);
 drop function if exists "api"."issue_invoice"(uuid, date, date);
+drop function if exists "api"."issue_invoice"(uuid, date, date, jsonb);
 drop function if exists "api"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
 drop function if exists "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text);
 drop function if exists "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text);
 drop function if exists "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb);
+drop function if exists "api"."credit_invoice"(uuid, jsonb, text);
 drop function if exists "api"."void_invoice"(uuid, text);
 drop function if exists "api"."write_off_invoice"(uuid);
 drop function if exists "api"."write_off_invoice"(uuid, text);
@@ -7927,6 +8180,15 @@ drop function if exists "api"."add_invoice_charge"(uuid, bigint, text, text, jso
 drop function if exists "api"."add_invoice_charge"(uuid, bigint, text, text);
 drop function if exists "api"."remove_invoice_charge"(uuid);
 drop function if exists "api"."invoice_aging"(uuid, text, date);
+
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -7982,14 +8244,14 @@ as $$ select "better_supabase"."set_invoice_lines"($1, $2) $$;
 revoke execute on function "api"."set_invoice_lines"(uuid, jsonb) from public, anon;
 grant execute on function "api"."set_invoice_lines"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null)
+create or replace function "api"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null, fixed_number text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."issue_invoice"($1, $2, $3, $4) $$;
-revoke execute on function "api"."issue_invoice"(uuid, date, date, jsonb) from public, anon;
-grant execute on function "api"."issue_invoice"(uuid, date, date, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."issue_invoice"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."issue_invoice"(uuid, date, date, jsonb, text) from public, anon;
+grant execute on function "api"."issue_invoice"(uuid, date, date, jsonb, text) to authenticated, service_role;
 
 create or replace function "api"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null, reason text default null)
 returns jsonb
@@ -8009,14 +8271,14 @@ as $$ select "better_supabase"."list_invoice_payments"($1) $$;
 revoke execute on function "api"."list_invoice_payments"(uuid) from public, anon;
 grant execute on function "api"."list_invoice_payments"(uuid) to authenticated, service_role;
 
-create or replace function "api"."credit_invoice"(invoice uuid, lines jsonb, note text)
+create or replace function "api"."credit_invoice"(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."credit_invoice"($1, $2, $3) $$;
-revoke execute on function "api"."credit_invoice"(uuid, jsonb, text) from public, anon;
-grant execute on function "api"."credit_invoice"(uuid, jsonb, text) to authenticated, service_role;
+as $$ select "better_supabase"."credit_invoice"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."credit_invoice"(uuid, jsonb, text, text, date) from public, anon;
+grant execute on function "api"."credit_invoice"(uuid, jsonb, text, text, date) to authenticated, service_role;
 
 create or replace function "api"."void_invoice"(invoice uuid, reason text, actor jsonb default null)
 returns jsonb
@@ -8174,7 +8436,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:77b8621e0a45e415caa1e0a7fb31ce38dea286de6fcef17e35deb5959e3f2939
+-- @bsb-hash sha256:07ba0719eb894e6c6374b5672d4b88c72520b34736d71124fc7ebb7ed41ac751
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8194,6 +8456,22 @@ end;
 $$;
 revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
 grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -8778,7 +9056,11 @@ grant execute on function "better_supabase"."set_invoice_lines"(uuid, jsonb) to 
 -- actor: who issued it, for the state machine's history.
 drop function if exists "better_supabase"."issue_invoice"(uuid, date);
 drop function if exists "better_supabase"."issue_invoice"(uuid, date, date);
-create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null)
+drop function if exists "better_supabase"."issue_invoice"(uuid, date, date, jsonb);
+-- fixed_number: a historical number to keep as is, only while an import runs
+-- (better_supabase.import_run()); NUMBER_FIXED_FORBIDDEN otherwise. The counter
+-- of its series (kind, direction, legal entity, period) rises to it.
+create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null, fixed_number text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8832,23 +9114,59 @@ begin
       raise exception 'a credit note can''t exceed the invoice''s total less its earlier credits' using errcode = '23514', hint = 'INVOICE_CREDIT_TOO_LARGE';
     end if;
     if v_row."direction" = 'purchase' then
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_credit_note', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_credit_note', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'purchase' and k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'BCN-' || v_seq::text;
+  end if;
     else
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':credit_note', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':credit_note', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'sales' and k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'CN-' || v_seq::text;
+  end if;
     end if;
   else
     if v_row."direction" = 'purchase' then
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_bill', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_bill' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_bill' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':purchase_bill', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'purchase' and k."kind" = 'invoice') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'BILL-' || v_seq::text;
+  end if;
     else
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':invoice', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'invoice' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'invoice' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':invoice', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'sales' and k."kind" = 'invoice') x where x."tenant_id" = v_row."tenant_id";
   v_identifier := 'INV-' || v_seq::text;
+  end if;
     end if;
   end if;
   update "better_supabase"."invoices" x set "status" = 'issued', "number" = v_seq, "identifier" = v_identifier,
@@ -8900,8 +9218,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb) from public, anon;
-grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) to authenticated, service_role;
 
 -- Records a payment (a negative amount is a refund) in the invoice's
 -- currency as a ledger transaction from the invoice's receivable account to
@@ -9058,8 +9376,12 @@ revoke execute on function "better_supabase"."list_invoice_payments"(uuid) from 
 grant execute on function "better_supabase"."list_invoice_payments"(uuid) to authenticated, service_role;
 
 -- A draft credit note against an issued invoice: its lines, or the given
--- lines for a partial credit. Issue it to apply it.
-create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text)
+-- lines for a partial credit. Issue it to apply it. fixed_number: during an
+-- import (better_supabase.import_run()), a historical credit note number; the
+-- credit note is then issued at once on issued_on (today by default) with that
+-- number. NUMBER_FIXED_FORBIDDEN outside an import.
+drop function if exists "better_supabase"."credit_invoice"(uuid, jsonb, text);
+create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -9071,6 +9393,9 @@ declare
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
+    raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
   end if;
   select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false));
   if v_original."id" is null then
@@ -9093,6 +9418,9 @@ begin
     perform "better_supabase"."set_invoice_lines"(v_row."id", credit_invoice.lines);
   end if;
   null;
+  if credit_invoice.fixed_number is not null then
+    perform "better_supabase"."issue_invoice"(v_row."id", coalesce(credit_invoice.issued_on, current_date), null, null, credit_invoice.fixed_number);
+  end if;
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
@@ -9104,8 +9432,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) from "better_supabase"."invoices" x where x."id" = v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text) from public, anon;
-grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, text, date) from public, anon;
+grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, text, date) to authenticated, service_role;
 
 -- Voids an invoice without payments: a draft, or an issued one sent in
 -- error. Its number stays taken. Needs invoices.manage. The reason and actor
@@ -10049,10 +10377,27 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:3f6916ec2a4d27cc9fc1f708d1f2c8b7bb6f6a36fb3cb8c02f3fc46a79dd6ba0
+-- @bsb-hash sha256:9eacf8192ed0ac194071b5070d1d2f98d0da25af83c21907ddc8f687fc744bc0
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -10649,7 +10994,11 @@ grant execute on function "better_supabase"."set_invoice_lines"(uuid, jsonb) to 
 -- actor: who issued it, for the state machine's history.
 drop function if exists "better_supabase"."issue_invoice"(uuid, date);
 drop function if exists "better_supabase"."issue_invoice"(uuid, date, date);
-create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null)
+drop function if exists "better_supabase"."issue_invoice"(uuid, date, date, jsonb);
+-- fixed_number: a historical number to keep as is, only while an import runs
+-- (better_supabase.import_run()); NUMBER_FIXED_FORBIDDEN otherwise. The counter
+-- of its series (kind, direction, legal entity, period) rises to it.
+create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null, fixed_number text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -10703,23 +11052,59 @@ begin
       raise exception 'a credit note can''t exceed the invoice''s total less its earlier credits' using errcode = '23514', hint = 'INVOICE_CREDIT_TOO_LARGE';
     end if;
     if v_row."direction" = 'purchase' then
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."org_id"::text || ':purchase_credit_note', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."org_id"::text || ':purchase_credit_note', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'purchase' and k."kind" = 'credit_note') x where x."org_id" = v_row."org_id";
   v_identifier := 'BCN-' || v_seq::text;
+  end if;
     else
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."org_id"::text || ':credit_note', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'credit_note' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."org_id"::text || ':credit_note', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'sales' and k."kind" = 'credit_note') x where x."org_id" = v_row."org_id";
   v_identifier := 'CN-' || v_seq::text;
+  end if;
     end if;
   else
     if v_row."direction" = 'purchase' then
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."org_id"::text || ':purchase_bill', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_bill' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'purchase_bill' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."org_id"::text || ':purchase_bill', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'purchase' and k."kind" = 'invoice') x where x."org_id" = v_row."org_id";
   v_identifier := 'BILL-' || v_seq::text;
+  end if;
     else
-      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."org_id"::text || ':invoice', 0));
+      if coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'invoice' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end)) is not null then
+    v_identifier := coalesce(issue_invoice.fixed_number, (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'invoice' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end));
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."org_id"::text || ':invoice', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."direction" = 'sales' and k."kind" = 'invoice') x where x."org_id" = v_row."org_id";
   v_identifier := 'INV-' || v_seq::text;
+  end if;
     end if;
   end if;
   update "better_supabase"."invoices" x set "status" = 'issued', "number" = v_seq, "identifier" = v_identifier,
@@ -10771,8 +11156,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."org_id" = v_row."org_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb) from public, anon;
-grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb, text) to authenticated, service_role;
 
 -- Records a payment (a negative amount is a refund) in the invoice's
 -- currency as a ledger transaction from the invoice's receivable account to
@@ -10929,8 +11314,12 @@ revoke execute on function "better_supabase"."list_invoice_payments"(uuid) from 
 grant execute on function "better_supabase"."list_invoice_payments"(uuid) to authenticated, service_role;
 
 -- A draft credit note against an issued invoice: its lines, or the given
--- lines for a partial credit. Issue it to apply it.
-create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text)
+-- lines for a partial credit. Issue it to apply it. fixed_number: during an
+-- import (better_supabase.import_run()), a historical credit note number; the
+-- credit note is then issued at once on issued_on (today by default) with that
+-- number. NUMBER_FIXED_FORBIDDEN outside an import.
+drop function if exists "better_supabase"."credit_invoice"(uuid, jsonb, text);
+create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -10942,6 +11331,9 @@ declare
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
+    raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
   end if;
   select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false));
   if v_original."id" is null then
@@ -10964,6 +11356,9 @@ begin
     perform "better_supabase"."set_invoice_lines"(v_row."id", credit_invoice.lines);
   end if;
   null;
+  if credit_invoice.fixed_number is not null then
+    perform "better_supabase"."issue_invoice"(v_row."id", coalesce(credit_invoice.issued_on, current_date), null, null, credit_invoice.fixed_number);
+  end if;
   return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
       'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
@@ -10975,8 +11370,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."org_id" = x."org_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) from "better_supabase"."invoices" x where x."id" = v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text) from public, anon;
-grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, text, date) from public, anon;
+grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, text, date) to authenticated, service_role;
 
 -- Voids an invoice without payments: a draft, or an issued one sent in
 -- error. Its number stays taken. Needs invoices.manage. The reason and actor

@@ -3,6 +3,7 @@ import type { BlockSqlScope } from "../scope.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
+import { withFixedNumber } from "../numbering-sql.ts";
 import { fail } from "../shared.ts";
 import { amountOf as bareAmountOf } from "./catalog-functions.ts";
 
@@ -158,16 +159,30 @@ export function assignNumber(
   if (format !== undefined) {
     const next = ctx.of("numbering").fn("next_number");
 
-    return `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, now());
-  ${target.number} := better_supabase.format_assigned_number(${format}, ${target.seq}, now());`;
+    return withFixedNumber(
+      ctx,
+      entity,
+      tenant,
+      { seq: target.seq, text: target.number },
+      `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, now());
+  ${target.number} := better_supabase.format_assigned_number(${format}, ${target.seq}, now());`,
+      { at: "now()", scope: "''", registered: true },
+    );
   }
 
   const o = columns(ctx, "orders");
   const column = entity === "order" ? o("sequence") : o("invoiceSequence");
 
-  return `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${tenant}::text || ':commerce:${entity}', 0));
+  return withFixedNumber(
+    ctx,
+    entity,
+    tenant,
+    { seq: target.seq, text: target.number },
+    `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${tenant}::text || ':commerce:${entity}', 0));
   select coalesce(max(x.${column}), 0) + 1 into ${target.seq} from ${ctx.table("orders")} x where x.${o("tenant")} = ${tenant};
-  ${target.number} := ${target.seq}::text;`;
+  ${target.number} := ${target.seq}::text;`,
+    { at: "now()", scope: "''" },
+  );
 }
 
 /**

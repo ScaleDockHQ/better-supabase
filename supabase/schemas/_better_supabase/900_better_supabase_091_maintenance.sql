@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@4 managed tasks
--- @bsb-hash sha256:3e4bd13d3512a98997f5304fbf897d20990e4e94c96b5c56b58a8403cf8e9f02
+-- @bsb-hash sha256:3d6c719a6e331ec228ceba76e06e23f27d8948f6d7872d173a9c591c1d26911b
 -- @bsb-names maintenance task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -296,9 +296,18 @@ begin
         using create_maintenance_request.tenant, create_maintenance_request.attrs;
     end if;
   end;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_maintenance_request.tenant::text || ':maintenance_request', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'maintenance_request' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'maintenance_request' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_maintenance_request.tenant::text || ':maintenance_request', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."maintenance_requests" x where x."tenant_id" = create_maintenance_request.tenant;
   v_identifier := 'MR' || v_seq::text;
+  end if;
   begin
     insert into "better_supabase"."maintenance_requests" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
       "priority", "estimate", "progress", "start_at", "end_at", "due_at", "pipeline_id", "stage_id", "created_by", "unit_id", "lease_id")

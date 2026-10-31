@@ -194,9 +194,36 @@ It reads the entities that set `table` and `column`, matches each value against 
 
 Without either, the function fails with `NUMBER_SYNC_UNSUPPORTED` for that entity.
 
-With `formatFrom`, each row is read with its tenant's format, and the period comes from `periodColumn`, which such an entity needs unless its `period` is `none`. With `periodFrom`, the period comes from `periodColumn` in the period each tenant has chosen, and the entity always needs `periodColumn`. With `sequenceColumn`, the number comes from that column instead of the formatted value. It returns the number of counters it wrote. It is service-only, like `next_number`, and runs in the caller's transaction.
+With `formatFrom`, each row is read with its tenant's format, and the period comes from `periodColumn`, which such an entity needs unless its `period` is `none`. With `periodFrom`, the period comes from `periodColumn` in the period each tenant has chosen, and the entity always needs `periodColumn`. With `sequenceColumn`, the number comes from that column instead of the formatted value. It returns a JSON object with `synced`, the number of counters it wrote, and `mismatched`, the numbers that do not match the format (see [imports](#imports-and-historical-numbers)). It is service-only, like `next_number`, and runs in the caller's transaction.
 
 Run it after anything that writes numbered rows directly. After seeding, end `supabase/seed.sql` with `select better_supabase.sync_number_sequences();`, so `supabase db reset` leaves the counters past the seeded documents. After an import, call it in the same transaction as the import. After adopting tables whose documents already have numbers, run it once in a data migration.
+
+## Series and legal entities
+
+Each counter belongs to a series: tenant, entity, scope and period. The `scope` column of `number_sequences` is the legal entity of the numbered row as text, and the empty text for the default entity and for rows without one. `number_scope(tenant, legalEntityId)` returns it. A `scope` column holds the key instead of the table's `legal_entity_id` because a nullable column cannot be part of the primary key, which is `(tenant, entity, scope, period)`. `next_number` and `preview_number` take the scope as a last argument (`p_scope`, default empty).
+
+With [legal entities](/docs/blocks/legal-entities) installed and `options.on` holding `invoices`, invoices number per legal entity: two entities each have an `INV-1`. Set `scopeColumn` on an entity with `table` and `column` to scope another table the same way, with a uuid column that names the legal entity.
+
+`series` is `kind` (the default) or `none`. With `kind`, credit notes (`credit_note`) and purchase credit notes count apart from invoices. With `none` they share the invoice series, so a credit note takes the next invoice number.
+
+## Imports and historical numbers
+
+An import keeps the numbers the old system gave. While `better_supabase.import_run()` is set, which means an [import run](/docs/blocks/imports) in the service role, a numbered entity accepts a number you give it, and the counter of its series moves up to that number:
+
+```sql
+-- invoices and credit notes take it as an argument
+select better_supabase.issue_invoice(invoice, date '2023-05-01', null, null, '23000365');
+select better_supabase.credit_invoice(invoice, null, 'Imported', 'CN-77', date '2023-06-01');
+
+-- every other numbered entity sets it for the next insert in the transaction
+select better_supabase.set_fixed_number('quote', 'Q-2023-0042');
+```
+
+`credit_invoice` with a fixed number issues the credit note at once on the given date. Outside an import run, a fixed number fails with `NUMBER_FIXED_FORBIDDEN`, and a number that does not fit the entity's format fails with `NUMBER_FIXED_INVALID`. `register_fixed_number(tenant, entity, number, at, scope)` does the counter work alone, for a table you write yourself in an import.
+
+With the format `{yy}{n:6}`, the invoice `23000365` sets the counter of the 2023 series to 365, and the next invoice in 2023 is `23000366`. A new year starts at `24000001`, and a second legal entity keeps its own counter.
+
+After the import, `sync_number_sequences(tenant, entity, scope)` raises every counter of a series to the highest number its table holds, per period and legal entity, for invoices and credit notes too. It covers `invoice`, `credit_note`, `purchase_bill` and `purchase_credit_note` once numbering numbers them. A number that does not match the current format is never rejected. The function returns it in `mismatched` as `{ entity, scope, number }`, and writes a warning on the active import run, at most 200 per call.
 
 ## Hooks
 

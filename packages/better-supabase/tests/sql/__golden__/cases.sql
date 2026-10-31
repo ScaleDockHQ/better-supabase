@@ -1,10 +1,27 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:e21381e172e538f2f3d57a78102a6385fbcd8ef600ce2302a382395b36a5a9b8
+-- @bsb-hash sha256:50fc9e3543445f3fe90d91178ad0bfa1d0739709fc5faf60ea1ea8d6f9556fcc
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -415,9 +432,18 @@ begin
     perform "better_supabase"."ensure_case_kinds"(v_kind."tenant_id");
     select * into v_kind from "better_supabase"."case_kinds" x where x."id" = open_case_as.kind_id;
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_kind."tenant_id"::text || ':case', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_kind."tenant_id"::text || ':case', 0));
   select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."cases" x where x."tenant_id" = v_kind."tenant_id";
   v_identifier := '' || v_seq::text;
+  end if;
   select max(x."rank") into v_last from "better_supabase"."cases" x
   where x."tenant_id" = v_kind."tenant_id" and x."pipeline_id" = v_kind."pipeline_id";
   v_rank := case
@@ -1366,7 +1392,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:12672ee387b142733db637235f02262a59c0d497c9d14ab38c0beb4b2f05b257
+-- @bsb-hash sha256:2cb2bdfd033ce69d5178648da1a4bf9f66f437c41662b81d371e9ece9f3316c5
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1827,8 +1853,14 @@ begin
     perform "better_supabase"."ensure_case_kinds"(v_kind."tenant_id");
     select * into v_kind from "better_supabase"."case_kinds" x where x."id" = open_case_as.kind_id;
   end if;
-  v_seq := "better_supabase"."next_number"(v_kind."tenant_id", 'case', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(v_kind."tenant_id", 'case', v_identifier, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(v_kind."tenant_id", 'case', now(), '');
   v_identifier := better_supabase.format_assigned_number('{yyyy}-{n:4}', v_seq, now());
+  end if;
   select max(x."rank") into v_last from "better_supabase"."cases" x
   where x."tenant_id" = v_kind."tenant_id" and x."pipeline_id" = v_kind."pipeline_id";
   v_rank := case
@@ -3117,10 +3149,27 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:6a3e31de313721acba53ac9dd812c550e9c8b657689c701ea60f3a6323256874
+-- @bsb-hash sha256:9be219d133bf8d573aa38bfeef505ec7dc30dce74ffb42d6ba5d9f31340ceedc
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -3536,9 +3585,18 @@ begin
     perform "app_private"."ensure_case_kinds"(v_kind."tenant_id");
     select * into v_kind from "app_private"."case_kinds" x where x."id" = open_case_as.kind_id;
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_kind."tenant_id"::text || ':case', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_kind."tenant_id"::text || ':case', 0));
   select coalesce(max(x."sequence"), 0) + 1 into v_seq from "app_private"."cases" x where x."tenant_id" = v_kind."tenant_id";
   v_identifier := '' || v_seq::text;
+  end if;
   select max(x."rank") into v_last from "app_private"."cases" x
   where x."tenant_id" = v_kind."tenant_id" and x."pipeline_id" = v_kind."pipeline_id";
   v_rank := case
@@ -4487,10 +4545,27 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:eb9303187c8681e51d7255baa253d0141fa50e3cab87611e46809da39d8dc464
+-- @bsb-hash sha256:2ab781dd24e5410685da594457ee3f2bb7b5d2a2cb673c397c4f21a630d2b5e4
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -4901,9 +4976,18 @@ begin
     perform "better_supabase"."ensure_case_kinds"(v_kind."tenant_id");
     select * into v_kind from "better_supabase"."case_kinds" x where x."id" = open_case_as.kind_id;
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_kind."tenant_id"::text || ':case', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_kind."tenant_id"::text || ':case', 0));
   select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."cases" x where x."tenant_id" = v_kind."tenant_id";
   v_identifier := '' || v_seq::text;
+  end if;
   select max(x."rank") into v_last from "better_supabase"."cases" x
   where x."tenant_id" = v_kind."tenant_id" and x."pipeline_id" = v_kind."pipeline_id";
   v_rank := case
@@ -5826,6 +5910,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."case_actions" as res
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+create or replace function "api"."import_run"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_run"() $$;
+revoke execute on function "api"."import_run"() from public;
+grant execute on function "api"."import_run"() to anon, authenticated, service_role;
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -6081,10 +6174,27 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:1795c0fba3465a6769f6c89eb59050b971daaa52cadcd96b0a83e666be6d66d3
+-- @bsb-hash sha256:1ec9d0b84f7c6e23d0a60bbd4624fd2e29c341d86821833c218cd9bd5bf2fb07
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -6479,9 +6589,18 @@ begin
     perform "better_supabase"."ensure_case_kinds"(v_kind."tenant_id");
     select * into v_kind from "better_supabase"."case_kinds" x where x."id" = open_case_as.kind_id;
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_kind."tenant_id"::text || ':case', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_kind."tenant_id"::text || ':case', 0));
   select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."cases" x where x."tenant_id" = v_kind."tenant_id";
   v_identifier := '' || v_seq::text;
+  end if;
   select max(x."rank") into v_last from "better_supabase"."cases" x
   where x."tenant_id" = v_kind."tenant_id" and x."pipeline_id" = v_kind."pipeline_id";
   v_rank := case
@@ -7430,10 +7549,27 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:dc51a6891862d44124aa19feb7e8ac3b09cf6630741315ce36839920f61172bd
+-- @bsb-hash sha256:b23714d5416eab73a74346773fcf31d7ab5a06af13b74538d94b4e0f5538997b
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -7844,9 +7980,18 @@ begin
     perform "better_supabase"."ensure_case_kinds"(v_kind."org_id");
     select * into v_kind from "better_supabase"."case_kinds" x where x."id" = open_case_as.kind_id;
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_kind."org_id"::text || ':case', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_kind."org_id"::text || ':case', 0));
   select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."cases" x where x."org_id" = v_kind."org_id";
   v_identifier := '' || v_seq::text;
+  end if;
   select max(x."rank") into v_last from "better_supabase"."cases" x
   where x."org_id" = v_kind."org_id" and x."pipeline_id" = v_kind."pipeline_id";
   v_rank := case

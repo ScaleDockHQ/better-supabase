@@ -1,6 +1,6 @@
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:ed129e095155377b87da5ef57c92406bab023e812286187f4526e105315a2641
+-- @bsb-hash sha256:d53ebbccef18c3aae8808c8c07046e2b9a4bfe8a7d28346e0557aed843d99d47
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -581,8 +581,14 @@ begin
         using schedule_inspection.tenant, schedule_inspection.input;
     end if;
   end;
-  v_seq := "better_supabase"."next_number"(schedule_inspection.tenant, 'inspection', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'inspection' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'inspection' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(schedule_inspection.tenant, 'inspection', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(schedule_inspection.tenant, 'inspection', now(), '');
   v_number := better_supabase.format_assigned_number('AUD-{yyyy}-{n:3}', v_seq, now());
+  end if;
   insert into "better_supabase"."inspections" ("tenant_id", "program_id", "number", "sequence", "kind", "title", "scope", "criteria", "auditee_type", "auditee_id", "planned_start", "planned_end", "checklist_form_id", "created_by")
   values (schedule_inspection.tenant, v_program, v_number, v_seq, v_kind, v_title, nullif(trim(schedule_inspection.input ->> 'scope'), ''), nullif(trim(schedule_inspection.input ->> 'criteria'), ''), v_auditee_type, v_auditee_id, v_start, v_end, v_form, auth.uid())
   returning * into v_row;

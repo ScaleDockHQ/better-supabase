@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:31c5b5b46e357898159b9210f88b963cf329dc6fb8fde1485a1075e875c8e414
+-- @bsb-hash sha256:cbdfdefc9a4dda9ae52389f570df86cd3adb288bf9ec29eef829c84cd1a54790
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -910,8 +910,14 @@ begin
   if v_bom is null then
     raise exception 'the variant has no active bill of materials' using errcode = '55000', hint = 'BOM_NOT_ACTIVE';
   end if;
-  v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(create_production_order.tenant, 'production_order', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now(), '');
   v_number := better_supabase.format_assigned_number('MO-{yyyy}-{n:4}', v_seq, now());
+  end if;
   insert into "better_supabase"."production_orders" ("tenant_id", "number", "sequence", "variant_id", "bom_id", "quantity", "location_id", "due_on", "note", "created_by")
   values (create_production_order.tenant, v_number, v_seq, v_variant, v_bom, v_quantity, v_location,
     nullif(create_production_order.input ->> 'dueOn', '')::date, nullif(trim(create_production_order.input ->> 'note'), ''), auth.uid())
@@ -1998,7 +2004,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:c839d5ba9ebea0f2f4527dd7eb6b4ab6800dfdd59bd99cca14e08ec03f954e4f
+-- @bsb-hash sha256:bc75958e198fcb4311d349199543367ee830f6966f5ab6522b7b2e1af4d9e7d0
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2942,8 +2948,14 @@ begin
   if v_bom is null then
     raise exception 'the variant has no active bill of materials' using errcode = '55000', hint = 'BOM_NOT_ACTIVE';
   end if;
-  v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(create_production_order.tenant, 'production_order', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now(), '');
   v_number := better_supabase.format_assigned_number('MO-{yyyy}-{n:4}', v_seq, now());
+  end if;
   insert into "better_supabase"."production_orders" ("tenant_id", "number", "sequence", "variant_id", "bom_id", "quantity", "location_id", "due_on", "note", "created_by")
   values (create_production_order.tenant, v_number, v_seq, v_variant, v_bom, v_quantity, v_location,
     nullif(create_production_order.input ->> 'dueOn', '')::date, nullif(trim(create_production_order.input ->> 'note'), ''), auth.uid())
@@ -4095,7 +4107,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:2769923ad6652834114272d33b6fe4e297cca4e7016de36caf0ddb1c019fd9b8
+-- @bsb-hash sha256:78f3c6ccd2e60fd940d73d9f926455905ccad3b2da09dd2a27e7589748be18c1
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5009,8 +5021,14 @@ begin
   if v_bom is null then
     raise exception 'the variant has no active bill of materials' using errcode = '55000', hint = 'BOM_NOT_ACTIVE';
   end if;
-  v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(create_production_order.tenant, 'production_order', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now(), '');
   v_number := better_supabase.format_assigned_number('MO-{yyyy}-{n:4}', v_seq, now());
+  end if;
   insert into "app_private"."production_orders" ("tenant_id", "number", "sequence", "variant_id", "bom_id", "quantity", "location_id", "due_on", "note", "created_by")
   values (create_production_order.tenant, v_number, v_seq, v_variant, v_bom, v_quantity, v_location,
     nullif(create_production_order.input ->> 'dueOn', '')::date, nullif(trim(create_production_order.input ->> 'note'), ''), auth.uid())
@@ -6097,7 +6115,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:e1182024d93aa53f5074c2aa638893ac28d6fd07901b5842cb0ebcc508902270
+-- @bsb-hash sha256:84b6a0ee0fcf7d621295ed8adeca65290ac38170503dde80c3a2680501e3efb8
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7006,8 +7024,14 @@ begin
   if v_bom is null then
     raise exception 'the variant has no active bill of materials' using errcode = '55000', hint = 'BOM_NOT_ACTIVE';
   end if;
-  v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(create_production_order.tenant, 'production_order', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now(), '');
   v_number := better_supabase.format_assigned_number('MO-{yyyy}-{n:4}', v_seq, now());
+  end if;
   insert into "better_supabase"."production_orders" ("tenant_id", "number", "sequence", "variant_id", "bom_id", "quantity", "location_id", "due_on", "note", "created_by")
   values (create_production_order.tenant, v_number, v_seq, v_variant, v_bom, v_quantity, v_location,
     nullif(create_production_order.input ->> 'dueOn', '')::date, nullif(trim(create_production_order.input ->> 'note'), ''), auth.uid())
@@ -8305,7 +8329,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:691200b5a846fac7e839e1ae07164ddde9d52af8c31650e3cc7b63f6aca056da
+-- @bsb-hash sha256:f8d55d54924580a90a98988f6609085aa17bcfc26030669351c0a96d04a5dbca
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9167,8 +9191,14 @@ begin
   if v_bom is null then
     raise exception 'the variant has no active bill of materials' using errcode = '55000', hint = 'BOM_NOT_ACTIVE';
   end if;
-  v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(create_production_order.tenant, 'production_order', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now(), '');
   v_number := better_supabase.format_assigned_number('MO-{yyyy}-{n:4}', v_seq, now());
+  end if;
   insert into "better_supabase"."production_orders" ("tenant_id", "number", "sequence", "variant_id", "bom_id", "quantity", "location_id", "due_on", "note", "created_by")
   values (create_production_order.tenant, v_number, v_seq, v_variant, v_bom, v_quantity, v_location,
     nullif(create_production_order.input ->> 'dueOn', '')::date, nullif(trim(create_production_order.input ->> 'note'), ''), auth.uid())
@@ -10255,7 +10285,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:f7b8a6d8dc6d303ea287e748e5a1307024fc89726bc070f373268b6757881228
+-- @bsb-hash sha256:a0e9c649ba3c9742494112f99dc62e8f89f76231e3eda8ed72dd3ba621bea132
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11164,8 +11194,14 @@ begin
   if v_bom is null then
     raise exception 'the variant has no active bill of materials' using errcode = '55000', hint = 'BOM_NOT_ACTIVE';
   end if;
-  v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(create_production_order.tenant, 'production_order', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now(), '');
   v_number := better_supabase.format_assigned_number('MO-{yyyy}-{n:4}', v_seq, now());
+  end if;
   insert into "better_supabase"."production_orders" ("org_id", "number", "sequence", "variant_id", "bom_id", "quantity", "location_id", "due_on", "note", "created_by")
   values (create_production_order.tenant, v_number, v_seq, v_variant, v_bom, v_quantity, v_location,
     nullif(create_production_order.input ->> 'dueOn', '')::date, nullif(trim(create_production_order.input ->> 'note'), ''), auth.uid())

@@ -4,7 +4,7 @@ import type { DriveKit } from "./drive-kit.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { sequenceFormatOf } from "../numbering-sql.ts";
+import { sequenceFormatOf, withFixedNumber } from "../numbering-sql.ts";
 import {
   activeMembership,
   ensureCheck,
@@ -491,8 +491,15 @@ begin
   v_number := v_node.${n("documentNumber")};
   if v_number is null then
     ${chosen}
-    v_seq := ${own.of("numbering").fn("next_number")}(v_node.${n("tenant")}, v_entity, now());
-    v_number := better_supabase.format_assigned_number(v_format, v_seq, now());
+    ${withFixedNumber(
+      own,
+      "document",
+      `v_node.${n("tenant")}`,
+      { seq: "v_seq", text: "v_number" },
+      `v_seq := ${own.of("numbering").fn("next_number")}(v_node.${n("tenant")}, v_entity, now());
+    v_number := better_supabase.format_assigned_number(v_format, v_seq, now());`,
+      { at: "now()", scope: "''", registered: true, entitySql: "v_entity" },
+    )}
   end if;
   update ${T} x set ${n("documentNumber")} = v_number,
     ${n("documentType")} = drive_document_save.document_type,

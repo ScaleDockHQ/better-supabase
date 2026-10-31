@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@4 managed
--- @bsb-hash sha256:8764cf2b85f0c7d0bcd0bab3cbf380f2d762f850984c2f5f1316be5c680f4e8f
+-- @bsb-hash sha256:ab473ba5181766a473eab61c1b011261d117a195542174e44589c1b353a1c781
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,6 +30,22 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -342,9 +358,18 @@ begin
         using create_task.tenant, create_task.attrs;
     end if;
   end;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."tasks" x where x."tenant_id" = create_task.tenant;
   v_identifier := 'TASK-' || v_seq::text;
+  end if;
   begin
     insert into "better_supabase"."tasks" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
       "priority", "estimate", "progress", "start_at", "end_at", "due_at", "pipeline_id", "stage_id", "created_by", "app_note")

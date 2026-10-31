@@ -1,6 +1,6 @@
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:13864b0bdf8408fce1ddcba904e7f31963dbb2c87ad2e3adcd0bd7caa7094110
+-- @bsb-hash sha256:ca0cdbb2e4f94614bdc788f9d098834708a5f64899978f65e8aca570db4ea6c8
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -461,8 +461,14 @@ begin
     perform "better_supabase"."ensure_case_kinds"(v_kind."tenant_id");
     select * into v_kind from "better_supabase"."case_kinds" x where x."id" = open_case_as.kind_id;
   end if;
-  v_seq := "better_supabase"."next_number"(v_kind."tenant_id", 'case', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'case' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(v_kind."tenant_id", 'case', v_identifier, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(v_kind."tenant_id", 'case', now(), '');
   v_identifier := better_supabase.format_assigned_number('{yyyy}-{n:4}', v_seq, now());
+  end if;
   select max(x."rank") into v_last from "better_supabase"."cases" x
   where x."tenant_id" = v_kind."tenant_id" and x."pipeline_id" = v_kind."pipeline_id";
   v_rank := case

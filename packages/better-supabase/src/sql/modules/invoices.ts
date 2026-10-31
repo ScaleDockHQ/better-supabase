@@ -6,7 +6,7 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
-import type { InvoiceNames } from "./invoices-functions.ts";
+import type { InvoiceNames } from "./invoices-names.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -596,7 +596,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "set_invoice_lines", args: ["uuid", "jsonb"], returns: "jsonb" },
     {
       name: "issue_invoice",
-      args: ["uuid", "date", "date", "jsonb"],
+      args: ["uuid", "date", "date", "jsonb", "text"],
       returns: "jsonb",
     },
     {
@@ -616,7 +616,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     {
       name: "credit_invoice",
-      args: ["uuid", "jsonb", "text"],
+      args: ["uuid", "jsonb", "text", "text", "date"],
       returns: "jsonb",
     },
     { name: "void_invoice", args: ["uuid", "text", "jsonb"], returns: "jsonb" },
@@ -693,6 +693,7 @@ export const INVOICES: BlockSqlDefinition = {
     "audit",
     "notifications",
     "numbering",
+    "legal-entities",
     "quotes",
     "relations",
     "accounting",

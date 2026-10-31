@@ -270,6 +270,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0153: Banking imports camt.053 and MT940 statements idempotently, suggests and matches invoices in SQL through `record_invoice_payment`, books rule matches in the bank journal; bank feeds are a versioned `BankFeed` port over `fetch`.
 - 0154: Meetings are one block over subjects, reactions, documents and tasks; votes settle decisions and action items are tasks.
 - 0156: Field definitions name registered subject types; packs install them by pack and key, and values can belong to a legal entity.
+- 0157: Numbers are scoped per legal entity, an import keeps its historical numbers and the sync reports what does not match the format.
 
 ## Pre-release pins
 

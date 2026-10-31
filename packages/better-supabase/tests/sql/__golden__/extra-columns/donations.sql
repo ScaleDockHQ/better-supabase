@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:3ef81d97a367bd67d7f22783acb27a17d43332a42b057cfd5a0404446267b8e0
+-- @bsb-hash sha256:c879ef9f33acd9fc0df3bdc933c2c62b7c3543469c208ee8b2f84c32e75a3130
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -793,8 +793,14 @@ begin
     select * into v_receipt from "better_supabase"."donation_receipts" x where x."id" = v_row."receipt_id";
     return jsonb_build_object('id', v_receipt."id", 'organizationId', v_receipt."tenant_id", 'donorType', v_receipt."donor_type", 'donorId', v_receipt."donor_id", 'sequence', v_receipt."sequence"::text, 'number', v_receipt."number", 'kind', v_receipt."kind", 'year', v_receipt."year", 'amount', v_receipt."amount"::text, 'currency', v_receipt."currency", 'issuedAt', v_receipt."issued_at", 'voidedAt', v_receipt."voided_at", 'voidReason', v_receipt."void_reason");
   end if;
-  v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(v_row."tenant_id", 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (v_row."tenant_id", v_row."donor_type", v_row."donor_id", v_seq, v_number, 'gift', extract(year from v_row."received_on")::integer,
     v_row."amount", v_row."currency")
@@ -847,8 +853,14 @@ begin
   if v_amount <= 0 then
     raise exception 'the donor has no posted gifts in this year and currency' using errcode = '22023', hint = 'DONATION_RECEIPT_EMPTY';
   end if;
-  v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(issue_yearly_receipt.tenant, 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (issue_yearly_receipt.tenant, issue_yearly_receipt.donor_type, issue_yearly_receipt.donor_id, v_seq, v_number, 'yearly',
     issue_yearly_receipt.year, v_amount, issue_yearly_receipt.currency)

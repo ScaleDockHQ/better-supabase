@@ -19,6 +19,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { sequences } from "./numbering-entities.ts";
+import { fixedNumberFunctions, scopeFunction } from "./numbering-fixed.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<NumberingEvents> = {
@@ -40,6 +41,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         tenant: "tenant_id",
         entity: "entity",
+        scope: "scope",
         period: "period",
         lastNumber: "last_number",
         createdAt: "created_at",
@@ -272,12 +274,43 @@ function syncSource(ctx: BlockSqlContext, item: SequenceEntity): SyncSource {
   return { period, number, match: parses ? sqlString(pattern) : undefined };
 }
 
+function scopeOfRow(ctx: BlockSqlContext, item: SequenceEntity): string {
+  return item.scopeColumn === undefined
+    ? "''"
+    : `${ctx.fn("number_scope")}(t.${sqlIdent(item.tenantColumn)}, t.${sqlIdent(item.scopeColumn)})`;
+}
+
+function mismatchSql(
+  ctx: BlockSqlContext,
+  item: SequenceEntity & { readonly table: string; readonly column: string },
+  where: string,
+): string {
+  const owner = `t.${sqlIdent(item.tenantColumn)}`;
+  const format = formatOf(ctx, item, owner);
+
+  const pattern =
+    item.formatFrom === undefined
+      ? sqlString(formatPattern(item.format).pattern)
+      : `better_supabase.number_format_pattern(${format})`;
+
+  return `    v_bad := v_bad || coalesce((
+      select jsonb_agg(b.entry) from (
+        select jsonb_build_object('entity', ${sqlString(item.name)}, 'scope', ${scopeOfRow(ctx, item)}, 'number', t.${sqlIdent(item.column)}::text) as entry
+        from ${quotedTable(item.table)} t
+        where t.${sqlIdent(item.column)} is not null
+          and t.${sqlIdent(item.column)}::text !~ ${pattern}
+${where}
+        limit 200
+      ) b
+    ), '[]'::jsonb);`;
+}
+
 function syncEntity(
   ctx: BlockSqlContext,
   item: SequenceEntity & { readonly table: string; readonly column: string },
 ): string {
   const { period, number, match } = syncSource(ctx, item);
-  const where = `p_entity is null or p_entity = ${sqlString(item.name)}`;
+  const guard = `p_entity is null or p_entity = ${sqlString(item.name)}`;
 
   if (period === undefined || number === undefined) {
     const problem =
@@ -289,7 +322,7 @@ function syncEntity(
             : `the ${item.name} format is chosen per tenant; set options.entities.${item.name}.periodColumn`
           : `the ${item.name} period is chosen per tenant; set options.entities.${item.name}.periodColumn`;
 
-    return `  if ${where} then
+    return `  if ${guard} then
     ${fail("NUMBER_SYNC_UNSUPPORTED", problem, "22023")}
   end if;`;
   }
@@ -297,10 +330,12 @@ function syncEntity(
   const table = ctx.table("sequences");
   const tenant = ctx.col("sequences", "tenant");
   const entity = ctx.col("sequences", "entity");
+  const scopeCol = ctx.col("sequences", "scope");
   const periodCol = ctx.col("sequences", "period");
   const last = ctx.col("sequences", "lastNumber");
   const updatedAt = ctx.col("sequences", "updatedAt");
   const owner = `t.${sqlIdent(item.tenantColumn)}`;
+  const scope = scopeOfRow(ctx, item);
 
   const join =
     match === undefined
@@ -311,21 +346,27 @@ function syncEntity(
   const found =
     match === undefined ? `${number} is not null` : "m.parts is not null";
 
-  return `  if ${where} then
-    insert into ${table} (${tenant}, ${entity}, ${periodCol}, ${last})
-    select s.tenant, ${ctx.cast("sequences", "entity", sqlString(item.name))}, s.period, max(s.n)
+  const filter = item.rowFilter === undefined ? "" : `(${item.rowFilter}) and `;
+
+  const rows = `${filter}(p_tenant is null or ${owner} = p_tenant)
+        and (p_scope is null or ${scope} = p_scope)`;
+
+  return `  if ${guard} then
+    insert into ${table} (${tenant}, ${entity}, ${scopeCol}, ${periodCol}, ${last})
+    select s.tenant, ${ctx.cast("sequences", "entity", sqlString(item.name))}, s.scope, s.period, max(s.n)
     from (
-      select ${owner} as tenant, ${period} as period, (${number})::bigint as n
+      select ${owner} as tenant, ${scope} as scope, ${period} as period, (${number})::bigint as n
       from ${quotedTable(item.table)} t${join}
       where ${found}
-        and (p_tenant is null or ${owner} = p_tenant)
+        and ${rows}
     ) s
     where s.tenant is not null and s.period is not null
-    group by s.tenant, s.period
-    on conflict (${tenant}, ${entity}, ${periodCol})
+    group by s.tenant, s.scope, s.period
+    on conflict (${tenant}, ${entity}, ${scopeCol}, ${periodCol})
     do update set ${last} = greatest(${table}.${last}, excluded.${last}), ${updatedAt} = now();
     get diagnostics v_count = row_count;
     v_rows := v_rows + v_count;
+${mismatchSql(ctx, item, `          and ${rows}`)}
   end if;`;
 }
 
@@ -378,7 +419,8 @@ function previewFunction(
   });
 
   return `
-create or replace function ${fn}(p_tenant ${ctx.idType}, p_entity text, p_at timestamptz default now())
+drop function if exists ${fn}(${ctx.idType}, text, timestamptz);
+create or replace function ${fn}(p_tenant ${ctx.idType}, p_entity text, p_at timestamptz default now(), p_scope text default '')
 returns text
 language plpgsql
 stable
@@ -402,11 +444,12 @@ begin
   from ${table} s
   where s.${ctx.col("sequences", "tenant")} = p_tenant
     and s.${ctx.col("sequences", "entity")} = ${ctx.cast("sequences", "entity", "p_entity")}
+    and s.${ctx.col("sequences", "scope")} = coalesce(p_scope, '')
     and s.${ctx.col("sequences", "period")} = v_period;
   return better_supabase.format_assigned_number(v_format, coalesce(v_last, 0) + 1, p_at);
 end;
 $$;
-${userGrant(`${fn}(${ctx.idType}, text, timestamptz)`)}`;
+${userGrant(`${fn}(${ctx.idType}, text, timestamptz, text)`)}`;
 }
 
 function formatFunction(
@@ -520,12 +563,31 @@ function syncFunction(
       ? "false"
       : `p_entity in (${synced.map((item) => sqlString(item.name)).join(", ")})`;
 
+  const imports = ctx.installed("imports") ? ctx.of("imports") : undefined;
+
+  const warn =
+    imports === undefined
+      ? ""
+      : `
+  if better_supabase.import_run() is not null and jsonb_array_length(v_bad) > 0 then
+    update ${imports.table("runs")} r
+    set ${imports.col("runs", "errors")} = r.${imports.col("runs", "errors")} || (
+      select jsonb_agg(jsonb_build_object('entity', b ->> 'entity', 'key', b ->> 'number', 'code', 'NUMBER_FORMAT_MISMATCH', 'severity', 'warning', 'message', 'the number does not match the current format of ' || (b ->> 'entity')))
+      from jsonb_array_elements(v_bad) b
+    )
+    where r.${imports.col("runs", "id")} = better_supabase.import_run();
+  end if;`;
+
   return `
 -- Raises each sequence to the highest number its table already holds, per
--- tenant and period, for rows numbered outside next_number: seeds, imports
--- and restores. A null tenant or entity syncs every one.
-create or replace function ${fn}(p_tenant ${ctx.idType} default null, p_entity text default null)
-returns integer
+-- tenant, scope (legal entity) and period, for rows numbered outside
+-- next_number: seeds, imports and restores. A null tenant, entity or scope
+-- syncs every one. Returns { synced, mismatched }: the numbers that don't
+-- match the current format are listed (and added to the import run as
+-- warnings), never rejected.
+drop function if exists ${fn}(${ctx.idType}, text);
+create or replace function ${fn}(p_tenant ${ctx.idType} default null, p_entity text default null, p_scope text default null)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
@@ -533,6 +595,7 @@ as $$
 declare
   v_rows integer := 0;
   v_count integer;
+  v_bad jsonb := '[]'::jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     ${fail("ACTOR_READ_ONLY", "This session is read-only")}
@@ -540,11 +603,11 @@ begin
   if p_entity is not null and not (${known}) then
     ${fail("NUMBER_ENTITY_UNKNOWN", "no numbered table for this sequence", "22023")}
   end if;
-${synced.map((item) => syncEntity(ctx, item)).join("\n")}
-  return v_rows;
+${synced.map((item) => syncEntity(ctx, item)).join("\n")}${warn}
+  return jsonb_build_object('synced', v_rows, 'mismatched', v_bad);
 end;
 $$;
-${serviceGrant(`${fn}(${ctx.idType}, text)`)}`;
+${serviceGrant(`${fn}(${ctx.idType}, text, text)`)}`;
 }
 
 function tenantValue(
@@ -660,28 +723,72 @@ function periodTriggers(ctx: BlockSqlContext, item: SequenceEntity): string {
     .join("\n");
 }
 
+/**
+ * The app's own sequences table keeps its key from before the series scope
+ * existed. Constraints without the scope column are replaced by one unique
+ * index over tenant, entity, scope and period, which the counters conflict on.
+ */
+function adoptedKey(
+  table: string,
+  key: readonly string[],
+  scope: string,
+): string {
+  const columns = key.join(", ");
+
+  return `do $$
+declare
+  v_constraint record;
+begin
+  for v_constraint in
+    select c.conname
+    from pg_catalog.pg_constraint c
+    where c.conrelid = ${sqlString(table)}::pg_catalog.regclass
+      and c.contype in ('p', 'u')
+      and not exists (
+        select 1
+        from pg_catalog.pg_attribute a
+        where a.attrelid = c.conrelid
+          and a.attnum = any (c.conkey)
+          and a.attname = ${sqlString(scope.replaceAll('"', ""))}
+      )
+  loop
+    execute pg_catalog.format('alter table ${table} drop constraint %I', v_constraint.conname);
+  end loop;
+end
+$$;
+create unique index if not exists number_sequences_series_key on ${table} (${columns});
+`;
+}
+
 /** The sequences table, also created by the upgrades that seed it. */
 export function sequencesTable(ctx: BlockSqlContext): string {
-  if (!ctx.manages) {
-    return "";
-  }
-
   const table = ctx.table("sequences");
   const tenant = ctx.col("sequences", "tenant");
   const entity = ctx.col("sequences", "entity");
   const period = ctx.col("sequences", "period");
+  const scope = ctx.col("sequences", "scope");
+
+  if (!ctx.manages) {
+    return "";
+  }
+
+  const key = ctx.owns("sequences")
+    ? ""
+    : adoptedKey(table, [tenant, entity, scope, period], scope);
 
   return `create table if not exists ${table} (
   ${tenant} ${ctx.idType} not null,
   ${entity} text not null,
+  -- The legal entity (its id as text) the series belongs to; '' is the default entity.
+  ${scope} text not null default '',
   ${period} text not null default '',
   ${ctx.col("sequences", "lastNumber")} bigint not null,
   ${ctx.col("sequences", "createdAt")} timestamptz not null default now(),
   ${ctx.col("sequences", "updatedAt")} timestamptz not null default now(),
-  primary key (${tenant}, ${entity}, ${period})
+  primary key (${tenant}, ${entity}, ${scope}, ${period})
 );
 ${lockTable(table)}
-`;
+${key}`;
 }
 
 function build(ctx: BlockSqlContext): string {
@@ -693,6 +800,7 @@ function build(ctx: BlockSqlContext): string {
   const tenant = ctx.col("sequences", "tenant");
   const entityCol = ctx.col("sequences", "entity");
   const period = ctx.col("sequences", "period");
+  const scopeCol = ctx.col("sequences", "scope");
   const last = ctx.col("sequences", "lastNumber");
   const updatedAt = ctx.col("sequences", "updatedAt");
   const fn = ctx.fn("next_number");
@@ -707,7 +815,12 @@ function build(ctx: BlockSqlContext): string {
   const tables = sequencesTable(ctx);
 
   const triggers = items
-    .filter((item) => item.table !== undefined && item.column !== undefined)
+    .filter(
+      (item) =>
+        item.table !== undefined &&
+        item.column !== undefined &&
+        item.syncOnly !== true,
+    )
     .map((item) => `${trigger(ctx, item)}${periodTriggers(ctx, item)}`)
     .join("\n");
 
@@ -809,7 +922,8 @@ ${serviceGrant("better_supabase.number_format_pattern(text)")}
 
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
 drop function if exists ${fn}(${ctx.idType}, text, timestamptz) cascade;
-create or replace function ${fn}(tenant ${ctx.idType}, p_entity text, at timestamptz default now())
+drop function if exists ${fn}(${ctx.idType}, text, timestamptz, text) cascade;
+create or replace function ${fn}(tenant ${ctx.idType}, p_entity text, at timestamptz default now(), p_scope text default '')
 returns bigint
 language plpgsql
 security definer
@@ -831,10 +945,10 @@ begin
     ["text", "p_entity"],
     ["text", "v_period"],
   ])}
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(next_number.tenant::text || ':' || p_entity || ':' || v_period, 0));
-  insert into ${table} (${tenant}, ${entityCol}, ${period}, ${last})
-  values (next_number.tenant, ${ctx.cast("sequences", "entity", "p_entity")}, v_period, 1)
-  on conflict (${tenant}, ${entityCol}, ${period})
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(next_number.tenant::text || ':' || p_entity || ':' || coalesce(p_scope, '') || ':' || v_period, 0));
+  insert into ${table} (${tenant}, ${entityCol}, ${scopeCol}, ${period}, ${last})
+  values (next_number.tenant, ${ctx.cast("sequences", "entity", "p_entity")}, coalesce(p_scope, ''), v_period, 1)
+  on conflict (${tenant}, ${entityCol}, ${scopeCol}, ${period})
   do update set ${last} = ${table}.${last} + 1, ${updatedAt} = now()
   returning ${last} into v_n;
   ${ctx.record({
@@ -857,7 +971,17 @@ begin
   return v_n;
 end;
 $$;
-${serviceGrant(`${fn}(${ctx.idType}, text, timestamptz)`)}
+${serviceGrant(`${fn}(${ctx.idType}, text, timestamptz, text)`)}
+${scopeFunction(ctx)}
+${fixedNumberFunctions(
+  ctx,
+  items,
+  periodCaseOf(ctx, items, {
+    tenant: "p_tenant",
+    entity: "p_entity",
+    at: "p_at",
+  }),
+)}
 ${formatFunction(ctx, items)}
 ${periodFunction(ctx, items)}
 ${previewFunction(ctx, items)}
@@ -882,6 +1006,11 @@ function trigger(ctx: BlockSqlContext, item: SequenceEntity): string {
       : sqlIdent(item.sequenceColumn);
 
   const fn = sqlIdent(`bsb_assign_number_${item.name}`);
+
+  const scope =
+    item.scopeColumn === undefined
+      ? "''"
+      : `${ctx.fn("number_scope")}(new.${sqlIdent(item.tenantColumn)}, new.${sqlIdent(item.scopeColumn)})`;
 
   const manual = fail(
     "NUMBER_MANUAL",
@@ -927,19 +1056,22 @@ begin
     return new;
   end if;
   -- A number is assigned here or by the service role, never sent by a client.${manualSequence}
+  v_at := ${item.periodColumn === undefined ? "now()" : `coalesce(${rowAt(`new.${sqlIdent(item.periodColumn)}`)}, now())`};
   if new.${col} is not null then
     if ${issued} then
       perform set_config('better_supabase.issued_number', '', true);
     elsif not (${SERVICE_CALLER}) then
       ${manual}
+    elsif better_supabase.import_run() is not null then
+      -- A historical number during an import: the counter rises to it.
+      perform ${ctx.fn("register_fixed_number")}(new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, new.${col}::text, v_at, ${scope});
     end if;
     return new;
   end if;
   if not (${item.assignOn}) then
     return new;
   end if;
-  v_at := ${item.periodColumn === undefined ? "now()" : `coalesce(${rowAt(`new.${sqlIdent(item.periodColumn)}`)}, now())`};
-  v_n := ${ctx.fn("next_number")}(new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, v_at);
+  v_n := ${ctx.fn("next_number")}(new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, v_at, ${scope});
   new.${col} := better_supabase.format_assigned_number(${formatOf(ctx, item, `new.${sqlIdent(item.tenantColumn)}`)}, v_n, v_at);${
     sequence === undefined
       ? ""
@@ -959,12 +1091,12 @@ function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "next_number",
-      args: ["{id}", "text", "timestamptz"],
+      args: ["{id}", "text", "timestamptz", "text"],
       returns: "bigint",
     },
     {
       name: "preview_number",
-      args: ["{id}", "text", "timestamptz"],
+      args: ["{id}", "text", "timestamptz", "text"],
       returns: "text",
     },
   ];
@@ -977,7 +1109,7 @@ export const NUMBER_SEQUENCES: BlockSqlDefinition = {
   description:
     "Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "audit"],
+  integrates: ["outbox", "audit", "invoices", "legal-entities", "imports"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

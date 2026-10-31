@@ -1,10 +1,27 @@
 -- ==== schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:cb026ddf782f5be4d6b2c46c0f35ed54f86904c62a93be797d73c80cd4371428
+-- @bsb-hash sha256:ee4ed3b1ae3ad162145cd379e560307818a79375e050163d2e9a161294a016a6
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -456,9 +473,18 @@ begin
         using create_risk.tenant, create_risk.input;
     end if;
   end;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_risk.tenant::text || ':risk', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'risk' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'risk' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_number from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_risk.tenant::text || ':risk', 0));
   select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."risks" x where x."tenant_id" = create_risk.tenant;
   v_number := 'RSK-' || v_seq::text;
+  end if;
   insert into "better_supabase"."risks" ("tenant_id", "number", "sequence", "matrix_id", "title", "category", "description", "cause", "consequence", "owner_id", "review_interval_months", "created_by")
   values (create_risk.tenant, v_number, v_seq, v_matrix, v_title, v_category, nullif(trim(create_risk.input ->> 'description'), ''), nullif(trim(create_risk.input ->> 'cause'), ''), nullif(trim(create_risk.input ->> 'consequence'), ''), nullif(create_risk.input ->> 'ownerId', '')::uuid, (create_risk.input ->> 'reviewIntervalMonths')::integer, auth.uid())
   returning * into v_row;
