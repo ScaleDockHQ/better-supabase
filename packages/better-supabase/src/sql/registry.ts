@@ -87,6 +87,7 @@ import { LEAD_SCORING } from "./modules/lead-scoring.ts";
 import { LEASES } from "./modules/leases.ts";
 import { LEAVE } from "./modules/leave.ts";
 import { LEDGER } from "./modules/ledger.ts";
+import { LEGAL_ENTITIES } from "./modules/legal-entities.ts";
 import { MAIL_SYNC } from "./modules/mail-sync.ts";
 import { MANUFACTURING } from "./modules/manufacturing.ts";
 import { MEDICATIONS } from "./modules/medications.ts";
@@ -408,6 +409,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(MANUFACTURING),
       built(BANKING),
       built(MEETINGS),
+      built(LEGAL_ENTITIES),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

@@ -111,6 +111,7 @@ const MODULES = [
   "inspections",
   "meetings",
   "manufacturing",
+  "legal-entities",
 ] as const;
 
 interface Setup {

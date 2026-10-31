@@ -51,6 +51,19 @@ A key without a `default` reads as `undefined` until it is set. A stored
 value that no longer matches its schema (after you narrow an enum, for
 example) also reads as the default, so old rows never break a page.
 
+## Resolving per legal entity
+
+With the [legal entities](/docs/blocks/legal-entities) block, `resolve`
+reads an organization key for one legal entity: its own value, else the
+organization's, else the key's `default`. Without `legalEntityId` the
+organization's default legal entity answers.
+
+```ts
+const footer = await db.settings
+  .resolve(orgId, "invoiceFooter", { legalEntityId })
+  .orThrow();
+```
+
 ## Reading and writing
 
 `createSettings` takes the definition as `settings` and returns typed

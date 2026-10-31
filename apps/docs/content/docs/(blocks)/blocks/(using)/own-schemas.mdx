@@ -424,6 +424,9 @@ may be your own enum or domain.
   - `better_supabase.ledger_entries`: `id`, `tenant_id`, `transaction_id`, `account_id`, `amount`, `unit`, `created_at`
   - `better_supabase.ledger_balances`: `account_id`, `tenant_id`, `balance`, `held`
   - `better_supabase.ledger_holds`: `id`, `tenant_id`, `account_id`, `amount`, `status`, `transaction_id`, `created_at`; typed: `status`
+- `legal-entities`
+  - `better_supabase.legal_entities`: `id`, `tenant_id`, `code`, `name`, `address`, `vat_number`, `coc_number`, `iban`, `bic`, `logo_attachment_id`, `default_currency`, `fiscal`, `is_default`, `archived_at`, `created_at`, `updated_at`
+  - `better_supabase.legal_entity_settings`: `tenant_id`, `legal_entity_id`, `key`, `value`, `updated_by`, `updated_at`
 - `mail-sync`
   - `better_supabase.mail_accounts`: `id`, `tenant_id`, `user_id`, `provider`, `address`, `credential_ref`, `share`, `status`, `sync_cursor`, `last_synced_at`; typed: `share`, `status`
   - `better_supabase.mail_threads`: `id`, `tenant_id`, `account_id`, `external_id`, `last_message_at`

@@ -1,0 +1,149 @@
+---
+title: Legal entities
+description: Several companies inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal calendar, one of them the default, and settings that fall back from the legal entity to the organization.
+---
+
+`legal-entities` lets one organization run more than one company. Each legal
+entity has its own address, VAT and chamber of commerce numbers, IBAN, logo,
+default currency and fiscal calendar. One entity per organization is the
+default. Contacts, products and members stay shared across entities.
+
+```bash
+better-supabase add legal-entities
+```
+
+```ts
+import { createLegalEntities } from "better-supabase/blocks/legal-entities";
+```
+
+The module requires `tenant`, `permissions` and [settings](/docs/blocks/settings).
+An organization with one company needs no setup: until the first legal entity
+exists, `legal_entity_of` returns null and every table behaves as it did.
+With `outbox` it records the events, and with `audit` every change is
+audited.
+
+## Tables
+
+| Table                   | Holds                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| `legal_entities`        | A code, a name, the address, VAT, chamber and bank details, the fiscal calendar and a flag |
+| `legal_entity_settings` | One setting per legal entity and key, as JSON                                              |
+
+Members with `legal_entities.read` read both tables. Writes go through the
+functions below.
+
+| Permission              | Allows                                              | Default roles        |
+| ----------------------- | --------------------------------------------------- | -------------------- |
+| `legal_entities.read`   | reading legal entities and their settings           | owner, admin, member |
+| `legal_entities.manage` | creating, changing, archiving and choosing defaults | owner, admin         |
+
+## The default entity
+
+The first legal entity an organization creates becomes its default. A partial
+unique index allows one default per organization. `setDefault` moves the flag
+in one step, and the default cannot be archived until another one takes over.
+
+```ts
+const bv = await db.legalEntities
+  .create({
+    code: "NL01",
+    name: "Acme B.V.",
+    vatNumber: "NL123456789B01",
+    iban: "NL91ABNA0417164300",
+    defaultCurrency: "EUR",
+    fiscal: { fiscalYearStartMonth: 1, taxPeriod: "quarterly" },
+  })
+  .orThrow();
+
+const gmbh = await db.legalEntities
+  .create({ code: "DE01", name: "Acme GmbH", defaultCurrency: "EUR" })
+  .orThrow();
+
+await db.legalEntities.setDefault(gmbh.id).orThrow();
+```
+
+`fiscal.fiscalYearStartMonth` is 1 to 12 and `fiscal.taxPeriod` is
+`monthly` or `quarterly`. `update` merges a partial `fiscal` into the stored
+one.
+
+## Putting a legal entity on a table
+
+`blocks.legal-entities.options.on` adds a nullable `legal_entity_id` column
+to the tables of other blocks that are installed:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    "legal-entities": {
+      options: { on: ["invoices", "quotes", "numbering", "settings"] },
+    },
+  },
+});
+```
+
+| Key                   | Table that gets the column |
+| --------------------- | -------------------------- |
+| `invoices`            | the invoices table         |
+| `quotes`              | the quotes table           |
+| `orders`              | the orders table           |
+| `numbering`           | the number sequences       |
+| `accounting`          | the accounting journals    |
+| `inventory_locations` | the inventory locations    |
+| `settings`            | the organization settings  |
+
+The column is a foreign key to `legal_entities` on the tenant and the entity,
+with `on delete restrict`, and it is indexed where it is set. A null value
+means the organization's default entity, which `legal_entity_of(tenant, id)`
+resolves: it returns the entity when `id` belongs to the tenant, the default
+when `id` is null, and null when the organization has no legal entity yet.
+Other blocks call it to find the entity a row belongs to. An unknown key, a
+module that is not installed and a module in custom mode fail when you
+generate the SQL.
+
+## Settings per legal entity
+
+`setSetting` stores a value for one entity and `resetSetting` removes it.
+`resolve_setting(tenant, key, legal_entity)` reads one key as the caller and
+falls back from the legal entity's value to the organization's value in
+`organization_settings`, then to the code default. Without a legal entity it
+uses the organization's default entity.
+
+```ts
+await db.legalEntities.setSetting(gmbh.id, "invoice.footer", "Danke").orThrow();
+
+const footer = await db.settings
+  .resolve(orgId, "invoice.footer", { legalEntityId: gmbh.id })
+  .orThrow();
+```
+
+The settings block's `resolve` validates the stored value with the key's
+schema and returns the key's `default` when neither level has a value.
+`legalEntities.resolveSetting` returns the raw `{ source, value,
+legalEntityId }` when you need to know which level answered.
+
+## Errors
+
+| Hint                      | When                                                          |
+| ------------------------- | ------------------------------------------------------------- |
+| `LEGAL_ENTITY_FORBIDDEN`  | the caller lacks `legal_entities.manage`                      |
+| `LEGAL_ENTITY_NOT_FOUND`  | the entity does not exist, or belongs to another organization |
+| `LEGAL_ENTITY_CODE_TAKEN` | the organization already has an entity with this code         |
+| `LEGAL_ENTITY_INVALID`    | the code, name, fiscal calendar or patch is not valid         |
+| `LEGAL_ENTITY_ARCHIVED`   | an archived entity was made the default                       |
+| `LEGAL_ENTITY_DEFAULT`    | the default entity was archived                               |
+
+## Events
+
+`legal_entity.created` and `legal_entity.updated` carry `organizationId`,
+`legalEntityId`, `code` and `isDefault`. Archiving, restoring, choosing the
+default and changing the fiscal calendar all record `legal_entity.updated`.
+
+## Without the client
+
+The functions are `create_legal_entity`, `update_legal_entity`,
+`set_default_legal_entity`, `set_legal_entity_archived`, `get_legal_entity`,
+`list_legal_entities`, `legal_entity_of`, `get_legal_entity_settings`,
+`set_legal_entity_setting`, `reset_legal_entity_setting` and
+`resolve_setting`. They are in the `better_supabase` schema, run as the
+caller for reads and as `security definer` with a permission check for
+writes.

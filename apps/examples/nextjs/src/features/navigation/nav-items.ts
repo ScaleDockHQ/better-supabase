@@ -25,6 +25,7 @@ export type NavId =
   | "manufacturing"
   | "production"
   | "banking"
+  | "legalEntities"
   | "orders"
   | "dispatch"
   | "myDay"
@@ -191,6 +192,12 @@ export const navItems: readonly NavItem[] = [
     href: "/banking",
     group: "workspace",
     requires: "banking.read",
+  },
+  {
+    id: "legalEntities",
+    href: "/legal-entities",
+    group: "workspace",
+    requires: "legal_entities.read",
   },
   {
     id: "orders",

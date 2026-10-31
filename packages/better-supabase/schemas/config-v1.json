@@ -1676,6 +1676,7 @@
               "leases",
               "leave",
               "ledger",
+              "legal-entities",
               "mail-sync",
               "manufacturing",
               "medications",
@@ -1845,6 +1846,7 @@
                   "leases",
                   "leave",
                   "ledger",
+                  "legal-entities",
                   "mail-sync",
                   "manufacturing",
                   "medications",
@@ -2164,6 +2166,9 @@
             },
             "ledger": {
               "$ref": "#/$defs/blocks/ledger"
+            },
+            "legal-entities": {
+              "$ref": "#/$defs/blocks/legal-entities"
             },
             "mail-sync": {
               "$ref": "#/$defs/blocks/mail-sync"
@@ -5835,6 +5840,24 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {}
+          }
+        }
+      },
+      "legal-entities": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "on": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       },
