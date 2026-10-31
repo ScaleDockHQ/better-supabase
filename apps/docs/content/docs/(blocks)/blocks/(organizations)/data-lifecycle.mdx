@@ -232,6 +232,65 @@ the same exporter writes one file per table and deletes the snapshot. The
 record's format wins over the exporter's `format`. An open request for the
 same record by the same caller is returned instead of a second one.
 
+## Restoring an export
+
+`createDataImporter` reads an organization export back into an organization.
+It needs the [`imports`](/docs/blocks/imports) block next to `data-lifecycle`,
+a service-role transport and the export's files, which you read from storage
+yourself.
+
+```ts
+import {
+  createDataImporter,
+  sqlTransport,
+} from "better-supabase/blocks/data-lifecycle";
+
+const importer = createDataImporter({ transport: sqlTransport(serviceSql) });
+
+const files = names.map((name) => ({
+  name,
+  text: async () => await (await bucket.download(name)).data!.text(),
+}));
+
+const report = await importer
+  .restore({ organizationId, files, dryRun: true })
+  .orThrow();
+```
+
+Each file is `<schema.table>.ndjson`, optionally under a folder such as the
+export id. A table's file holds one JSON object per line, the object
+`to_jsonb(row)` returns with the columns `data_lifecycle_tables()` omits left
+out. The importer checks each table name and column against what an
+organization export reads (`data_restore_tables()`), orders the tables so a
+parent comes before the tables that reference it, and sends every row through
+`import_upsert_batch` as an `imports` item with `source = 'restore'` and the
+entity `data_lifecycle_row`. A custom importer can do the same: write the
+`{ table, row }` item for each line, with the key the row's primary key
+values, or a hash of the line for a table without one.
+
+The restore runs in import mode, so `imports.events` and `imports.audit`
+decide what the writes emit. The tenant column of every row is replaced with
+`organizationId`. A row whose primary key already belongs to another
+organization is reported as `DATA_RESTORE_ROW_CONFLICT` and left alone.
+Restoring the same files again writes nothing: each row's content hash is in
+the record map, so it counts as `unchanged`. A row that changed in the file
+updates the row, and rows a user edited in between are overwritten, because
+the restore target has no `updatedAt` reader.
+
+`dryRun: true` opens a run that rolls back every batch and returns a
+`RestoreReport`: per table the file's row count, `inserted`, `updated`,
+`unchanged`, `conflicted`, `unknownColumns` and the row errors, plus
+`unknownTables`. Each batch is checked on its own, so a dry run reports a
+foreign key error for rows that need a parent from the same file; the real
+run does not. Without `dryRun`, an unknown table or column fails the whole
+restore with a `validation` error (`DATA_RESTORE_UNKNOWN`) before anything is
+written. `tables` limits the restore to some tables.
+
+CSV files fail with `unsupported` (`DATA_RESTORE_CSV`). The CSV export writes
+null and empty text the same way, prefixes text that looks like a formula with
+`'`, and has no type for JSON cells, so it can't give the rows back. Export as
+`ndjson` to restore.
+
 ## Deleting an organization
 
 ```ts
