@@ -10,6 +10,9 @@ export const POWERSYNC_BLOCKS = [
   "memberships",
   "teams",
   "profiles",
+  "observations",
+  "medications",
+  "activities",
 ] as const;
 
 export type PowerSyncBlock = (typeof POWERSYNC_BLOCKS)[number];
@@ -565,6 +568,107 @@ function readerOrganizations(
   return `SELECT ${ident(tenant)} FROM ${qualifiedIdent(source[0])} WHERE user_id = auth.user_id() AND (${matches})`;
 }
 
+/**
+ * The care tables of an instance: every table of an observations or medications
+ * instance, and the progress notes of an activities instance (`note`
+ * engagements that are open to the team, and their links). Rows sync to the
+ * members of the organizations where the user holds a role with the instance's
+ * `read` permission. PowerSync replicates past row-level security, so without a
+ * roles access model there is nothing to narrow the rows by and the command
+ * refuses to generate the stream.
+ */
+function careTables(
+  input: PowerSyncInput,
+  instance: PowerSyncInstance,
+): SyncedTable[] {
+  const orgs = activeOrganizations(input, instance.key);
+  const readers = readerOrganizations(input, instance.key, orgs.tenant);
+
+  if (readers === undefined) {
+    throw new Error(
+      `gen.powersync: ${instance.key} syncs clinical rows, so it needs the roles access model: PowerSync can't apply row-level security, and the stream narrows rows to the roles with ${instance.block}.read`,
+    );
+  }
+
+  const synced: SyncedTable[] = [];
+
+  for (const [qualified, columns] of tablesOf(input, instance.key)) {
+    const name = baseName(qualified);
+
+    // The memberships table names its organization column by the tenancy
+    // setting; the care tables use `tenant_id` unless it renames that column.
+    const tenantColumn = [orgs.tenant, "tenant_id"].find((column) =>
+      columns.has(column),
+    );
+
+    if (tenantColumn === undefined) {
+      continue;
+    }
+
+    const tenant = ident(tenantColumn);
+    const table = qualifiedIdent(qualified);
+
+    const system = name.endsWith("definitions") ? ` OR ${tenant} IS NULL` : "";
+
+    const base = {
+      qualified,
+      name,
+      stream: `${instance.key}_${name}`,
+      with: { reader_orgs: readers },
+      columns,
+    };
+
+    if (instance.block !== "activities") {
+      synced.push({
+        ...base,
+        query: `SELECT * FROM ${table} WHERE ${tenant} IN reader_orgs${system}`,
+      });
+
+      continue;
+    }
+
+    if (columns.has("type") && columns.has("title")) {
+      const open = [
+        columns.has("audience") ? " AND audience = 'team'" : "",
+        columns.has("restricted_roles") ? " AND restricted_roles IS NULL" : "",
+      ].join("");
+
+      synced.push({
+        ...base,
+        query: `SELECT * FROM ${table} WHERE ${tenant} IN reader_orgs AND type = 'note'${open}`,
+      });
+    } else if (columns.has("activity_id") && columns.has("subject_type")) {
+      const engagements = [...tablesOf(input, instance.key)].find(
+        ([, declared]) => declared.has("type") && declared.has("title"),
+      );
+
+      if (engagements === undefined) {
+        continue;
+      }
+
+      const open = [
+        engagements[1].has("audience") ? " AND audience = 'team'" : "",
+        engagements[1].has("restricted_roles")
+          ? " AND restricted_roles IS NULL"
+          : "",
+      ].join("");
+
+      synced.push({
+        ...base,
+        query: `SELECT activity_id || ':' || subject_type || ':' || subject_id AS id, * FROM ${table} WHERE ${tenant} IN reader_orgs AND activity_id IN (SELECT id FROM ${qualifiedIdent(engagements[0])} WHERE ${tenant} IN reader_orgs AND type = 'note'${open})`,
+      });
+    }
+  }
+
+  if (synced.length === 0) {
+    throw new Error(
+      `gen.powersync: found no ${instance.key} tables with an organization column`,
+    );
+  }
+
+  return synced;
+}
+
 function syncedTables(
   input: PowerSyncInput,
   instance: PowerSyncInstance,
@@ -588,6 +692,12 @@ function syncedTables(
 
     case "profiles": {
       return profileTables(input, instance);
+    }
+
+    case "observations":
+    case "medications":
+    case "activities": {
+      return careTables(input, instance);
     }
 
     default: {

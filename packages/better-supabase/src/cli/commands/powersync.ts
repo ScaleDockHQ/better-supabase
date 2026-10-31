@@ -10,7 +10,7 @@ import type { CommandResult } from "../core/io.ts";
 import type { PowerSyncInstance } from "../powersync/streams.ts";
 import type { Now } from "../sql/migrations.ts";
 
-import { attachmentReadRoles, renderBlocks } from "../../sql/index.ts";
+import { blockReadRoles, renderBlocks } from "../../sql/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { applyPlan, PLAN_ARGS, planResult } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
@@ -159,8 +159,8 @@ async function publicationMigration(
 }
 
 /**
- * By attachments instance, the roles whose keys grant its `read` permission,
- * when access runs on the `roles` model.
+ * By attachments or care instance, the roles whose keys grant its `read`
+ * permission, when access runs on the `roles` model.
  */
 function readRolesOf(
   config: ResolvedConfig,
@@ -169,11 +169,17 @@ function readRolesOf(
 ): Map<string, readonly string[]> {
   return new Map(
     instances.flatMap((instance) => {
-      if (instance.block !== "attachments") {
+      if (
+        instance.block !== "attachments" &&
+        instance.block !== "observations" &&
+        instance.block !== "medications" &&
+        instance.block !== "activities"
+      ) {
         return [];
       }
 
-      const roles = attachmentReadRoles(
+      const roles = blockReadRoles(
+        instance.block,
         layout,
         config.blockNames,
         instance.key,

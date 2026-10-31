@@ -115,7 +115,9 @@ export { subjectColumns } from "./subject-registry.ts";
 
 export type { AuditedTable } from "./audit-registrations.ts";
 
-export { attachmentReadRoles } from "./read-roles.ts";
+export { blockReadRoles } from "./read-roles.ts";
+
+export type { ReadRolesModule } from "./read-roles.ts";
 
 export {
   addedColumnTypes,

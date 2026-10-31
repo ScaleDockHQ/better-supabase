@@ -318,3 +318,87 @@ describe("powersyncOutput over the app's tables", () => {
     );
   });
 });
+
+describe("powersyncOutput for the care blocks", () => {
+  const careConfig = resolveConfig(
+    {
+      blocks: Object.fromEntries(
+        ["memberships", "observations", "medications", "activities"].map(
+          (name) => [name, {}],
+        ),
+      ),
+    },
+    "/p",
+  );
+
+  const careFiles = renderBlocks(
+    careConfig.blockNames,
+    moduleLayout(careConfig),
+  );
+
+  const careOutput = (
+    block: "observations" | "medications" | "activities",
+    readRoles?: ReadonlyMap<string, readonly string[]>,
+  ) =>
+    powersyncOutput({
+      files: careFiles,
+      instances: [{ key: block, block }],
+      ...(readRoles === undefined ? {} : { readRoles }),
+      importFrom: "@powersync/common",
+    });
+
+  const nurses = new Map([["observations", ["nurse"]]]);
+
+  it("refuses a care block without the roles that read it", () => {
+    expect(() => careOutput("observations")).toThrow(/roles access model/);
+  });
+
+  it("syncs observations and their definitions, system definitions included", () => {
+    const out = careOutput("observations", nurses);
+
+    expect(out.tables["observations"]).toEqual([
+      "observation_definitions",
+      "observations",
+    ]);
+
+    expect(out.streams).toContain(
+      'query: "SELECT * FROM better_supabase.observation_definitions WHERE tenant_id IN reader_orgs OR tenant_id IS NULL"',
+    );
+
+    expect(out.streams).toContain(
+      'query: "SELECT * FROM better_supabase.observations WHERE tenant_id IN reader_orgs"',
+    );
+
+    expect(out.streams).toContain("AND (role = 'nurse')");
+  });
+
+  it("syncs the medications, orders and doses", () => {
+    const out = careOutput(
+      "medications",
+      new Map([["medications", ["nurse"]]]),
+    );
+
+    expect(out.tables["medications"]).toEqual([
+      "medications",
+      "medication_orders",
+      "medication_administrations",
+    ]);
+  });
+
+  it("syncs only open progress notes and their links", () => {
+    const out = careOutput("activities", new Map([["activities", ["nurse"]]]));
+
+    expect(out.tables["activities"]).toEqual([
+      "activities",
+      "engagement_subjects",
+    ]);
+
+    expect(out.streams).toContain(
+      "type = 'note' AND audience = 'team' AND restricted_roles IS NULL",
+    );
+
+    expect(out.streams).toContain(
+      "activity_id || ':' || subject_type || ':' || subject_id AS id",
+    );
+  });
+});

@@ -95,7 +95,10 @@ export interface GenConfig {
 export interface PowerSyncGenConfig {
   /**
    * The block instances to sync, by their key in `blocks`: instances of
-   * `notifications` and `attachments`.
+   * `notifications`, `attachments`, `memberships`, `teams`, `profiles` and the
+   * care blocks `observations`, `medications` and `activities` (progress notes
+   * only). A care instance needs the roles access model: its rows sync to the
+   * roles that hold its `read` permission.
    */
   readonly instances: readonly string[];
   /**

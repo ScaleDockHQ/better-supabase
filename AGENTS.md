@@ -275,6 +275,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0159: E-invoice formats and channels and chart-of-accounts formats are versioned ports; nothing is bundled.
 - 0160: Preventive maintenance plans by time or meter open dispatch work orders with their parts; readings and calibrations are records.
 - 0161: Attachments take per-organization document types with typed metadata, a source and external id index, and metadata-first import records.
+  ||||||| parent of 50dca684f (feat(powersync): sync progress notes, observations and doses offline)
+- 0162: Care blocks sync offline: streams by organization and `read` role, upload routes that replay through block functions, clinical conflicts surface in `connector.rejected`.
 
 ## Pre-release pins
 
