@@ -14,6 +14,7 @@ import type {
   AttachmentStorage,
 } from "../attachments/attachments.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type { DriveLifecycle } from "./changes.ts";
 import type { DriveDocument, DriveDocuments } from "./documents.ts";
 import type { DriveAccess } from "./ownership.ts";
 import type {
@@ -37,6 +38,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { claimsUploads, claimUpload } from "../upload-claim.ts";
+import { driveLifecycle } from "./changes.ts";
 import { driveDocuments } from "./documents.ts";
 import { driveAccess } from "./ownership.ts";
 import {
@@ -422,7 +424,10 @@ export interface DrivePage {
 
 /** `F` types the nodes' extra columns, from the `fields` schema. */
 export interface Drive<F extends object = Record<never, never>>
-  extends DriveDocuments<DriveNode<F>>, DriveAccess {
+  extends
+    DriveDocuments<DriveNode<F>>,
+    DriveLifecycle<DriveNode<F>>,
+    DriveAccess {
   createFolder(
     organizationId: string,
     folder: NewDriveFolder<F>,
@@ -731,6 +736,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
 
   const client: Drive = {
     ...driveDocuments(call, nodeOf, nodesOf),
+    ...driveLifecycle(call, nodeOf),
     ...driveAccess({
       call,
       recordAccess: options.recordAccess,

@@ -459,6 +459,20 @@ approvals: {
 
 Anyone who can read a node sees its labels and its approval state. Tagging, untagging and requesting approval need write access, and the tags and approvals functions check the same drive grants when they are called directly with the `drive_node` subject type.
 
+## Retention per label and the changes feed
+
+With the [tags](/docs/blocks/tags), [trash](/docs/blocks/trash) and [data lifecycle](/docs/blocks/data-lifecycle) modules installed, a label can carry a retention policy. The policy kind is `drive_label_` and the label's name in lower case, with every run of other characters as one underscore, so the label "Final contract" has the kind `drive_label_final_contract`. `drive_retention_kind(name)` returns it. Set the policy with the [retention client](/docs/blocks/data-lifecycle) like any other, for one organization, a plan or every organization:
+
+```ts
+await retention
+  .setPolicy("drive_label_final_contract", "7 years", { organizationId })
+  .orThrow();
+```
+
+`sweepRetention()` is a service role call that moves every node whose label policy has run out into the bin, oldest first, and returns how many it binned. A node counts as old when it was last changed longer ago than the policy keeps it; moving a node into the bin or back changes it. The shortest policy among a node's labels wins. A node under a drive hold, under a legal hold on the policy kind, or checked out is skipped. Run it from a schedule; `batchSize` (default 100) bounds one call. The bin's own retention purges the nodes later, so a swept file can still be restored until then.
+
+`changes(organizationId, { cursor })` is the feed for sync clients. It returns the nodes the caller can read that changed after the cursor, oldest first, as `{ removed: false, node }` or `{ removed: true, id }` for a node in the bin, together with the next `cursor` and `more`. Omit the cursor for the first full sync, store the returned one, and call again until `more` is false. A restore brings the node back as a node. A node deleted for good leaves no entry, so it is in the bin first unless your code deleted it directly. Changes from the last five seconds wait for the next call, so a transaction that commits late isn't skipped. A cursor from `changes` is the only valid input; anything else fails with `DRIVE_CURSOR_INVALID`. Access changes (grants, links) don't appear in the feed.
+
 ## Controlled documents
 
 With `options.control`, files become controlled documents: each gets a number, a type, an owner and a review date, a version becomes effective only through an approved release request, and members below the write role read only the effective version. [Controlled documents](/docs/blocks/drive-documents) covers the lifecycle, the register and periodic reviews.

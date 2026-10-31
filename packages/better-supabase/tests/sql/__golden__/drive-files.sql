@@ -38,7 +38,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:23608899e7f9bcfddecae3f8dceca8a00c933102a213a12eb5133bf1dd0b0bae
+-- @bsb-hash sha256:b3f8ff89fc7d65a825c9411360728bf2a0836a15ef56bc39e0349d35e258dd14
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -971,6 +971,81 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_approvals"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_approvals"(uuid) to authenticated, service_role;
+
+-- Moving a node into the bin or back changes it for the feed and for retention.
+create or replace function "better_supabase"."drive_node_bin_touch"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new."deleted_at" is distinct from old."deleted_at" then
+    new."updated_at" := now();
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists "bsb_drive_node_bin_touch" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_bin_touch"
+  before update of "deleted_at" on "better_supabase"."drive_nodes"
+  for each row execute function "better_supabase"."drive_node_bin_touch"();
+
+-- The nodes that changed after a cursor, oldest first, that the caller can
+-- read. Changes from the last five seconds wait, so a transaction that
+-- commits late isn't skipped.
+create or replace function "better_supabase"."drive_changes"(tenant uuid, after text default null, page_size integer default 200, drive uuid default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_at timestamptz;
+  v_id uuid;
+  v_size integer := least(greatest(coalesce(drive_changes.page_size, 200), 1), 500);
+  v_row "better_supabase"."drive_nodes"%rowtype;
+  v_items jsonb := '[]'::jsonb;
+  v_count integer := 0;
+  v_more boolean := false;
+  v_cursor text := drive_changes.after;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_changes.tenant, 'drive.read'), false)) then
+    raise exception 'not allowed to read this organization''s drive' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if drive_changes.after is not null then
+    begin
+      v_at := split_part(drive_changes.after, '|', 1)::timestamptz;
+      v_id := split_part(drive_changes.after, '|', 2)::uuid;
+    exception when others then
+      raise exception 'the changes cursor is not valid' using errcode = '22023', hint = 'DRIVE_CURSOR_INVALID';
+    end;
+  end if;
+  for v_row in
+    select * from "better_supabase"."drive_nodes" x
+    where x."tenant_id" = drive_changes.tenant
+      and (v_at is null or (x."updated_at", x."id") > (v_at, v_id))
+      and x."updated_at" <= now() - interval '5 seconds'
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+    order by x."updated_at", x."id"
+    limit v_size + 1
+  loop
+    v_count := v_count + 1;
+    if v_count > v_size then
+      v_more := true;
+      exit;
+    end if;
+    v_items := v_items || jsonb_build_array(case when v_row."deleted_at" is not null
+        then jsonb_build_object('removed', true, 'id', v_row."id")
+        else jsonb_build_object('removed', false, 'node', ("better_supabase"."drive_node_json"(v_row) || jsonb_build_object('role', "better_supabase"."drive_role"((v_row)."id"), 'readOnly', (coalesce((v_row)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((v_row)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_row)."id")))) end);
+    v_cursor := to_char(v_row."updated_at" at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') || '|' || v_row."id"::text;
+  end loop;
+  return jsonb_build_object('changes', v_items, 'cursor', v_cursor, 'more', v_more);
+end;
+$$;
+revoke execute on function "better_supabase"."drive_changes"(uuid, text, integer, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_changes"(uuid, text, integer, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."drive_guest_sharing"()
 returns trigger
