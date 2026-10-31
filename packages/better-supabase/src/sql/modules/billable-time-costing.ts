@@ -66,11 +66,29 @@ export function projectCostsSql(
         and l.${ledger.col("lines", "dimensions")} ->> 'project' = v_project.${p("id")}::text
       group by l.${ledger.col("lines", "currency")}`;
 
+  // Time billed on an invoice whose booked revenue already sits on this
+  // project's dimension counts once, through the dimension's income.
+  const booked =
+    ledger === undefined
+      ? ""
+      : `
+      and not exists (
+        select 1 from ${ledger.table("entries")} n
+        join ${ledger.table("lines")} l on l.${ledger.col("lines", "entry")} = n.${ledger.col("entries", "id")}
+        join ${ledger.table("accounts")} a on a.${ledger.col("accounts", "id")} = l.${ledger.col("lines", "account")}
+        where n.${ledger.col("entries", "tenant")} = v_project.${p("tenant")}
+          and n.${ledger.col("entries", "sourceType")} = 'invoice' and n.${ledger.col("entries", "sourceId")} = d.${b("invoice")}::text
+          and n.${ledger.col("entries", "status")} in ('posted', 'reversed')
+          and a.${ledger.col("accounts", "type")} = 'income'
+          and l.${ledger.col("lines", "dimensions")} ->> 'project' = v_project.${p("id")}::text
+      )`;
+
   return `
 -- What a project cost and earned, per currency: its time at the rate card's
 -- cost (on the project and its work items), the time billed on invoices at
--- the billed rate and, with accounting, the posted expense and income lines
--- on its project dimension (expense claims and purchase bills). The margin is
+-- the billed rate (left out when the invoice's booked revenue is already on
+-- the project dimension) and, with accounting, the posted expense and income
+-- lines on its project dimension (expense claims and purchase bills). The margin is
 -- the billed time and income less the time cost and expenses; budget use
 -- compares the hours and, in the budget's currency, the cost to the budget.
 create or replace function ${fn("project_costs")}(project_id uuid)
@@ -103,7 +121,7 @@ begin
       order by (c.${r("subjectType")} is not null) desc, (c.${r("user")} is not null) desc, c.${r("effectiveFrom")} desc
       limit 1
     ) card on true
-    left join ${ctx.table("billed")} d on d.${b("entry")} = x.${e("id")}
+    left join ${ctx.table("billed")} d on d.${b("entry")} = x.${e("id")}${booked}
     where x.${e("tenant")} = v_project.${p("tenant")}
       and ${entryEnded(time, "x")} is not null
       and ((${subject.type} = ${sqlString(projectType(tasks))} and ${subject.id} = v_project.${p("id")}::text)${items})

@@ -129,7 +129,7 @@ Payments live on the [ledger](/docs/blocks/ledger). Each invoice has a receivabl
 
 `void(invoiceId, reason)` voids a draft, or an issued invoice without payments or credits. `writeOff(invoiceId, reason?)` marks an open invoice uncollectible; over your own table, `columns.invoices.writeOffReason` keeps the reason, and `invoice.uncollected` carries it. Both are written to the audit log.
 
-A written-off invoice refuses payments (`INVOICE_NOT_PAYABLE`) unless you set `options.paymentsAfterWriteOff: true`. Then a payment that still arrives, such as a bank transfer or a provider payment started before the write-off, is booked on the ledger like any other. The invoice stays `uncollectible` while a balance is left and moves to `paid` once nothing is owed, which records `invoice.paid`. The write-off posts nothing to the ledger, so there is nothing to reverse, and the write-off reason stays on the invoice.
+A written-off invoice refuses payments (`INVOICE_NOT_PAYABLE`) unless you set `options.paymentsAfterWriteOff: true`. Then a payment that still arrives, such as a bank transfer or a provider payment started before the write-off, is booked on the ledger like any other. The invoice stays `uncollectible` while a balance is left and moves to `paid` once nothing is owed, which records `invoice.paid`. The write-off books the open balance as an expense when the accounting block is installed, and the write-off reason stays on the invoice.
 
 ```ts title="better-supabase.config.ts"
 blocks: {

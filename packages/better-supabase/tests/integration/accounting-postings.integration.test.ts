@@ -178,6 +178,47 @@ describe.skipIf(!live)("accounting postings", () => {
     expect(await reversals("invoice")).toBe(1);
   });
 
+  it("books an invoice charge, takes it back and writes the balance off", async () => {
+    const transport = sqlTransport(s.sql);
+    const invoices = createInvoices({ transport });
+
+    const draft = await invoices
+      .create(tenant, { title: "Late payer" }, [
+        { description: "Work", unitAmount: eur(1000n) },
+      ])
+      .orThrow();
+
+    const invoice = await invoices.issue(draft.id).orThrow();
+
+    const charged = await invoices
+      .charge(invoice.id, { amount: eur(50n), description: "Late fee" })
+      .orThrow();
+
+    const charge = charged.charges?.[0];
+
+    expect(await booked("invoice_charge", charge!.id)).toEqual([
+      { status: "posted", total: "50" },
+    ]);
+
+    const second = await invoices
+      .charge(invoice.id, { amount: eur(20n), description: "Reminder" })
+      .orThrow();
+
+    const extra = second.charges?.find((each) => each.id !== charge!.id);
+
+    await invoices.removeCharge(extra!.id).orThrow();
+
+    expect(await booked("invoice_charge", extra!.id)).toEqual([
+      { status: "reversed", total: "20" },
+    ]);
+
+    await invoices.writeOff(invoice.id, "uncollectible").orThrow();
+
+    expect(await booked("invoice_write_off", invoice.id)).toEqual([
+      { status: "posted", total: "1050" },
+    ]);
+  });
+
   it("books an expense report on approval and its reimbursement", async () => {
     const expenses = createExpenses({ transport: sqlTransport(s.sql), tenant });
 

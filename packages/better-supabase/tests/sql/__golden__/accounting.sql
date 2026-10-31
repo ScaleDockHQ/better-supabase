@@ -2712,11 +2712,27 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
--- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
+-- @bsb-hash sha256:51851417a9dc349b1d7c5a2e3bd03d12ebf0417519b093f85ae57b6e24866f4a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Adds the disposal gain and loss accounts to existing charts of accounts.
+insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable")
+select s."tenant_id", c.code, c.name, c.type, c.subtype, false
+from "better_supabase"."accounting_settings" s
+cross join (values ('disposal_gain', '4910', 'Gains on asset disposals', 'income', 'other_income'), ('disposal_loss', '6910', 'Losses on asset disposals', 'expense', 'other_expense')) c (role, code, name, type, subtype)
+where exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = s."tenant_id")
+  and not exists (select 1 from "better_supabase"."accounting_account_roles" z where z."tenant_id" = s."tenant_id" and z."role" = c.role)
+  and not exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = s."tenant_id" and y."code" = c.code);
+insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+select s."tenant_id", c.role, y."id"
+from "better_supabase"."accounting_settings" s
+cross join (values ('disposal_gain', '4910', 'Gains on asset disposals'), ('disposal_loss', '6910', 'Losses on asset disposals')) c (role, code, name)
+join "better_supabase"."accounting_accounts" y on y."tenant_id" = s."tenant_id" and y."code" = c.code and y."name" = c.name
+where not exists (select 1 from "better_supabase"."accounting_account_roles" z where z."tenant_id" = s."tenant_id" and z."role" = c.role)
+on conflict ("tenant_id", "role") do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('accounting', 1, 'managed')
@@ -2726,7 +2742,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:b14ccb4c7fd525aa7d023c5a7e38419e55fe117352e568ab669869ceb5c09f6e
+-- @bsb-hash sha256:1ff9c6c9351b0586a7ec8b72d2b8bda0d410c7cafb55454ca94cfd9d69c60d29
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4357,13 +4373,15 @@ declare
   v_descriptions text[] := '{}';
 begin
   if accounting_post_source.source_type is null or accounting_post_source.source_id is null
-    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift', 'production_order') then
+    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'invoice_charge', 'invoice_write_off', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift', 'production_order') then
     raise exception 'no installed block books this source type' using errcode = '22023', hint = 'ACCOUNTING_SOURCE_INVALID';
   end if;
   v_doc := case accounting_post_source.source_type
     when 'stock_movement' then "better_supabase"."accounting_stock_movement_lines"(accounting_post_source.source_id)
     when 'invoice' then "better_supabase"."accounting_invoice_lines"(accounting_post_source.source_id)
     when 'invoice_payment' then "better_supabase"."accounting_invoice_payment_lines"(accounting_post_source.source_id)
+    when 'invoice_charge' then "better_supabase"."accounting_invoice_charge_lines"(accounting_post_source.source_id)
+    when 'invoice_write_off' then "better_supabase"."accounting_invoice_write_off_lines"(accounting_post_source.source_id)
     when 'asset_depreciation' then "better_supabase"."accounting_asset_depreciation_lines"(accounting_post_source.source_id)
     when 'asset_disposal' then "better_supabase"."accounting_asset_disposal_lines"(accounting_post_source.source_id)
     when 'lease_rent' then "better_supabase"."accounting_lease_rent_lines"(accounting_post_source.source_id)
@@ -4377,6 +4395,8 @@ begin
     when 'stock_movement' then 'general'
     when 'invoice' then 'sales'
     when 'invoice_payment' then 'bank'
+    when 'invoice_charge' then 'sales'
+    when 'invoice_write_off' then 'general'
     when 'asset_depreciation' then 'general'
     when 'asset_disposal' then 'general'
     when 'lease_rent' then 'sales'
@@ -5560,11 +5580,27 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
--- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
+-- @bsb-hash sha256:51851417a9dc349b1d7c5a2e3bd03d12ebf0417519b093f85ae57b6e24866f4a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Adds the disposal gain and loss accounts to existing charts of accounts.
+insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable")
+select s."tenant_id", c.code, c.name, c.type, c.subtype, false
+from "better_supabase"."accounting_settings" s
+cross join (values ('disposal_gain', '4910', 'Gains on asset disposals', 'income', 'other_income'), ('disposal_loss', '6910', 'Losses on asset disposals', 'expense', 'other_expense')) c (role, code, name, type, subtype)
+where exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = s."tenant_id")
+  and not exists (select 1 from "better_supabase"."accounting_account_roles" z where z."tenant_id" = s."tenant_id" and z."role" = c.role)
+  and not exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = s."tenant_id" and y."code" = c.code);
+insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+select s."tenant_id", c.role, y."id"
+from "better_supabase"."accounting_settings" s
+cross join (values ('disposal_gain', '4910', 'Gains on asset disposals'), ('disposal_loss', '6910', 'Losses on asset disposals')) c (role, code, name)
+join "better_supabase"."accounting_accounts" y on y."tenant_id" = s."tenant_id" and y."code" = c.code and y."name" = c.name
+where not exists (select 1 from "better_supabase"."accounting_account_roles" z where z."tenant_id" = s."tenant_id" and z."role" = c.role)
+on conflict ("tenant_id", "role") do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('accounting', 1, 'managed')
@@ -8290,11 +8326,27 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
--- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
+-- @bsb-hash sha256:2d89b36f94fe23b3ce3d73549640623580e89f96915313f0c025cdfeab632ea4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Adds the disposal gain and loss accounts to existing charts of accounts.
+insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable")
+select s."tenant_id", c.code, c.name, c.type, c.subtype, false
+from "app_private"."accounting_settings" s
+cross join (values ('disposal_gain', '4910', 'Gains on asset disposals', 'income', 'other_income'), ('disposal_loss', '6910', 'Losses on asset disposals', 'expense', 'other_expense')) c (role, code, name, type, subtype)
+where exists (select 1 from "app_private"."accounting_accounts" y where y."tenant_id" = s."tenant_id")
+  and not exists (select 1 from "app_private"."accounting_account_roles" z where z."tenant_id" = s."tenant_id" and z."role" = c.role)
+  and not exists (select 1 from "app_private"."accounting_accounts" y where y."tenant_id" = s."tenant_id" and y."code" = c.code);
+insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+select s."tenant_id", c.role, y."id"
+from "app_private"."accounting_settings" s
+cross join (values ('disposal_gain', '4910', 'Gains on asset disposals'), ('disposal_loss', '6910', 'Losses on asset disposals')) c (role, code, name)
+join "app_private"."accounting_accounts" y on y."tenant_id" = s."tenant_id" and y."code" = c.code and y."name" = c.name
+where not exists (select 1 from "app_private"."accounting_account_roles" z where z."tenant_id" = s."tenant_id" and z."role" = c.role)
+on conflict ("tenant_id", "role") do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('accounting', 1, 'managed')
@@ -11381,11 +11433,27 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
--- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
+-- @bsb-hash sha256:51851417a9dc349b1d7c5a2e3bd03d12ebf0417519b093f85ae57b6e24866f4a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Adds the disposal gain and loss accounts to existing charts of accounts.
+insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable")
+select s."tenant_id", c.code, c.name, c.type, c.subtype, false
+from "better_supabase"."accounting_settings" s
+cross join (values ('disposal_gain', '4910', 'Gains on asset disposals', 'income', 'other_income'), ('disposal_loss', '6910', 'Losses on asset disposals', 'expense', 'other_expense')) c (role, code, name, type, subtype)
+where exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = s."tenant_id")
+  and not exists (select 1 from "better_supabase"."accounting_account_roles" z where z."tenant_id" = s."tenant_id" and z."role" = c.role)
+  and not exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = s."tenant_id" and y."code" = c.code);
+insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+select s."tenant_id", c.role, y."id"
+from "better_supabase"."accounting_settings" s
+cross join (values ('disposal_gain', '4910', 'Gains on asset disposals'), ('disposal_loss', '6910', 'Losses on asset disposals')) c (role, code, name)
+join "better_supabase"."accounting_accounts" y on y."tenant_id" = s."tenant_id" and y."code" = c.code and y."name" = c.name
+where not exists (select 1 from "better_supabase"."accounting_account_roles" z where z."tenant_id" = s."tenant_id" and z."role" = c.role)
+on conflict ("tenant_id", "role") do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('accounting', 1, 'managed')
@@ -14059,11 +14127,27 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
--- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
+-- @bsb-hash sha256:51851417a9dc349b1d7c5a2e3bd03d12ebf0417519b093f85ae57b6e24866f4a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Adds the disposal gain and loss accounts to existing charts of accounts.
+insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable")
+select s."tenant_id", c.code, c.name, c.type, c.subtype, false
+from "better_supabase"."accounting_settings" s
+cross join (values ('disposal_gain', '4910', 'Gains on asset disposals', 'income', 'other_income'), ('disposal_loss', '6910', 'Losses on asset disposals', 'expense', 'other_expense')) c (role, code, name, type, subtype)
+where exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = s."tenant_id")
+  and not exists (select 1 from "better_supabase"."accounting_account_roles" z where z."tenant_id" = s."tenant_id" and z."role" = c.role)
+  and not exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = s."tenant_id" and y."code" = c.code);
+insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+select s."tenant_id", c.role, y."id"
+from "better_supabase"."accounting_settings" s
+cross join (values ('disposal_gain', '4910', 'Gains on asset disposals'), ('disposal_loss', '6910', 'Losses on asset disposals')) c (role, code, name)
+join "better_supabase"."accounting_accounts" y on y."tenant_id" = s."tenant_id" and y."code" = c.code and y."name" = c.name
+where not exists (select 1 from "better_supabase"."accounting_account_roles" z where z."tenant_id" = s."tenant_id" and z."role" = c.role)
+on conflict ("tenant_id", "role") do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('accounting', 1, 'managed')
@@ -16784,11 +16868,27 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
--- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
+-- @bsb-hash sha256:7659325225fb8d2249b4c0fa3c33d3bce20a4a1b8b1efe4970177a999f2b8e56
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Adds the disposal gain and loss accounts to existing charts of accounts.
+insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable")
+select s."org_id", c.code, c.name, c.type, c.subtype, false
+from "better_supabase"."accounting_settings" s
+cross join (values ('disposal_gain', '4910', 'Gains on asset disposals', 'income', 'other_income'), ('disposal_loss', '6910', 'Losses on asset disposals', 'expense', 'other_expense')) c (role, code, name, type, subtype)
+where exists (select 1 from "better_supabase"."accounting_accounts" y where y."org_id" = s."org_id")
+  and not exists (select 1 from "better_supabase"."accounting_account_roles" z where z."org_id" = s."org_id" and z."role" = c.role)
+  and not exists (select 1 from "better_supabase"."accounting_accounts" y where y."org_id" = s."org_id" and y."code" = c.code);
+insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+select s."org_id", c.role, y."id"
+from "better_supabase"."accounting_settings" s
+cross join (values ('disposal_gain', '4910', 'Gains on asset disposals'), ('disposal_loss', '6910', 'Losses on asset disposals')) c (role, code, name)
+join "better_supabase"."accounting_accounts" y on y."org_id" = s."org_id" and y."code" = c.code and y."name" = c.name
+where not exists (select 1 from "better_supabase"."accounting_account_roles" z where z."org_id" = s."org_id" and z."role" = c.role)
+on conflict ("org_id", "role") do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('accounting', 1, 'managed')

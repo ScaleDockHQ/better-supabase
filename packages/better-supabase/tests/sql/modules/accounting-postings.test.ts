@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { resolveConfig } from "../../../src/config/resolve.ts";
+import { moduleLayout } from "../../../src/sql/layout.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
@@ -186,5 +188,118 @@ describe("accounting postings", () => {
 
     expect(alone).toContain("'accounting_budget.created'");
     expect(alone).toContain("'accounting_budget.updated'");
+  });
+
+  it("books invoice charges and write-offs", () => {
+    const files = render(ALL);
+    const dispatch = body(files["accounting"] ?? "", "accounting_post_source");
+    const invoices = files["invoices"] ?? "";
+
+    expect(dispatch).toContain("when 'invoice_charge' then");
+    expect(dispatch).toContain("when 'invoice_write_off' then");
+    expect(body(invoices, "add_invoice_charge")).toContain(
+      `accounting_post_source"('invoice_charge'`,
+    );
+    expect(body(invoices, "remove_invoice_charge")).toContain(
+      `accounting_reverse_source"(`,
+    );
+    expect(body(invoices, "write_off_invoice")).toContain(
+      `accounting_post_source"('invoice_write_off'`,
+    );
+    expect(body(invoices, "void_invoice")).toContain("'invoice_charge'");
+  });
+
+  it("leaves billed time out of project costs when its revenue is on the dimension", () => {
+    const files = render([...ALL, "tasks", "time-tracking", "billable-time"]);
+
+    expect(body(files["billable-time"] ?? "", "project_costs")).toContain(
+      "->> 'project' = v_project",
+    );
+  });
+
+  it("lets a named instance book through its own accounting instance", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          accounting: {},
+          accountingEu: {
+            block: "accounting",
+            entities: {
+              accounting_account: "eu_account",
+              accounting_journal: "eu_journal",
+              accounting_period: "eu_period",
+              accounting_entry: "eu_entry",
+              accounting_dimension: "eu_dimension",
+              accounting_tax_code: "eu_tax_code",
+              accounting_budget: "eu_budget",
+            },
+          },
+          invoices: {},
+          invoicesEu: {
+            block: "invoices",
+            entities: { invoice: "eu_invoice" },
+            uses: { accounting: "accountingEu" },
+          },
+        },
+      },
+      "/app",
+    );
+
+    const files = renderBlocks(
+      [...BASE, ...config.blockNames],
+      moduleLayout(config),
+    );
+
+    const eu = files.find(
+      (file) => file.kind === "schema" && file.instance === "invoicesEu",
+    );
+
+    const plain = files.find(
+      (file) => file.kind === "schema" && file.instance === undefined,
+    );
+
+    expect(eu?.contents).toContain("accounting_post_source");
+    expect(plain).toBeDefined();
+  });
+
+  it("books nothing for a named instance that leaves uses alone", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          accounting: {},
+          invoices: {},
+          invoicesEu: {
+            block: "invoices",
+            entities: { invoice: "eu_invoice" },
+          },
+        },
+      },
+      "/app",
+    );
+
+    const eu = renderBlocks(
+      [...BASE, ...config.blockNames],
+      moduleLayout(config),
+    ).find((file) => file.kind === "schema" && file.instance === "invoicesEu");
+
+    expect(eu?.contents).not.toContain("accounting_post_source");
+  });
+
+  it("adds the disposal accounts to existing charts in a data step", () => {
+    const data = renderBlocks([...BASE, "accounting"], {}).find(
+      (file) => file.kind === "data" && file.module === "accounting",
+    );
+
+    expect(data?.contents).toContain("'disposal_gain'");
+    expect(data?.contents).toContain("'disposal_loss'");
+    expect(data?.contents).toContain("on conflict");
+  });
+
+  it("gives existing projects their project dimension value in a data step", () => {
+    const data = renderBlocks([...BASE, "accounting", "tasks"], {}).find(
+      (file) => file.kind === "data" && file.module === "tasks",
+    );
+
+    expect(data?.contents).toContain("accounting_sync_dimension_value");
   });
 });

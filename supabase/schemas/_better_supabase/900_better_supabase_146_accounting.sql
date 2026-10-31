@@ -1,6 +1,6 @@
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:6a65eb5f58f074ffc6b01288992d4eb45b9a495f55c0dca9de7cfc587de39be5
+-- @bsb-hash sha256:a0b9132fc0c910aa1227b3ded7221aaa02d6f761637b200d41407e24f054efa7
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1631,13 +1631,15 @@ declare
   v_descriptions text[] := '{}';
 begin
   if accounting_post_source.source_type is null or accounting_post_source.source_id is null
-    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift', 'production_order') then
+    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'invoice_charge', 'invoice_write_off', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift', 'production_order') then
     raise exception 'no installed block books this source type' using errcode = '22023', hint = 'ACCOUNTING_SOURCE_INVALID';
   end if;
   v_doc := case accounting_post_source.source_type
     when 'stock_movement' then "better_supabase"."accounting_stock_movement_lines"(accounting_post_source.source_id)
     when 'invoice' then "better_supabase"."accounting_invoice_lines"(accounting_post_source.source_id)
     when 'invoice_payment' then "better_supabase"."accounting_invoice_payment_lines"(accounting_post_source.source_id)
+    when 'invoice_charge' then "better_supabase"."accounting_invoice_charge_lines"(accounting_post_source.source_id)
+    when 'invoice_write_off' then "better_supabase"."accounting_invoice_write_off_lines"(accounting_post_source.source_id)
     when 'asset_depreciation' then "better_supabase"."accounting_asset_depreciation_lines"(accounting_post_source.source_id)
     when 'asset_disposal' then "better_supabase"."accounting_asset_disposal_lines"(accounting_post_source.source_id)
     when 'lease_rent' then "better_supabase"."accounting_lease_rent_lines"(accounting_post_source.source_id)
@@ -1651,6 +1653,8 @@ begin
     when 'stock_movement' then 'general'
     when 'invoice' then 'sales'
     when 'invoice_payment' then 'bank'
+    when 'invoice_charge' then 'sales'
+    when 'invoice_write_off' then 'general'
     when 'asset_depreciation' then 'general'
     when 'asset_disposal' then 'general'
     when 'lease_rent' then 'sales'

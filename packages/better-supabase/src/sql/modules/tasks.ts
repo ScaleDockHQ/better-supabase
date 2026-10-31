@@ -21,8 +21,8 @@ import {
 import { tableMoves } from "../table-renames.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
-import { subjectTypeRenames } from "./subject-type-renames.ts";
 import { myWorkTenant } from "./subjects.ts";
+import { tasksData } from "./tasks-data.ts";
 import { checklistTable, workItemExtrasContract } from "./tasks-extras.ts";
 import { workItemFunctions } from "./tasks-functions.ts";
 
@@ -654,5 +654,5 @@ export const WORK_ITEMS: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
-  data: subjectTypeRenames,
+  data: tasksData,
 };

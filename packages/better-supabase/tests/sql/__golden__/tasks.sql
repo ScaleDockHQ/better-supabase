@@ -2142,7 +2142,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:82d34a84ae5ad4eb9e4d4ecfd3941280c8323575685430a2d84474c662df0c0a
+-- @bsb-hash sha256:f9a5bceb5d78f489c38809651f6e27693ee28a1ab2385dce26e8a80d81a99e32
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2229,6 +2229,10 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."observations"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."observations" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."medication_orders"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."medication_orders" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_plans"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_plans" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
+-- Gives each existing project its value of the accounting project dimension.
+select "better_supabase"."accounting_sync_dimension_value"(x."tenant_id", 'project', 'Project', x."id"::text, x."key" || ' ' || x."name", x."archived_at" is not null)
+from "better_supabase"."projects" x
+where exists (select 1 from "better_supabase"."accounting_settings" s where s."tenant_id" = x."tenant_id");
 
 insert into better_supabase.blocks (name, version, mode)
 values ('tasks', 3, 'managed')

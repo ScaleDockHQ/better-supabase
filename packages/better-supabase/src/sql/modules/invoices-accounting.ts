@@ -7,8 +7,10 @@ import { invoiceCashCode } from "./invoices-ledger.ts";
 
 /**
  * What invoices books in accounting: an issued invoice or credit note in the
- * sales journal (the receivable against revenue and tax per rate), and each
- * payment or refund in the bank journal (bank against the receivable). A
+ * sales journal (the receivable against revenue and tax per rate), each payment
+ * or refund in the bank journal (bank against the receivable), each charge in
+ * the sales journal (the receivable against revenue) and a written off invoice
+ * in the general journal (the open balance against expenses). A
  * purchase bill books in the purchase journal: the supplier's payable against
  * expense, carrying the bill's dimensions, and deductible tax. With inventory,
  * a product line on a bill of a purchase order clears the payable its receipt
@@ -55,6 +57,39 @@ export function invoiceAccountingSources(
         then case when row_number() over w = count(*) over () then ${total} else 0 end
         else round(${total} * sum(g.${weight}) over w / sum(g.${weight}) over ()) - round(${total} * (sum(g.${weight}) over w - g.${weight}) / sum(g.${weight}) over ())
       end`;
+
+  const chargeTable = ctx.hasTable("charges");
+  const ch = (column: string): string => ctx.col("charges", column);
+
+  const charged = chargeTable
+    ? `coalesce((select sum(y.${ch("amount")}) from ${ctx.table("charges")} y where y.${ch("invoice")} = inv.${i("id")}), 0)`
+    : "0";
+
+  const chargeSources = (): readonly AccountingSource[] =>
+    chargeTable
+      ? [
+          {
+            source: "invoice_charge",
+            journal: "sales",
+            fn: "accounting_invoice_charge_lines",
+            comment:
+              "The entry of an invoice charge for accounting: the receivable against\nrevenue, with no tax.",
+            body: `  select jsonb_build_object(
+    'organizationId', inv.${i("tenant")},
+    'entryDate', ${ctx.has("charges", "createdAt") ? `(c.${ch("createdAt")} at time zone 'UTC')::date` : "current_date"},
+    'currency', inv.${i("currency")},
+    'reference', inv.${i("identifier")},
+    'memo', 'Charge on ' || coalesce(inv.${i("identifier")}, inv.${i("title")}),
+    'lines', jsonb_build_array(
+      jsonb_strip_nulls(jsonb_build_object('role', 'receivable', 'debit', c.${ch("amount")}::text, 'partyId', ${party("inv")})),
+      jsonb_strip_nulls(jsonb_build_object('role', 'revenue', 'credit', c.${ch("amount")}::text, 'description', ${ctx.has("charges", "description") ? `c.${ch("description")}` : "null"})))
+  )
+  from ${ctx.table("charges")} c
+  join ${invoices} inv on inv.${i("id")} = c.${ch("invoice")}
+  where c.${ch("id")}::text = source_id and c.${ch("amount")} <> 0 and not (${direction("inv")})`,
+          },
+        ]
+      : [];
 
   const taxLine = (
     side: string,
@@ -147,6 +182,26 @@ export function invoiceAccountingSources(
     where e.${le("transaction")} = y.${tx("id")} and a.${la("code")} = ${cashCode("inv")}
   ) p
   where y.${tx("id")}::text = source_id and y.${tx("referenceType")} = 'invoices' and p.amount <> 0`,
+    },
+    ...chargeSources(),
+    {
+      source: "invoice_write_off",
+      journal: "general",
+      fn: "accounting_invoice_write_off_lines",
+      comment:
+        "The entry of a written-off invoice for accounting: the open balance against\nexpenses, the receivable cleared.",
+      body: `  select jsonb_build_object(
+    'organizationId', inv.${i("tenant")},
+    'currency', inv.${i("currency")},
+    'reference', inv.${i("identifier")},
+    'memo', 'Write-off of ' || coalesce(inv.${i("identifier")}, inv.${i("title")}),
+    'lines', jsonb_build_array(
+      jsonb_build_object('role', 'expense', 'debit', b.balance::text),
+      jsonb_strip_nulls(jsonb_build_object('role', 'receivable', 'credit', b.balance::text, 'partyId', ${party("inv")})))
+  )
+  from ${invoices} inv
+  cross join lateral (select inv.${i("total")} + ${charged} - inv.${i("creditedTotal")} - inv.${i("paidTotal")} as balance) b
+  where inv.${i("id")}::text = source_id and b.balance > 0 and not (${direction("inv")})`,
     },
   ];
 }
