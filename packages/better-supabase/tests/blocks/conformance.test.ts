@@ -181,6 +181,8 @@ const NO_FIELDS: readonly string[] = [
   "subjects",
   // Tax codes, dated rates and returns are figures the block computes; a record keeps its own tax columns.
   "tax",
+  // Sessions, movements, counts and deposits are fixed records; app data goes on the till.
+  "tills",
   // Entries are written from the outbox by the activity sink; they record app events.
   "timeline",
   // Counters and an append-only usage log written per unit; per-event data goes in `metadata`.

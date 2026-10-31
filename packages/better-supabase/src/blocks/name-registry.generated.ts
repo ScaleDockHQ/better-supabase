@@ -2351,6 +2351,27 @@ export interface BlockNameRegistry {
     readonly primary: "template";
     readonly formerKeys: never;
   };
+  readonly "tills": {
+    readonly tables: {
+      readonly "tills": "id" | "tenant" | "name" | "currency" | "account" | "location" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "sessions": "id" | "tenant" | "till" | "status" | "openingFloat" | "openedBy" | "openedAt" | "closedBy" | "closedAt" | "notes";
+      readonly "movements": "id" | "tenant" | "session" | "kind" | "amount" | "reason" | "reference" | "createdBy" | "createdAt";
+      readonly "counts": "id" | "tenant" | "session" | "denominations" | "expected" | "counted" | "variance" | "countedBy" | "countedAt" | "entry" | "notes";
+      readonly "deposits": "id" | "tenant" | "session" | "amount" | "depositedOn" | "reference" | "status" | "entry" | "bankTransaction" | "reconciledAt" | "createdBy" | "createdAt";
+    };
+    readonly functions: "close_till_session" | "create_till" | "deposit_till_cash" | "get_till_session" | "list_till_sessions" | "list_tills" | "open_till_session" | "reconcile_till_deposit" | "record_till_movement" | "update_till";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: "before_till_session_open" | "after_till_session_open" | "before_till_session_close" | "after_till_session_close" | "before_till_deposit" | "after_till_deposit";
+    readonly entities: {
+      readonly "till": "id" | "tenant_id" | "name" | "currency" | "account_id" | "location" | "archived_at" | "created_at" | "updated_at";
+      readonly "till_session": "id" | "tenant_id" | "till_id" | "status" | "opening_float" | "opened_by" | "opened_at" | "closed_by" | "closed_at" | "notes";
+      readonly "till_movement": "id" | "tenant_id" | "session_id" | "kind" | "amount" | "reason" | "reference" | "created_by" | "created_at";
+      readonly "till_count": "id" | "tenant_id" | "session_id" | "denominations" | "expected_amount" | "counted_amount" | "variance_amount" | "counted_by" | "counted_at" | "entry_id" | "notes";
+      readonly "till_deposit": "id" | "tenant_id" | "session_id" | "amount" | "deposited_on" | "reference" | "status" | "entry_id" | "bank_transaction_id" | "reconciled_at" | "created_by" | "created_at";
+    };
+    readonly primary: "till";
+    readonly formerKeys: never;
+  };
   readonly "time-tracking": {
     readonly tables: {
       readonly "entries": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "startedAt" | "endedAt" | "billable" | "rate" | "rateCurrency" | "note" | "createdAt" | "updatedAt" | "seconds" | "runningSince" | "employee";

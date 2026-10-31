@@ -117,6 +117,7 @@ const MODULES = [
   "appraisals",
   "warehouse",
   "rfqs",
+  "tills",
   "manufacturing",
   "legal-entities",
   "document-templates",

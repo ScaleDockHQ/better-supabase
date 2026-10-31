@@ -66,6 +66,7 @@ import { limsBlock } from "better-supabase/blocks/lims";
 import { appraisalsBlock } from "better-supabase/blocks/appraisals";
 import { warehouseBlock } from "better-supabase/blocks/warehouse";
 import { rfqsBlock } from "better-supabase/blocks/rfqs";
+import { tillsBlock } from "better-supabase/blocks/tills";
 import { manufacturingBlock } from "better-supabase/blocks/manufacturing";
 import { bankingBlock } from "better-supabase/blocks/banking";
 import { legalEntitiesBlock } from "better-supabase/blocks/legal-entities";
@@ -218,6 +219,7 @@ export const blockSet = defineBlocks(blockConfig, {
   appraisals: appraisalsBlock,
   warehouse: warehouseBlock,
   rfqs: rfqsBlock,
+  tills: tillsBlock,
   manufacturing: manufacturingBlock,
   banking: bankingBlock,
   legalEntities: legalEntitiesBlock,

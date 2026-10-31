@@ -132,3 +132,4 @@ lims
 appraisals
 warehouse
 rfqs
+tills

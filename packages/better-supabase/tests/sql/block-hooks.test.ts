@@ -241,6 +241,14 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_rfq_award",
     "after_rfq_award",
   ],
+  tills: [
+    "before_till_session_open",
+    "after_till_session_open",
+    "before_till_session_close",
+    "after_till_session_close",
+    "before_till_deposit",
+    "after_till_deposit",
+  ],
   lims: [
     "before_lims_sample_register",
     "after_lims_sample_register",

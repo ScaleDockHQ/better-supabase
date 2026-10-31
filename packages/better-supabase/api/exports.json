@@ -9767,6 +9767,47 @@
       "RpcClient"
     ]
   },
+  "./blocks/tills": {
+    "values": [
+      "createTills",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "tillInputSchema",
+      "tillsBlock",
+      "tillsEvents",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CloseTillSessionInput",
+      "DepositTillCashInput",
+      "RpcClient",
+      "Till",
+      "TillCount",
+      "TillDeposit",
+      "TillDepositEventData",
+      "TillDepositStatus",
+      "TillEventData",
+      "TillInput",
+      "TillMovement",
+      "TillMovementEventData",
+      "TillMovementKind",
+      "Tills",
+      "TillSession",
+      "TillSessionDetail",
+      "TillSessionEventData",
+      "TillSessionListOptions",
+      "TillSessionStatus",
+      "TillsEvents",
+      "TillsOptions",
+      "TillUpdate"
+    ]
+  },
   "./blocks/lims": {
     "values": [
       "createLims",

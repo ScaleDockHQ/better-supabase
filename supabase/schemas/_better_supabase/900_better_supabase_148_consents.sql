@@ -1,6 +1,6 @@
 -- better-supabase module: consents
 -- @bsb-block consents@1 managed
--- @bsb-hash sha256:90c63d66f45bfe03149d3cb2507079fa8f9bd46662b7617f42b77d27e5b7e8cd
+-- @bsb-hash sha256:06a632085c048fb36f82359234c5185680f8273f4257733568d6cf0a7cdb3f4f
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -368,6 +368,7 @@ begin
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (record_consent.subject_id)::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (record_consent.subject_id)::uuid)
       when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (record_consent.subject_id)::uuid)
+      when 'till' then (select s."tenant_id"::text from "better_supabase"."tills" s where s."id" = (record_consent.subject_id)::uuid)
       when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (record_consent.subject_id)::uuid)
       when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (record_consent.subject_id)::uuid)
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (record_consent.subject_id)::uuid)
@@ -726,6 +727,7 @@ declare
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (consent_active.subject_id)::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (consent_active.subject_id)::uuid)
       when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (consent_active.subject_id)::uuid)
+      when 'till' then (select s."tenant_id"::text from "better_supabase"."tills" s where s."id" = (consent_active.subject_id)::uuid)
       when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (consent_active.subject_id)::uuid)
       when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (consent_active.subject_id)::uuid)
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (consent_active.subject_id)::uuid)
@@ -833,6 +835,7 @@ declare
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (list_consents.subject_id)::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (list_consents.subject_id)::uuid)
       when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (list_consents.subject_id)::uuid)
+      when 'till' then (select s."tenant_id"::text from "better_supabase"."tills" s where s."id" = (list_consents.subject_id)::uuid)
       when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (list_consents.subject_id)::uuid)
       when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (list_consents.subject_id)::uuid)
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (list_consents.subject_id)::uuid)

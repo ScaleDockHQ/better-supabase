@@ -11,6 +11,7 @@ import { bookingsBlock } from "better-supabase/blocks/bookings";
 import { catalogBlock } from "better-supabase/blocks/catalog";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
+import { tillsBlock } from "better-supabase/blocks/tills";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
@@ -21,6 +22,7 @@ import { outboxBlock } from "better-supabase/blocks/outbox";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { promotionsBlock } from "better-supabase/blocks/promotions";
 import { settingsBlock } from "better-supabase/blocks/settings";
+import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { teamsBlock } from "better-supabase/blocks/teams";
 
 import { blockConfig } from "./pos.blocks.generated.ts";
@@ -35,6 +37,7 @@ export const blockSet = defineBlocks(blockConfig, {
   catalog: catalogBlock,
   ledger: ledgerBlock,
   enrollments: enrollmentsBlock,
+  tills: tillsBlock,
   entitlements: entitlementsBlock,
   inventory: inventoryBlock,
   notifications: notificationsBlock,
@@ -45,6 +48,7 @@ export const blockSet = defineBlocks(blockConfig, {
   profiles: profilesBlock,
   promotions: promotionsBlock,
   settings: settingsBlock,
+  subjects: subjectsBlock,
   teams: teamsBlock,
 });
 

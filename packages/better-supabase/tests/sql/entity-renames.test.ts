@@ -124,6 +124,7 @@ describe("blocks.<name>.entities in the SQL", () => {
     orders: ["'cartId'", "'orderId'"],
     promotions: ['"promotions"', "'promotionId'"],
     tax: ["'taxCodeId'"],
+    tills: ["'tillId'"],
   };
 
   const renamable = Object.entries(SQL_MODULES).flatMap(([name, module]) => {

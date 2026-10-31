@@ -285,6 +285,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0168: A WOPI host on the check-out lock lets office editors open and save drive files.
 - 0169: Warehouse makes pick waves and lists from stock allocations, picking tasks and cycle count plans that hold large variances for review.
 - 0170: `rfqs` sends requests for quotation to suppliers, compares their quotes and awards one into a draft purchase order.
+- 0171: Tills run shifts with a float, cash movements and an end-of-day count that books its variance, then deposit and reconcile in banking.
 
 ## Pre-release pins
 
