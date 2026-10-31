@@ -18,7 +18,7 @@ const allowed = (character: string): boolean => {
   return code >= 0x20 || code === 0x09 || code === 0x0a || code === 0x0d;
 };
 
-export function escapeXml(value: string): string {
+function escapeXml(value: string): string {
   let kept = "";
 
   for (const character of value) {

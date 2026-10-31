@@ -1,8 +1,8 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:70f8fe9b1c7b01bd1b2c28aa48d7d5a82c9ea52d134194d77116da7c8ced90ad
--- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, and invoices from accepted quotes.
+-- @bsb-hash sha256:067c276a45f6b9e6b838fe517996d91d352dbbcf10e30925878bee610e76cd9e
+-- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -93,6 +93,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_charges";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_levels";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -132,6 +140,9 @@ create table if not exists "better_supabase"."invoices" (
   "supplier_reference" text check (length("supplier_reference") <= 200),
   "purchase_order_id" uuid,
   "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dunning_level" integer not null default 0,
+  "dunning_at" timestamptz,
+  "dunning_paused_until" date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -180,6 +191,27 @@ drop policy if exists invoice_charges_read on "better_supabase"."invoice_charges
 create policy invoice_charges_read on "better_supabase"."invoice_charges"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "invoice_id"));
+
+create table if not exists "better_supabase"."invoice_dunning_levels" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "level" integer not null check ("level" between 1 and 20),
+  "days_after_due" integer not null check ("days_after_due" >= 0),
+  "template_key" text not null check (length("template_key") between 1 and 200),
+  "fee" bigint not null default 0 check ("fee" >= 0),
+  "final" boolean not null default false,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "level")
+);
+alter table "better_supabase"."invoice_dunning_levels" enable row level security;
+revoke all on "better_supabase"."invoice_dunning_levels" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_dunning_levels" to authenticated;
+grant all on "better_supabase"."invoice_dunning_levels" to service_role;
+drop policy if exists invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels";
+create policy invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
 
 -- Creates a draft invoice. attrs: title (required), currency, company and
@@ -1340,6 +1372,402 @@ $$;
 revoke execute on function "better_supabase"."purchase_bill_match"(uuid) from public, anon;
 grant execute on function "better_supabase"."purchase_bill_match"(uuid) to authenticated, service_role;
 
+-- A party's unallocated payments, per currency: what record_party_payment
+-- kept as credit, less what apply_party_credit drew on.
+create or replace function "better_supabase"."list_party_credits"(tenant uuid, party_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_party_credits.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('currency', a."unit", 'amount', coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = a."id"), 0)::text) order by a."unit")
+    from "better_supabase"."ledger_accounts" a
+    where a."tenant_id" = list_party_credits.tenant and a."managed_by" = 'invoices'
+      and a."holder_type" = 'invoice_party' and a."holder_id" = list_party_credits.party_id
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_party_credits"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_party_credits"(uuid, text) to authenticated, service_role;
+
+-- Records one payment from a party over several of its invoices.
+-- allocations: [{ invoiceId, amount }], each recorded as a payment of that
+-- invoice with the reference "<reference>/<invoiceId>". What the allocations
+-- leave over becomes the party's credit in the payment's currency. The
+-- reference is required and unique per organization, so recording the same
+-- payment twice adds it once.
+create or replace function "better_supabase"."record_party_payment"(tenant uuid, party_id text, amount bigint, currency text, allocations jsonb, received_on date, reference text, method text default null, note text default null, actor jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_currency text := upper(record_party_payment.currency);
+  v_reference text := nullif(trim(record_party_payment.reference), '');
+  v_allocations jsonb := coalesce(record_party_payment.allocations, '[]'::jsonb);
+  v_paid_at timestamptz := coalesce(record_party_payment.received_on::timestamptz, now());
+  v_allocated bigint := 0;
+  v_remainder bigint;
+  v_alloc record;
+  v_row "better_supabase"."invoices";
+  v_credit uuid;
+  v_key text;
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', record_party_payment.tenant, 'invoices.write'), false)) then
+    raise exception 'not allowed to record payments in this organization' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  if nullif(trim(record_party_payment.party_id), '') is null or length(record_party_payment.party_id) > 150 then
+    raise exception 'a party id is a non-empty text of at most 150 characters' using errcode = '22023', hint = 'INVOICE_PARTY_INVALID';
+  end if;
+  if coalesce(record_party_payment.amount, 0) <= 0 then
+    raise exception 'a party payment has a positive amount' using errcode = '22023', hint = 'INVOICE_PAYMENT_INVALID';
+  end if;
+  if v_currency is null or v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'currency is a three-letter ISO 4217 code' using errcode = '22023', hint = 'INVOICE_CURRENCY_INVALID';
+  end if;
+  if v_reference is null then
+    raise exception 'a party payment needs a reference, such as the bank transaction id' using errcode = '22023', hint = 'INVOICE_PAYMENT_REFERENCE_REQUIRED';
+  end if;
+  if jsonb_typeof(v_allocations) <> 'array' or exists (
+    select 1 from jsonb_array_elements(v_allocations) x
+    where jsonb_typeof(x.value) <> 'object'
+      or coalesce(x.value ->> 'invoiceId', '') !~ '^[0-9a-fA-F-]{36}$'
+      or coalesce(x.value ->> 'amount', '') !~ '^[0-9]{1,18}$'
+      or (x.value ->> 'amount')::bigint = 0
+  ) or (
+    select count(*) <> count(distinct x.value ->> 'invoiceId') from jsonb_array_elements(v_allocations) x
+  ) then
+    raise exception 'allocations is an array of { invoiceId, amount } with a positive amount, one per invoice' using errcode = '22023', hint = 'INVOICE_ALLOCATIONS_INVALID';
+  end if;
+  select coalesce(sum((x.value ->> 'amount')::bigint), 0) into v_allocated from jsonb_array_elements(v_allocations) x;
+  if v_allocated > record_party_payment.amount then
+    raise exception 'the allocations add up to more than the payment' using errcode = '23514', hint = 'INVOICE_ALLOCATIONS_TOO_LARGE';
+  end if;
+  if record_party_payment.actor is not null then
+    if jsonb_typeof(record_party_payment.actor) <> 'object' then
+      raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
+    end if;
+    begin
+      perform nullif(record_party_payment.actor ->> 'ip', '')::inet, nullif(record_party_payment.actor ->> 'id', '')::uuid;
+    exception when invalid_text_representation then
+      raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
+    end;
+  end if;
+  perform set_config('better_supabase.transition_actor', coalesce(record_party_payment.actor::text, ''), true);
+  for v_alloc in
+    select (x.value ->> 'invoiceId')::uuid as invoice, (x.value ->> 'amount')::bigint as amount
+    from jsonb_array_elements(v_allocations) with ordinality x
+    order by x.ordinality
+  loop
+    select * into v_row from "better_supabase"."invoices" x
+    where x."id" = v_alloc.invoice and x."tenant_id" = record_party_payment.tenant
+      and (x."company_id"::text = record_party_payment.party_id or x."contact_id"::text = record_party_payment.party_id) and x."direction" = 'sales';
+    if v_row."id" is null then
+      raise exception 'an allocation names no invoice of this party' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+    end if;
+    if v_alloc.amount > (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total") and not exists (
+      select 1 from "better_supabase"."ledger_transactions" y
+      where y."tenant_id" = v_row."tenant_id" and y."idempotency_key" = 'invoice-payment:' || (v_reference || '/' || v_alloc.invoice::text)
+    ) then
+      raise exception 'an allocation is more than the invoice''s balance; keep the rest as credit' using errcode = '23514', hint = 'INVOICE_ALLOCATION_TOO_LARGE';
+    end if;
+    perform "better_supabase"."record_invoice_payment"(v_alloc.invoice, v_alloc.amount, v_currency, v_paid_at,
+      record_party_payment.method, v_reference || '/' || v_alloc.invoice::text,
+      record_party_payment.note, record_party_payment.actor, null);
+  end loop;
+  v_remainder := record_party_payment.amount - v_allocated;
+  v_key := 'invoice-party-payment:' || v_reference;
+  if v_remainder > 0 then
+    select y."id" into v_credit from "better_supabase"."ledger_transactions" y
+    where y."tenant_id" = record_party_payment.tenant and y."idempotency_key" = v_key;
+    if v_credit is null then
+      v_credit := "better_supabase"."ledger_post"(record_party_payment.tenant, 'invoice.party_payment',
+        jsonb_build_array(
+          jsonb_build_object('account', "better_supabase"."ledger_account_for"(record_party_payment.tenant, 'cash', 'invoices:cash:' || v_currency,
+      'Invoice payments ' || v_currency, v_currency, 0::smallint, null, null,
+      null, true, 'invoices.read', 'invoices', null), 'amount', v_remainder),
+          jsonb_build_object('account', "better_supabase"."ledger_account_for"(record_party_payment.tenant, 'credit', 'invoices:credit:' || record_party_payment.party_id || ':' || v_currency,
+      'Credit ' || record_party_payment.party_id || ' ' || v_currency, v_currency, 0::smallint, 'invoice_party', record_party_payment.party_id,
+      null, true, 'invoices.read', 'invoices', null), 'amount', -v_remainder)),
+        'invoices', record_party_payment.party_id, null, v_key, v_paid_at,
+        jsonb_strip_nulls(jsonb_build_object('partyId', record_party_payment.party_id, 'currency', v_currency,
+          'method', record_party_payment.method, 'reference', v_reference, 'note', nullif(trim(record_party_payment.note), ''))));
+      
+    end if;
+  end if;
+  return jsonb_build_object(
+    'partyId', record_party_payment.party_id,
+    'currency', v_currency,
+    'amount', record_party_payment.amount::text,
+    'allocated', v_allocated::text,
+    'credited', v_remainder::text,
+    'creditTransactionId', v_credit,
+    'credit', coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = record_party_payment.tenant and a."code" = 'invoices:credit:' || record_party_payment.party_id || ':' || v_currency)), 0)::text
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."record_party_payment"(uuid, text, bigint, text, jsonb, date, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."record_party_payment"(uuid, text, bigint, text, jsonb, date, text, text, text, jsonb) to authenticated, service_role;
+
+-- Pays part or all of an open invoice from its party's credit in the
+-- invoice's currency, as a ledger transaction from the receivable to the
+-- credit account. It shows among the invoice's payments with method credit.
+create or replace function "better_supabase"."apply_party_credit"(party_id text, invoice uuid, amount bigint, actor jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_account uuid;
+  v_payment uuid;
+  v_was text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = apply_party_credit.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if not (v_row."company_id"::text = apply_party_credit.party_id or v_row."contact_id"::text = apply_party_credit.party_id) then
+    raise exception 'the invoice isn''t this party''s' using errcode = '22023', hint = 'INVOICE_PARTY_MISMATCH';
+  end if;
+  if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid') or v_row."direction" <> 'sales' then
+    raise exception 'only an open sales invoice takes credit' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
+  end if;
+  if coalesce(apply_party_credit.amount, 0) <= 0 then
+    raise exception 'credit is applied in a positive amount' using errcode = '22023', hint = 'INVOICE_PAYMENT_INVALID';
+  end if;
+  if apply_party_credit.amount > (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total") then
+    raise exception 'the amount is more than the invoice''s balance' using errcode = '23514', hint = 'INVOICE_CREDIT_TOO_LARGE';
+  end if;
+  select a."id" into v_account from "better_supabase"."ledger_accounts" a
+  where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoices:credit:' || apply_party_credit.party_id || ':' || v_row."currency"
+  for update;
+  if v_account is null or apply_party_credit.amount > coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = v_account), 0) then
+    raise exception 'the party doesn''t have this much credit in the invoice''s currency' using errcode = '23514', hint = 'INVOICE_CREDIT_INSUFFICIENT';
+  end if;
+  if apply_party_credit.actor is not null then
+    if jsonb_typeof(apply_party_credit.actor) <> 'object' then
+      raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
+    end if;
+    begin
+      perform nullif(apply_party_credit.actor ->> 'ip', '')::inet, nullif(apply_party_credit.actor ->> 'id', '')::uuid;
+    exception when invalid_text_representation then
+      raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
+    end;
+  end if;
+  perform set_config('better_supabase.transition_actor', coalesce(apply_party_credit.actor::text, ''), true);
+  v_was := v_row."status";
+  v_payment := "better_supabase"."ledger_post"(v_row."tenant_id", 'invoice.credit_applied',
+    jsonb_build_array(
+      jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'receivable',
+      'invoice:' || v_row."id"::text, 'Receivable ' || coalesce(v_row."identifier", v_row."id"::text),
+      v_row."currency"::text, 0::smallint, 'invoices', v_row."id"::text,
+      null, true, 'invoices.read', 'invoices', null), 'amount', -apply_party_credit.amount),
+      jsonb_build_object('account', v_account, 'amount', apply_party_credit.amount)),
+    'invoices', v_row."id"::text, null, null, now(),
+    jsonb_build_object('invoiceId', v_row."id", 'method', 'credit', 'partyId', apply_party_credit.party_id));
+  update "better_supabase"."invoices" x set
+    "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  update "better_supabase"."invoices" x set
+    "status" = case
+      when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
+      when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
+      else 'issued' end,
+    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
+  returning * into v_row;
+  null;
+  if v_row."status" = 'paid' and v_was <> 'paid' then
+    null;
+  end if;
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+      'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
+      'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."apply_party_credit"(text, uuid, bigint, jsonb) from public, anon;
+grant execute on function "better_supabase"."apply_party_credit"(text, uuid, bigint, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_invoice_dunning_levels"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoice_dunning_levels.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = list_invoice_dunning_levels.tenant), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_dunning_levels"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_invoice_dunning_levels"(uuid) to authenticated, service_role;
+
+-- Replaces an organization's reminder levels. levels: [{ daysAfterDue,
+-- templateKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
+-- rising. fee: minor units of the invoice's currency, added as a charge when
+-- the level is reached. Only the last level can be final.
+create or replace function "better_supabase"."set_invoice_dunning_levels"(tenant uuid, levels jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', set_invoice_dunning_levels.tenant, 'invoices.manage'), false)) then
+    raise exception 'not allowed to manage this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(set_invoice_dunning_levels.levels) is distinct from 'array'
+    or jsonb_array_length(set_invoice_dunning_levels.levels) > 20
+    or exists (
+      select 1 from jsonb_array_elements(set_invoice_dunning_levels.levels) with ordinality x
+      where jsonb_typeof(x.value) <> 'object'
+        or coalesce(x.value ->> 'daysAfterDue', '') !~ '^[0-9]{1,5}$'
+        or length(coalesce(trim(x.value ->> 'templateKey'), '')) not between 1 and 200
+        or coalesce(x.value ->> 'fee', '0') !~ '^[0-9]{1,18}$'
+        or jsonb_typeof(coalesce(x.value -> 'final', 'false'::jsonb)) <> 'boolean'
+        or ((x.value ->> 'final')::boolean is true and x.ordinality < jsonb_array_length(set_invoice_dunning_levels.levels))
+    ) then
+    raise exception 'levels is an array of at most 20 { daysAfterDue, templateKey, fee, final }, and only the last is final' using errcode = '22023', hint = 'INVOICE_DUNNING_LEVELS_INVALID';
+  end if;
+  if exists (
+    select 1 from (
+      select (x.value ->> 'daysAfterDue')::integer as days,
+        lag((x.value ->> 'daysAfterDue')::integer) over (order by x.ordinality) as before
+      from jsonb_array_elements(set_invoice_dunning_levels.levels) with ordinality x
+    ) s where s.days <= s.before
+  ) then
+    raise exception 'each level comes more days after the due date than the one before' using errcode = '22023', hint = 'INVOICE_DUNNING_LEVELS_INVALID';
+  end if;
+  delete from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant;
+  insert into "better_supabase"."invoice_dunning_levels" ("tenant_id", "level", "days_after_due", "template_key", "fee", "final")
+  select set_invoice_dunning_levels.tenant, x.ordinality, (x.value ->> 'daysAfterDue')::integer, trim(x.value ->> 'templateKey'),
+    coalesce((x.value ->> 'fee')::bigint, 0), coalesce((x.value ->> 'final')::boolean, false)
+  from jsonb_array_elements(set_invoice_dunning_levels.levels) with ordinality x;
+  return coalesce((select jsonb_agg(jsonb_build_object('level', l."level", 'daysAfterDue', l."days_after_due", 'templateKey', l."template_key", 'fee', l."fee"::text, 'final', l."final") order by l."level") from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = set_invoice_dunning_levels.tenant), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."set_invoice_dunning_levels"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."set_invoice_dunning_levels"(uuid, jsonb) to authenticated, service_role;
+
+-- Raises each overdue invoice with a balance to the highest reminder level it
+-- has reached (one organization, or all), adds the level's fee as a charge,
+-- notifies who created the invoice and records invoice.dunning_escalated with
+-- the level's template key, for a sink that sends the reminder. Invoices
+-- paused until today or later wait. Returns how many invoices moved up.
+create or replace function "better_supabase"."run_invoice_dunning"(tenant uuid default null, as_of date default null)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_today date := coalesce(run_invoice_dunning.as_of, current_date);
+  v_row "better_supabase"."invoices";
+  v_level "better_supabase"."invoice_dunning_levels";
+  v_count integer := 0;
+begin
+  for v_row in
+    select x.* from "better_supabase"."invoices" x
+    where (run_invoice_dunning.tenant is null or x."tenant_id" = run_invoice_dunning.tenant)
+      and x."kind" = 'invoice' and x."status" in ('issued', 'partially_paid') and x."direction" = 'sales'
+      and x."due_on" < v_today
+      and (x."dunning_paused_until" is null or x."dunning_paused_until" < v_today)
+      and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") > 0
+      and exists (select 1 from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = x."tenant_id" and l."level" > x."dunning_level" and x."due_on" + l."days_after_due" <= v_today)
+    order by x."tenant_id", x."due_on", x."id"
+    for update of x skip locked
+  loop
+    select l.* into v_level from "better_supabase"."invoice_dunning_levels" l where l."tenant_id" = v_row."tenant_id" and l."level" > v_row."dunning_level" and v_row."due_on" + l."days_after_due" <= v_today order by l."level" desc limit 1;
+    update "better_supabase"."invoices" x set
+      "dunning_level" = v_level."level",
+      "dunning_at" = now(),
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    if v_level."fee" > 0 then
+      perform "better_supabase"."add_invoice_charge"(invoice => v_row."id", amount => v_level."fee", currency => v_row."currency"::text,
+        description => 'Reminder fee, level ' || v_level."level");
+      select * into v_row from "better_supabase"."invoices" x where x."id" = v_row."id";
+    end if;
+    null;
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."run_invoice_dunning"(uuid, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."run_invoice_dunning"(uuid, date) to service_role;
+
+-- Holds an invoice's reminders until a date, such as while the customer
+-- disputes it; until null resumes them. reason: why, for the audit log.
+create or replace function "better_supabase"."pause_invoice_dunning"(invoice uuid, until date, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = pause_invoice_dunning.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.collect' end), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if pause_invoice_dunning.until < current_date then
+    raise exception 'a pause lasts until today or later' using errcode = '22023', hint = 'INVOICE_DUNNING_PAUSE_INVALID';
+  end if;
+  if length(pause_invoice_dunning.reason) > 2000 then
+    raise exception 'a reason is at most 2000 characters' using errcode = '22023', hint = 'INVOICE_DUNNING_PAUSE_INVALID';
+  end if;
+  update "better_supabase"."invoices" x set
+    "dunning_paused_until" = pause_invoice_dunning.until,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+      'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
+      'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) from public, anon;
+grant execute on function "better_supabase"."pause_invoice_dunning"(uuid, date, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1416,6 +1844,27 @@ create policy bsb_tenant_scope_update on "better_supabase"."invoice_charges" as 
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_charges" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_levels";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 

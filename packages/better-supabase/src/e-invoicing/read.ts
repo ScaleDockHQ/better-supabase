@@ -404,8 +404,8 @@ export async function fromUbl(
   const orderReference = text(child(root, "OrderReference"), "ID");
 
   const lines = [
-    ...children(root, credit ? "CreditNoteLine" : "InvoiceLine").map((line) =>
-      lineOf(line, credit, currency),
+    ...children(root, creditNote ? "CreditNoteLine" : "InvoiceLine").map(
+      (line) => lineOf(line, creditNote !== undefined, currency),
     ),
     ...documentLines(root, currency),
   ];

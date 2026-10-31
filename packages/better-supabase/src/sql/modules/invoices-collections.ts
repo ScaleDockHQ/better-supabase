@@ -93,7 +93,7 @@ export function collectionNames(
 }
 
 /** Whether the invoices table and the levels table can run dunning. */
-export function hasDunning(ctx: BlockSqlContext): boolean {
+function hasDunning(ctx: BlockSqlContext): boolean {
   return (
     ctx.hasTable("dunningLevels") &&
     COLLECTION_COLUMNS.every((column) => ctx.has("invoices", column))
@@ -105,7 +105,7 @@ const partyColumns = (ctx: BlockSqlContext): readonly string[] =>
   ["companyId", "contactId"].filter((column) => ctx.has("invoices", column));
 
 /** Whether payments can be recorded for a party: the table names one. */
-export function hasPartyCredit(ctx: BlockSqlContext): boolean {
+function hasPartyCredit(ctx: BlockSqlContext): boolean {
   return partyColumns(ctx).length > 0;
 }
 

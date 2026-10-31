@@ -210,6 +210,7 @@ export const permissions = {
     manage: "invoices.manage",
     purchase: "invoices.purchase",
     overrideMatch: "invoices.override_match",
+    collect: "invoices.collect",
   },
   ledger: {
     read: "ledger.read",
@@ -272,7 +273,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "quotes.manage" | "quotes.read" | "quotes.write" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "quotes.manage" | "quotes.read" | "quotes.write" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -323,8 +324,11 @@ export const blockEvents: Events<BlockEvents> = {
     "invoice.charge_removed",
     "invoice.charged",
     "invoice.created",
+    "invoice.credit_applied",
     "invoice.credited",
     "invoice.deleted",
+    "invoice.dunning_escalated",
+    "invoice.dunning_paused",
     "invoice.issued",
     "invoice.match_checked",
     "invoice.paid",
@@ -435,8 +439,11 @@ export const blockEventSchemas = {
   "invoice.charge_removed": true,
   "invoice.charged": true,
   "invoice.created": true,
+  "invoice.credit_applied": true,
   "invoice.credited": true,
   "invoice.deleted": true,
+  "invoice.dunning_escalated": true,
+  "invoice.dunning_paused": true,
   "invoice.issued": true,
   "invoice.match_checked": true,
   "invoice.paid": true,

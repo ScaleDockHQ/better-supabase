@@ -21451,7 +21451,19 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceCharge"
         },
         {
+          "name": "InvoiceCollections"
+        },
+        {
           "name": "InvoiceDirection"
+        },
+        {
+          "name": "InvoiceDunning"
+        },
+        {
+          "name": "InvoiceDunningLevel"
+        },
+        {
+          "name": "InvoiceDunningLevelInput"
         },
         {
           "name": "InvoiceInput",

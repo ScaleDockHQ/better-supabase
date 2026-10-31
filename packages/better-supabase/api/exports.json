@@ -4564,6 +4564,30 @@
       "YjsLike"
     ]
   },
+  "./e-invoicing": {
+    "values": [
+      "eInvoiceChannelOf",
+      "fromUbl",
+      "PEPPOL_BIS_CUSTOMIZATION",
+      "PEPPOL_BIS_PROFILE",
+      "toUbl"
+    ],
+    "types": [
+      "EInvoiceAddress",
+      "EInvoiceChannel",
+      "EInvoiceDocument",
+      "EInvoiceEndpoint",
+      "EInvoiceParty",
+      "EInvoiceReceived",
+      "EInvoiceSent",
+      "FromUblOptions",
+      "TaxCategoryCode",
+      "UblBill",
+      "UblOptions",
+      "UblSource",
+      "XmlParserModule"
+    ]
+  },
   "./better-result": {
     "values": [
       "withBetterResult"
@@ -7788,7 +7812,11 @@
       "InvoiceActorOptions",
       "InvoiceAging",
       "InvoiceCharge",
+      "InvoiceCollections",
       "InvoiceDirection",
+      "InvoiceDunning",
+      "InvoiceDunningLevel",
+      "InvoiceDunningLevelInput",
       "InvoiceInput",
       "InvoiceMatch",
       "InvoiceMatchLine",
@@ -7801,6 +7829,8 @@
       "InvoiceStatus",
       "Line",
       "LineInput",
+      "PartyPayment",
+      "PartyPaymentInput",
       "RecordRef",
       "RpcClient",
       "Totals"

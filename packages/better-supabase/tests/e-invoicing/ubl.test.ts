@@ -337,7 +337,69 @@ describe("fromUbl", () => {
     expect(bill.input.termsDays).toBe(10);
   });
 
+  it("reads a corrective invoice with party details and lines it can't price", async () => {
+    const party = (role: string, inner: string) =>
+      `<cac:${role}><cac:Party><cbc:EndpointID>9</cbc:EndpointID>${inner}</cac:Party></cac:${role}>`;
+
+    const xml = `<Invoice xmlns:cac="a" xmlns:cbc="b">
+  <cbc:ID>INV-3</cbc:ID>
+  <cbc:IssueDate>2026-10-05</cbc:IssueDate>
+  <cbc:DueDate>2026-10-01</cbc:DueDate>
+  <cbc:InvoiceTypeCode>381</cbc:InvoiceTypeCode>
+  <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
+  ${party("AccountingSupplierParty", "<cac:PartyName><cbc:Name>Shop</cbc:Name></cac:PartyName><cac:PartyTaxScheme><cbc:CompanyID>NL1</cbc:CompanyID><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:PartyTaxScheme><cac:PartyLegalEntity><cbc:RegistrationName>Shop Holding</cbc:RegistrationName><cbc:CompanyID>77</cbc:CompanyID></cac:PartyLegalEntity><cac:Contact><cbc:Name>Ann</cbc:Name><cbc:Telephone>123</cbc:Telephone></cac:Contact>")}
+  ${party("AccountingCustomerParty", "<cac:PartyName><cbc:Name>Us</cbc:Name></cac:PartyName>")}
+  <cac:TaxTotal><cbc:TaxAmount>0</cbc:TaxAmount></cac:TaxTotal>
+  <cac:LegalMonetaryTotal><cbc:PayableAmount>9</cbc:PayableAmount></cac:LegalMonetaryTotal>
+  <cac:InvoiceLine><cbc:InvoicedQuantity>2</cbc:InvoicedQuantity><cbc:LineExtensionAmount>2.00</cbc:LineExtensionAmount><cac:Price><cbc:PriceAmount>10.00</cbc:PriceAmount><cbc:BaseQuantity>10</cbc:BaseQuantity></cac:Price></cac:InvoiceLine>
+  <cac:InvoiceLine><cbc:InvoicedQuantity>-1</cbc:InvoicedQuantity><cbc:LineExtensionAmount>-3.00</cbc:LineExtensionAmount><cac:Item><cbc:Name>Return</cbc:Name></cac:Item><cac:Price><cbc:PriceAmount>3.00</cbc:PriceAmount></cac:Price></cac:InvoiceLine>
+  <cac:InvoiceLine><cbc:InvoicedQuantity>1e2</cbc:InvoicedQuantity><cbc:LineExtensionAmount>4.00</cbc:LineExtensionAmount></cac:InvoiceLine>
+  <cac:InvoiceLine><cbc:LineExtensionAmount>6.00</cbc:LineExtensionAmount><cac:Price><cbc:PriceAmount>6.00</cbc:PriceAmount></cac:Price></cac:InvoiceLine>
+</Invoice>`;
+
+    const bill = await fromUbl(xml, { xmlParser: fastXmlParser });
+
+    expect(bill.kind).toBe("credit_note");
+    expect(bill.input.termsDays).toBeUndefined();
+    expect(bill.seller).toEqual({
+      name: "Shop",
+      endpoint: { scheme: "", id: "9" },
+      address: { country: "" },
+      vatId: "NL1",
+      legalName: "Shop Holding",
+      legalId: { id: "77" },
+      contact: { name: "Ann", phone: "123" },
+    });
+    expect(
+      bill.lines.map((found) => [found.quantity, found.unitAmount]),
+    ).toEqual([
+      [1, eur(200)],
+      [1, eur(-300)],
+      [1, eur(400)],
+      [1, eur(600)],
+    ]);
+    expect(bill.lines[0]?.description).toBe("Line");
+  });
+
   it("names what a document is missing", async () => {
+    const head =
+      '<Invoice xmlns:cbc="x" xmlns:cac="y"><cbc:ID>1</cbc:ID><cbc:IssueDate>2026-10-01</cbc:IssueDate><cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>';
+
+    await expect(
+      fromUbl(`${head}</Invoice>`, { xmlParser: fastXmlParser }),
+    ).rejects.toThrow(/no AccountingSupplierParty/);
+    await expect(
+      fromUbl(
+        `${head}<cac:AccountingSupplierParty><cac:Party><cbc:EndpointID>1</cbc:EndpointID></cac:Party></cac:AccountingSupplierParty></Invoice>`,
+        { xmlParser: fastXmlParser },
+      ),
+    ).rejects.toThrow(/has no name/);
+    await expect(
+      fromUbl(
+        `${head}<cac:AccountingSupplierParty><cac:Party><cbc:EndpointID>1</cbc:EndpointID><cac:PartyName><cbc:Name>A</cbc:Name></cac:PartyName></cac:Party></cac:AccountingSupplierParty><cac:AccountingCustomerParty><cac:Party><cbc:EndpointID>2</cbc:EndpointID><cac:PartyName><cbc:Name>B</cbc:Name></cac:PartyName></cac:Party></cac:AccountingCustomerParty><cac:TaxTotal><cbc:TaxAmount>1.001</cbc:TaxAmount></cac:TaxTotal></Invoice>`,
+        { xmlParser: fastXmlParser },
+      ),
+    ).rejects.toThrow(/is not an amount in EUR/);
     await expect(fromUbl("<Order/>")).rejects.toThrow(/not a UBL/);
     await expect(
       fromUbl(
