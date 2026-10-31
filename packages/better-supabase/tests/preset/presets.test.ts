@@ -33,3 +33,35 @@ describe("the psa, ats and intranet presets", () => {
     }
   });
 });
+
+describe("the erp and manufacturing presets", () => {
+  const IMPORT_BLOCKS = [
+    "legal-entities",
+    "tax",
+    "accounting",
+    "banking",
+    "imports",
+    "invoices",
+    "quotes",
+    "orders",
+    "inventory",
+    "contacts",
+    "custom-fields",
+    "attachments",
+    "document-templates",
+    "numbering",
+  ];
+
+  it.each(["erp", "manufacturing"] as const)(
+    "%s installs every block an ERP or bookkeeping import writes to",
+    (name) => {
+      const resolved = resolvePreset(namedPreset(name)).blocks.map(
+        (block) => block.name,
+      );
+
+      for (const block of IMPORT_BLOCKS) {
+        expect(resolved).toContain(block);
+      }
+    },
+  );
+});

@@ -77,6 +77,12 @@ export const CONTROLLED_DOCUMENTS: NonNullable<Preset["instances"]> = {
  * people and the books they post to.
  */
 export const ERP: readonly string[] = [
+  "legal-entities",
+  "tax",
+  "imports",
+  "custom-fields",
+  "attachments",
+  "document-templates",
   "contacts",
   "catalog",
   "inventory",

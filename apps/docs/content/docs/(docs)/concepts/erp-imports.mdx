@@ -1,0 +1,104 @@
+---
+title: ERP and bookkeeping imports
+description: Move an ERP or bookkeeping system into better-supabase with repeatable import runs, import mode, legal entities, numbering, tax, the ledger, audit files and field packs, and the tests that prove each step.
+---
+
+This page walks one migration from the source system to a working ledger. Each
+step names the block that owns it and the acceptance test that checks it, so you
+can see what a second run, a newer file or a second administration does before
+you rely on it. Start with the `erp` preset: it installs legal entities, tax,
+imports, custom fields, attachments, document templates, contacts, invoices,
+quotes, orders, inventory, accounting and banking.
+
+## 1. Import in runs
+
+A run reads one source for one tenant. Start it with `imports.runs.start`, send
+batches with `imports.upsertBatch(run, entity, items)` and end it with
+`imports.finish`. Every item ends as `inserted`, `unchanged`, `updated` or
+`conflicted`, and the record map in `import_records` remembers the source key
+and a hash of the data. See [Imports](/docs/blocks/imports) for the options.
+
+Keep the source name the same between runs. The record map is scoped to it, so a
+run with another source name imports everything again.
+
+- Sending the same data again writes no row and no audit row
+  (`erp_import_01_identical_rerun`).
+- Newer input updates only the records that changed. A row a user edited after
+  the import stays as the user has it and is counted as `conflicted`
+  (`erp_import_02_newer_input`).
+
+## 2. Import mode
+
+A batch runs in import mode, so migrating history does not fire live
+side effects. No outbox event reaches a webhook or workflow unless
+`blocks.imports.options.events` lists it, no notification is sent, no stock is
+taken when an order is paid or a shipment ships, and a document is not
+auto-posted to the ledger. Audit is tagged, or summarised per entity with
+`audit: "summary"`. Import stock and balances through their own targets
+(`erp_import_04_no_side_effects`).
+
+## 3. Legal entities
+
+Several administrations can import into one organization. Give each its own
+legal entity and its own `scope`, and let a second source reuse the shared
+contacts with `scopeAliases`. Cloned history across two administrations
+imports without duplicate contacts or documents
+(`erp_import_03_cloned_administrations`). See
+[Legal entities](/docs/blocks/legal-entities).
+
+Invoice numbers are unique per tenant, direction and kind, not yet per legal
+entity. Two entities that both hold `INV-0001` collide, so give each entity a
+distinct number range or prefix until the key includes the entity. The test
+file records this as a TODO.
+
+## 4. Numbering
+
+An imported document keeps its number. The next number a series hands out
+continues above the highest imported one, per series, period and legal entity,
+so a live invoice never reuses a historical number. See
+[Numbering](/docs/blocks/numbering) (`numbering_imports`).
+
+## 5. Tax and documents
+
+Invoices, credit notes, quotes and orders import with their stored totals and
+tax lines. The importer compares them with the [tax block](/docs/blocks/tax) and
+reports a difference as `IMPORT_TAX_MISMATCH` or `IMPORT_TOTALS_MISMATCH`
+without dropping the document. Margin-scheme invoices keep their margin tax
+line, and `attrs.paymentTermsId` supplies the credit restriction
+(`erp_import_07_margin_and_credit_restriction`).
+
+The header total of an issued invoice does not yet apply the credit
+restriction that the tax lines apply. Import the source header total and
+the tax lines, and check the `IMPORT_TOTALS_MISMATCH` warnings after the run.
+
+## 6. Ledger and open items
+
+Import accounts, journals and entries into an organization where
+`accounting.setup` ran, then the opening list of open items through the
+`open_item` entity. The opening balances travel as the opening entry of the
+journal listing, so do not post them a second time. After the import the trial
+balance equals the source, and the open items add up to the receivables account.
+
+## 7. Audit files
+
+`better-supabase/audit-files` writes a fiscal year as SAF-T or XAF and reads
+one back through the same run and record map. A file exported from one ledger
+rebuilds the same trial balance in an empty organization on the real stack, and
+importing the same file again with the same source name reports every entry as
+`unchanged` (`erp-import-ledger-round-trip`). See
+[Audit files](/docs/concepts/audit-files).
+
+## 8. Field packs and attachments
+
+Install field packs for the registered subject types before the first run, so
+custom values land on the right records. Attachments take a document type, a
+source and an external id, so files can be registered before they are uploaded.
+See [Custom fields](/docs/blocks/custom-fields).
+
+## Known gaps
+
+- Intrastat arrival lines are manual, and the Intrastat functions are exposed to
+  an API schema only when you list them in `blocks.shipments.api.functions`.
+- Order payments are `payments` rows, so import them through the payments
+  entity of the source.
+- The two gaps in sections 3 and 5.

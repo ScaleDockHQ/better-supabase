@@ -241,6 +241,7 @@
   "concepts/casing",
   "concepts/commerce",
   "concepts/e-invoicing",
+  "concepts/erp-imports",
   "concepts/fhir",
   "concepts/naming",
   "concepts/nested-tenancy",

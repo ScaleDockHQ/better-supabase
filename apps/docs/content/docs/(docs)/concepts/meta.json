@@ -12,6 +12,7 @@
     "fhir",
     "e-invoicing",
     "audit-files",
+    "erp-imports",
     "nested-tenancy"
   ]
 }
