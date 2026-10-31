@@ -10,11 +10,11 @@ import { invoiceCashCode } from "./invoices-ledger.ts";
  * sales journal (the receivable against revenue and tax per rate), each payment
  * or refund in the bank journal (bank against the receivable), each charge in
  * the sales journal (the receivable against revenue) and a written off invoice
- * in the general journal (the open balance against expenses). A
- * purchase bill books in the purchase journal: the supplier's payable against
- * expense, carrying the bill's dimensions, and deductible tax. With inventory,
- * a product line on a bill of a purchase order clears the payable its receipt
- * booked instead of an expense, so received stock isn't counted twice.
+ * in the general journal (the open balance against expenses). A purchase bill
+ * books in the purchase journal: the supplier's payable against expense,
+ * carrying the bill's dimensions, and deductible tax. With inventory, a product
+ * line on a bill of a purchase order clears the payable its receipt booked
+ * instead of an expense, so received stock isn't counted twice.
  */
 export function invoiceAccountingSources(
   ctx: BlockSqlContext,
