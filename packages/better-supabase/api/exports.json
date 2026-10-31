@@ -9801,6 +9801,45 @@
       "RpcClient"
     ]
   },
+  "./blocks/appraisals": {
+    "values": [
+      "appraisalCycleInputSchema",
+      "appraisalReviewInputSchema",
+      "appraisalsBlock",
+      "appraisalsEvents",
+      "createAppraisals",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "Appraisal",
+      "AppraisalAssignment",
+      "AppraisalCalibration",
+      "AppraisalCycle",
+      "AppraisalCycleEventData",
+      "AppraisalCycleInput",
+      "AppraisalCycleStatus",
+      "AppraisalEventData",
+      "AppraisalListOptions",
+      "AppraisalRatedEventData",
+      "AppraisalReview",
+      "AppraisalReviewEventData",
+      "AppraisalReviewInput",
+      "AppraisalReviewKind",
+      "Appraisals",
+      "AppraisalsEvents",
+      "AppraisalsOptions",
+      "AppraisalStatus",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "RpcClient"
+    ]
+  },
   "./blocks/manufacturing": {
     "values": [
       "bomInputSchema",

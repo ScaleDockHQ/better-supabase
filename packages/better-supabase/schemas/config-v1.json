@@ -1634,6 +1634,7 @@
               "ai-schedules",
               "announcements",
               "api-keys",
+              "appraisals",
               "approvals",
               "assets",
               "assignment",
@@ -1811,6 +1812,7 @@
                   "ai-schedules",
                   "announcements",
                   "api-keys",
+                  "appraisals",
                   "approvals",
                   "assets",
                   "assignment",
@@ -2004,6 +2006,9 @@
             },
             "api-keys": {
               "$ref": "#/$defs/blocks/api-keys"
+            },
+            "appraisals": {
+              "$ref": "#/$defs/blocks/appraisals"
             },
             "approvals": {
               "$ref": "#/$defs/blocks/approvals"
@@ -4108,6 +4113,17 @@
                 }
               }
             }
+          }
+        }
+      },
+      "appraisals": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

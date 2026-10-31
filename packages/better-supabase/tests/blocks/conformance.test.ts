@@ -45,6 +45,9 @@ const NO_FIELDS: readonly string[] = [
   "ai-cache",
   // Provider keys and batch jobs the block writes itself.
   "ai-keys",
+  // Cycles, appraisals, reviews and calibrations are fixed records; app data
+  // goes on the people and goals they point at.
+  "appraisals",
   // Locations and assets carry app data in `metadata`.
   "assets",
   // Queues and picks route records to members; app data lives on the records.

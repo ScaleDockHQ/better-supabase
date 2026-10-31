@@ -991,7 +991,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:d40474f6ec187c9beeb1e515b46229df852b4bb6e0644779cbb4db1f8831b1ff
+-- @bsb-hash sha256:a995fc421065bd30bebc894b07fc2852217b875f0004e240624e9bef9b803e9a
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1370,6 +1370,9 @@ begin
   end if;
   if v_req."subject_type" = 'case' then
     perform "better_supabase"."case_close_approved"(v_req."subject_id"::uuid);
+  end if;
+  if v_req."subject_type" = 'appraisal' then
+    perform "better_supabase"."appraisal_approved"(v_req."subject_id"::uuid);
   end if;
   perform "better_supabase".emit_event('approval.approved', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
   perform better_supabase.audit_event(
@@ -1844,6 +1847,9 @@ begin
     if v_req."subject_type" = 'purchase_requisition' then
       perform "better_supabase"."purchase_requisition_decided"(v_req."subject_id"::uuid, false);
     end if;
+    if v_req."subject_type" = 'appraisal' then
+      perform "better_supabase"."appraisal_rejected"(v_req."subject_id"::uuid);
+    end if;
   else
     select count(*) into v_count from "better_supabase"."approval_decisions" x
       where x."request_id" = v_req."id" and x."step" = v_req."step" and x."decision" = 'approved';
@@ -2002,7 +2008,7 @@ begin
     raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_req."requested_by" = auth.uid(), false) or "better_supabase"."approval_eligible"(v_req."id")
-    or (coalesce(better_supabase.can('tenant', v_req."tenant_id", 'approvals.read'), false) and (not v_req."subject_type" in ('support_request', 'ai_tool_approval') and (v_req."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'leave_request', 'expense_report', 'content_entry', 'care_plan_action', 'case') or (case when v_req."subject_type" = 'drive_node' then coalesce(case when v_req."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((v_req."subject_id")::uuid, 'viewer') end, false) else true end))))) then
+    or (coalesce(better_supabase.can('tenant', v_req."tenant_id", 'approvals.read'), false) and (not v_req."subject_type" in ('support_request', 'ai_tool_approval') and (v_req."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'leave_request', 'expense_report', 'content_entry', 'care_plan_action', 'case', 'appraisal') or (case when v_req."subject_type" = 'drive_node' then coalesce(case when v_req."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((v_req."subject_id")::uuid, 'viewer') end, false) else true end))))) then
     raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object(
@@ -2040,7 +2046,7 @@ begin
       and (list_approvals.before is null or x."created_at" < list_approvals.before)
       and case
         when list_approvals.assigned then "better_supabase"."approval_eligible"(x."id")
-        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (not x."subject_type" in ('support_request', 'ai_tool_approval') and (x."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'leave_request', 'expense_report', 'content_entry', 'care_plan_action', 'case') or (case when x."subject_type" = 'drive_node' then coalesce(case when x."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((x."subject_id")::uuid, 'viewer') end, false) else true end))))) or "better_supabase"."approval_eligible"(x."id")
+        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (not x."subject_type" in ('support_request', 'ai_tool_approval') and (x."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'leave_request', 'expense_report', 'content_entry', 'care_plan_action', 'case', 'appraisal') or (case when x."subject_type" = 'drive_node' then coalesce(case when x."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((x."subject_id")::uuid, 'viewer') end, false) else true end))))) or "better_supabase"."approval_eligible"(x."id")
       end
     order by x."created_at" desc, x."id"
     limit least(greatest(coalesce(list_approvals.page_size, 50), 1), 200)

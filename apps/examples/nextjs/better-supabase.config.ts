@@ -471,6 +471,9 @@ export default defineConfig({
     // specification result opens a nonconformity case, and instruments are
     // assets whose "calibration" qualification must be valid on the test date.
     lims: { options: { instrumentQualification: "calibration" } },
+    // Review cycles with self, peer and manager reviews, calibration sessions
+    // and sign-off through approvals.
+    appraisals: {},
     // Vital signs on a customer's record, with the seeded vitals definitions;
     // a critical value alerts the record's leads.
     observations: { options: { defaults: "vitals" } },

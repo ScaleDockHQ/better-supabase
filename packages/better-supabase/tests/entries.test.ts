@@ -80,6 +80,7 @@ const PURE_BARRELS = [
   "blocks/dam",
   "blocks/lims",
   "blocks/maintenance",
+  "blocks/appraisals",
   "blocks/manufacturing",
   "blocks/banking",
   "blocks/tax",

@@ -1120,6 +1120,11 @@
       "types": "./dist/blocks/maintenance/index.d.ts",
       "default": "./dist/blocks/maintenance/index.js"
     },
+    "./blocks/appraisals": {
+      "@better-supabase/source": "./src/blocks/appraisals/index.ts",
+      "types": "./dist/blocks/appraisals/index.d.ts",
+      "default": "./dist/blocks/appraisals/index.js"
+    },
     "./blocks/manufacturing": {
       "@better-supabase/source": "./src/blocks/manufacturing/index.ts",
       "types": "./dist/blocks/manufacturing/index.d.ts",
@@ -2080,6 +2085,10 @@
       "./blocks/maintenance": {
         "types": "./dist/blocks/maintenance/index.d.ts",
         "default": "./dist/blocks/maintenance/index.js"
+      },
+      "./blocks/appraisals": {
+        "types": "./dist/blocks/appraisals/index.d.ts",
+        "default": "./dist/blocks/appraisals/index.js"
       },
       "./blocks/manufacturing": {
         "types": "./dist/blocks/manufacturing/index.d.ts",
