@@ -843,12 +843,12 @@ msgstr "Inloggen"
 #: src/app/[locale]/(app)/warehouse/page.tsx
 msgctxt "warehouse.jpL4NC"
 msgid "Warehouse"
-msgstr ""
+msgstr "Magazijn"
 
 #: src/app/[locale]/(app)/warehouse/page.tsx
 msgctxt "warehouse.zM_1J8"
 msgid "Pick lists made from stock allocations, with the stock to take from each bin."
-msgstr ""
+msgstr "Picklijsten op basis van voorraadreserveringen, met de voorraad die uit elk vak moet."
 
 #: src/app/[locale]/(app)/work/grid/page.tsx
 msgctxt "work.5fijhK"
@@ -10761,7 +10761,7 @@ msgstr "Beoordelingen"
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.jpL4NC"
 msgid "Warehouse"
-msgstr ""
+msgstr "Magazijn"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.poLbhw"
@@ -16543,77 +16543,77 @@ msgstr "Inloggen"
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.JfG49w"
 msgid "Open"
-msgstr ""
+msgstr "Open"
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.JPvrXS"
 msgid "Picked"
-msgstr ""
+msgstr "Gepickt"
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.3wsVWF"
 msgid "Cancelled"
-msgstr ""
+msgstr "Geannuleerd"
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.U78NhE"
 msgid "Complete"
-msgstr ""
+msgstr "Voltooid"
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.wmirkP"
 msgid "Document"
-msgstr ""
+msgstr "Document"
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.T2ZVQY"
 msgid "Lines"
-msgstr ""
+msgstr "Regels"
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.tzMNF3"
 msgid "Status"
-msgstr ""
+msgstr "Status"
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.u7Bh0q"
 msgid "Pick lists"
-msgstr ""
+msgstr "Picklijsten"
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.ZonasR"
 msgid "One list per document with allocated stock, with how many lines are picked."
-msgstr ""
+msgstr "Eén lijst per document met gereserveerde voorraad, met het aantal gepickte regels."
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.PAaa4v"
 msgid "The pick lists didn't load"
-msgstr ""
+msgstr "De picklijsten zijn niet geladen"
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.162kF7"
 msgid "Try again in a moment."
-msgstr ""
+msgstr "Probeer het zo opnieuw."
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.62nsdy"
 msgid "Retry"
-msgstr ""
+msgstr "Opnieuw proberen"
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.nu3Ib8"
 msgid "No pick lists yet"
-msgstr ""
+msgstr "Nog geen picklijsten"
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.Xnjtt-"
 msgid "Allocate stock to a document, then make a pick list from it to give a picker the lines and bins."
-msgstr ""
+msgstr "Reserveer voorraad voor een document en maak er een picklijst van om een picker de regels en vakken te geven."
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.r7AyZt"
 msgid "Read the warehouse guide"
-msgstr ""
+msgstr "Lees de magazijngids"
 
 #: src/features/webhooks/components/webhook-endpoint-controls.tsx
 msgctxt "webhooks.KK_nq1"

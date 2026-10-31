@@ -51,6 +51,18 @@ breaking ones.
   (agenda, attendees, minutes, decisions, votes and action items as tasks)
   and the [payroll export](/docs/blocks/payroll-export) block with its
   `PayrollExportFormat` port.
+- **Part 2 blocks:** [maintenance](/docs/blocks/maintenance) with meter
+  readings and work orders, [rfqs](/docs/blocks/rfqs) for requests for
+  quotation, [appraisals](/docs/blocks/appraisals),
+  [warehouse](/docs/blocks/warehouse) pick waves and cycle counts,
+  [tills](/docs/blocks/tills) with cash counts and bank deposits,
+  [dam](/docs/blocks/dam) renditions and usage rights, and
+  [lims](/docs/blocks/lims) samples, methods and results.
+- **Part 2 platform work:** the versioned `RouteOptimizer` port on
+  [dispatch](/docs/blocks/dispatch), offline sync for care records through
+  PowerSync, the `psa`, `ats` and `intranet` presets, and on
+  [drive](/docs/blocks/drive) a retention sweep per label, a changes feed and
+  a WOPI host.
 - **One naming convention** (breaking): entity keys equal the entity's
   singular, event types are `<entity>.<past verb>`, module tables and the task
   and activity foreign key columns follow their entity, inbox contacts are
@@ -247,53 +259,19 @@ records the decision.
 18. **Gaps between blocks** people pick together.
 19. **Local-first engines** behind the same hooks.
 
-## Planned: after quality, care and ERP
+## Still open after quality, care and ERP
 
-These follow the 0.47 work. Each becomes its own plan, and each names the
-blocks it builds on.
-
-### New blocks
-
-- **Maintenance:** preventive schedules by time or meter, meter readings,
-  work orders, spare parts and calibration records tied to the
-  qualifications of assets, for CMMS, EAM and fleet apps. Builds on `assets`,
-  `dispatch`, `tasks`, `inventory` and `reminders`.
-- **RFQs and supplier quotes:** requests for quotation sent to several
-  suppliers and their answers compared, ahead of the purchase order that
-  purchasing already covers. Builds on `inventory`, `quotes` and `contacts`.
-- **Appraisals:** review cycles, self and peer reviews, and calibration.
-  Builds on `forms`, `enrollments`, `goals` and `approvals`.
-- **Warehouse:** pick lists, waves and cycle counts over the bins inventory
-  already keeps. Builds on `inventory`, `assets` and `tasks`.
-- **POS till sessions:** cash drawers and end-of-day counts on the `pos`
-  preset. Builds on `orders`, `accounting` and `banking`.
-- **Route optimization** for home care and field service visits, which
-  today a dispatcher orders by hand with `planRoute`. Builds on `dispatch`,
-  `bookings` and `shifts`.
-- **DAM:** renditions, usage rights with expiry and brand collections.
-  Builds on `drive`, `attachments`, `collections` and `custom-fields`.
-- **Samples and tests:** samples, test results and specification limits, for
-  LIMS and incoming inspection. Builds on `forms`, `cases`, `assets` and
-  `qualifications`.
-
-### Presets that only need wiring
-
-The help desk preset ships as `helpdesk`. Four more need only a block list:
-
-- **HRIS:** `people` plus `leave`, `shifts`, `qualifications`, `courses`,
-  `onboarding` and `payroll-export`.
-- **ATS:** `hiring`, `forms`, `bookings`, `calendar`, `mail-sync`,
-  `templates` and `comments`.
-- **PSA:** `projects` plus `billable-time`, `quotes`, `invoices`,
-  `expenses`, `contracts`, `approvals` and `accounting`.
-- **Intranet:** `announcements`, `knowledge`, `documents`, `channels`,
-  `teams`, `acknowledgements` and `search`.
+The blocks and presets of the 0.47 plan have shipped. What is left is the
+follow-ups below, each of which becomes its own plan, plus the adapter
+packages that live outside this repository.
 
 ### Care
 
-- **Offline sync for the care blocks** through PowerSync, for progress notes,
-  observations and medication administration. Builds on the existing
-  PowerSync support.
+- **Clinical decision support:** checks such as interaction and allergy
+  alerts on medications and care plans. The care blocks record and sign; they
+  don't advise yet.
+- **E-prescribing:** sending a prescription to a pharmacy. Medications keep
+  the medication list and its administration records only.
 - **Funding on the ledger and approvals:** awards and claims that post to
   `ledger`, and registrations that wait for an `approvals` request, plus a
   funding UI recipe. Today registration approval is the block's own status.
@@ -302,6 +280,26 @@ The help desk preset ships as `helpdesk`. Four more need only a block list:
   logged yet.
 - **More care preset blocks:** `access-requests` and `invoices` as optional
   additions to the `care` preset.
+
+### Deferred in the new blocks
+
+- **Warehouse:** putaway and slotting rules, and route optimization of the
+  pick path through the bins. Pick waves, pick lists and cycle counts ship in
+  [warehouse](/docs/blocks/warehouse).
+- **Maintenance:** `RRULE` recurrence for preventive plans (plans run by time
+  or meter today), and links from a plan to the qualifications of its
+  assets. See [maintenance](/docs/blocks/maintenance).
+- **Meetings:** an exemption for `NO_FIELDS` on a meeting type. See
+  [meetings](/docs/blocks/meetings).
+- **Appraisals:** rubrics with several rated competencies per review, and
+  reviewer anonymity. See [appraisals](/docs/blocks/appraisals).
+- **Payroll export:** time entries are not filtered by timesheet approval,
+  so unapproved hours count in a run. See
+  [payroll export](/docs/blocks/payroll-export).
+- **E-invoices:** `externalRef` is not persisted on the invoice, so a sent
+  UBL document can't be matched back by it.
+- **Tills:** the "Add a till" form in the example app has no cash account
+  field. See [tills](/docs/blocks/tills).
 
 ### ERP
 
@@ -322,7 +320,8 @@ The help desk preset ships as `helpdesk`. Four more need only a block list:
 
 ### Adapter packages
 
-These ship outside the library and plug into its versioned ports:
+These are external adapter repositories, not part of the library. They are
+still to be written, and each plugs into a versioned port:
 
 - iWlz, iJw and iWmo claims through `FundingClaimFormat`.
 - The G-Standaard through `MedicationCatalog`.
@@ -350,10 +349,10 @@ These ship outside the library and plug into its versioned ports:
 
 ### Removed in 0.48
 
-0.48 drops what 0.47 keeps for one minor: the old entity keys and subject
-types, the 0.46 permission keys in configured roles, `DbError.legacyHint`,
-the outbox `legacyEventTypes` option, `SequenceEnrollmentEventData` and
-`workItemChecklistBinding`. The
+0.48 drops what 0.47 keeps for one minor. These are still in the code today:
+the old entity keys and subject types, the outbox `legacyEventTypes` option
+and `SequenceEnrollmentEventData`, and the 0.46 permission keys in configured
+roles, `DbError.legacyHint` and `workItemChecklistBinding` go with them. The
 [upgrade guide](/docs/migration/0.46-to-0.47#removed-in-048) lists each one
 with its replacement.
 
