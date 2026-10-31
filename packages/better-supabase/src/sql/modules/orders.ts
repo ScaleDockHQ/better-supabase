@@ -28,6 +28,10 @@ import {
 } from "./orders-kitchen.ts";
 import { dropShipContract, dropShipFunctions } from "./orders-procurement.ts";
 import { columns, paymentWindow } from "./orders-shared.ts";
+import {
+  orderVariantContract,
+  orderVariantFunctions,
+} from "./orders-variants.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
@@ -214,6 +218,9 @@ const NAMES: BlockSqlNames = {
         originType: "origin_type",
         originId: "origin_id",
         buyer: "buyer",
+        variantOf: "variant_of",
+        variantLabel: "variant_label",
+        isSelected: "is_selected",
         updatedAt: "updated_at",
       },
       optional: [
@@ -224,6 +231,9 @@ const NAMES: BlockSqlNames = {
         "originType",
         "originId",
         "buyer",
+        "variantOf",
+        "variantLabel",
+        "isSelected",
       ],
       typed: ["status"],
     },
@@ -518,7 +528,7 @@ create table if not exists ${t("orders")} (
   ${o("paidAt")} timestamptz,
   ${o("fulfilledAt")} timestamptz,
   ${o("completedAt")} timestamptz,
-  ${o("cancelledAt")} timestamptz,${optionalColumn("orders", "cancelReason", (name) => `${name} text`)}${optionalColumn("orders", "originType", (name) => `${name} text check (${name} ~ '^[a-z][a-z0-9_]{0,62}$')`)}${optionalColumn("orders", "originId", (name) => `${name} text check (length(${name}) between 1 and 200)`)}${optionalColumn("orders", "buyer", (name) => `${name} jsonb`)}
+  ${o("cancelledAt")} timestamptz,${optionalColumn("orders", "cancelReason", (name) => `${name} text`)}${optionalColumn("orders", "originType", (name) => `${name} text check (${name} ~ '^[a-z][a-z0-9_]{0,62}$')`)}${optionalColumn("orders", "originId", (name) => `${name} text check (length(${name}) between 1 and 200)`)}${optionalColumn("orders", "buyer", (name) => `${name} jsonb`)}${optionalColumn("orders", "variantOf", (name) => `${name} uuid references ${t("orders")} (${o("id")}) on delete set null`)}${optionalColumn("orders", "variantLabel", (name) => `${name} text check (length(${name}) <= 200)`)}${optionalColumn("orders", "isSelected", (name) => `${name} boolean not null default true`)}
   ${o("updatedAt")} timestamptz not null default now(),
   unique (${o("tenant")}, ${o("number")}),
   unique (${o("tenant")}, ${o("invoiceNumber")})
@@ -678,11 +688,12 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Carts on any signed-in user (anonymous sign-ins included), checkout into
 -- orders with numbers, payments, fulfillments, returns and refunds.
-${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${documentFunctions(ctx, names)}${dropShipFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${orderImportFunctions(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
+${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${documentFunctions(ctx, names)}${orderVariantFunctions(ctx, names)}${dropShipFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${orderImportFunctions(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
+    ...orderVariantContract(ctx),
     {
       name: "save_shipping_rate",
       args: ["{id}", "uuid", "jsonb"],

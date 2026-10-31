@@ -100,3 +100,5 @@ export type {
 } from "./documents.ts";
 
 export type { StockDetail } from "../../commerce/stock-detail.ts";
+
+export type { OrderVariants } from "../sales-variants.ts";

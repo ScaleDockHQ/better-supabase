@@ -68,6 +68,14 @@ export type {
   PaymentAllocationLine,
 } from "./open-items.ts";
 
+export type {
+  InvoicedSources,
+  InvoiceSource,
+  InvoiceSources,
+  ReadySource,
+  SourceInvoice,
+} from "./sources.ts";
+
 export { invoicesBlock } from "./manifest.ts";
 
 export { invoicesEvents } from "./events.ts";

@@ -14,6 +14,7 @@ import {
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
+  serviceGrant,
   userGrant,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
@@ -578,6 +579,56 @@ end;
 $$;
 ${userGrant(`${fn("invoice_from_time")}(${ctx.idType}, jsonb, jsonb, text)`)}
 
+-- The lines of unbilled time for invoice_from_sources: one per record and rate (or per
+-- member or entry), each with its entries. Entries without a rate are left out.
+-- Internal: invoices calls it with the permission already checked.
+create or replace function ${fn("time_lines_for_invoice")}(tenant ${ctx.idType}, scope jsonb, group_by text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_scope jsonb := coalesce(time_lines_for_invoice.scope, '{}'::jsonb);
+  v_group text := coalesce(time_lines_for_invoice.group_by, 'subject');
+begin
+  ${checkGrouping("v_group")}
+  return coalesce((select jsonb_agg(jsonb_build_object('description', l.description, 'quantity', l.quantity::text, 'unitAmount', l.rate::text,
+      'currency', l.currency, 'entryIds', l.entry_ids) order by l.first_at)
+    from (${lines(unbilled("time_lines_for_invoice.tenant", "v_scope"), "v_group")}) l), '[]'::jsonb);
+end;
+$$;
+${serviceGrant(`${fn("time_lines_for_invoice")}(${ctx.idType}, jsonb, text)`)}
+
+-- Marks entries billed on an invoice and returns { entryId, seconds } for each. Only
+-- entries that are still unbilled are claimed; a stale list fails.
+create or replace function ${fn("claim_time_for_invoice")}(tenant ${ctx.idType}, invoice uuid, entry_ids jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_claimed jsonb;
+  v_expected integer := jsonb_array_length(claim_time_for_invoice.entry_ids);
+begin
+  perform pg_advisory_xact_lock(hashtextextended('billable_time:' || claim_time_for_invoice.tenant::text, 0));
+  with claimed as (
+    insert into ${billed} (${b("entry")}, ${b("tenant")}, ${b("invoice")}, ${b("rate")}, ${b("currency")}, ${b("seconds")})
+    select u.id, claim_time_for_invoice.tenant, claim_time_for_invoice.invoice, u.rate, u.currency, round(u.seconds)::bigint
+    from (${unbilled("claim_time_for_invoice.tenant", "jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids)")}) u
+    where u.rate is not null
+    returning ${b("entry")} as entry_id, ${b("seconds")} as seconds)
+  select coalesce(jsonb_agg(jsonb_build_object('entryId', c.entry_id, 'seconds', c.seconds)), '[]'::jsonb) into v_claimed from claimed c;
+  if jsonb_array_length(v_claimed) <> v_expected then
+    ${fail("BILLABLE_TIME_STALE", "some time entries were billed in the meantime", "55000")}
+  end if;
+  return v_claimed;
+end;
+$$;
+${serviceGrant(`${fn("claim_time_for_invoice")}(${ctx.idType}, uuid, jsonb)`)}
+
 -- The entries an invoice billed, with the rate and seconds it billed.
 create or replace function ${fn("list_invoiced_time")}(invoice uuid, page_size integer default 500)
 returns jsonb
@@ -697,6 +748,16 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     {
       name: "invoice_from_time",
       args: ["{id}", "jsonb", "jsonb", "text"],
+      returns: "jsonb",
+    },
+    {
+      name: "time_lines_for_invoice",
+      args: ["{id}", "jsonb", "text"],
+      returns: "jsonb",
+    },
+    {
+      name: "claim_time_for_invoice",
+      args: ["{id}", "uuid", "jsonb"],
       returns: "jsonb",
     },
     { name: "list_invoiced_time", args: ["uuid", "integer"], returns: "jsonb" },

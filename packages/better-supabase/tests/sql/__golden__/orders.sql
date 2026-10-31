@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:ed21ca03c810eb0c89538b974731ccbde2fe517f464e87e3cc0d63aac28a294d
+-- @bsb-hash sha256:29b78d6a74e66b951f11085ad43745f6c27709576c4dc386486e20b36ef34246
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -265,6 +265,9 @@ create table if not exists "better_supabase"."orders" (
   "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "origin_id" text check (length("origin_id") between 1 and 200),
   "buyer" jsonb,
+  "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
+  "variant_label" text check (length("variant_label") <= 200),
+  "is_selected" boolean not null default true,
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "invoice_number")
@@ -1567,6 +1570,120 @@ $$;
 revoke execute on function "better_supabase"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
 
+-- Puts an order into the variant group of another order (variant_of is the
+-- group's first order), or takes it out of its group when variant_of is null.
+-- Both orders belong to the same organization and use the same currency.
+create or replace function "better_supabase"."set_order_variant"(id uuid, variant_of uuid, label text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_root record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_order from "better_supabase"."orders" x where x."id" = set_order_variant.id for update;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if set_order_variant.variant_of is null then
+    update "better_supabase"."orders" x set "variant_of" = null, "variant_label" = null, "is_selected" = true
+    where x."id" = v_order."id";
+  else
+    select * into v_root from "better_supabase"."orders" x where x."id" = set_order_variant.variant_of for update;
+    if not found or v_root."tenant_id" <> v_order."tenant_id" then
+      raise exception 'no such order to group with' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+    end if;
+    if v_root."variant_of" is not null or v_root."id" = v_order."id" or exists (
+      select 1 from "better_supabase"."orders" s where s."variant_of" = v_order."id") then
+      raise exception 'group with the first order of a group, and not an order that has variants itself' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+    end if;
+    if v_root."currency" <> v_order."currency" then
+      raise exception 'variants share one currency' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+    end if;
+    update "better_supabase"."orders" x set "variant_of" = v_root."id",
+      "variant_label" = coalesce(nullif(trim(set_order_variant.label), ''), x."variant_label"),
+      "is_selected" = false
+    where x."id" = v_order."id";
+    update "better_supabase"."orders" x set "variant_label" = coalesce(nullif(x."variant_label", ''), 'Original')
+    where x."id" = v_root."id";
+  end if;
+  return (select jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") from "better_supabase"."orders" x where x."id" = v_order."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_order_variant"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_order_variant"(uuid, uuid, text) to authenticated, service_role;
+
+-- Makes an order the selected one of its variant group and unselects the others.
+create or replace function "better_supabase"."select_order_variant"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_order from "better_supabase"."orders" x where x."id" = select_order_variant.id;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if coalesce(v_order."variant_of", v_order."id") = v_order."id" and not exists (
+    select 1 from "better_supabase"."orders" s where s."variant_of" = v_order."id") then
+    raise exception 'this order has no variants' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+  end if;
+  if v_order."status" in ('cancelled', 'refunded') then
+    raise exception 'a cancelled or refunded order can''t be selected' using errcode = '55000', hint = 'ORDER_VARIANT_NOT_SELECTABLE';
+  end if;
+  perform 1 from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id") order by x."id" for update;
+  update "better_supabase"."orders" x set "is_selected" = (x."id" = v_order."id")
+  where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id");
+  return jsonb_build_object('order', (select jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") from "better_supabase"."orders" x where x."id" = v_order."id"),
+    'variants', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") order by x."placed_at", x."id"), '[]'::jsonb)
+      from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."select_order_variant"(uuid) from public, anon;
+grant execute on function "better_supabase"."select_order_variant"(uuid) to authenticated, service_role;
+
+-- The orders of one variant group: the first order and its variants.
+create or replace function "better_supabase"."list_order_variants"(id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+begin
+  select * into v_order from "better_supabase"."orders" x where x."id" = list_order_variants.id;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.read'), false)) then
+    raise exception 'not allowed to read these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") order by x."placed_at", x."id"), '[]'::jsonb)
+    from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id"));
+end;
+$$;
+revoke execute on function "better_supabase"."list_order_variants"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_order_variants"(uuid) to authenticated, service_role;
+
 -- Fulfills lines of a paid or confirmed order from one location. lines is
 -- [{lineId, quantity, detail?}]; null fulfills everything not yet
 -- fulfilled. detail names the bin, lot or serial numbers a confirmed
@@ -2492,7 +2609,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:975318ae06a042187dd8b2ace7911539e60efc5e8efe37ccf905888d3a3bc6d4
+-- @bsb-hash sha256:17359834e5bd67b0eb25444fea5ad02521bb813ee13fb925b0da6c51d3820ceb
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2756,6 +2873,9 @@ create table if not exists "better_supabase"."orders" (
   "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "origin_id" text check (length("origin_id") between 1 and 200),
   "buyer" jsonb,
+  "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
+  "variant_label" text check (length("variant_label") <= 200),
+  "is_selected" boolean not null default true,
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "invoice_number")
@@ -4181,6 +4301,10 @@ begin
   if v_quote."status" <> 'accepted' then
     raise exception 'only an accepted quote becomes an order' using errcode = '55000', hint = 'ORDERS_QUOTE_NOT_ACCEPTED';
   end if;
+  if (v_quote."variant_of" is not null or exists (select 1 from "better_supabase"."quotes" s where s."variant_of" = v_quote."id"))
+    and not v_quote."is_selected" then
+    raise exception 'this quote is one of several variants; select a variant first' using errcode = '55000', hint = 'QUOTE_VARIANT_NOT_SELECTED';
+  end if;
   if exists (select 1 from "better_supabase"."quote_lines" x where x."parent_id" = v_quote."id" and (not x."optional" or x."selected")
     and x."quantity" <> trunc(x."quantity")) then
     raise exception 'an order line is a whole quantity; the quote has a fractional one' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
@@ -4214,6 +4338,120 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
+
+-- Puts an order into the variant group of another order (variant_of is the
+-- group's first order), or takes it out of its group when variant_of is null.
+-- Both orders belong to the same organization and use the same currency.
+create or replace function "better_supabase"."set_order_variant"(id uuid, variant_of uuid, label text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_root record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_order from "better_supabase"."orders" x where x."id" = set_order_variant.id for update;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if set_order_variant.variant_of is null then
+    update "better_supabase"."orders" x set "variant_of" = null, "variant_label" = null, "is_selected" = true
+    where x."id" = v_order."id";
+  else
+    select * into v_root from "better_supabase"."orders" x where x."id" = set_order_variant.variant_of for update;
+    if not found or v_root."tenant_id" <> v_order."tenant_id" then
+      raise exception 'no such order to group with' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+    end if;
+    if v_root."variant_of" is not null or v_root."id" = v_order."id" or exists (
+      select 1 from "better_supabase"."orders" s where s."variant_of" = v_order."id") then
+      raise exception 'group with the first order of a group, and not an order that has variants itself' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+    end if;
+    if v_root."currency" <> v_order."currency" then
+      raise exception 'variants share one currency' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+    end if;
+    update "better_supabase"."orders" x set "variant_of" = v_root."id",
+      "variant_label" = coalesce(nullif(trim(set_order_variant.label), ''), x."variant_label"),
+      "is_selected" = false
+    where x."id" = v_order."id";
+    update "better_supabase"."orders" x set "variant_label" = coalesce(nullif(x."variant_label", ''), 'Original')
+    where x."id" = v_root."id";
+  end if;
+  return (select jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") from "better_supabase"."orders" x where x."id" = v_order."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_order_variant"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_order_variant"(uuid, uuid, text) to authenticated, service_role;
+
+-- Makes an order the selected one of its variant group and unselects the others.
+create or replace function "better_supabase"."select_order_variant"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_order from "better_supabase"."orders" x where x."id" = select_order_variant.id;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if coalesce(v_order."variant_of", v_order."id") = v_order."id" and not exists (
+    select 1 from "better_supabase"."orders" s where s."variant_of" = v_order."id") then
+    raise exception 'this order has no variants' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+  end if;
+  if v_order."status" in ('cancelled', 'refunded') then
+    raise exception 'a cancelled or refunded order can''t be selected' using errcode = '55000', hint = 'ORDER_VARIANT_NOT_SELECTABLE';
+  end if;
+  perform 1 from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id") order by x."id" for update;
+  update "better_supabase"."orders" x set "is_selected" = (x."id" = v_order."id")
+  where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id");
+  return jsonb_build_object('order', (select jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") from "better_supabase"."orders" x where x."id" = v_order."id"),
+    'variants', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") order by x."placed_at", x."id"), '[]'::jsonb)
+      from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."select_order_variant"(uuid) from public, anon;
+grant execute on function "better_supabase"."select_order_variant"(uuid) to authenticated, service_role;
+
+-- The orders of one variant group: the first order and its variants.
+create or replace function "better_supabase"."list_order_variants"(id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+begin
+  select * into v_order from "better_supabase"."orders" x where x."id" = list_order_variants.id;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.read'), false)) then
+    raise exception 'not allowed to read these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") order by x."placed_at", x."id"), '[]'::jsonb)
+    from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id"));
+end;
+$$;
+revoke execute on function "better_supabase"."list_order_variants"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_order_variants"(uuid) to authenticated, service_role;
 
 -- A draft purchase order for an order's lines, shipped by the supplier
 -- straight to the order's shipping address (drop ship): the supplier is a
@@ -5206,7 +5444,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:96bd93b1c8d271381ff39e70e8bc21a4b1b8ee8050a76ac135e0364ee348108f
+-- @bsb-hash sha256:232a626bd96ab5652d68f55a8244291f80b400b0024a52b100c5e98815a097b8
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5475,6 +5713,9 @@ create table if not exists "app_private"."orders" (
   "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "origin_id" text check (length("origin_id") between 1 and 200),
   "buyer" jsonb,
+  "variant_of" uuid references "app_private"."orders" ("id") on delete set null,
+  "variant_label" text check (length("variant_label") <= 200),
+  "is_selected" boolean not null default true,
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "invoice_number")
@@ -6777,6 +7018,120 @@ $$;
 revoke execute on function "app_private"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
 
+-- Puts an order into the variant group of another order (variant_of is the
+-- group's first order), or takes it out of its group when variant_of is null.
+-- Both orders belong to the same organization and use the same currency.
+create or replace function "app_private"."set_order_variant"(id uuid, variant_of uuid, label text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_root record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_order from "app_private"."orders" x where x."id" = set_order_variant.id for update;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if set_order_variant.variant_of is null then
+    update "app_private"."orders" x set "variant_of" = null, "variant_label" = null, "is_selected" = true
+    where x."id" = v_order."id";
+  else
+    select * into v_root from "app_private"."orders" x where x."id" = set_order_variant.variant_of for update;
+    if not found or v_root."tenant_id" <> v_order."tenant_id" then
+      raise exception 'no such order to group with' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+    end if;
+    if v_root."variant_of" is not null or v_root."id" = v_order."id" or exists (
+      select 1 from "app_private"."orders" s where s."variant_of" = v_order."id") then
+      raise exception 'group with the first order of a group, and not an order that has variants itself' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+    end if;
+    if v_root."currency" <> v_order."currency" then
+      raise exception 'variants share one currency' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+    end if;
+    update "app_private"."orders" x set "variant_of" = v_root."id",
+      "variant_label" = coalesce(nullif(trim(set_order_variant.label), ''), x."variant_label"),
+      "is_selected" = false
+    where x."id" = v_order."id";
+    update "app_private"."orders" x set "variant_label" = coalesce(nullif(x."variant_label", ''), 'Original')
+    where x."id" = v_root."id";
+  end if;
+  return (select jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") from "app_private"."orders" x where x."id" = v_order."id");
+end;
+$$;
+revoke execute on function "app_private"."set_order_variant"(uuid, uuid, text) from public, anon;
+grant execute on function "app_private"."set_order_variant"(uuid, uuid, text) to authenticated, service_role;
+
+-- Makes an order the selected one of its variant group and unselects the others.
+create or replace function "app_private"."select_order_variant"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_order from "app_private"."orders" x where x."id" = select_order_variant.id;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if coalesce(v_order."variant_of", v_order."id") = v_order."id" and not exists (
+    select 1 from "app_private"."orders" s where s."variant_of" = v_order."id") then
+    raise exception 'this order has no variants' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+  end if;
+  if v_order."status" in ('cancelled', 'refunded') then
+    raise exception 'a cancelled or refunded order can''t be selected' using errcode = '55000', hint = 'ORDER_VARIANT_NOT_SELECTABLE';
+  end if;
+  perform 1 from "app_private"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id") order by x."id" for update;
+  update "app_private"."orders" x set "is_selected" = (x."id" = v_order."id")
+  where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id");
+  return jsonb_build_object('order', (select jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") from "app_private"."orders" x where x."id" = v_order."id"),
+    'variants', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") order by x."placed_at", x."id"), '[]'::jsonb)
+      from "app_private"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id")));
+end;
+$$;
+revoke execute on function "app_private"."select_order_variant"(uuid) from public, anon;
+grant execute on function "app_private"."select_order_variant"(uuid) to authenticated, service_role;
+
+-- The orders of one variant group: the first order and its variants.
+create or replace function "app_private"."list_order_variants"(id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+begin
+  select * into v_order from "app_private"."orders" x where x."id" = list_order_variants.id;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.read'), false)) then
+    raise exception 'not allowed to read these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") order by x."placed_at", x."id"), '[]'::jsonb)
+    from "app_private"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id"));
+end;
+$$;
+revoke execute on function "app_private"."list_order_variants"(uuid) from public, anon;
+grant execute on function "app_private"."list_order_variants"(uuid) to authenticated, service_role;
+
 -- Fulfills lines of a paid or confirmed order from one location. lines is
 -- [{lineId, quantity, detail?}]; null fulfills everything not yet
 -- fulfilled. detail names the bin, lot or serial numbers a confirmed
@@ -7702,7 +8057,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:50c213b97071ec79652a28bd0ea9c60c047194c99bc2c54bf6ab870cbdd43bf0
+-- @bsb-hash sha256:c8c99e9210b0082309995b5a485fc87232777aa8a2f7a52ad6992c698a5cd827
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7966,6 +8321,9 @@ create table if not exists "better_supabase"."orders" (
   "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "origin_id" text check (length("origin_id") between 1 and 200),
   "buyer" jsonb,
+  "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
+  "variant_label" text check (length("variant_label") <= 200),
+  "is_selected" boolean not null default true,
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "invoice_number")
@@ -9268,6 +9626,120 @@ $$;
 revoke execute on function "better_supabase"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
 
+-- Puts an order into the variant group of another order (variant_of is the
+-- group's first order), or takes it out of its group when variant_of is null.
+-- Both orders belong to the same organization and use the same currency.
+create or replace function "better_supabase"."set_order_variant"(id uuid, variant_of uuid, label text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_root record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_order from "better_supabase"."orders" x where x."id" = set_order_variant.id for update;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if set_order_variant.variant_of is null then
+    update "better_supabase"."orders" x set "variant_of" = null, "variant_label" = null, "is_selected" = true
+    where x."id" = v_order."id";
+  else
+    select * into v_root from "better_supabase"."orders" x where x."id" = set_order_variant.variant_of for update;
+    if not found or v_root."tenant_id" <> v_order."tenant_id" then
+      raise exception 'no such order to group with' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+    end if;
+    if v_root."variant_of" is not null or v_root."id" = v_order."id" or exists (
+      select 1 from "better_supabase"."orders" s where s."variant_of" = v_order."id") then
+      raise exception 'group with the first order of a group, and not an order that has variants itself' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+    end if;
+    if v_root."currency" <> v_order."currency" then
+      raise exception 'variants share one currency' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+    end if;
+    update "better_supabase"."orders" x set "variant_of" = v_root."id",
+      "variant_label" = coalesce(nullif(trim(set_order_variant.label), ''), x."variant_label"),
+      "is_selected" = false
+    where x."id" = v_order."id";
+    update "better_supabase"."orders" x set "variant_label" = coalesce(nullif(x."variant_label", ''), 'Original')
+    where x."id" = v_root."id";
+  end if;
+  return (select jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") from "better_supabase"."orders" x where x."id" = v_order."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_order_variant"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_order_variant"(uuid, uuid, text) to authenticated, service_role;
+
+-- Makes an order the selected one of its variant group and unselects the others.
+create or replace function "better_supabase"."select_order_variant"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_order from "better_supabase"."orders" x where x."id" = select_order_variant.id;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if coalesce(v_order."variant_of", v_order."id") = v_order."id" and not exists (
+    select 1 from "better_supabase"."orders" s where s."variant_of" = v_order."id") then
+    raise exception 'this order has no variants' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+  end if;
+  if v_order."status" in ('cancelled', 'refunded') then
+    raise exception 'a cancelled or refunded order can''t be selected' using errcode = '55000', hint = 'ORDER_VARIANT_NOT_SELECTABLE';
+  end if;
+  perform 1 from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id") order by x."id" for update;
+  update "better_supabase"."orders" x set "is_selected" = (x."id" = v_order."id")
+  where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id");
+  return jsonb_build_object('order', (select jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") from "better_supabase"."orders" x where x."id" = v_order."id"),
+    'variants', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") order by x."placed_at", x."id"), '[]'::jsonb)
+      from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."select_order_variant"(uuid) from public, anon;
+grant execute on function "better_supabase"."select_order_variant"(uuid) to authenticated, service_role;
+
+-- The orders of one variant group: the first order and its variants.
+create or replace function "better_supabase"."list_order_variants"(id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+begin
+  select * into v_order from "better_supabase"."orders" x where x."id" = list_order_variants.id;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.read'), false)) then
+    raise exception 'not allowed to read these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") order by x."placed_at", x."id"), '[]'::jsonb)
+    from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id"));
+end;
+$$;
+revoke execute on function "better_supabase"."list_order_variants"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_order_variants"(uuid) to authenticated, service_role;
+
 -- Fulfills lines of a paid or confirmed order from one location. lines is
 -- [{lineId, quantity, detail?}]; null fulfills everything not yet
 -- fulfilled. detail names the bin, lot or serial numbers a confirmed
@@ -10358,6 +10830,33 @@ as $$ select "better_supabase"."order_from_quote"($1, $2) $$;
 revoke execute on function "api"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "api"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
 
+create or replace function "api"."set_order_variant"(id uuid, variant_of uuid, label text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_order_variant"($1, $2, $3) $$;
+revoke execute on function "api"."set_order_variant"(uuid, uuid, text) from public, anon;
+grant execute on function "api"."set_order_variant"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "api"."select_order_variant"(id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."select_order_variant"($1) $$;
+revoke execute on function "api"."select_order_variant"(uuid) from public, anon;
+grant execute on function "api"."select_order_variant"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_order_variants"(id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_order_variants"($1) $$;
+revoke execute on function "api"."list_order_variants"(uuid) from public, anon;
+grant execute on function "api"."list_order_variants"(uuid) to authenticated, service_role;
+
 create or replace function "api"."create_fulfillment"(order_id uuid, lines jsonb default null, location uuid default null, carrier text default null, tracking_number text default null, tracking_url text default null)
 returns jsonb
 language sql
@@ -10487,7 +10986,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:74c118a3e4cdab3f1e45f92e1bbda4b9d9d7d44d3c56378c68cc3cc8a141dbe3
+-- @bsb-hash sha256:9ef17cc2c10313932c1e050086b847436c0c768970bd0b377a8bd28f164d5cc7
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10760,6 +11259,9 @@ alter table "better_supabase"."orders" add column if not exists "cancel_reason" 
 alter table "better_supabase"."orders" add column if not exists "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$');
 alter table "better_supabase"."orders" add column if not exists "origin_id" text check (length("origin_id") between 1 and 200);
 alter table "better_supabase"."orders" add column if not exists "buyer" jsonb;
+alter table "better_supabase"."orders" add column if not exists "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null;
+alter table "better_supabase"."orders" add column if not exists "variant_label" text check (length("variant_label") <= 200);
+alter table "better_supabase"."orders" add column if not exists "is_selected" boolean not null default true;
 alter table "better_supabase"."orders" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists orders_status_idx on "better_supabase"."orders" ("tenant_id", "status", "placed_at");
 create index if not exists orders_customer_idx on "better_supabase"."orders" ("customer_id");
@@ -12044,6 +12546,120 @@ $$;
 revoke execute on function "better_supabase"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
 
+-- Puts an order into the variant group of another order (variant_of is the
+-- group's first order), or takes it out of its group when variant_of is null.
+-- Both orders belong to the same organization and use the same currency.
+create or replace function "better_supabase"."set_order_variant"(id uuid, variant_of uuid, label text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_root record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_order from "better_supabase"."orders" x where x."id" = set_order_variant.id for update;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if set_order_variant.variant_of is null then
+    update "better_supabase"."orders" x set "variant_of" = null, "variant_label" = null, "is_selected" = true
+    where x."id" = v_order."id";
+  else
+    select * into v_root from "better_supabase"."orders" x where x."id" = set_order_variant.variant_of for update;
+    if not found or v_root."tenant_id" <> v_order."tenant_id" then
+      raise exception 'no such order to group with' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+    end if;
+    if v_root."variant_of" is not null or v_root."id" = v_order."id" or exists (
+      select 1 from "better_supabase"."orders" s where s."variant_of" = v_order."id") then
+      raise exception 'group with the first order of a group, and not an order that has variants itself' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+    end if;
+    if v_root."currency" <> v_order."currency" then
+      raise exception 'variants share one currency' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+    end if;
+    update "better_supabase"."orders" x set "variant_of" = v_root."id",
+      "variant_label" = coalesce(nullif(trim(set_order_variant.label), ''), x."variant_label"),
+      "is_selected" = false
+    where x."id" = v_order."id";
+    update "better_supabase"."orders" x set "variant_label" = coalesce(nullif(x."variant_label", ''), 'Original')
+    where x."id" = v_root."id";
+  end if;
+  return (select jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") from "better_supabase"."orders" x where x."id" = v_order."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_order_variant"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_order_variant"(uuid, uuid, text) to authenticated, service_role;
+
+-- Makes an order the selected one of its variant group and unselects the others.
+create or replace function "better_supabase"."select_order_variant"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_order from "better_supabase"."orders" x where x."id" = select_order_variant.id;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if coalesce(v_order."variant_of", v_order."id") = v_order."id" and not exists (
+    select 1 from "better_supabase"."orders" s where s."variant_of" = v_order."id") then
+    raise exception 'this order has no variants' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+  end if;
+  if v_order."status" in ('cancelled', 'refunded') then
+    raise exception 'a cancelled or refunded order can''t be selected' using errcode = '55000', hint = 'ORDER_VARIANT_NOT_SELECTABLE';
+  end if;
+  perform 1 from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id") order by x."id" for update;
+  update "better_supabase"."orders" x set "is_selected" = (x."id" = v_order."id")
+  where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id");
+  return jsonb_build_object('order', (select jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") from "better_supabase"."orders" x where x."id" = v_order."id"),
+    'variants', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") order by x."placed_at", x."id"), '[]'::jsonb)
+      from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."select_order_variant"(uuid) from public, anon;
+grant execute on function "better_supabase"."select_order_variant"(uuid) to authenticated, service_role;
+
+-- The orders of one variant group: the first order and its variants.
+create or replace function "better_supabase"."list_order_variants"(id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+begin
+  select * into v_order from "better_supabase"."orders" x where x."id" = list_order_variants.id;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'orders.read'), false)) then
+    raise exception 'not allowed to read these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") order by x."placed_at", x."id"), '[]'::jsonb)
+    from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id"));
+end;
+$$;
+revoke execute on function "better_supabase"."list_order_variants"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_order_variants"(uuid) to authenticated, service_role;
+
 -- Fulfills lines of a paid or confirmed order from one location. lines is
 -- [{lineId, quantity, detail?}]; null fulfills everything not yet
 -- fulfilled. detail names the bin, lot or serial numbers a confirmed
@@ -12969,7 +13585,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:ce21e60efd886aa344d92b387815b4cd0b0de922d163be5a79ee3070e3af2e53
+-- @bsb-hash sha256:5e00a3a71c47bb4c08884a8b285fc5a159dad39169415b7010ce86c856967f04
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13233,6 +13849,9 @@ create table if not exists "better_supabase"."orders" (
   "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "origin_id" text check (length("origin_id") between 1 and 200),
   "buyer" jsonb,
+  "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
+  "variant_label" text check (length("variant_label") <= 200),
+  "is_selected" boolean not null default true,
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "number"),
   unique ("org_id", "invoice_number")
@@ -14534,6 +15153,120 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
+
+-- Puts an order into the variant group of another order (variant_of is the
+-- group's first order), or takes it out of its group when variant_of is null.
+-- Both orders belong to the same organization and use the same currency.
+create or replace function "better_supabase"."set_order_variant"(id uuid, variant_of uuid, label text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_root record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_order from "better_supabase"."orders" x where x."id" = set_order_variant.id for update;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."org_id", 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if set_order_variant.variant_of is null then
+    update "better_supabase"."orders" x set "variant_of" = null, "variant_label" = null, "is_selected" = true
+    where x."id" = v_order."id";
+  else
+    select * into v_root from "better_supabase"."orders" x where x."id" = set_order_variant.variant_of for update;
+    if not found or v_root."org_id" <> v_order."org_id" then
+      raise exception 'no such order to group with' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+    end if;
+    if v_root."variant_of" is not null or v_root."id" = v_order."id" or exists (
+      select 1 from "better_supabase"."orders" s where s."variant_of" = v_order."id") then
+      raise exception 'group with the first order of a group, and not an order that has variants itself' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+    end if;
+    if v_root."currency" <> v_order."currency" then
+      raise exception 'variants share one currency' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+    end if;
+    update "better_supabase"."orders" x set "variant_of" = v_root."id",
+      "variant_label" = coalesce(nullif(trim(set_order_variant.label), ''), x."variant_label"),
+      "is_selected" = false
+    where x."id" = v_order."id";
+    update "better_supabase"."orders" x set "variant_label" = coalesce(nullif(x."variant_label", ''), 'Original')
+    where x."id" = v_root."id";
+  end if;
+  return (select jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") from "better_supabase"."orders" x where x."id" = v_order."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_order_variant"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_order_variant"(uuid, uuid, text) to authenticated, service_role;
+
+-- Makes an order the selected one of its variant group and unselects the others.
+create or replace function "better_supabase"."select_order_variant"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_order from "better_supabase"."orders" x where x."id" = select_order_variant.id;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."org_id", 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if coalesce(v_order."variant_of", v_order."id") = v_order."id" and not exists (
+    select 1 from "better_supabase"."orders" s where s."variant_of" = v_order."id") then
+    raise exception 'this order has no variants' using errcode = '22023', hint = 'ORDER_VARIANT_INVALID';
+  end if;
+  if v_order."status" in ('cancelled', 'refunded') then
+    raise exception 'a cancelled or refunded order can''t be selected' using errcode = '55000', hint = 'ORDER_VARIANT_NOT_SELECTABLE';
+  end if;
+  perform 1 from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id") order by x."id" for update;
+  update "better_supabase"."orders" x set "is_selected" = (x."id" = v_order."id")
+  where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id");
+  return jsonb_build_object('order', (select jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") from "better_supabase"."orders" x where x."id" = v_order."id"),
+    'variants', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") order by x."placed_at", x."id"), '[]'::jsonb)
+      from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."select_order_variant"(uuid) from public, anon;
+grant execute on function "better_supabase"."select_order_variant"(uuid) to authenticated, service_role;
+
+-- The orders of one variant group: the first order and its variants.
+create or replace function "better_supabase"."list_order_variants"(id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+begin
+  select * into v_order from "better_supabase"."orders" x where x."id" = list_order_variants.id;
+  if not found then
+    raise exception 'no such order' using errcode = 'P0002', hint = 'ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order."org_id", 'orders.read'), false)) then
+    raise exception 'not allowed to read these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'number', x."number", 'variantOf', x."variant_of", 'variantLabel', x."variant_label", 'isSelected', x."is_selected", 'total', x."total"::text, 'currency', x."currency") order by x."placed_at", x."id"), '[]'::jsonb)
+    from "better_supabase"."orders" x where coalesce(x."variant_of", x."id") = coalesce(v_order."variant_of", v_order."id"));
+end;
+$$;
+revoke execute on function "better_supabase"."list_order_variants"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_order_variants"(uuid) to authenticated, service_role;
 
 -- Fulfills lines of a paid or confirmed order from one location. lines is
 -- [{lineId, quantity, detail?}]; null fulfills everything not yet

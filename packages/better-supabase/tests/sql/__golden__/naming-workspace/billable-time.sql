@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:57e12b50cd6a73cf4475fb20bd437b8bf3f3d01118d6206537b31124dc23e4d5
+-- @bsb-hash sha256:38a1d241448b3fd228241d47e4adcf2408114c9991428ceccb184f492182d9d6
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -581,6 +581,121 @@ end;
 $$;
 revoke execute on function "better_supabase"."invoice_from_time"(uuid, jsonb, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."invoice_from_time"(uuid, jsonb, jsonb, text) to authenticated, service_role;
+
+-- The lines of unbilled time for invoice_from_sources: one per record and rate (or per
+-- member or entry), each with its entries. Entries without a rate are left out.
+-- Internal: invoices calls it with the permission already checked.
+create or replace function "better_supabase"."time_lines_for_invoice"(tenant uuid, scope jsonb, group_by text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_scope jsonb := coalesce(time_lines_for_invoice.scope, '{}'::jsonb);
+  v_group text := coalesce(time_lines_for_invoice.group_by, 'subject');
+begin
+  if v_group not in ('subject', 'member', 'entry') then
+    raise exception 'group_by is subject, member or entry' using errcode = '22023', hint = 'BILLABLE_TIME_GROUPING_INVALID';
+  end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('description', l.description, 'quantity', l.quantity::text, 'unitAmount', l.rate::text,
+      'currency', l.currency, 'entryIds', l.entry_ids) order by l.first_at)
+    from (
+    select min(u.started_at) as first_at, u.currency, u.rate,
+      round(sum(u.seconds) / 3600.0, 4) as quantity,
+      jsonb_agg(u.id order by u.started_at, u.id) as entry_ids,
+      case when v_group = 'entry' then min(u.user_id::text) end as user_text,
+      case when v_group = 'member' then min(u.user_id::text) end as member_text,
+      min(u.subject_type) as subject_type, min(u.subject_id) as subject_id,
+      case
+        when v_group = 'entry' then coalesce(min(u.note), 'Time on ' || to_char(min(u.started_at) at time zone 'UTC', 'YYYY-MM-DD'))
+        when min(u.subject_type) is null then 'Time'
+        else 'Time on ' || min(u.subject_type) || ' ' || min(u.subject_id)
+      end as description
+    from (
+    select x."id" as id, x."user_id" as user_id, x."subject_type" as subject_type, x."subject_id" as subject_id,
+      x."started_at" as started_at, x."note" as note, extract(epoch from x."ended_at" - x."started_at") as seconds,
+      coalesce(x."rate", card.rate) as rate, coalesce(x."rate_currency", card.currency) as currency
+    from "better_supabase"."time_entries" x
+    left join lateral (
+      select c."rate" as rate, c."currency"::text as currency
+      from "better_supabase"."time_rates" c
+      where c."tenant_id" = x."tenant_id"
+        and (c."user_id" is null or c."user_id" = x."user_id")
+        and (c."subject_type" is null or (c."subject_type" = x."subject_type" and c."subject_id" = x."subject_id"))
+        and c."effective_from" <= (x."started_at" at time zone 'UTC')::date
+      order by (c."subject_type" is not null) desc, (c."user_id" is not null) desc, c."effective_from" desc
+      limit 1
+    ) card on x."rate" is null
+    where x."tenant_id" = time_lines_for_invoice.tenant
+      and x."billable" and x."ended_at" is not null
+      and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
+      and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
+      and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
+      and (v_scope ->> 'starts' is null or x."started_at" >= (v_scope ->> 'starts')::timestamptz)
+      and (v_scope ->> 'ends' is null or x."started_at" < (v_scope ->> 'ends')::timestamptz)
+      and (v_scope -> 'entryIds' is null or x."id"::text in (select jsonb_array_elements_text(v_scope -> 'entryIds')))) u
+    where u.rate is not null
+    group by u.currency, u.rate, u.subject_type, u.subject_id,
+      case when v_group in ('member', 'entry') then u.user_id end,
+      case when v_group = 'entry' then u.id end
+    having round(sum(u.seconds) / 3600.0, 4) > 0) l), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."time_lines_for_invoice"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."time_lines_for_invoice"(uuid, jsonb, text) to service_role;
+
+-- Marks entries billed on an invoice and returns { entryId, seconds } for each. Only
+-- entries that are still unbilled are claimed; a stale list fails.
+create or replace function "better_supabase"."claim_time_for_invoice"(tenant uuid, invoice uuid, entry_ids jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_claimed jsonb;
+  v_expected integer := jsonb_array_length(claim_time_for_invoice.entry_ids);
+begin
+  perform pg_advisory_xact_lock(hashtextextended('billable_time:' || claim_time_for_invoice.tenant::text, 0));
+  with claimed as (
+    insert into "better_supabase"."time_invoice_entries" ("entry_id", "tenant_id", "invoice_id", "rate", "currency", "seconds")
+    select u.id, claim_time_for_invoice.tenant, claim_time_for_invoice.invoice, u.rate, u.currency, round(u.seconds)::bigint
+    from (
+    select x."id" as id, x."user_id" as user_id, x."subject_type" as subject_type, x."subject_id" as subject_id,
+      x."started_at" as started_at, x."note" as note, extract(epoch from x."ended_at" - x."started_at") as seconds,
+      coalesce(x."rate", card.rate) as rate, coalesce(x."rate_currency", card.currency) as currency
+    from "better_supabase"."time_entries" x
+    left join lateral (
+      select c."rate" as rate, c."currency"::text as currency
+      from "better_supabase"."time_rates" c
+      where c."tenant_id" = x."tenant_id"
+        and (c."user_id" is null or c."user_id" = x."user_id")
+        and (c."subject_type" is null or (c."subject_type" = x."subject_type" and c."subject_id" = x."subject_id"))
+        and c."effective_from" <= (x."started_at" at time zone 'UTC')::date
+      order by (c."subject_type" is not null) desc, (c."user_id" is not null) desc, c."effective_from" desc
+      limit 1
+    ) card on x."rate" is null
+    where x."tenant_id" = claim_time_for_invoice.tenant
+      and x."billable" and x."ended_at" is not null
+      and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
+      and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' is null or (x."subject_type" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'type' and x."subject_id" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'id'))
+      and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId' is null or x."user_id" = (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId')::uuid)
+      and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'starts' is null or x."started_at" >= (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'starts')::timestamptz)
+      and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'ends' is null or x."started_at" < (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'ends')::timestamptz)
+      and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'entryIds' is null or x."id"::text in (select jsonb_array_elements_text(jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'entryIds')))) u
+    where u.rate is not null
+    returning "entry_id" as entry_id, "seconds" as seconds)
+  select coalesce(jsonb_agg(jsonb_build_object('entryId', c.entry_id, 'seconds', c.seconds)), '[]'::jsonb) into v_claimed from claimed c;
+  if jsonb_array_length(v_claimed) <> v_expected then
+    raise exception 'some time entries were billed in the meantime' using errcode = '55000', hint = 'BILLABLE_TIME_STALE';
+  end if;
+  return v_claimed;
+end;
+$$;
+revoke execute on function "better_supabase"."claim_time_for_invoice"(uuid, uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_time_for_invoice"(uuid, uuid, jsonb) to service_role;
 
 -- The entries an invoice billed, with the rate and seconds it billed.
 create or replace function "better_supabase"."list_invoiced_time"(invoice uuid, page_size integer default 500)

@@ -735,3 +735,40 @@ same product can appear on several lines. `billingParty` says who pays a
 line (`customer`, `internal`, `own_warranty`, `supplier_warranty` or
 `cost_account`), with a `billingPartyId` or `billingAccountId`.
 `document_totals_by_billing_party(document)` returns the totals and the cost per billing party.
+
+## Invoice several sources at once
+
+`invoiceFromSources` builds invoices from delivered orders, delivered shipments and unbilled time for one party. The sources split into one draft invoice per billing party and currency, so a customer with an `own_warranty` line and a customer line gets two invoices. Totals and tax of the invoices add up to the sources, the tax code and payment terms resolve as for any invoice, and the legal entity of the first source is used.
+
+Each invoice line keeps its origin in `invoice_line_sources` (the source, the order line and the quantity). A source is invoiced once: a repeat call returns it in `skipped` and writes nothing. An order line can be invoiced in parts with `lines: [{ id, quantity }]`; the quantity can't exceed what was delivered and not yet invoiced (`INVOICE_SOURCE_QUANTITY`). A void invoice releases its quantities. Only the selected order of a variant group is invoiced. The call is refused in import mode, because imported invoices come in through the invoice import.
+
+```ts
+const result = await bsb.invoices
+  .invoiceFromSources(
+    orgId,
+    { type: "company", id: customerId },
+    [
+      { type: "order", id: orderA, lines: [{ id: lineId, quantity: 2 }] },
+      { type: "order", id: orderB },
+      { type: "shipment", id: shipmentId },
+      { type: "time", scope: { subject: { type: "project", id: projectId } } },
+    ],
+    { title: "October" },
+  )
+  .orThrow();
+
+result.invoices; // [{ id, currency, total }]
+result.skipped; // sources that were already invoiced
+```
+
+`sourcesReadyToInvoice(orgId, party?)` lists what can be invoiced now: orders and shipments with a quantity left, and unbilled time. Time sources use the rate card of billable time, and an entry without a rate is left out. The SQL functions are `invoice_from_sources` and `sources_ready_to_invoice`.
+
+| Hint                         | Cause                                                                                           |
+| ---------------------------- | ----------------------------------------------------------------------------------------------- |
+| `INVOICE_SOURCE_INVALID`     | a malformed party, source list or option                                                        |
+| `INVOICE_SOURCE_UNSUPPORTED` | the layout has no shipments to invoice, or billable-time isn't installed                        |
+| `INVOICE_SOURCE_NOT_FOUND`   | no such order or shipment in the organization                                                   |
+| `INVOICE_SOURCE_NOT_READY`   | the order isn't confirmed or paid, or was invoiced at checkout, or the shipment isn't delivered |
+| `INVOICE_SOURCE_QUANTITY`    | a line is invoiced for more than is delivered and not yet invoiced                              |
+| `INVOICE_SOURCE_PARTY`       | an order was placed by another buyer than the party                                             |
+| `INVOICE_SOURCES_IMPORTING`  | the call ran in import mode                                                                     |

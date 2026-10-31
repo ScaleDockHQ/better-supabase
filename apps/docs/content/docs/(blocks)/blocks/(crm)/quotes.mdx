@@ -437,3 +437,27 @@ same product can appear on several lines. `billingParty` says who pays a
 line (`customer`, `internal`, `own_warranty`, `supplier_warranty` or
 `cost_account`), with a `billingPartyId` or `billingAccountId`.
 `quote_totals_by_billing_party(document)` returns the totals and the cost per billing party.
+
+## Variants
+
+A quote can have several variants: alternative scopes or prices of one offer, such as an option A and an option B. `createVariant` copies a quote into a new draft with its own label. No variant is selected at first, and an unselected variant can't become an order or an invoice (`QUOTE_VARIANT_NOT_SELECTED`). `selectVariant` marks one variant selected and its siblings not selected. With `forward` it also makes the order (`order_from_quote`) or the invoice (`invoice_from_quote`) from the selected variant.
+
+```ts
+const b = await bsb.quotes.createVariant(quoteId, "Option B").orThrow();
+
+const picked = await bsb.quotes
+  .selectVariant(b.id, { forward: "order" })
+  .orThrow();
+
+picked.orderId; // the order made from option B
+picked.variants; // every variant of the group, with isSelected
+```
+
+`listVariants(quoteId)` returns the group, the first quote first. Each variant has `variantOf`, `variantLabel` and `isSelected`. The SQL functions are `create_quote_variant`, `list_quote_variants` and `select_quote_variant`.
+
+| Hint                           | Cause                                                      |
+| ------------------------------ | ---------------------------------------------------------- |
+| `QUOTE_VARIANT_INVALID`        | a bad label or `forward`, or the quote has no variants     |
+| `QUOTE_VARIANT_LABEL_TAKEN`    | another variant of the quote has that label                |
+| `QUOTE_VARIANT_NOT_SELECTABLE` | a withdrawn, rejected or expired variant can't be selected |
+| `QUOTE_VARIANT_NOT_SELECTED`   | the quote is one of several variants and wasn't selected   |
