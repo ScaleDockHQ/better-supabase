@@ -1,6 +1,6 @@
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:ca145e704b3e3fa07938707fd36ad8883916a13e0457a26fb1abaded61534dd4
+-- @bsb-hash sha256:465657b4ac206b55a8c44a559e14c9f06a249f9ac10ab292a4c92cda7bde8653
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1026,6 +1026,7 @@ as $$
 declare
   v_kind "better_supabase"."case_kinds";
   v_blockers text[] := '{}';
+  v_policy jsonb;
 begin
   select * into v_kind from "better_supabase"."case_kinds" y where y."id" = case_blockers_of.target."kind_id";
   if v_kind."requires_root_cause" and coalesce(trim(case_blockers_of.target."root_cause"), '') = '' then
@@ -1058,6 +1059,18 @@ begin
   ) then
     v_blockers := v_blockers || 'CASE_DOCUMENTS_NOT_REVISED'::text;
   end if;
+  v_policy := "better_supabase"."approval_effective_policy"(case_blockers_of.target."tenant_id", 'case', 'close',
+    jsonb_build_object('caseId', case_blockers_of.target."id", 'kind', v_kind."key", 'severity', case_blockers_of.target."severity"));
+  if (coalesce(v_policy ->> 'mode', 'authorize') = 'confirm' or jsonb_array_length(coalesce(v_policy -> 'steps', '[]'::jsonb)) > 0)
+    and not exists (
+      select 1 from "better_supabase"."approval_requests" r
+      where r."subject_type" = 'case'
+        and r."subject_id" = case_blockers_of.target."id"::text
+        and r."action" = 'close'
+        and r."status" = 'approved'
+    ) then
+    v_blockers := v_blockers || 'CASE_APPROVAL_REQUIRED'::text;
+  end if;
   return v_blockers;
 end;
 $$;
@@ -1066,7 +1079,9 @@ grant execute on function "better_supabase"."case_blockers_of"("better_supabase"
 
 -- What still stops the case from closing: CASE_ROOT_CAUSE_REQUIRED,
 -- CASE_ACTIONS_REQUIRED, CASE_ACTIONS_OPEN, CASE_EFFECTIVENESS_REQUIRED and
--- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them. Empty when it may close.
+-- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them, and
+-- CASE_APPROVAL_REQUIRED while approvals asks for a decision on closing. Empty
+-- when it may close.
 create or replace function "better_supabase"."case_close_blockers"(case_id uuid)
 returns text[]
 language plpgsql
@@ -1117,6 +1132,8 @@ begin
       new."status" := 'closed';
       new."closed_at" := now();
       new."closed_by" := auth.uid();
+      perform "better_supabase"."version_insert"(new."tenant_id", 'case', new."id"::text,
+        jsonb_build_object('id', new."id", 'organizationId', new."tenant_id", 'kindId', new."kind_id", 'number', new."number", 'title', new."title", 'description', new."description", 'severity', new."severity", 'source', new."source", 'reporterId', new."reporter_id", 'reporterContact', new."reporter_contact", 'ownerId', new."owner_id", 'occurredAt', new."occurred_at", 'detectedAt', new."detected_at", 'dueOn', new."due_on", 'pipelineId', new."pipeline_id", 'stageId', new."stage_id", 'stageEnteredAt', new."stage_entered_at", 'status', new."status", 'rootCause', new."root_cause", 'rootCauseSubmissionId', new."root_cause_submission_id", 'effective', new."effective", 'effectivenessDueOn', new."effectiveness_due_on", 'effectivenessNote', new."effectiveness_note", 'effectivenessSubmissionId', new."effectiveness_submission_id", 'closedAt', new."closed_at", 'closedBy', new."closed_by", 'closeNote', new."close_note", 'rank', new."rank", 'archivedAt', new."archived_at", 'createdBy', new."created_by", 'createdAt', new."created_at", 'updatedAt', new."updated_at"), null, 'Closed ' || new."number", 'manual', true, auth.uid());
     end if;
   elsif v_outcome = 'failure' then
     if old."status" <> 'canceled' then
@@ -1139,8 +1156,36 @@ drop trigger if exists bsb_case_guard on "better_supabase"."cases";
 create trigger bsb_case_guard before update of "stage_id" on "better_supabase"."cases"
 for each row execute function better_supabase.bsb_case_guard();
 
+create or replace function "better_supabase"."case_close_approved"(case_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."cases";
+  v_stage uuid;
+begin
+  select * into v_row from "better_supabase"."cases" x where x."id" = case_close_approved.case_id for update;
+  if not found or v_row."status" <> 'open' or cardinality("better_supabase"."case_blockers_of"(v_row)) > 0 then
+    return;
+  end if;
+  select s."id" into v_stage from "better_supabase"."pipeline_stages" s
+  where s."pipeline_id" = v_row."pipeline_id" and s."outcome" = 'success' and s."archived_at" is null
+  order by s."rank" collate "C"
+  limit 1;
+  if v_stage is not null then
+    update "better_supabase"."cases" x set "stage_id" = v_stage where x."id" = v_row."id";
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."case_close_approved"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."case_close_approved"(uuid) to service_role;
+
 -- Closes the case: moves it to its pipeline's first success stage. Refuses
--- with CASE_CLOSE_BLOCKED, the blockers in the detail, while one remains.
+-- with the first blocker as the hint and every blocker in the detail while one
+-- remains.
 create or replace function "better_supabase"."close_case"(case_id uuid, note text default null)
 returns jsonb
 language plpgsql
@@ -1829,6 +1874,15 @@ set search_path = ''
 as $$ select "better_supabase"."case_close_blockers"($1) $$;
 revoke execute on function "api"."case_close_blockers"(uuid) from public, anon;
 grant execute on function "api"."case_close_blockers"(uuid) to authenticated, service_role;
+
+create or replace function "api"."case_close_approved"(case_id uuid)
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."case_close_approved"($1) $$;
+revoke execute on function "api"."case_close_approved"(uuid) from public, anon, authenticated;
+grant execute on function "api"."case_close_approved"(uuid) to service_role;
 
 create or replace function "api"."close_case"(case_id uuid, note text default null)
 returns jsonb

@@ -59,18 +59,81 @@ function blockerChecks(ctx: BlockSqlContext, q: CasesSql, row: string): string {
     v_blockers := v_blockers || 'CASE_DOCUMENTS_NOT_REVISED'::text;
   end if;`;
 
+  const approvals = q.approvals;
+
+  const approvalCheck =
+    approvals === undefined
+      ? ""
+      : `
+  v_policy := ${approvals.fn("approval_effective_policy")}(${row}.${c("tenant")}, ${q.subject}, 'close',
+    jsonb_build_object('caseId', ${row}.${c("id")}, 'kind', v_kind.${k("key")}, 'severity', ${q.caseOf(row, "severity")}));
+  if (coalesce(v_policy ->> 'mode', 'authorize') = 'confirm' or jsonb_array_length(coalesce(v_policy -> 'steps', '[]'::jsonb)) > 0)
+    and not exists (
+      select 1 from ${approvals.table("requests")} r
+      where r.${approvals.col("requests", "subjectType")} = ${q.subject}
+        and r.${approvals.col("requests", "subjectId")} = ${row}.${c("id")}::text
+        and r.${approvals.col("requests", "action")} = 'close'
+        and r.${approvals.col("requests", "status")} = 'approved'
+    ) then
+    v_blockers := v_blockers || 'CASE_APPROVAL_REQUIRED'::text;
+  end if;`;
+
   return `select * into v_kind from ${q.kinds} y where y.${k("id")} = ${row}.${c("kind")};
   if v_kind.${k("requiresRootCause")} and coalesce(trim(${row}.${c("rootCause")}), '') = '' then
     v_blockers := v_blockers || 'CASE_ROOT_CAUSE_REQUIRED'::text;
   end if;${actionChecks}
   if v_kind.${k("requiresEffectiveness")} and ${row}.${c("effective")} is not true then
     v_blockers := v_blockers || 'CASE_EFFECTIVENESS_REQUIRED'::text;
-  end if;${revisionCheck}`;
+  end if;${revisionCheck}${approvalCheck}`;
 }
 
 function blockers(ctx: BlockSqlContext, q: CasesSql): string {
   const { fn, c, cases, kinds } = q;
   const guard = ctx.naming.rename("bsb_case_guard");
+  const versions = q.versions;
+  const stages = q.pipelines;
+
+  // What approvals runs once a request to close is approved: the case moves to
+  // its first success stage when nothing else blocks it, otherwise it stays
+  // open and the blockers show, so an approval never fails to finalize.
+  const approved =
+    q.approvals === undefined
+      ? ""
+      : `
+create or replace function ${fn("case_close_approved")}(case_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${cases};
+  v_stage uuid;
+begin
+  select * into v_row from ${cases} x where x.${c("id")} = case_close_approved.case_id for update;
+  if not found or v_row.${c("status")} <> 'open' or cardinality(${fn("case_blockers_of")}(v_row)) > 0 then
+    return;
+  end if;
+  select s.${stages.col("stages", "id")} into v_stage from ${stages.table("stages")} s
+  where s.${stages.col("stages", "pipeline")} = v_row.${c("pipeline")} and s.${stages.col("stages", "outcome")} = 'success' and s.${stages.col("stages", "archivedAt")} is null
+  order by s.${stages.col("stages", "rank")} collate "C"
+  limit 1;
+  if v_stage is not null then
+    update ${cases} x set ${c("stage")} = v_stage where x.${c("id")} = v_row.${c("id")};
+  end if;
+end;
+$$;
+${serviceGrant(`${fn("case_close_approved")}(uuid)`)}
+`;
+
+  // The case as it closed, frozen in versions.
+  const snapshot =
+    versions === undefined
+      ? ""
+      : `
+      perform ${versions.fn("version_insert")}(new.${c("tenant")}, ${q.subject}, new.${c("id")}::text,
+        ${q.caseJson("new")}, null, 'Closed ' || new.${c("number")}, 'manual', true, auth.uid());`;
 
   return `
 -- What still stops the case in row from closing, as hint codes in check order.
@@ -83,7 +146,7 @@ set search_path = ''
 as $$
 declare
   v_kind ${kinds};
-  v_blockers text[] := '{}';
+  v_blockers text[] := '{}';${q.approvals === undefined ? "" : "\n  v_policy jsonb;"}
 begin
   ${blockerChecks(ctx, q, "case_blockers_of.target")}
   return v_blockers;
@@ -93,7 +156,9 @@ ${serviceGrant(`${fn("case_blockers_of")}(${cases})`)}
 
 -- What still stops the case from closing: CASE_ROOT_CAUSE_REQUIRED,
 -- CASE_ACTIONS_REQUIRED, CASE_ACTIONS_OPEN, CASE_EFFECTIVENESS_REQUIRED and
--- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them. Empty when it may close.
+-- CASE_DOCUMENTS_NOT_REVISED, as the kind requires them, and
+-- CASE_APPROVAL_REQUIRED while approvals asks for a decision on closing. Empty
+-- when it may close.
 create or replace function ${fn("case_close_blockers")}(case_id uuid)
 returns text[]
 language plpgsql
@@ -142,7 +207,7 @@ begin
       end if;
       new.${c("status")} := 'closed';
       new.${c("closedAt")} := now();
-      new.${c("closedBy")} := auth.uid();
+      new.${c("closedBy")} := auth.uid();${snapshot}
     end if;
   elsif v_outcome = 'failure' then
     if old.${c("status")} <> 'canceled' then
@@ -164,7 +229,7 @@ ${triggerGrant(`better_supabase.${guard}()`)}
 drop trigger if exists ${guard} on ${cases};
 create trigger ${guard} before update of ${c("stage")} on ${cases}
 for each row execute function better_supabase.${guard}();
-`;
+${approved}`;
 }
 
 function transitions(ctx: BlockSqlContext, q: CasesSql): string {
@@ -198,7 +263,8 @@ function transitions(ctx: BlockSqlContext, q: CasesSql): string {
 
   return `
 -- Closes the case: moves it to its pipeline's first success stage. Refuses
--- with CASE_CLOSE_BLOCKED, the blockers in the detail, while one remains.
+-- with the first blocker as the hint and every blocker in the detail while one
+-- remains.
 create or replace function ${fn("close_case")}(case_id uuid, note text default null)
 returns jsonb
 language plpgsql

@@ -126,16 +126,17 @@ dragged. A stage's outcome sets the case's status: `open`, `closed` or
 
 `blockers` returns what still stops a case from closing, in this order:
 
-| Blocker                       | Until                                                        |
-| ----------------------------- | ------------------------------------------------------------ |
-| `CASE_ROOT_CAUSE_REQUIRED`    | the kind requires a root cause and none is recorded          |
-| `CASE_ACTIONS_REQUIRED`       | the kind requires actions and the case has no required one   |
-| `CASE_ACTIONS_OPEN`           | a required action's work item is still open                  |
-| `CASE_EFFECTIVENESS_REQUIRED` | the kind requires an effectiveness check and none passed     |
-| `CASE_DOCUMENTS_NOT_REVISED`  | a document the case `affects` has no version effective since |
+| Blocker                       | Until                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `CASE_ROOT_CAUSE_REQUIRED`    | the kind requires a root cause and none is recorded                       |
+| `CASE_ACTIONS_REQUIRED`       | the kind requires actions and the case has no required one                |
+| `CASE_ACTIONS_OPEN`           | a required action's work item is still open                               |
+| `CASE_EFFECTIVENESS_REQUIRED` | the kind requires an effectiveness check and none passed                  |
+| `CASE_DOCUMENTS_NOT_REVISED`  | a document the case `affects` has no version effective since              |
+| `CASE_APPROVAL_REQUIRED`      | the organization's policy asks for approval to close and none is approved |
 
-`close` and a move to a closing stage fail with the first blocker's code while
-one remains. `reopen` takes a closed or canceled case back to its pipeline's
+`close` and a move to a closing stage fail with the first blocker's code, and
+every blocker in the error detail, while one remains. `reopen` takes a closed or canceled case back to its pipeline's
 first stage, and `cancel` ends an open case without the guard.
 
 ```ts
@@ -148,6 +149,27 @@ if (blockers.length === 0) {
 
 The [case detail](/docs/registry/ui-recipes/case-detail) recipe shows the
 blockers and enables its Close button once there are none.
+
+## Approval before closing
+
+With [approvals](/docs/blocks/approvals), a tenant can require a decision
+before a case closes. Set a policy for the subject type `case` and the action
+`close` (a floor in `options.policies`, or a tenant policy). While that policy
+asks for a confirmation or an approver, the case has the blocker
+`CASE_APPROVAL_REQUIRED`. The case's owner, or anyone who writes cases, files
+the request with `request_approval` for the `case` subject, action `close`,
+and the approvers decide it in the usual way.
+
+Once the request is approved the case moves to its first success stage, unless
+another blocker remains, in which case it stays open and the blockers show.
+An approval stays valid for the case, so a reopened case that closes again
+doesn't ask again.
+
+## Versions
+
+With [versions](/docs/blocks/versions), closing a case freezes it as a version
+labeled `Closed <number>`, with the case as it closed: its root cause, status,
+effectiveness and close note. A later reopen and close adds another version.
 
 ## Effectiveness
 

@@ -183,7 +183,7 @@ export async function CaseDetailSection({
   ) : (
     <CaseDetail
       detail={detail.data}
-      canClose={can(permissions, "cases.close")}
+      canClose={can(permissions, "cases.close") || detail.data.isOwner}
     />
   );
 }

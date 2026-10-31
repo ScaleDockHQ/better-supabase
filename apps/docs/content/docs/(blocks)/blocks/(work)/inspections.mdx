@@ -23,8 +23,11 @@ The module requires `tenant`, `permissions`, `subjects` and
 concerns, and with [relations](/docs/blocks/relations) the inspection
 `assesses` that control. With [numbering](/docs/blocks/numbering) the number
 comes from an `inspection` sequence (`AUD-{yyyy}-{n:3}`); without it the
-number is `AUD-` and the inspection's position in the organization. With `outbox` it
-records the events, and with `audit` every change is audited.
+number is `AUD-` and the inspection's position in the organization. With
+[calendar](/docs/blocks/calendar) and `options.calendar` planned inspections
+appear in a calendar, and with [notifications](/docs/blocks/notifications) the
+team hears about assignments and overdue inspections. With `outbox` it records
+the events, and with `audit` every change is audited.
 
 ## Tables
 
@@ -138,6 +141,25 @@ fails with `INSPECTION_FINDINGS_OPEN` until each such finding has one.
 block's `options.sources` lists it and `internal` otherwise, and links the
 case to the finding as `created_from`. A finding with a case can't be deleted.
 
+## Calendar, files and notifications
+
+An inspection is a subject of type `inspection`, so attachments, comments and
+tags attach to it like to any record. A finding and a programme are subjects
+too.
+
+Name a calendar in `options.calendar` to mirror inspections. Each inspection
+that is planned or running and has a `plannedStart` gets one all-day event in
+that calendar, from `plannedStart` to `plannedEnd`, with the uid
+`inspection-<id>` and the inspection as its subject. The event follows the
+dates and title, and goes away when the inspection closes, is canceled or loses
+its dates. An organization without a calendar of that name gets no events.
+
+With notifications, a user added to the team of a planned or running
+inspection gets an `inspection.assigned` notification, once per user. The
+`overdue` schedule runs `notifyOverdue()` daily: the lead (or the auditors,
+without a lead) gets an `inspection.overdue` notification once per planned end
+for each planned or running inspection past it.
+
 ## Methods
 
 | Method                                    | Returns                                                        |
@@ -154,6 +176,7 @@ case to the finding as `created_from`. A finding with a case can't be deleted.
 | `complete(inspectionId, summary)`         | the inspection in `reporting`                                  |
 | `close(inspectionId)`                     | the closed inspection                                          |
 | `cancel(inspectionId, reason)`            | the canceled inspection                                        |
+| `notifyOverdue()`                         | how many overdue inspections it reported (service role)        |
 | `get(inspectionId)`                       | the inspection with its team, findings, checklist and controls |
 | `list(options)`                           | the inspections, the latest planned first                      |
 | `addFinding(inspectionId, input)`         | the finding                                                    |
@@ -171,6 +194,7 @@ case to the finding as `created_from`. A finding with a case can't be deleted.
 | `kinds`            | `internal_audit`, `supplier_audit` and 3 more   | The kinds an inspection takes          |
 | `findingTypes`     | `major_nonconformity`, `observation` and 3 more | The types a finding takes              |
 | `caseFindingTypes` | `major_nonconformity`, `minor_nonconformity`    | The finding types that need a case     |
+| `calendar`         | none                                            | The calendar that mirrors planned ones |
 | `extraColumns`     | none                                            | Extra columns on the inspections table |
 
 ## Errors

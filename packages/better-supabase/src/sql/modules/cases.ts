@@ -399,6 +399,14 @@ function contract(): readonly BlockSqlContractFunction[] {
 }
 
 const CONTRIBUTES: BlockContributes = {
+  approvals: (own) => [
+    {
+      subject: own.naming.rename("case"),
+      access: "declared",
+      approve: ({ subjectId }) =>
+        `perform ${own.fn("case_close_approved")}(${subjectId}::uuid);`,
+    },
+  ],
   numbering: (own) => [
     {
       entity: own.resolved.entityNaming.rename("case"),
@@ -464,6 +472,8 @@ export const CASES: BlockSqlDefinition = {
     "forms",
     "relations",
     "drive",
+    "approvals",
+    "versions",
     "notifications",
     "outbox",
     "audit",

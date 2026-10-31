@@ -18,6 +18,7 @@ import {
 } from "../shared.ts";
 import { inspectionFindingFunctions } from "./inspections-findings.ts";
 import { inspectionFunctions } from "./inspections-functions.ts";
+import { inspectionIntegrations } from "./inspections-integrations.ts";
 import { inspectionReads } from "./inspections-read.ts";
 import { inspectionsSql, typeOf } from "./inspections-sql.ts";
 import {
@@ -116,7 +117,13 @@ const NAMES: BlockSqlNames = {
     "before_inspection_finding_create",
     "after_inspection_finding_create",
   ],
-  options: ["kinds", "findingTypes", "caseFindingTypes", "extraColumns"],
+  options: [
+    "kinds",
+    "findingTypes",
+    "caseFindingTypes",
+    "calendar",
+    "extraColumns",
+  ],
   tables: {
     programs: {
       name: "inspection_programs",
@@ -159,6 +166,7 @@ const NAMES: BlockSqlNames = {
         startedAt: "started_at",
         completedAt: "completed_at",
         closedAt: "closed_at",
+        overdueNotifiedFor: "overdue_notified_for",
         status: "status",
         checklistForm: "checklist_form_id",
         checklistSubmission: "checklist_submission_id",
@@ -167,7 +175,13 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["scope", "criteria", "summary", "createdBy"],
+      optional: [
+        "scope",
+        "criteria",
+        "summary",
+        "createdBy",
+        "overdueNotifiedFor",
+      ],
     },
     members: {
       name: "inspection_members",
@@ -299,7 +313,7 @@ create table if not exists ${inspections} (
   ${i("plannedEnd")} date,
   ${i("startedAt")} timestamptz,
   ${i("completedAt")} timestamptz,
-  ${i("closedAt")} timestamptz,
+  ${i("closedAt")} timestamptz,${opt("inspections", "overdueNotifiedFor", () => `${i("overdueNotifiedFor")} date`)}
   ${i("status")} text not null default 'planned' check (${i("status")} in (${list(INSPECTION_STATUSES)})),
   ${i("checklistForm")} uuid${formRef},
   ${i("checklistSubmission")} uuid${submissionRef},${opt("inspections", "summary", () => text(i("summary"), 20_000))}${opt("inspections", "createdBy", () => `${i("createdBy")} uuid`)}
@@ -392,7 +406,8 @@ function build(ctx: BlockSqlContext): string {
 ${tables(ctx)}
 ${inspectionFunctions(ctx)}
 ${inspectionFindingFunctions(ctx)}
-${inspectionReads(ctx)}`;
+${inspectionReads(ctx)}
+${inspectionIntegrations(ctx)}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
@@ -421,6 +436,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "complete_inspection", args: ["uuid", "text"], returns: "jsonb" },
     { name: "close_inspection", args: ["uuid"], returns: "jsonb" },
     { name: "cancel_inspection", args: ["uuid", "text"], returns: "jsonb" },
+    { name: "notify_overdue_inspections", args: [], returns: "integer" },
     { name: "get_inspection", args: ["uuid"], returns: "jsonb" },
     { name: "list_inspections", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
@@ -474,6 +490,8 @@ export const INSPECTIONS: BlockSqlDefinition = {
     "compliance",
     "relations",
     "numbering",
+    "calendar",
+    "notifications",
     "outbox",
     "audit",
   ],
