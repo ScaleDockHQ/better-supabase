@@ -20,6 +20,7 @@ import type { CasesEvents } from "better-supabase/blocks/cases";
 import type { InspectionsEvents } from "better-supabase/blocks/inspections";
 import type { ManufacturingEvents } from "better-supabase/blocks/manufacturing";
 import type { BankingEvents } from "better-supabase/blocks/banking";
+import type { TaxEvents } from "better-supabase/blocks/tax";
 import type { EmployeesEvents } from "better-supabase/blocks/employees";
 import type { FormsEvents } from "better-supabase/blocks/forms";
 import type { InventoryEvents } from "better-supabase/blocks/inventory";
@@ -54,6 +55,7 @@ import { casesBlock as casesBlockInstance } from "better-supabase/blocks/cases";
 import { inspectionsBlock as inspectionsBlockInstance } from "better-supabase/blocks/inspections";
 import { manufacturingBlock as manufacturingBlockInstance } from "better-supabase/blocks/manufacturing";
 import { bankingBlock as bankingBlockInstance } from "better-supabase/blocks/banking";
+import { taxBlock as taxBlockInstance } from "better-supabase/blocks/tax";
 import { employeesBlock as employeesBlockInstance } from "better-supabase/blocks/employees";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
 import { formsBlock as formsBlockInstance } from "better-supabase/blocks/forms";
@@ -149,6 +151,10 @@ export const blockConfig = {
     options: {},
   },
   banking: {
+    schema: "better_supabase",
+    options: {},
+  },
+  tax: {
     schema: "better_supabase",
     options: {},
   },
@@ -278,6 +284,7 @@ export const blocks = {
   inspections: inspectionsBlockInstance,
   manufacturing: manufacturingBlockInstance,
   banking: bankingBlockInstance,
+  tax: taxBlockInstance,
   employees: employeesBlockInstance,
   entitlements: entitlementsBlockInstance,
   forms: formsBlockInstance,
@@ -567,6 +574,14 @@ export const permissions = {
   subjects: {
     manage: "subjects.manage",
   },
+  tax: {
+    read: "tax.read",
+    manage: "tax.manage",
+  },
+  tax_code: {
+    read: "tax.read",
+    write: "tax.manage",
+  },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
@@ -588,13 +603,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "accounting.close" | "accounting.manage" | "accounting.post" | "accounting.read" | "accounting.write" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "banking.import" | "banking.manage" | "banking.read" | "banking.reconcile" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "catalog.manage" | "catalog.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.write" | "leave.approve" | "leave.manage" | "leave.read" | "leave.request" | "ledger.manage" | "ledger.post" | "ledger.read" | "manufacturing.manage" | "manufacturing.produce" | "manufacturing.read" | "manufacturing.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
+export type PermissionKey = "accounting.close" | "accounting.manage" | "accounting.post" | "accounting.read" | "accounting.write" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "banking.import" | "banking.manage" | "banking.read" | "banking.reconcile" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "catalog.manage" | "catalog.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.write" | "leave.approve" | "leave.manage" | "leave.read" | "leave.request" | "ledger.manage" | "ledger.post" | "ledger.read" | "manufacturing.manage" | "manufacturing.produce" | "manufacturing.read" | "manufacturing.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tax.manage" | "tax.read" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccountingEvents & ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & CatalogEvents & LeaveEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & ExpensesEvents & QualificationsEvents & CasesEvents & InspectionsEvents & ManufacturingEvents & BankingEvents & EmployeesEvents & FormsEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & QuotesEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & SubjectsEvents & TeamsEvents & TimeTrackingEvents;
+export type BlockEvents = AccountingEvents & ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & CatalogEvents & LeaveEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & ExpensesEvents & QualificationsEvents & CasesEvents & InspectionsEvents & ManufacturingEvents & BankingEvents & TaxEvents & EmployeesEvents & FormsEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & QuotesEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & SubjectsEvents & TeamsEvents & TimeTrackingEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -853,6 +868,9 @@ export const blockEvents: Events<BlockEvents> = {
     "subject.accessed",
     "subject_member.added",
     "subject_member.ended",
+    "tax_code.created",
+    "tax_code.updated",
+    "tax_return.prepared",
     "team.archived",
     "team.created",
     "team.deleted",
@@ -1129,6 +1147,9 @@ export const blockEventSchemas = {
   "subject.accessed": true,
   "subject_member.added": true,
   "subject_member.ended": true,
+  "tax_code.created": true,
+  "tax_code.updated": true,
+  "tax_return.prepared": true,
   "team.archived": true,
   "team.created": true,
   "team.deleted": true,

@@ -32,6 +32,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
+import { linked } from "./banking-sql.ts";
 import { invoiceCollections } from "./invoices-collections.ts";
 import { invoiceFromQuote } from "./invoices-from-quote.ts";
 import { invoiceLedger, paymentKey } from "./invoices-ledger.ts";
@@ -52,6 +53,18 @@ export const OPT_IN: readonly string[] = [
 ];
 
 /** Whether the invoices table has the opt-in column `logical`. */
+/**
+ * The call that gives an invoice's lines their tax codes and writes its
+ * `invoice_tax_lines` for the issue date, when the tax block is installed.
+ */
+function taxIssue(ctx: BlockSqlContext, row: string, date: string): string {
+  const tax = linked(ctx, "tax");
+
+  return tax === undefined
+    ? ""
+    : `\n  perform ${tax.fn("issue_invoice_tax")}(${row}.${ctx.col("invoices", "id")}, ${date});`;
+}
+
 export function invoiceOptIn(ctx: BlockSqlContext, logical: string): boolean {
   return (
     typeof ctx.config.columns["invoices"]?.[logical] === "string" &&
@@ -235,7 +248,7 @@ export function invoiceFunctions(
     `${ctx.rowJson("invoices", alias, { as: int8Text8 })} || ${int8Text(alias, int8)} || jsonb_build_object(
       'balance', ${balance(alias)}::text${missingKeys(alias)}${chargesJson(alias)},
       'overdue', ${st(`${alias}.${i("status")}`, ["issued", "partially_paid"])} and ${alias}.${i("dueOn")} < current_date,
-      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il.${l("description")}, 'quantity', il.${l("quantity")}, 'unitAmount', il.${l("unitAmount")}::text, 'discountBps', ${lineColumn(ctx, "lines", "il", "discountBps")}, 'taxRateBps', ${lineColumn(ctx, "lines", "il", "taxRateBps")}, 'taxCode', ${lineColumn(ctx, "lines", "il", "taxCode")}${lineFieldsJson("il", n.lineExtras)}) order by il.${l("position")}) from ${t("lines")} il where il.${l("parent")} = ${alias}.${i("id")}), '[]'::jsonb),
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il.${l("description")}, 'quantity', il.${l("quantity")}, 'unitAmount', il.${l("unitAmount")}::text, 'discountBps', ${lineColumn(ctx, "lines", "il", "discountBps")}, 'taxRateBps', ${lineColumn(ctx, "lines", "il", "taxRateBps")}, 'taxCode', ${lineColumn(ctx, "lines", "il", "taxCode")}, 'taxCodeId', ${lineColumn(ctx, "lines", "il", "taxCodeId")}, 'unitCost', ${lineColumn(ctx, "lines", "il", "unitCost")}::text${lineFieldsJson("il", n.lineExtras)}) order by il.${l("position")}) from ${t("lines")} il where il.${l("parent")} = ${alias}.${i("id")}), '[]'::jsonb),
       'payments', ${ledger.payments(alias)})`;
 
   const record = (
@@ -758,7 +771,7 @@ begin
     ${fail("INVOICE_DUE_INVALID", "an invoice falls due on or after its issue date", "22023")}
   end if;
   ${transitionActorSql("issue_invoice.actor", "INVOICE_ACTOR_INVALID")}
-  ${ctx.hook("before_invoice_issue", [["uuid", `v_row.${i("id")}`]])}
+  ${ctx.hook("before_invoice_issue", [["uuid", `v_row.${i("id")}`]])}${taxIssue(ctx, "v_row", "v_issued_on")}
   if ${kd(`v_row.${i("kind")}`, ["credit_note"])} then
     select * into v_original from ${t("invoices")} x where x.${i("id")} = v_row.${i("original")} for update;
     if v_row.${i("total")} > v_original.${i("total")}${charges ? ` + ${charged("v_original")}` : ""} - v_original.${i("creditedTotal")} then

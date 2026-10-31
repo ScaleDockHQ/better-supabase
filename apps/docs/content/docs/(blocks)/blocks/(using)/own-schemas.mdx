@@ -65,7 +65,6 @@ may be your own enum or domain.
   - `better_supabase.accounting_dimensions`: `id`, `tenant_id`, `key`, `name`, `created_at`
   - `better_supabase.accounting_dimension_values`: `id`, `tenant_id`, `dimension_id`, `code`, `name`, `archived_at`
   - `better_supabase.accounting_fx_rates`: `tenant_id`, `base`, `quote`, `on_date`, `rate`, `created_at`
-  - `better_supabase.accounting_tax_codes`: `id`, `tenant_id`, `code`, `name`, `rate_bps`, `kind`, `account_id`, `report_boxes`, `archived_at`, `created_at`, `updated_at`
   - `better_supabase.accounting_budgets`: `id`, `tenant_id`, `name`, `fiscal_year`, `status`, `created_by`, `created_at`, `updated_at`
   - `better_supabase.accounting_budget_lines`: `id`, `tenant_id`, `budget_id`, `account_id`, `period_number`, `dimensions`, `amount`
 - `acknowledgements`
@@ -667,6 +666,12 @@ may be your own enum or domain.
   - `better_supabase.task_assignees`: `tenant_id`, `task_id`, `user_id`
   - `better_supabase.projects`: `id`, `tenant_id`, `key`, `name`, `status`, `archived_at`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.iterations`: `id`, `tenant_id`, `name`, `starts_on`, `ends_on`, `created_at`
+- `tax`
+  - `better_supabase.tax_codes`: `id`, `tenant_id`, `code`, `name`, `type`, `return_boxes`, `created_at`, `updated_at`
+  - `better_supabase.tax_rates`: `id`, `tenant_id`, `tax_code_id`, `rate_bps`, `valid_from`, `created_at`
+  - `better_supabase.invoice_tax_lines`: `id`, `tenant_id`, `invoice_id`, `tax_rate_bps`, `net`, `tax`, `gross`, `discount`, `show_tax`
+  - `better_supabase.tax_returns`: `id`, `tenant_id`, `period`, `period_start`, `period_end`, `status`, `boxes`, `prepared_at`, `created_at`, `updated_at`; typed: `status`
+  - `better_supabase.eu_sales_list_lines`: `id`, `tenant_id`, `tax_return_id`, `customer_vat_number`, `country`, `kind`, `amount`, `currency`, `invoice_count`
 - `teams`
   - `better_supabase.teams`: `id`, `tenant_id`, `name`, `slug`, `description`, `status`, `created_by`, `created_at`, `updated_at`
   - `better_supabase.team_members`: `team_id`, `user_id`, `tenant_id`, `created_at`

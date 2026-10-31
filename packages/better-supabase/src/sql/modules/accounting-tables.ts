@@ -49,7 +49,8 @@ export function accountingTables(ctx: BlockSqlContext): string {
   const dimensions = ctx.table("dimensions");
   const values = ctx.table("dimensionValues");
   const rates = ctx.table("fxRates");
-  const taxes = ctx.table("taxCodes");
+  const tax = ctx.of("tax");
+  const taxes = tax.table("codes");
   const s = (column: string): string => ctx.col("settings", column);
   const a = (column: string): string => ctx.col("accounts", column);
   const r = (column: string): string => ctx.col("roles", column);
@@ -60,7 +61,7 @@ export function accountingTables(ctx: BlockSqlContext): string {
   const d = (column: string): string => ctx.col("dimensions", column);
   const v = (column: string): string => ctx.col("dimensionValues", column);
   const x = (column: string): string => ctx.col("fxRates", column);
-  const t = (column: string): string => ctx.col("taxCodes", column);
+  const t = (column: string): string => tax.col("codes", column);
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
   const { read } = accountingSql(ctx);
@@ -228,25 +229,6 @@ create table if not exists ${rates} (
   check (${x("base")} <> ${x("quote")})
 );${appUniqueIndex(ctx, "fxRates", ["tenant", "base", "quote", "onDate"])}
 ${readPolicy("fxRates", x("tenant"))}
-
-create table if not exists ${taxes} (
-  ${t("id")} uuid primary key default gen_random_uuid(),
-  ${t("tenant")} ${idType} not null,
-  ${t("code")} text not null check (length(${t("code")}) >= 1 and length(${t("code")}) <= 50),
-  ${t("name")} text not null check (length(${t("name")}) >= 1 and length(${t("name")}) <= 200),
-  -- Basis points: 2100 is 21%.
-  ${t("rateBps")} integer not null check (${t("rateBps")} >= 0 and ${t("rateBps")} <= 100000),
-  ${t("kind")} text not null check (${t("kind")} in ('sales', 'purchase')),
-  ${t("account")} uuid not null references ${accounts} (${a("id")}) on delete restrict,
-  -- The boxes of a tax return the tax and its base count toward.
-  ${t("reportBoxes")} text[] not null default '{}',
-  ${t("archivedAt")} timestamptz,
-  ${t("createdAt")} timestamptz not null default now(),
-  ${t("updatedAt")} timestamptz not null default now(),
-  unique (${t("tenant")}, ${t("code")})
-);${appUniqueIndex(ctx, "taxCodes", ["tenant", "code"])}
-create index if not exists ${name("taxCodes", "account_idx")} on ${taxes} (${t("account")});
-${readPolicy("taxCodes", t("tenant"))}
 
 create table if not exists ${lines} (
   ${l("id")} uuid primary key default gen_random_uuid(),

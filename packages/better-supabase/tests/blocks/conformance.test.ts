@@ -167,6 +167,8 @@ const NO_FIELDS: readonly string[] = [
   "state-machine",
   // Record team rows grant access to a record; the app's data lives on the record.
   "subjects",
+  // Tax codes, dated rates and returns are figures the block computes; a record keeps its own tax columns.
+  "tax",
   // Entries are written from the outbox by the activity sink; they record app events.
   "timeline",
   // Counters and an append-only usage log written per unit; per-event data goes in `metadata`.

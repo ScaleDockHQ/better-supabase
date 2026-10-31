@@ -1,0 +1,181 @@
+---
+title: Tax
+description: Tax codes per organization and legal entity with dated rates, the tax of a document per code (margin scheme and credit restriction included), tax lines written when an invoice is issued, tax returns with box totals, and the intra-EU sales list per customer VAT number.
+---
+
+`tax` keeps the tax rules of a business in one place. A tax code says what
+kind of tax applies (a sales rate, a purchase rate, exempt, reverse charge,
+intra-EU goods, export or the margin scheme), the accounts it posts to and
+the boxes of the tax return it reports in. Each code has a history of rates,
+and a document uses the rate that was valid on its date.
+
+```bash
+better-supabase add tax
+```
+
+```ts
+import { money } from "better-supabase/commerce";
+import { createTax } from "better-supabase/blocks/tax";
+```
+
+The module requires `tenant` and `permissions`. With
+[invoices](/docs/blocks/invoices) an issued invoice resolves its tax codes,
+writes `invoice_tax_lines` and feeds the tax return. With
+[accounting](/docs/blocks/accounting) a code links to the accounts the tax
+posts to, and `accounting_tax_report` reads its codes from this block.
+[Accounting requires `tax`](/docs/migration/0.46-to-0.47), so installing
+accounting installs it. With `legal-entities` a code can belong to one legal
+entity, with `outbox` the block records its events, and with `audit` every
+change is audited.
+
+## Tables
+
+| Table                 | Holds                                                                                                           |
+| --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `tax_codes`           | A code with its name, type, optional legal entity, sales and purchase account and return boxes                  |
+| `tax_rates`           | A rate in basis points with the date it is valid from and, when set, until                                      |
+| `invoice_tax_lines`   | The tax of an issued invoice per code and rate, with its net, tax and gross, and whether to show the tax amount |
+| `tax_returns`         | A prepared return for a period with its box totals and issues                                                   |
+| `eu_sales_list_lines` | One customer VAT number's intra-EU sales of a return, in goods or services                                      |
+
+Tax codes are subjects of type `tax_code`. Members with `tax.read` read every
+table, and writes go through the functions below.
+
+| Permission   | Allows                                                 | Default roles        |
+| ------------ | ------------------------------------------------------ | -------------------- |
+| `tax.read`   | reading codes, rates and returns                       | owner, admin, member |
+| `tax.manage` | changing codes and rates, preparing and filing returns | owner, admin         |
+
+## Codes and rates
+
+`saveCode` adds a code, or changes one when it passes a `codeId`. A code is
+unique per organization and legal entity, and an entity-level code takes
+precedence over an organization-level code of the same name when an
+invoice line names it by text.
+
+| Type                                  | Rate applies | Notes                                   |
+| ------------------------------------- | ------------ | --------------------------------------- |
+| `sales`, `purchase`                   | yes          | The usual rated codes                   |
+| `margin`                              | yes          | Tax is due on the margin, see below     |
+| `exempt`, `zero`, `reverse_charge`    | no           | Count as 0% and keep their return boxes |
+| `intra_eu_goods`, `intra_eu_services` | no           | Feed the EU sales list                  |
+| `export`                              | no           | Outside the EU, 0%                      |
+
+```ts
+const code = await db.tax
+  .saveCode({
+    code: "VAT21",
+    name: "VAT 21%",
+    type: "sales",
+    salesAccountId: vatPayable.id,
+    returnBoxes: ["1a"],
+    rateBps: 2100,
+  })
+  .orThrow();
+
+await db.tax
+  .saveRate(code.id, { rateBps: 2300, validFrom: "2027-01-01" })
+  .orThrow();
+
+await db.tax.rateOn(code.id, "2026-12-31").orThrow(); // 2100
+await db.tax.rateOn(code.id, "2027-01-01").orThrow(); // 2300
+```
+
+A new rate that starts after the current one ends it the day before.
+`rateOn(codeId, date)` reads the rate valid on a date, and `undefined` when
+none covers it.
+
+## Computing the tax of a document
+
+`computeDocumentTax` returns the totals per code and rate without writing
+anything. It is the same arithmetic an invoice uses when it is issued.
+
+```ts
+const result = await db.tax
+  .computeDocumentTax({
+    currency: "EUR",
+    onDate: "2026-06-30",
+    lines: [
+      { quantity: 1, unitAmount: money(100_000n, "EUR"), taxCodeId: code.id },
+    ],
+  })
+  .orThrow();
+// result.taxTotal is EUR 210.00 and result.total is EUR 1,210.00
+```
+
+Every line rounds once, to its amount after the line discount. With
+`pricesIncludeTax` the tax is the part of an amount at `rate / (10000 +
+rate)`, otherwise it is added on top.
+
+The margin scheme (type `margin`) always works with tax-inclusive prices and
+charges the tax on the margin, the price less `quantity * unitCost` and never
+below zero. A line priced 121000 with a cost of 80000 at 21% has a margin of
+41000, so the tax is `round(41000 * 2100 / 12100)`, 7116, and the net is 113884. The result has `showTaxAmount` set to `false`, because a margin
+invoice shows no tax amount.
+
+`creditRestrictionBps` is the part of each base the tax doesn't apply to. A
+base of 100000 at 21% with 2500 restricted is taxed on 75000, which gives
+15750 and a gross of 115750.
+
+## Invoices
+
+When `tax` is installed, `issue_invoice` gives each line its tax code before
+it freezes the invoice. A line with a `tax_code` text finds the code by name
+(the legal entity's code first) and takes its rate on the issue date; a text
+that names no code keeps the line's `tax_rate_bps`. A line with an explicit
+`tax_code_id` takes the code's text and rate. A margin line writes a rate of
+0 on the line, so the margin tax appears in `invoice_tax_lines` and the
+return, not in the ledger postings. The invoice line table gets two optional
+columns for this, `tax_code_id` and `unit_cost`.
+
+## Tax returns
+
+`prepareReturn` builds the return of a period from the issued invoices dated
+in it, not drafts or void ones. Credit notes count negative, and purchase
+bills count toward the purchase tax. The return holds the base and tax per
+box, the sales and purchase tax and their
+difference as `netTax`, and the intra-EU sales per customer VAT number.
+
+```ts
+const taxReturn = await db.tax
+  .prepareReturn({
+    since: "2026-04-01",
+    until: "2026-06-30",
+    period: "2026-Q2",
+  })
+  .orThrow();
+
+taxReturn.boxes; // [{ box: "1a", base: 100000n, tax: 21000n }]
+taxReturn.euSalesList; // one line per customer VAT number
+```
+
+Preparing a period again rebuilds a return that is not filed. When invoices
+of several currencies fall in the period, pass `currency`, or the call fails
+with `TAX_RETURN_CURRENCY_MIXED`. An intra-EU sale without a valid customer
+VAT number goes to `issues` with the code `EU_SALES_VAT_INVALID`. `fileReturn`
+freezes a return, and preparing it again fails with `TAX_RETURN_FILED`.
+
+## Importing
+
+The block adds the `tax_code` and `tax_rate` import targets to
+[imports](/docs/blocks/imports), so a migration can load codes with their
+rates and keep the source system's ids.
+
+## Events
+
+`tax_code.created`, `tax_code.updated` and `tax_return.prepared`. The
+[events page](/docs/extending/events) lists their payloads.
+
+## Errors
+
+| Hint                        | Raised when                                             |
+| --------------------------- | ------------------------------------------------------- |
+| `TAX_FORBIDDEN`             | the caller lacks `tax.read` or `tax.manage`             |
+| `TAX_CODE_INVALID`          | a code, type, account or return box is invalid          |
+| `TAX_CODE_NOT_FOUND`        | the code does not exist                                 |
+| `TAX_RATE_INVALID`          | a rate is out of range, or no rate covers a line's date |
+| `TAX_COMPUTE_INVALID`       | a line has a value that is not a number                 |
+| `TAX_MARGIN_COST_REQUIRED`  | a margin line has no `unitCost`                         |
+| `TAX_RETURN_INVALID`        | the period is invalid                                   |
+| `TAX_RETURN_FILED`          | the return is filed                                     |
+| `TAX_RETURN_CURRENCY_MIXED` | the period holds several currencies and none was named  |

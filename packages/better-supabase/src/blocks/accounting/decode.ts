@@ -11,7 +11,6 @@ import type {
   AccountingPeriod,
   AccountingPeriodStatus,
   AccountingSettings,
-  AccountingTaxCode,
   AccountRole,
   AccountType,
   BalanceSheet,
@@ -212,25 +211,6 @@ export function dimensionOf(value: unknown, fn: string): AccountingDimension {
       ...optional("archivedAt", optionalInstant(item["archivedAt"])),
     })),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
-  };
-}
-
-export function taxCodeOf(value: unknown, fn: string): AccountingTaxCode {
-  const row = recordOf(value, fn);
-  const boxes = Array.isArray(row["reportBoxes"]) ? row["reportBoxes"] : [];
-
-  return {
-    id: textOf(row["id"]),
-    organizationId: textOf(row["organizationId"]),
-    code: textOf(row["code"]),
-    name: textOf(row["name"]),
-    rateBps: numberOf(row["rateBps"]),
-    kind: enumOrThrow(row["kind"], TAX_KINDS, "tax code kind"),
-    accountId: textOf(row["accountId"]),
-    reportBoxes: boxes.map(textOf),
-    createdAt: requiredInstant(row["createdAt"], "createdAt"),
-    updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
-    ...optional("archivedAt", optionalInstant(row["archivedAt"])),
   };
 }
 

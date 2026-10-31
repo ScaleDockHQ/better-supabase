@@ -811,7 +811,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:aff645563d84706456bf4b0020b08cf0eb67a91abf53abebf01a71cf5abd9ff7
+-- @bsb-hash sha256:592dc0228e778dd53312f4e93f1f872bcc79efbb30f2edc960fca584b5f851db
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1185,7 +1185,7 @@ declare
   v_hint text;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier']::text[]) then
+  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'tax_code', 'tax_rate']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -1251,6 +1251,8 @@ begin
           v_current := "better_supabase"."supplier_item_updated_at"(v_rec."subject_id");
         when 'product_identifier' then
           v_current := "better_supabase"."product_identifier_updated_at"(v_rec."subject_id");
+        when 'tax_code' then
+          v_current := "better_supabase"."tax_code_updated_at"(v_rec."subject_id");
           else null;
         end case;
         if v_current is not null and v_rec."subject_updated_at_at_import" is not null and v_current > v_rec."subject_updated_at_at_import" then
@@ -1280,6 +1282,12 @@ begin
       when 'product_identifier' then
         v_subject_type := 'product_identifier';
         v_out := "better_supabase"."import_product_identifier"(v_run_id, v_call, v_subject_id);
+      when 'tax_code' then
+        v_subject_type := 'tax_code';
+        v_out := "better_supabase"."import_tax_code"(v_run_id, v_call, v_subject_id);
+      when 'tax_rate' then
+        v_subject_type := 'tax_rate';
+        v_out := "better_supabase"."import_tax_rate"(v_run_id, v_call, v_subject_id);
       else
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
     end case;

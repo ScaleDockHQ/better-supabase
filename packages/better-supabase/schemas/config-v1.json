@@ -1767,6 +1767,7 @@
               "subjects",
               "tags",
               "tasks",
+              "tax",
               "teams",
               "templates",
               "time-tracking",
@@ -1941,6 +1942,7 @@
                   "subjects",
                   "tags",
                   "tasks",
+                  "tax",
                   "teams",
                   "templates",
                   "time-tracking",
@@ -2397,6 +2399,9 @@
             },
             "tasks": {
               "$ref": "#/$defs/blocks/tasks"
+            },
+            "tax": {
+              "$ref": "#/$defs/blocks/tax"
             },
             "teams": {
               "$ref": "#/$defs/blocks/teams"
@@ -7492,6 +7497,17 @@
                 "type": "string"
               }
             }
+          }
+        }
+      },
+      "tax": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

@@ -6,7 +6,6 @@ import {
   accountingBlock,
   accountingEntryInputSchema,
   accountingJournalInputSchema,
-  accountingTaxCodeInputSchema,
   createAccounting,
 } from "../../../src/blocks/accounting/index.ts";
 import { money } from "../../../src/commerce/money.ts";
@@ -361,7 +360,7 @@ describe("createAccounting", () => {
     ]);
   });
 
-  it("saves dimensions, tax codes and exchange rates", async () => {
+  it("saves dimensions and exchange rates", async () => {
     const DIMENSION = {
       id: "d1",
       organizationId: "org-1",
@@ -374,25 +373,10 @@ describe("createAccounting", () => {
       createdAt: AT,
     };
 
-    const TAX = {
-      id: "t1",
-      organizationId: "org-1",
-      code: "VAT21",
-      name: "VAT 21%",
-      rateBps: 2100,
-      kind: "sales",
-      accountId: "a5",
-      reportBoxes: ["1a"],
-      createdAt: AT,
-      updatedAt: AT,
-    };
-
     const t = fieldsTransport({
       save_accounting_dimension: () => ({ ...DIMENSION, values: null }),
       save_accounting_dimension_value: () => DIMENSION,
       list_accounting_dimensions: () => [DIMENSION],
-      save_accounting_tax_code: () => TAX,
-      list_accounting_tax_codes: () => [{ ...TAX, reportBoxes: null }],
       set_accounting_fx_rate: () => ({
         organizationId: "org-1",
         base: "USD",
@@ -423,23 +407,6 @@ describe("createAccounting", () => {
 
     const [listed] = await books.dimensions("org-1").orThrow();
 
-    const tax = await books
-      .saveTaxCode("org-1", {
-        code: "VAT21",
-        name: "VAT 21%",
-        rateBps: 2100,
-        kind: "sales",
-        accountId: "a5",
-        reportBoxes: ["1a"],
-      })
-      .orThrow();
-
-    const [bareTax] = await books
-      .taxCodes("org-1", { includeArchived: true })
-      .orThrow();
-
-    await books.taxCodes("org-1").orThrow();
-
     const rate = await books
       .setFxRate("org-1", {
         base: "USD",
@@ -455,27 +422,12 @@ describe("createAccounting", () => {
     expect(listed?.values[1]?.archivedAt?.toString()).toBe(
       "2026-10-22T10:00:00Z",
     );
-    expect(tax).toMatchObject({ rateBps: 2100, reportBoxes: ["1a"] });
-    expect(bareTax?.reportBoxes).toEqual([]);
     expect(rate.rate).toBe("0.930769");
     expect(rate.onDate.toString()).toBe("2026-01-15");
     expect(looked).toBe("0.93");
     expect(t.calls).toContainEqual([
       "save_accounting_dimension_value",
       { dimension_id: "d1", code: "apollo", name: "Apollo", archived: false },
-    ]);
-    expect(t.calls).toContainEqual([
-      "save_accounting_tax_code",
-      {
-        tenant: "org-1",
-        code: "VAT21",
-        name: "VAT 21%",
-        rate_bps: 2100,
-        kind: "sales",
-        account_id: "a5",
-        report_boxes: ["1a"],
-        archived: false,
-      },
     ]);
     expect(t.calls).toContainEqual([
       "accounting_fx_rate",
@@ -838,15 +790,6 @@ describe("accounting schemas", () => {
         code: "SAL",
         name: "Sales",
         type: "sales",
-      }).issues,
-    ).toBeUndefined();
-    expect(
-      validate(accountingTaxCodeInputSchema, {
-        code: "VAT21",
-        name: "VAT",
-        rateBps: 2100,
-        kind: "sales",
-        accountId: ID,
       }).issues,
     ).toBeUndefined();
     expect(

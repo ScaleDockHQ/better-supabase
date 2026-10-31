@@ -321,4 +321,5 @@ export const MODULE_PERMISSION_SCOPES: {
     manage: "tenant",
   },
   "payroll-export": { read: "tenant", export: "tenant" },
+  tax: { read: "tenant", manage: "tenant" },
 };

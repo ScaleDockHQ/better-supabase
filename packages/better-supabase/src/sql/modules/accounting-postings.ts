@@ -27,7 +27,8 @@ export function accountingPostingFunctions(ctx: BlockSqlContext): string {
   const periods = ctx.table("periods");
   const entries = ctx.table("entries");
   const lines = ctx.table("lines");
-  const taxes = ctx.table("taxCodes");
+  const tx = ctx.of("tax");
+  const taxes = tx.table("codes");
   const dimensions = ctx.table("dimensions");
   const values = ctx.table("dimensionValues");
   const s = (column: string): string => ctx.col("settings", column);
@@ -39,7 +40,7 @@ export function accountingPostingFunctions(ctx: BlockSqlContext): string {
   const p = (column: string): string => ctx.col("periods", column);
   const e = (column: string): string => ctx.col("entries", column);
   const l = (column: string): string => ctx.col("lines", column);
-  const t = (column: string): string => ctx.col("taxCodes", column);
+  const t = (column: string): string => tx.col("codes", column);
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
   const sql = accountingSql(ctx);
@@ -158,18 +159,20 @@ begin
     v_tax := null;
     if v_line.value ->> 'taxCode' is not null then
       select * into v_tax from ${taxes} y
-      where y.${t("tenant")} = v_tenant and y.${t("code")} = v_line.value ->> 'taxCode' and y.${t("archivedAt")} is null;
+      where y.${t("tenant")} = v_tenant and y.${t("code")} = v_line.value ->> 'taxCode' and y.${t("archivedAt")} is null
+      order by y.${t("legalEntity")} nulls first limit 1;
     end if;
     if v_tax.${t("id")} is null and coalesce(v_line.value ->> 'taxRateBps', '') ~ '^[0-9]{1,6}$' then
       select * into v_tax from ${taxes} y
-      where y.${t("tenant")} = v_tenant and y.${t("rateBps")} = (v_line.value ->> 'taxRateBps')::integer
-        and y.${t("kind")} = case when v_journal.${j("type")} = 'purchase' then 'purchase' else 'sales' end
+      where y.${t("tenant")} = v_tenant and ${fn("tax_rate_on")}(y.${t("id")}, v_date) = (v_line.value ->> 'taxRateBps')::integer
+        and y.${t("type")} = case when v_journal.${j("type")} = 'purchase' then 'purchase' else 'sales' end
         and y.${t("archivedAt")} is null
-      order by y.${t("code")} limit 1;
+      order by y.${t("legalEntity")} nulls first, y.${t("code")} limit 1;
     end if;
     v_account := null;
     if v_line.value ->> 'role' in ('tax_payable', 'tax_receivable') and v_tax.${t("id")} is not null then
-      v_account := v_tax.${t("account")};
+      v_account := case when v_tax.${t("type")} = 'purchase' then v_tax.${t("purchaseAccount")}
+        else coalesce(v_tax.${t("salesAccount")}, v_tax.${t("purchaseAccount")}) end;
     elsif coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
       ${account(`y.${a("id")} = (v_line.value ->> 'accountId')::uuid`)};
     elsif v_line.value ->> 'accountCode' is not null then
@@ -333,11 +336,12 @@ export function accountingTaxReport(ctx: BlockSqlContext): string {
   const settings = ctx.table("settings");
   const entries = ctx.table("entries");
   const lines = ctx.table("lines");
-  const taxes = ctx.table("taxCodes");
+  const tx = ctx.of("tax");
+  const taxes = tx.table("codes");
   const s = (column: string): string => ctx.col("settings", column);
   const e = (column: string): string => ctx.col("entries", column);
   const l = (column: string): string => ctx.col("lines", column);
-  const t = (column: string): string => ctx.col("taxCodes", column);
+  const t = (column: string): string => tx.col("codes", column);
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
 
@@ -360,10 +364,11 @@ as $$
       and z.${e("entryDate")} >= accounting_tax_report.since and z.${e("entryDate")} <= accounting_tax_report.until
   ),
   codes as (
-    select w.${t("id")} as id, w.${t("code")} as code, w.${t("name")} as name, w.${t("kind")} as kind,
-      w.${t("rateBps")} as rate_bps, w.${t("reportBoxes")} as boxes,
-      (case when w.${t("kind")} = 'sales' then 1 else -1 end) * coalesce(sum(b.net) filter (where b.account <> w.${t("account")}), 0) as base,
-      (case when w.${t("kind")} = 'sales' then 1 else -1 end) * coalesce(sum(b.net) filter (where b.account = w.${t("account")}), 0) as tax
+    select w.${t("id")} as id, w.${t("code")} as code, w.${t("name")} as name,
+      (case when w.${t("type")} = 'purchase' then 'purchase' else 'sales' end) as kind,
+      coalesce(${fn("tax_rate_on")}(w.${t("id")}, accounting_tax_report.until), 0) as rate_bps, w.${t("returnBoxes")} as boxes,
+      (case when w.${t("type")} = 'purchase' then -1 else 1 end) * coalesce(sum(b.net) filter (where b.account is distinct from (case when w.${t("type")} = 'purchase' then w.${t("purchaseAccount")} else coalesce(w.${t("salesAccount")}, w.${t("purchaseAccount")}) end)), 0) as base,
+      (case when w.${t("type")} = 'purchase' then -1 else 1 end) * coalesce(sum(b.net) filter (where b.account = (case when w.${t("type")} = 'purchase' then w.${t("purchaseAccount")} else coalesce(w.${t("salesAccount")}, w.${t("purchaseAccount")}) end)), 0) as tax
     from booked b join ${taxes} w on w.${t("id")} = b.tax_code
     group by w.${t("id")}
   )

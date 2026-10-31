@@ -145,6 +145,7 @@ import { streamsBlock } from "./streams/manifest.ts";
 import { subjectsBlock } from "./subjects/manifest.ts";
 import { tagsBlock } from "./tags/manifest.ts";
 import { tasksBlock } from "./tasks/manifest.ts";
+import { taxBlock } from "./tax/manifest.ts";
 import { teamsBlock } from "./teams/manifest.ts";
 import { templatesBlock } from "./templates/manifest.ts";
 import { timeTrackingBlock } from "./time-tracking/manifest.ts";
@@ -233,6 +234,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   legalEntitiesBlock,
   fundingBlock,
   payrollExportBlock,
+  taxBlock,
   shiftsBlock,
   consentsBlock,
   observationsBlock,

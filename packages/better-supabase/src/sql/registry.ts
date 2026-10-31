@@ -154,6 +154,7 @@ import { SUBJECTS } from "./modules/subjects.ts";
 import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TAGS } from "./modules/tags.ts";
 import { WORK_ITEMS } from "./modules/tasks.ts";
+import { TAX } from "./modules/tax.ts";
 import { TEAMS } from "./modules/teams.ts";
 import { TEMPLATES } from "./modules/templates.ts";
 import { TIME_TRACKING } from "./modules/time-tracking.ts";
@@ -418,6 +419,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(PAYROLL_EXPORT),
       built(MAINTENANCE),
       built(DAM),
+      built(TAX),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

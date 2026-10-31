@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:4cf5773cf994fe379cd9a3bc08aa24d6ab75d7f8d1aaf8bccfee936faa631951
+-- @bsb-hash sha256:257945b15920d1ec346f8f8ad2fe4a7a216ea2aed22833070c825d39591b42b5
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -212,6 +212,7 @@ begin
     when 'meeting_decision' then exists (select 1 from "better_supabase"."meeting_decisions" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'meetings.read'), false)
     when 'maintenance_plan' then exists (select 1 from "better_supabase"."maintenance_plans" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'maintenance.read'), false)
     when 'dam_usage_right' then exists (select 1 from "better_supabase"."dam_usage_rights" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'dam.read'), false)
+    when 'tax_code' then exists (select 1 from "better_supabase"."tax_codes" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'tax.read'), false)
     when 'production_order' then exists (select 1 from "better_supabase"."production_orders" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'manufacturing.read'), false)
     when 'work_center' then exists (select 1 from "better_supabase"."work_centers" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'manufacturing.read'), false)
     when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'banking.read'), false)
