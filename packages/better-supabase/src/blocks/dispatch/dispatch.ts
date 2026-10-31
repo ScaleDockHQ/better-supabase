@@ -8,13 +8,18 @@ import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
+import type {
+  OptimizedStops,
+  RouteOptimizer,
+  RoutePoint,
+} from "./route-optimizer.ts";
 import type { WorkOrderPriority, WorkOrderStatus } from "./statuses.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -30,6 +35,7 @@ import {
   stringsOf,
   textOf,
 } from "../shared.ts";
+import { nearestNeighbourOptimizer, optimizeStops } from "./route-optimizer.ts";
 import { WORK_ORDER_PRIORITIES, WORK_ORDER_STATUSES } from "./statuses.ts";
 
 export interface DispatchOptions<
@@ -179,6 +185,22 @@ export interface TechnicianDay<F extends object = Record<never, never>> {
   readonly stops: readonly TechnicianStop<F>[];
 }
 
+export interface OptimizeRouteOptions<F extends object = Record<never, never>> {
+  /** Where a work order is; stops without a point go last, in their order. */
+  readonly locate: (workOrder: WorkOrder<F>) => RoutePoint | undefined;
+  /** Default: `nearestNeighbourOptimizer()`. */
+  readonly optimizer?: RouteOptimizer;
+  readonly start?: RoutePoint;
+  readonly end?: RoutePoint;
+  /** Time at a stop, in minutes; default 0. */
+  readonly durationMinutes?: (workOrder: WorkOrder<F>) => number;
+}
+
+export interface OptimizedRoute {
+  readonly route: DispatchRoute;
+  readonly optimization: OptimizedStops;
+}
+
 export interface DispatchRoute {
   readonly id: string;
   readonly organizationId: string;
@@ -259,6 +281,16 @@ export interface Dispatch<F extends object = Record<never, never>> {
     day: Temporal.PlainDate,
     workOrderIds: readonly string[],
   ): AsyncResult<DispatchRoute>;
+  /**
+   * Orders the technician's day with a `RouteOptimizer` and plans the result as
+   * their route. A failing optimizer falls back to nearest neighbour; the
+   * result says which one ran.
+   */
+  optimizeRoute(
+    technicianId: string,
+    day: Temporal.PlainDate,
+    options: OptimizeRouteOptions<F>,
+  ): AsyncResult<OptimizedRoute>;
   recordPart(
     workOrderId: string,
     input: WorkOrderPartInput,
@@ -550,6 +582,46 @@ export function createDispatch<
           },
         ),
       ),
+    optimizeRoute: (technicianId, day, routeOptions) =>
+      client.technicianDay(day, technicianId).andThen((planned) => {
+        const located = planned.stops.flatMap((stop) => {
+          const point = routeOptions.locate(stop.workOrder);
+
+          return point === undefined
+            ? []
+            : [
+                {
+                  id: stop.workOrder.id,
+                  point,
+                  durationMinutes:
+                    routeOptions.durationMinutes?.(stop.workOrder) ?? 0,
+                },
+              ];
+        });
+
+        const placed = new Set(located.map((stop) => stop.id));
+
+        const unplaced = planned.stops
+          .map((stop) => stop.workOrder.id)
+          .filter((id) => !placed.has(id));
+
+        return AsyncResult.from(async () =>
+          ok(
+            await optimizeStops(
+              routeOptions.optimizer ?? nearestNeighbourOptimizer(),
+              {
+                stops: located,
+                ...(routeOptions.start ? { start: routeOptions.start } : {}),
+                ...(routeOptions.end ? { end: routeOptions.end } : {}),
+              },
+            ),
+          ),
+        ).andThen((optimization) =>
+          client
+            .planRoute(technicianId, day, [...optimization.order, ...unplaced])
+            .map((route) => ({ route, optimization })),
+        );
+      }),
     recordPart: (workOrderId, input) =>
       call(
         "record_work_order_part",
