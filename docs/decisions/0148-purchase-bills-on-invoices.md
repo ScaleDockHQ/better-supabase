@@ -1,4 +1,4 @@
-# 0147: Keep purchase bills on the invoices table
+# 0148: Keep purchase bills on the invoices table
 
 - Status: accepted
 - Date: 2026-10-30
