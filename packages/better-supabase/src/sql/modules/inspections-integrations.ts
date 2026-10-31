@@ -7,7 +7,7 @@ import { inspectionsSql } from "./inspections-sql.ts";
 const WHERE = "blocks.inspections.options.calendar";
 
 /** `options.calendar`: the name of the calendar planned inspections mirror to. */
-export function calendarName(ctx: BlockSqlContext): string | undefined {
+function calendarName(ctx: BlockSqlContext): string | undefined {
   const value = ctx.option("calendar");
 
   if (value === undefined || value === null) {
