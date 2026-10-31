@@ -154,6 +154,9 @@ const NO_FIELDS: readonly string[] = [
   "queue",
   "rate-limit",
   "reactions",
+  // Requests, lines, invitations and quotes are fixed records; app data goes
+  // on the linked contacts and purchase orders.
+  "rfqs",
   // Models hold rule trees and metrics; the app's data lives on the scored
   // subjects, which pass their fields to compute_score.
   "scores",

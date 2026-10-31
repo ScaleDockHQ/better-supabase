@@ -9724,6 +9724,49 @@
       "RpcClient"
     ]
   },
+  "./blocks/rfqs": {
+    "values": [
+      "createRfqs",
+      "dbTransport",
+      "extendBlock",
+      "rfqInputSchema",
+      "rfqsBlock",
+      "rfqsEvents",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Rfq",
+      "RfqComparison",
+      "RfqComparisonLine",
+      "RfqComparisonQuote",
+      "RfqDetail",
+      "RfqEventData",
+      "RfqInput",
+      "RfqLine",
+      "RfqLineInput",
+      "RfqListOptions",
+      "RfqOffer",
+      "RfqQuote",
+      "RfqQuoteEventData",
+      "RfqQuoteInput",
+      "RfqQuoteLine",
+      "RfqQuoteLineInput",
+      "RfqQuoteStatus",
+      "Rfqs",
+      "RfqsEvents",
+      "RfqsOptions",
+      "RfqStatus",
+      "RfqSupplier",
+      "RfqSupplierStatus",
+      "RpcClient"
+    ]
+  },
   "./blocks/lims": {
     "values": [
       "createLims",

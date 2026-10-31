@@ -621,6 +621,12 @@ may be your own enum or domain.
 - `reviews`
   - `better_supabase.reviews`: `id`, `tenant_id`, `subject_type`, `subject_id`, `author_id`, `rating`, `body`, `status`, `verified`, `published_at`, `created_at`; typed: `status`
   - `better_supabase.review_stats`: `tenant_id`, `subject_type`, `subject_id`, `review_count`, `rating_total`
+- `rfqs`
+  - `better_supabase.rfqs`: `id`, `tenant_id`, `number`, `sequence`, `title`, `status`, `currency`, `due_at`, `notes`, `awarded_quote_id`, `purchase_order_id`, `cancel_reason`, `opened_at`, `closed_at`, `awarded_at`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.rfq_lines`: `id`, `tenant_id`, `rfq_id`, `ordinal`, `description`, `variant_id`, `quantity`, `unit`
+  - `better_supabase.rfq_suppliers`: `id`, `tenant_id`, `rfq_id`, `supplier_type`, `supplier_id`, `status`, `invited_at`, `responded_at`
+  - `better_supabase.rfq_quotes`: `id`, `tenant_id`, `rfq_id`, `invitation_id`, `status`, `total_amount`, `lead_time_days`, `valid_until`, `notes`, `revision`, `submitted_by`, `submitted_at`, `updated_at`
+  - `better_supabase.rfq_quote_lines`: `id`, `tenant_id`, `quote_id`, `line_id`, `unit_amount`, `lead_time_days`
 - `risks`
   - `better_supabase.risk_matrices`: `id`, `tenant_id`, `key`, `name`, `likelihood_levels`, `impact_levels`, `bands`, `scoring`, `is_default`, `created_at`, `updated_at`
   - `better_supabase.risks`: `id`, `tenant_id`, `number`, `sequence`, `matrix_id`, `title`, `category`, `owner_id`, `status`, `treatment`, `review_interval_months`, `next_review_on`, `reviewed_at`, `review_notified_for`, `inherent_likelihood`, `inherent_impact`, `inherent_score`, `inherent_band`, `residual_likelihood`, `residual_impact`, `residual_score`, `residual_band`, `current_assessment_id`, `closed_at`, `archived_at`, `created_at`, `updated_at`

@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@5 managed
--- @bsb-hash sha256:a8eb8e8ae64abf6c1ea87edae26e5bea3f4799f42932238a2796dc5f083881a2
+-- @bsb-hash sha256:300c3ad8f63406cda288f4c823b6508366ace5948850c84ed1928c0c192102ea
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -481,6 +481,7 @@ begin
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'ledger.read'), false)
     when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'catalog.read'), false)
     when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'catalog.read'), false)
+    when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'rfqs.read'), false)
     when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'orders.read'), false)
     when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'calendar.read'), false)
     when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'bookings.read'), false)

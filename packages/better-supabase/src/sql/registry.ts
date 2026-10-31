@@ -133,6 +133,7 @@ import { RELATIONS } from "./modules/relations.ts";
 import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
 import { REVIEWS } from "./modules/reviews.ts";
+import { RFQS } from "./modules/rfqs.ts";
 import { RISKS } from "./modules/risks.ts";
 import { ENSURE_RLS } from "./modules/rls-guard.ts";
 import { SAVED_VIEWS } from "./modules/saved-views.ts";
@@ -428,6 +429,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(LIMS),
       built(APPRAISALS),
       built(WAREHOUSE),
+      built(RFQS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

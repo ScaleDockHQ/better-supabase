@@ -167,3 +167,4 @@ add one, and link it from the code or config it explains.
 | [0168](0168-drive-wopi-host.md)                               | A WOPI host on the check-out lock lets office editors open and save drive files.                                                                             |
 | [0167](0167-appraisals-block.md)                              | Appraisals run review cycles over enrollments, forms, goals and approvals, with calibration and sign-off                                                     |
 | [0169](0169-warehouse-block.md)                               | Warehouse picks from allocations and schedules cycle counts, holding large variances for review                                                              |
+| [0170](0170-rfqs-block.md)                                    | Requests for quotation go to suppliers, their quotes are compared, and an award creates a draft purchase order                                               |

@@ -164,6 +164,7 @@
   "blocks/reminders",
   "blocks/reserved-slugs",
   "blocks/reviews",
+  "blocks/rfqs",
   "blocks/risks",
   "blocks/rls-guard",
   "blocks/saved-views",

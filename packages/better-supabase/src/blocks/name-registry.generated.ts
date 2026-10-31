@@ -1959,6 +1959,27 @@ export interface BlockNameRegistry {
     readonly primary: "review";
     readonly formerKeys: never;
   };
+  readonly "rfqs": {
+    readonly tables: {
+      readonly "rfqs": "id" | "tenant" | "number" | "sequence" | "title" | "status" | "currency" | "dueAt" | "notes" | "awardedQuote" | "purchaseOrder" | "cancelReason" | "openedAt" | "closedAt" | "awardedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "lines": "id" | "tenant" | "rfq" | "ordinal" | "description" | "variant" | "quantity" | "unit";
+      readonly "suppliers": "id" | "tenant" | "rfq" | "supplierType" | "supplierId" | "status" | "invitedAt" | "respondedAt";
+      readonly "quotes": "id" | "tenant" | "rfq" | "invitation" | "status" | "total" | "leadTimeDays" | "validUntil" | "notes" | "revision" | "submittedBy" | "submittedAt" | "updatedAt";
+      readonly "quoteLines": "id" | "tenant" | "quote" | "line" | "unitAmount" | "leadTimeDays";
+    };
+    readonly functions: "award_rfq" | "cancel_rfq" | "close_rfq" | "compare_rfq" | "create_rfq" | "decline_rfq_supplier" | "get_rfq" | "invite_rfq_supplier" | "list_rfqs" | "open_rfq" | "record_rfq_quote" | "update_rfq" | "withdraw_rfq_quote";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: "before_rfq_create" | "after_rfq_create" | "before_rfq_quote_record" | "after_rfq_quote_record" | "before_rfq_award" | "after_rfq_award";
+    readonly entities: {
+      readonly "rfq": "id" | "tenant_id" | "number" | "sequence" | "title" | "status" | "currency" | "due_at" | "notes" | "awarded_quote_id" | "purchase_order_id" | "cancel_reason" | "opened_at" | "closed_at" | "awarded_at" | "created_by" | "created_at" | "updated_at";
+      readonly "rfq_line": "id" | "tenant_id" | "rfq_id" | "ordinal" | "description" | "variant_id" | "quantity" | "unit";
+      readonly "rfq_supplier": "id" | "tenant_id" | "rfq_id" | "supplier_type" | "supplier_id" | "status" | "invited_at" | "responded_at";
+      readonly "rfq_quote": "id" | "tenant_id" | "rfq_id" | "invitation_id" | "status" | "total_amount" | "lead_time_days" | "valid_until" | "notes" | "revision" | "submitted_by" | "submitted_at" | "updated_at";
+      readonly "rfq_quote_line": "id" | "tenant_id" | "quote_id" | "line_id" | "unit_amount" | "lead_time_days";
+    };
+    readonly primary: "rfq";
+    readonly formerKeys: never;
+  };
   readonly "risks": {
     readonly tables: {
       readonly "matrices": "id" | "tenant" | "key" | "name" | "likelihoodLevels" | "impactLevels" | "bands" | "scoring" | "isDefault" | "createdAt" | "updatedAt";
