@@ -31,6 +31,14 @@ export {
 
 export { driveSubject } from "./subject.ts";
 
+export {
+  createWopiHost,
+  type WopiDrive,
+  type WopiHost,
+  type WopiHostOptions,
+  type WopiTokenClaims,
+} from "./wopi.ts";
+
 export type {
   DriveDocument,
   DriveDocumentFilters,

@@ -141,3 +141,9 @@ that the node columns can't express.
   that table itself. `links: "organization"` is checked where links open
   (`drive_link`, `drive_link_upload`); `drive_share` to members is never
   restricted.
+
+## Amendment: a WOPI host on the check-out lock (2026-10-31)
+
+ADR 0166 adds `createWopiHost`. It is the WOPI editor this ADR said to
+revisit: the editor's lock id lives in `lockNote` on the existing check-out
+lock, so no column or table is added.
