@@ -1507,7 +1507,9 @@ begin
         'invoices', record_party_payment.party_id, null, v_key, v_paid_at,
         jsonb_strip_nulls(jsonb_build_object('partyId', record_party_payment.party_id, 'currency', v_currency,
           'method', record_party_payment.method, 'reference', v_reference, 'note', nullif(trim(record_party_payment.note), ''))));
-      perform "better_supabase"."accounting_post_source"('invoice_party_payment', v_credit::text);
+      if not better_supabase.import_run() is not null then
+    perform "better_supabase"."accounting_post_source"('invoice_party_payment', v_credit::text);
+  end if;
     end if;
   end if;
   return jsonb_build_object(
@@ -1562,9 +1564,10 @@ begin
       select * into v_row from "better_supabase"."invoices" x where x."id" = v_row."id";
     end if;
     if v_row."created_by" is not null then
-      v_claims := current_setting('request.jwt.claims', true);
-      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-      perform "better_supabase"."notify"(jsonb_build_object(
+      if better_supabase.import_run() is null then
+        v_claims := current_setting('request.jwt.claims', true);
+        perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+        perform "better_supabase"."notify"(jsonb_build_object(
         'type', 'invoice.dunning_escalated',
         'tenant', v_row."tenant_id",
         'actor', null,
@@ -1575,7 +1578,8 @@ begin
         'key', 'invoice.dunning_escalated:' || v_row."id"::text || ':' || v_level."level",
         'data', jsonb_build_object('level', v_level."level", 'templateKey', v_level."template_key", 'final', v_level."final")
       ));
-      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+        perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      end if;
     end if;
     perform "better_supabase".emit_event('invoice.dunning_escalated', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'level', v_level."level", 'templateKey', v_level."template_key", 'fee', v_level."fee"::text, 'final', v_level."final", 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text, 'dueOn', v_row."due_on"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
