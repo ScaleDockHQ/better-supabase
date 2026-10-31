@@ -458,6 +458,9 @@ export default defineConfig({
     // controls and raise cases. Planned inspections mirror to the "Audits"
     // calendar of an organization that has one.
     inspections: { options: { calendar: "Audits" } },
+    // Meetings with an agenda, minutes, votes on decisions and action items
+    // that open as tasks; planned meetings mirror to the "Meetings" calendar.
+    meetings: { options: { calendar: "Meetings" }, uses: { tasks: "tasks" } },
     // Vital signs on a customer's record, with the seeded vitals definitions;
     // a critical value alerts the record's leads.
     observations: { options: { defaults: "vitals" } },

@@ -128,6 +128,8 @@ describe.skipIf(!live)("product presets on the local stack", () => {
           "cases",
           "inspections",
           "inspection_findings",
+          "meetings",
+          "meeting_decisions",
           "risks",
           "qualification_types",
           "qualifications",

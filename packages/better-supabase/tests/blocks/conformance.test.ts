@@ -109,6 +109,9 @@ const NO_FIELDS: readonly string[] = [
   "ledger",
   // Mailboxes, threads and messages mirror a provider's mail; app data goes on the linked records.
   "mail-sync",
+  // Meetings, attendees, agendas and decisions are fixed records; app data
+  // goes on the linked tasks and documents.
+  "meetings",
   // The model writes memories through memory commands, which carry no app columns.
   "memory",
   // Points are metric samples written by the sink.

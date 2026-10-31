@@ -444,6 +444,12 @@ may be your own enum or domain.
   - `better_supabase.medications`: `id`, `tenant_id`, `name`, `code_system`, `code`, `unit`, `high_risk`, `archived_at`
   - `better_supabase.medication_orders`: `id`, `tenant_id`, `subject_type`, `subject_id`, `medication_id`, `dose`, `dose_unit`, `route`, `schedule`, `as_needed`, `as_needed_reason`, `max_per_day`, `starts_on`, `ends_on`, `source`, `external_id`, `requires_double_check`, `status`, `stopped_reason`
   - `better_supabase.medication_administrations`: `id`, `tenant_id`, `order_id`, `scheduled_at`, `administered_at`, `status`, `dose`, `performer_id`, `checked_by`, `reason`
+- `meetings`
+  - `better_supabase.meetings`: `id`, `tenant_id`, `kind`, `title`, `starts_at`, `ends_at`, `status`, `started_at`, `held_at`, `created_at`, `updated_at`
+  - `better_supabase.meeting_attendees`: `meeting_id`, `tenant_id`, `user_id`, `role`, `attendance`, `created_at`
+  - `better_supabase.meeting_agenda_items`: `id`, `tenant_id`, `meeting_id`, `ordinal`, `title`, `presenter_id`, `minutes`, `status`, `created_at`
+  - `better_supabase.meeting_decisions`: `id`, `tenant_id`, `meeting_id`, `agenda_item_id`, `title`, `status`, `decided_by`, `decided_at`, `created_at`
+  - `better_supabase.meeting_action_items`: `task_id`, `tenant_id`, `meeting_id`, `agenda_item_id`, `decision_id`, `created_at`
 - `memberships`
   - `better_supabase.memberships`: `organization_id`, `user_id`, `role`, `created_at`
 - `memory`

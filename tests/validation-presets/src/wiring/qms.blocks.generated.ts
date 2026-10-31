@@ -20,6 +20,7 @@ import type { QualificationsEvents } from "better-supabase/blocks/qualifications
 import type { RisksEvents } from "better-supabase/blocks/risks";
 import type { CasesEvents } from "better-supabase/blocks/cases";
 import type { InspectionsEvents } from "better-supabase/blocks/inspections";
+import type { MeetingsEvents } from "better-supabase/blocks/meetings";
 import type { DriveEvents } from "better-supabase/blocks/drive";
 import type { EmployeesEvents } from "better-supabase/blocks/employees";
 import type { FormsEvents } from "better-supabase/blocks/forms";
@@ -56,6 +57,7 @@ import { qualificationsBlock as qualificationsBlockInstance } from "better-supab
 import { risksBlock as risksBlockInstance } from "better-supabase/blocks/risks";
 import { casesBlock as casesBlockInstance } from "better-supabase/blocks/cases";
 import { inspectionsBlock as inspectionsBlockInstance } from "better-supabase/blocks/inspections";
+import { meetingsBlock as meetingsBlockInstance } from "better-supabase/blocks/meetings";
 import { driveBlock as driveBlockInstance } from "better-supabase/blocks/drive";
 import { employeesBlock as employeesBlockInstance } from "better-supabase/blocks/employees";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
@@ -158,6 +160,10 @@ export const blockConfig = {
     options: {},
   },
   inspections: {
+    schema: "better_supabase",
+    options: {},
+  },
+  meetings: {
     schema: "better_supabase",
     options: {},
   },
@@ -298,6 +304,7 @@ export const blocks = {
   risks: risksBlockInstance,
   cases: casesBlockInstance,
   inspections: inspectionsBlockInstance,
+  meetings: meetingsBlockInstance,
   drive: driveBlockInstance,
   employees: employeesBlockInstance,
   entitlements: entitlementsBlockInstance,
@@ -475,6 +482,19 @@ export const permissions = {
     revoke: "members.invite",
     view: "members.invite",
   },
+  meeting: {
+    read: "meetings.read",
+    write: "meetings.write",
+  },
+  meeting_decision: {
+    read: "meetings.read",
+    write: "meetings.write",
+  },
+  meetings: {
+    read: "meetings.read",
+    write: "meetings.write",
+    manage: "meetings.manage",
+  },
   message: {
     read: "messages.read",
     write: "messages.send",
@@ -600,13 +620,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "compliance.collect" | "compliance.manage" | "compliance.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "compliance.collect" | "compliance.manage" | "compliance.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "meetings.manage" | "meetings.read" | "meetings.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & AssetsEvents & ModerationEvents & EnrollmentsEvents & ComplianceEvents & AcknowledgementsEvents & CoursesEvents & PostsEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & DriveEvents & EmployeesEvents & FormsEvents & SignaturesEvents & MessagingEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & ReactionsEvents & RelationsEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & VersionsEvents & TasksEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & AssetsEvents & ModerationEvents & EnrollmentsEvents & ComplianceEvents & AcknowledgementsEvents & CoursesEvents & PostsEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & DriveEvents & EmployeesEvents & FormsEvents & SignaturesEvents & MessagingEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & ReactionsEvents & RelationsEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & VersionsEvents & TasksEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -758,6 +778,15 @@ export const blockEvents: Events<BlockEvents> = {
     "invitation.resent",
     "invitation.revoked",
     "invitation.updated",
+    "meeting.cancelled",
+    "meeting.concluded",
+    "meeting.created",
+    "meeting.deleted",
+    "meeting.started",
+    "meeting.updated",
+    "meeting_action_item.created",
+    "meeting_decision.decided",
+    "meeting_decision.recorded",
     "message.deleted",
     "message.edited",
     "message.pinned",
@@ -1014,6 +1043,15 @@ export const blockEventSchemas = {
   "invitation.resent": true,
   "invitation.revoked": true,
   "invitation.updated": true,
+  "meeting.cancelled": true,
+  "meeting.concluded": true,
+  "meeting.created": true,
+  "meeting.deleted": true,
+  "meeting.started": true,
+  "meeting.updated": true,
+  "meeting_action_item.created": true,
+  "meeting_decision.decided": true,
+  "meeting_decision.recorded": true,
   "message.deleted": true,
   "message.edited": true,
   "message.pinned": true,

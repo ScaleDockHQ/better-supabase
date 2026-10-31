@@ -109,6 +109,7 @@ const MODULES = [
   "care-plans",
   "cases",
   "inspections",
+  "meetings",
   "manufacturing",
 ] as const;
 

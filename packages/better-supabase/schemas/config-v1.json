@@ -1679,6 +1679,7 @@
               "mail-sync",
               "manufacturing",
               "medications",
+              "meetings",
               "memberships",
               "memory",
               "messaging",
@@ -1847,6 +1848,7 @@
                   "mail-sync",
                   "manufacturing",
                   "medications",
+                  "meetings",
                   "memberships",
                   "memory",
                   "messaging",
@@ -2171,6 +2173,9 @@
             },
             "medications": {
               "$ref": "#/$defs/blocks/medications"
+            },
+            "meetings": {
+              "$ref": "#/$defs/blocks/meetings"
             },
             "memberships": {
               "$ref": "#/$defs/blocks/memberships"
@@ -5912,6 +5917,27 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              }
+            }
+          }
+        }
+      },
+      "meetings": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "calendar": {
+                "type": "string"
               }
             }
           }

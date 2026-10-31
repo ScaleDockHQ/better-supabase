@@ -32,6 +32,8 @@
     "subject-timeline",
     "post-board",
     "acknowledgement-inbox",
+    "meeting-agenda",
+    "meeting-minutes",
     "---Notifications & messaging---",
     "notification-bell",
     "notification-list",

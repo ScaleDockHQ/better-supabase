@@ -78,6 +78,7 @@ import { ledgerBlock } from "./ledger/manifest.ts";
 import { mailSyncBlock } from "./mail-sync/manifest.ts";
 import { manufacturingBlock } from "./manufacturing/manifest.ts";
 import { medicationsBlock } from "./medications/manifest.ts";
+import { meetingsBlock } from "./meetings/manifest.ts";
 import { membershipsBlock } from "./memberships/manifest.ts";
 import { memoryBlock } from "./memory/manifest.ts";
 import { messagingBlock } from "./messaging/manifest.ts";
@@ -219,6 +220,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   risksBlock,
   casesBlock,
   inspectionsBlock,
+  meetingsBlock,
   manufacturingBlock,
   bankingBlock,
   shiftsBlock,

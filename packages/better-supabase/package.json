@@ -1085,6 +1085,11 @@
       "types": "./dist/blocks/inspections/index.d.ts",
       "default": "./dist/blocks/inspections/index.js"
     },
+    "./blocks/meetings": {
+      "@better-supabase/source": "./src/blocks/meetings/index.ts",
+      "types": "./dist/blocks/meetings/index.d.ts",
+      "default": "./dist/blocks/meetings/index.js"
+    },
     "./blocks/manufacturing": {
       "@better-supabase/source": "./src/blocks/manufacturing/index.ts",
       "types": "./dist/blocks/manufacturing/index.d.ts",
@@ -2002,6 +2007,10 @@
       "./blocks/inspections": {
         "types": "./dist/blocks/inspections/index.d.ts",
         "default": "./dist/blocks/inspections/index.js"
+      },
+      "./blocks/meetings": {
+        "types": "./dist/blocks/meetings/index.d.ts",
+        "default": "./dist/blocks/meetings/index.js"
       },
       "./blocks/manufacturing": {
         "types": "./dist/blocks/manufacturing/index.d.ts",
