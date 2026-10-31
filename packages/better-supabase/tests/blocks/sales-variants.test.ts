@@ -88,6 +88,12 @@ describe("order variants", () => {
     expect(
       await orders.setVariant("q2", "q1", "Option B").orThrow(),
     ).toMatchObject({ id: "q2", variantOf: "q1" });
+    await orders.setVariant("q2", null).orThrow();
+    expect(t.calls.at(-1)?.[1]).toStrictEqual({
+      id: "q2",
+      variant_of: null,
+      label: null,
+    });
     expect(await orders.listVariants("q1").orThrow()).toHaveLength(2);
     expect(await orders.selectVariant("q2").orThrow()).toHaveLength(2);
     expect(t.calls[0]).toStrictEqual([
@@ -158,5 +164,73 @@ describe("collective invoicing", () => {
     expect(ready.map((each) => each.type)).toStrictEqual(["order", "time"]);
     expect(ready[1]?.id).toBeUndefined();
     expect(ready[0]?.amount.amount).toBe(10_000n);
+  });
+});
+
+describe("variant rows and selections", () => {
+  it("reads snake case rows and forwards to an invoice", async () => {
+    const t = transport({
+      list_quote_variants: () => [
+        { id: "q1" },
+        {
+          id: "q2",
+          variant_of: "q1",
+          variant_label: "B",
+          is_selected: true,
+          number: "Q-2",
+          currency: "EUR",
+          total: "10",
+        },
+      ],
+      select_quote_variant: () => ({
+        quote: { id: "q2" },
+        variants: [],
+        order: null,
+        invoice: { id: "i1" },
+      }),
+    });
+
+    const quotes = createQuotes({ transport: t });
+    const [root, other] = await quotes.listVariants("q1").orThrow();
+
+    expect(root).toStrictEqual({ id: "q1", isSelected: false });
+    expect(other).toMatchObject({
+      variantOf: "q1",
+      variantLabel: "B",
+      isSelected: true,
+      number: "Q-2",
+      currency: "EUR",
+      total: "10",
+    });
+
+    const picked = await quotes
+      .selectVariant("q2", { forward: "invoice" })
+      .orThrow();
+
+    expect(picked.invoiceId).toBe("i1");
+    expect(picked.orderId).toBeUndefined();
+
+    const plain = await quotes.selectVariant("q2").orThrow();
+
+    expect(plain.invoiceId).toBe("i1");
+    expect(t.calls.at(-1)?.[1]).toStrictEqual({ quote: "q2", options: null });
+  });
+
+  it("refuses an unknown source type", async () => {
+    const t = transport({
+      sources_ready_to_invoice: () => [
+        {
+          type: "mystery",
+          currency: "EUR",
+          lines: 1,
+          quantity: "1",
+          amount: "1",
+        },
+      ],
+    });
+
+    await expect(
+      createInvoices({ transport: t }).sourcesReadyToInvoice("org").orThrow(),
+    ).rejects.toThrow("mystery");
   });
 });
