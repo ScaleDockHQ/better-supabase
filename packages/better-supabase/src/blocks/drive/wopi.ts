@@ -2,6 +2,7 @@ import type { DbError } from "../../core/errors.ts";
 import type { Drive, DriveNode } from "./drive.ts";
 
 import { base64ToText, fromBase64, toBase64Url } from "../../core/base64.ts";
+import { temporal } from "../../core/temporal-required.ts";
 
 /** The drive methods a WOPI host calls, as the file's user. */
 export type WopiDrive = Pick<
@@ -379,7 +380,7 @@ export function createWopiHost(options: WopiHostOptions): WopiHost {
 
     const take = async (): Promise<Response> => {
       const locked = await drive.lock(claims.fileId, {
-        until: Temporal.Instant.fromEpochMilliseconds(clock() + lockMs),
+        until: temporal().Instant.fromEpochMilliseconds(clock() + lockMs),
         note: `${LOCK_PREFIX}${lockId}`,
       });
 
