@@ -1,0 +1,54 @@
+---
+title: Intranet
+description: The intranet preset installs company announcements, a knowledge base, a shared drive, channels, a staff directory, a company calendar and policies that people acknowledge.
+---
+
+The `intranet` preset is for the internal home of a company in the style of Notion or Confluence plus a news feed. Management posts announcements, teams keep their handbooks in the knowledge base and the drive, people talk in channels, and policies go out for everyone to confirm they have read them.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "intranet" });
+```
+
+`npx better-supabase init --preset intranet` starts a new project from it,
+and `npx better-supabase add --preset intranet` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                             | Role in the app                                           |
+| ------------------------------------------------- | --------------------------------------------------------- |
+| [announcements](/docs/blocks/announcements)       | Company news with a time window, audience and dismissals  |
+| [knowledge](/docs/blocks/knowledge)               | Handbook documents with hybrid search                     |
+| [drive](/docs/blocks/drive)                       | Shared files and folders                                  |
+| [channels](/docs/blocks/channels)                 | Team and topic channels                                   |
+| [reactions](/docs/blocks/reactions)               | Likes on announcements and comments                       |
+| [comments](/docs/blocks/comments)                 | Discussion under news and documents                       |
+| [employees](/docs/blocks/employees)               | The staff directory and org chart                         |
+| [calendar](/docs/blocks/calendar)                 | The company calendar                                      |
+| [acknowledgements](/docs/blocks/acknowledgements) | Policies people have to confirm they read, with due dates |
+| [attachments](/docs/blocks/attachments)           | Files on announcements and documents                      |
+| [tags](/docs/blocks/tags)                         | Topics and departments                                    |
+| [search](/docs/blocks/search)                     | One search over the intranet                              |
+| [saved-views](/docs/blocks/saved-views)           | Saved filters on the directory                            |
+
+## How the blocks connect
+
+An announcement can target everyone, some roles or some plans and expires on
+its own ([announcements](/docs/blocks/announcements)). A policy in the drive
+is sent for acknowledgement to users, teams or roles, with a due date, and
+the block reminds those who are overdue
+([acknowledgements](/docs/blocks/acknowledgements)). The employees block
+supplies the directory and the manager chain behind it
+([employees](/docs/blocks/employees)).
+
+## With ReUI
+
+- A Card per announcement with a dismiss button and reactions.
+- A DataGrid for the staff directory with a filter per team.

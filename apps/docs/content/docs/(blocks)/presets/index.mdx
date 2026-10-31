@@ -88,6 +88,9 @@ how your config differs from its preset ([CLI](/docs/cli/presets)).
 | `marketplace`      | Products   | `saas` plus parties, catalog, orders, invoices, reactions, share-links                                                                                                                                                                                                                                                                  |
 | `scheduling`       | Products   | `saas` plus calendar, bookings, reminders                                                                                                                                                                                                                                                                                               |
 | `people`           | Products   | `saas` plus employees, hiring, time-tracking, approvals, calendar, documents, automations                                                                                                                                                                                                                                               |
+| `psa`              | Products   | `saas` plus contacts, tasks, time-tracking, billable-time, shifts, expenses, approvals, quotes, contracts, invoices, numbering, comments, attachments, tags, saved-views, search, automations                                                                                                                                           |
+| `ats`              | Products   | `saas` plus hiring, employees, forms, calendar, bookings, templates, signatures, approvals, reminders, comments, attachments, tags, saved-views, search, automations                                                                                                                                                                    |
+| `intranet`         | Products   | `saas` plus announcements, knowledge, drive, channels, reactions, comments, employees, calendar, acknowledgements, attachments, tags, saved-views, search                                                                                                                                                                               |
 | `drive`            | Products   | `saas` plus drive, attachments, share-links, versions, trash, search                                                                                                                                                                                                                                                                    |
 | `docs`             | Products   | `saas` plus documents, versions, comments, reactions, templates, search, share-links                                                                                                                                                                                                                                                    |
 | `invoicing`        | Products   | `saas` plus parties, quotes, invoices, numbering                                                                                                                                                                                                                                                                                        |
@@ -179,9 +182,12 @@ config on the local stack and drives the flows end to end.
 
 The [CMS](/docs/presets/cms), [ERP](/docs/presets/erp),
 [manufacturing](/docs/presets/manufacturing),
-[product information](/docs/presets/pim) and [care](/docs/presets/care)
-pages describe the `cms`, `erp`, `manufacturing`, `pim` and `care` presets
-and how their blocks connect.
+[product information](/docs/presets/pim), [care](/docs/presets/care),
+[professional services](/docs/presets/psa), [applicant tracking](/docs/presets/ats)
+and [intranet](/docs/presets/intranet) pages describe the `cms`, `erp`,
+`manufacturing`, `pim`, `care`, `psa`, `ats` and `intranet` presets and how
+their blocks connect. HR and people operations are the `people` preset, and a
+help desk is `helpdesk`; there is no separate HRIS or ticketing preset.
 `tests/validation-presets` installs each one and checks those links on the
 local stack.
 

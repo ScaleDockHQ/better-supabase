@@ -1,0 +1,55 @@
+---
+title: Applicant tracking
+description: The ats preset installs jobs and candidates on hiring pipelines, application forms, interview scheduling, offer templates and signatures, approvals and reminders.
+---
+
+The `ats` preset is for a recruiting team in the style of Greenhouse or Lever. Candidates apply through a form, move through the stages of a job, are interviewed on the team's calendars and receive a signed offer. When someone is hired the employees block takes over; the HRIS side (onboarding, time off, the org chart) is the [`people`](/docs/presets#named-presets) preset.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "ats" });
+```
+
+`npx better-supabase init --preset ats` starts a new project from it,
+and `npx better-supabase add --preset ats` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                   | Role in the app                                                     |
+| --------------------------------------- | ------------------------------------------------------------------- |
+| [hiring](/docs/blocks/hiring)           | Jobs, applications on a pipeline per job, scorecards and interviews |
+| [employees](/docs/blocks/employees)     | The record a hired candidate becomes                                |
+| [forms](/docs/blocks/forms)             | Application forms and screening questions                           |
+| [calendar](/docs/blocks/calendar)       | Interviewer availability and the interview calendar                 |
+| [bookings](/docs/blocks/bookings)       | Interview slots that candidates and interviewers book               |
+| [templates](/docs/blocks/templates)     | Offer and rejection letters                                         |
+| [signatures](/docs/blocks/signatures)   | Signed offers                                                       |
+| [approvals](/docs/blocks/approvals)     | Sign-off on an offer before it goes out                             |
+| [reminders](/docs/blocks/reminders)     | Nudges to interviewers who owe a scorecard                          |
+| [comments](/docs/blocks/comments)       | Discussion on a candidate                                           |
+| [tags](/docs/blocks/tags)               | Sources and talent pools                                            |
+| [search](/docs/blocks/search)           | Finding a candidate                                                 |
+| [saved-views](/docs/blocks/saved-views) | A view per hiring manager                                           |
+| [automations](/docs/blocks/automations) | Default rules between the blocks                                    |
+
+## How the blocks connect
+
+A candidate is a subject declared in `config.subjects`, and an application
+moves along the pipeline of its job; the hire, reject and withdraw events are
+the hooks for the app to act on ([hiring](/docs/blocks/hiring)). Interview
+slots are bookings on the interviewers' calendars, so a slot that is taken
+cannot be booked twice ([bookings](/docs/blocks/bookings)). An offer is a
+template rendered for the candidate, released by an approval and signed
+through the signatures block.
+
+## With ReUI
+
+- Kanban for the stages of one job, one column per stage.
+- A Badge with each candidate's stage and a Dialog for the scorecard.

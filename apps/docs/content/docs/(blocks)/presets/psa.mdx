@@ -1,0 +1,61 @@
+---
+title: Professional services
+description: The psa preset installs clients, tasks, time tracking priced from rate cards, a staffing roster, expenses, quotes, contracts and invoices that bill the approved time.
+---
+
+The `psa` preset is for a consultancy, agency or studio in the style of Productive or Kantata. The team tracks time against client work, prices it from a rate card, plans who works when, and bills the result.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "psa" });
+```
+
+`npx better-supabase init --preset psa` starts a new project from it,
+and `npx better-supabase add --preset psa` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                       | Role in the app                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------ |
+| [contacts](/docs/blocks/contacts)           | Clients and their people                                           |
+| [tasks](/docs/blocks/tasks)                 | The work items and projects the time is booked against             |
+| [time-tracking](/docs/blocks/time-tracking) | Hours per person, task and day                                     |
+| [billable-time](/docs/blocks/billable-time) | Rate cards and the draft invoice lines the tracked time turns into |
+| [shifts](/docs/blocks/shifts)               | The staffing roster and planned hours                              |
+| [expenses](/docs/blocks/expenses)           | Costs to pass on to a client                                       |
+| [approvals](/docs/blocks/approvals)         | Sign-off on timesheets, expenses and quotes                        |
+| [quotes](/docs/blocks/quotes)               | Proposals before the work starts                                   |
+| [contracts](/docs/blocks/contracts)         | Retainers and framework agreements, with renewal reminders         |
+| [invoices](/docs/blocks/invoices)           | Invoices, with numbers from numbering                              |
+| [comments](/docs/blocks/comments)           | Discussion on tasks and quotes                                     |
+| [tags](/docs/blocks/tags)                   | Service lines and client segments                                  |
+| [search](/docs/blocks/search)               | Finding a client, task or document                                 |
+| [saved-views](/docs/blocks/saved-views)     | Saved filters for each role                                        |
+| [automations](/docs/blocks/automations)     | Default rules between the blocks                                   |
+
+## How the blocks connect
+
+Billable time prices each tracked entry from the rate card of the member, the
+record or the organization and turns approved entries into draft invoice
+lines. An entry that is billed locks until its invoice is voided
+([billable-time](/docs/blocks/billable-time)). Shifts plan who is available, so
+the roster and the tracked hours sit side by side
+([shifts](/docs/blocks/shifts)). A quote that the client accepts becomes work
+on the tasks block; the preset does not turn that on by default, so add the
+automation you want under `blocks.automations.options.enable`.
+
+The preset stays domain neutral. Customers who ask for a resource planner
+beyond the roster, or a project budget, add the blocks they need on top.
+
+## With ReUI
+
+- A DataGrid of tracked time per person and week, grouped by client.
+- A Badge on each entry for `draft`, `approved` and `billed`.
+- A Dialog to preview what a client would be billed before creating the invoice.
