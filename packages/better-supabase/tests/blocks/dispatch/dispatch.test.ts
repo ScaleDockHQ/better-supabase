@@ -443,6 +443,73 @@ describe("createDispatch", () => {
     });
   });
 
+  it("optimizes a route and plans it, with stops without a place last", async () => {
+    const at = (id: string): typeof ORDER => ({ ...ORDER, id });
+
+    const fake = fakeTransport({
+      technician_day: {
+        technicianId: "t1",
+        date: "2026-10-22",
+        routeId: null,
+        stops: [
+          { position: 1, workOrder: at("far") },
+          { position: 2, workOrder: at("nowhere") },
+          { position: 3, workOrder: at("near") },
+        ],
+      },
+      plan_dispatch_route: {
+        id: "r1",
+        organizationId: "org-1",
+        technicianId: "t1",
+        routeDate: "2026-10-22",
+        stops: ["near", "far", "nowhere"],
+      },
+    });
+
+    const dispatch = createDispatch({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const points: Record<string, { latitude: number; longitude: number }> = {
+      far: { latitude: 52.5, longitude: 5.5 },
+      near: { latitude: 52.01, longitude: 5.01 },
+    };
+
+    const result = await dispatch
+      .optimizeRoute("t1", Temporal.PlainDate.from("2026-10-22"), {
+        locate: (order) => points[order.id],
+        start: { latitude: 52, longitude: 5 },
+        end: { latitude: 52, longitude: 5 },
+        durationMinutes: () => 30,
+      })
+      .orThrow();
+
+    expect(result.optimization.source).toBe("optimizer");
+    expect(result.route.workOrderIds).toEqual(["near", "far", "nowhere"]);
+    expect(fake.calls[1]?.[1]).toMatchObject({
+      work_orders: ["near", "far", "nowhere"],
+    });
+
+    await dispatch
+      .optimizeRoute("t1", Temporal.PlainDate.from("2026-10-22"), {
+        locate: (order) => points[order.id],
+        optimizer: {
+          apiVersion: 1,
+          name: "custom",
+          optimize: (request) =>
+            Promise.resolve({
+              order: request.stops.map((stop) => stop.id).toReversed(),
+            }),
+        },
+      })
+      .orThrow();
+
+    expect(fake.calls[3]?.[1]).toMatchObject({
+      work_orders: ["near", "far", "nowhere"],
+    });
+  });
+
   it("records, lists and removes parts", async () => {
     const fake = fakeTransport({
       record_work_order_part: PART,

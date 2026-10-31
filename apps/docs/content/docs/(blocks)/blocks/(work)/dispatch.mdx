@@ -95,6 +95,7 @@ hour. Creating, changing and scheduling need `dispatch.manage`.
 | `board({ from, to, technicianIds })`                   | the schedule board                                                                                   |
 | `technicianDay(day, technicianId)`                     | the technician's day plan                                                                            |
 | `planRoute(technicianId, day, ids)`                    | the route with its stops in order                                                                    |
+| `optimizeRoute(technicianId, day, options)`            | the route planned in the order a `RouteOptimizer` found, with which optimizer ran                    |
 | `recordPart(workOrderId, input)`                       | the recorded part                                                                                    |
 | `parts(workOrderId)`                                   | the work order's parts, oldest first                                                                 |
 | `removePart(partId)`                                   | `true` when the part was removed                                                                     |
@@ -145,6 +146,65 @@ blocks: {
   dispatch: { options: { timeZone: "Europe/Amsterdam", defaultDuration: "90 minutes" } },
 },
 ```
+
+## Optimize a route
+
+`optimizeRoute` orders a technician's day for you and plans the result. The
+app says where each work order is, because work orders hold a location id or a
+free-text address, not coordinates:
+
+```ts
+import { fetchRouteOptimizer } from "better-supabase/blocks/dispatch";
+
+const { route, optimization } = await db.dispatch
+  .optimizeRoute(technicianId, Temporal.PlainDate.from("2030-01-07"), {
+    locate: (order) => coordinatesByLocation.get(order.locationId ?? ""),
+    start: depot,
+    end: depot,
+    optimizer: fetchRouteOptimizer({
+      url: "https://routes.example.com/optimize",
+      headers: { authorization: `Bearer ${process.env.ROUTES_KEY}` },
+    }),
+  })
+  .orThrow();
+```
+
+Work orders `locate` can't place go last, in their current order. Without an
+`optimizer` the block uses `nearestNeighbourOptimizer()`, which always drives to
+the closest stop left, from `start` when it is given.
+
+`RouteOptimizer` is a versioned port (`apiVersion: 1`): `optimize(request)`
+takes `{ start?, end?, stops }` and returns `{ order, distanceMeters?,
+durationSeconds? }`. `fetchRouteOptimizer` posts the request as JSON to a
+routing service and reads that answer back. `optimizeStops` never throws: when
+the optimizer fails, or its order drops, repeats or invents a stop, the
+nearest-neighbour order is used and `optimization.source` is `fallback` with the
+reason in `fallbackReason`.
+
+## Order home-care visits within a shift
+
+`planVisits` does the same for the bookings of one caregiver's shift. It orders
+the visits, then walks the shift clock along the order (travel at
+`averageSpeedKmh`, 30 by default, then the visit's length):
+
+```ts
+import { planVisits } from "better-supabase/blocks/dispatch";
+
+const plan = await planVisits(
+  { startsAt: shift.startsAt, endsAt: shift.endsAt },
+  bookings.map((booking) => ({
+    id: booking.id,
+    point: homeOf(booking),
+    durationMinutes: 45,
+  })),
+  { start: officePoint },
+);
+
+const overflow = plan.visits.filter((visit) => !visit.withinShift);
+```
+
+Visits that end after the shift stay in the list with `withinShift: false`, so a
+planner can move them to another shift.
 
 ## Parts
 
