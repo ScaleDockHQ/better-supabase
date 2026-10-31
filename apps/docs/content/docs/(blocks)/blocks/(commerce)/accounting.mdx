@@ -122,6 +122,32 @@ organization maps every role to one of its accounts with
 The generic chart maps all of them. A posting or a year-end close that needs
 an unmapped role fails with `ACCOUNTING_ACCOUNT_ROLE_MISSING`.
 
+## Import a chart of accounts
+
+`importChart` reads a reference scheme, such as the Dutch RGS, through an
+`AccountingChartFormat` (`apiVersion: 1`) and saves its accounts. better-supabase
+bundles no scheme: a scheme package implements `parse(body)` and returns
+accounts with an optional `parentCode` and the `roles` each plays.
+
+```ts
+import { importChart } from "better-supabase/blocks/accounting";
+
+const imported = await importChart(
+  accounting,
+  organizationId,
+  myRgsFormat,
+  await file.text(),
+).orThrow();
+
+imported.accounts; // parents before their children
+imported.roles; // { receivable: "...", bank: "..." }
+```
+
+Saving a code again updates that account, so importing the same file twice
+changes nothing. A file that lists a code twice, names a parent that isn't in
+it, forms a parent cycle or gives one role to two accounts saves nothing and
+returns `ACCOUNTING_CHART_INVALID`.
+
 ## Entries
 
 `saveEntry` creates a draft, or replaces a draft's header and lines when it

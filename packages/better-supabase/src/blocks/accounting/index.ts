@@ -93,3 +93,11 @@ export type {
   AccountingPeriodReopenedEventData,
   FiscalYearClosedEventData,
 } from "./events.ts";
+
+export {
+  chartFormatOf,
+  importChart,
+  type AccountingChartFormat,
+  type ChartAccount,
+  type ChartImport,
+} from "./chart.ts";

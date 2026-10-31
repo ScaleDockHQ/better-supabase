@@ -503,6 +503,31 @@ await templates.recurring
 invoice or credit note as a UBL 2.1 document for Peppol and reads a received
 one into a purchase bill.
 
+### Send through your own format and channel
+
+`sendEInvoice` renders an issued invoice with an `EInvoiceFormat` and hands the
+document to an `EInvoiceChannel`. Both are versioned ports (`apiVersion: 1`)
+that better-supabase doesn't implement: a format package writes the layout of
+its standard (Peppol BIS, XRechnung, Factur-X), and a channel package owns the
+access point credentials. Drafts and void invoices come back as
+`EINVOICE_NOT_ISSUED`, and a format or channel that throws comes back as an
+error result.
+
+```ts
+import { sendEInvoice } from "better-supabase/blocks/invoices";
+
+const sent = await sendEInvoice({
+  invoice: await invoices.issue(draft.id).orThrow(),
+  format: myPeppolFormat,
+  channel: myAccessPoint,
+}).orThrow();
+
+// Keep it: `channel.status?.(sent.externalRef, ...)` asks the network later.
+await saveReference(sent.invoiceId, sent.externalRef);
+```
+
+The call records nothing, so the app stores the `externalRef`.
+
 ## In the books
 
 With the [accounting](/docs/blocks/accounting#postings-from-other-blocks)

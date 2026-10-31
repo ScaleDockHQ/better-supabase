@@ -50,3 +50,16 @@ export { invoicesBlock } from "./manifest.ts";
 export { invoicesEvents } from "./events.ts";
 
 export type { InvoicesEvents } from "./events.ts";
+
+export {
+  eInvoiceChannelOf,
+  eInvoiceFormatOf,
+  sendEInvoice,
+  type EInvoiceChannel,
+  type EInvoiceContext,
+  type EInvoiceDelivery,
+  type EInvoiceDocument,
+  type EInvoiceFormat,
+  type EInvoiceStatus,
+  type SendEInvoiceOptions,
+} from "./e-invoice.ts";
