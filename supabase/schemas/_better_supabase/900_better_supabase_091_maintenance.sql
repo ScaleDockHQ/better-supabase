@@ -1,5 +1,5 @@
 -- better-supabase module: maintenance
--- @bsb-block maintenance@3 managed tasks
+-- @bsb-block maintenance@4 managed tasks
 -- @bsb-hash sha256:3e4bd13d3512a98997f5304fbf897d20990e4e94c96b5c56b58a8403cf8e9f02
 -- @bsb-names maintenance task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.

@@ -36,7 +36,7 @@ import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
 import { logsSubjectReads } from "./subject-registry.ts";
-import { columnBase, tableBase } from "./table-renames.ts";
+import { columnRenamer, tableBase } from "./table-renames.ts";
 import { blockColumnName } from "./tenant-column.ts";
 import { checkedValueMaps, valueMethods } from "./value-maps.ts";
 
@@ -887,10 +887,7 @@ export function createModuleContext(
           known.columns,
           known.columns[logical]!,
           tenantColumn,
-          (name) =>
-            naming.rename(
-              columnBase(resolved, names.migrations, table, logical, name),
-            ),
+          columnRenamer(resolved, names.migrations, table, logical),
         )
       : mapped;
   };

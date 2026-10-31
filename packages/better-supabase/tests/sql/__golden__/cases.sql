@@ -1366,7 +1366,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:18bd68804083f60168f9f3bdff4c711321efc5fee657de3798468faf88a574f4
+-- @bsb-hash sha256:12672ee387b142733db637235f02262a59c0d497c9d14ab38c0beb4b2f05b257
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2879,7 +2879,7 @@ begin
         'id', x."id", 'taskId', x."task_id", 'type', x."type", 'required', x."required", 'createdAt', x."created_at",
         'title', i."title", 'state', i."state", 'dueAt', i."due_at",
         'done', i."state" in ('completed', 'canceled'),
-        'assignees', coalesce((select jsonb_agg(s."user_id") from "better_supabase"."task_assignees" s where s."work_item_id" = x."task_id"), '[]'::jsonb)
+        'assignees', coalesce((select jsonb_agg(s."user_id") from "better_supabase"."task_assignees" s where s."task_id" = x."task_id"), '[]'::jsonb)
       ) order by x."created_at")
       from "better_supabase"."case_actions" x
       left join "better_supabase"."tasks" i on i."id" = x."task_id"
