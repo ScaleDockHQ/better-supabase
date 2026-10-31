@@ -130,3 +130,4 @@ tax
 document-templates
 lims
 appraisals
+warehouse

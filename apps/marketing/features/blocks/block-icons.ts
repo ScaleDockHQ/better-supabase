@@ -342,6 +342,7 @@ export const BLOCK_ICONS = {
   dam: ImagesIcon,
   lims: FlaskConicalIcon,
   appraisals: AwardIcon,
+  warehouse: ClipboardListIcon,
   "care-plans": ClipboardPlusIcon,
   // Database primitives
   "updated-at": ClockIcon,

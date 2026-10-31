@@ -244,6 +244,7 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_maintenance_plan_create",
   ],
   appraisals: ["before_appraisal_cycle_create", "after_appraisal_cycle_create"],
+  warehouse: ["before_pick_list_create", "after_pick_list_create"],
   meetings: [
     "before_meeting_create",
     "after_meeting_create",

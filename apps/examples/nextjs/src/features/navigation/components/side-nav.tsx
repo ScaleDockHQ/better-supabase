@@ -141,6 +141,7 @@ const ICONS = {
   dam: ImagesIcon,
   lims: FlaskConicalIcon,
   appraisals: AwardIcon,
+  warehouse: ClipboardListIcon,
   shifts: CalendarDaysIcon,
   finance: LandmarkIcon,
   payables: ReceiptTextIcon,
@@ -361,6 +362,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "appraisals": {
         return t("Appraisals");
+      }
+
+      case "warehouse": {
+        return t("Warehouse");
       }
 
       case "shifts": {

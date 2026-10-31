@@ -50,6 +50,7 @@ export type NavId =
   | "dam"
   | "lims"
   | "appraisals"
+  | "warehouse"
   | "shifts"
   | "finance"
   | "payables"
@@ -304,6 +305,12 @@ export const navItems: readonly NavItem[] = [
     href: "/appraisals",
     group: "workspace",
     requires: "appraisals.review",
+  },
+  {
+    id: "warehouse",
+    href: "/warehouse",
+    group: "workspace",
+    requires: "warehouse.pick",
   },
   { id: "shifts", href: "/shifts", group: "workspace" },
   {

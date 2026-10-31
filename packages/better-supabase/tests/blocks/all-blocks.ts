@@ -160,6 +160,7 @@ import type { vectorSearchBlock } from "../../src/blocks/vector-search/manifest.
 import type { vercelMarketplaceBlock } from "../../src/blocks/vercel-marketplace/manifest.ts";
 import type { versionsBlock } from "../../src/blocks/versions/manifest.ts";
 import type { waitlistBlock } from "../../src/blocks/waitlist/manifest.ts";
+import type { warehouseBlock } from "../../src/blocks/warehouse/manifest.ts";
 import type {
   incomingWebhooksBlock,
   webhooksBlock,
@@ -247,6 +248,7 @@ export type AllBlocks = {
   readonly dam: typeof damBlock;
   readonly lims: typeof limsBlock;
   readonly appraisals: typeof appraisalsBlock;
+  readonly warehouse: typeof warehouseBlock;
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
   readonly tax: typeof taxBlock;

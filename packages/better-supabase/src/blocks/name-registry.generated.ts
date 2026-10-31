@@ -2445,6 +2445,25 @@ export interface BlockNameRegistry {
     readonly primary: "waitlist_entry";
     readonly formerKeys: "entry";
   };
+  readonly "warehouse": {
+    readonly tables: {
+      readonly "waves": "id" | "tenant" | "name" | "location" | "status" | "releasedAt" | "completedAt" | "createdBy" | "createdAt";
+      readonly "lists": "id" | "tenant" | "wave" | "location" | "documentType" | "documentId" | "status" | "assignee" | "task" | "pickedAt" | "createdBy" | "createdAt";
+      readonly "lines": "id" | "tenant" | "list" | "allocation" | "variant" | "bin" | "lot" | "serials" | "quantity" | "picked" | "status" | "pickedAt" | "pickedBy";
+      readonly "plans": "id" | "tenant" | "name" | "location" | "everyDays" | "variants" | "varianceLimit" | "nextRunOn" | "lastRunAt" | "lastCount" | "active" | "createdAt";
+    };
+    readonly functions: "cancel_pick_wave" | "complete_pick_list" | "count_plan_run" | "create_count_plan" | "create_pick_list" | "create_pick_wave" | "get_cycle_count_variance" | "get_pick_list" | "list_count_plans" | "list_pick_lists" | "list_pick_waves" | "pick_list_json" | "pick_list_task" | "post_cycle_count" | "record_pick" | "release_pick_wave" | "run_count_plan" | "run_due_count_plans";
+    readonly actions: "read" | "pick" | "manage";
+    readonly hooks: "before_pick_list_create" | "after_pick_list_create";
+    readonly entities: {
+      readonly "pick_list": "id" | "tenant_id" | "wave_id" | "location_id" | "document_type" | "document_id" | "status" | "assignee_id" | "task_id" | "picked_at" | "created_by" | "created_at";
+      readonly "pick_wave": "id" | "tenant_id" | "name" | "location_id" | "status" | "released_at" | "completed_at" | "created_by" | "created_at";
+      readonly "pick_line": "id" | "tenant_id" | "pick_list_id" | "allocation_id" | "variant_id" | "bin_id" | "lot_id" | "serials" | "quantity" | "picked" | "status" | "picked_at" | "picked_by";
+      readonly "count_plan": "id" | "tenant_id" | "name" | "location_id" | "every_days" | "variant_ids" | "variance_limit_pct" | "next_run_on" | "last_run_at" | "last_count_id" | "active" | "created_at";
+    };
+    readonly primary: "pick_list";
+    readonly formerKeys: never;
+  };
   readonly "webhook-inbox": {
     readonly tables: {
       readonly "messages": "id" | "source" | "messageId" | "eventType" | "payload" | "headers" | "status" | "attempts" | "maxAttempts" | "availableAt" | "lockedBy" | "lockedUntil" | "lastError" | "receivedAt" | "processedAt" | "tenant" | "checkpoint";
