@@ -51,18 +51,37 @@ describe.skipIf(!source)("readExtras against the local stack", () => {
   });
 
   it("keeps the fingerprint across temporary tables", async () => {
-    const before = await catalogFingerprint(db);
-    await db.query("begin");
+    // Other integration files change the shared database, so a reading only
+    // counts when the catalog was identical before and after it.
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const before = await catalogFingerprint(db);
+      await db.query("begin");
 
-    try {
-      await db.query(
-        "create temp table introspect_scratch (id int primary key, note text default 'x')",
-      );
-      expect(await catalogFingerprint(db)).toBe(before);
-      await db.query("create table public.introspect_probe (id int)");
-      expect(await catalogFingerprint(db)).not.toBe(before);
-    } finally {
-      await db.query("rollback");
+      let withTemp: string;
+      let withTable: string;
+
+      try {
+        await db.query(
+          "create temp table introspect_scratch (id int primary key, note text default 'x')",
+        );
+
+        withTemp = await catalogFingerprint(db);
+        await db.query("create table public.introspect_probe (id int)");
+        withTable = await catalogFingerprint(db);
+      } finally {
+        await db.query("rollback");
+      }
+
+      if ((await catalogFingerprint(db)) !== before) {
+        continue;
+      }
+
+      expect(withTemp).toBe(before);
+      expect(withTable).not.toBe(before);
+
+      return;
     }
+
+    throw new Error("the catalog kept changing under the fingerprint test");
   });
 });
