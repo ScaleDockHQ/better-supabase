@@ -280,6 +280,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0163: Digital asset management is renditions made through the drive preview port and usage rights with territory, channel and expiry on drive files.
 - 0164: `lims` keeps samples, methods with specification limits and results; an out of specification result opens a `cases` nonconformity and blocks release, and instruments are assets with qualifications.
 - 0166: Purchase bill lines and expense lines carry `dimensions`; a report books one expense line per dimension set, so project costs split.
+- 0167: Appraisals run review cycles over enrollments, forms, goals and approvals, with calibration and sign-off.
 
 ## Pre-release pins
 

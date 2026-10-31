@@ -22,6 +22,7 @@ import { AI_PROVIDERS } from "./modules/ai-keys.ts";
 import { AI_TASKS } from "./modules/ai-schedules.ts";
 import { ANNOUNCEMENTS } from "./modules/announcements.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
+import { APPRAISALS } from "./modules/appraisals.ts";
 import { APPROVALS } from "./modules/approvals.ts";
 import { ASSETS } from "./modules/assets.ts";
 import { ASSIGNMENT } from "./modules/assignment.ts";
@@ -424,6 +425,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(TAX),
       built(DOCUMENT_TEMPLATES),
       built(LIMS),
+      built(APPRAISALS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

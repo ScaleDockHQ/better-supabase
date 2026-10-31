@@ -38,6 +38,7 @@
   "blocks/ai-schedules",
   "blocks/announcements",
   "blocks/api-keys",
+  "blocks/appraisals",
   "blocks/approvals",
   "blocks/assets",
   "blocks/assignment",

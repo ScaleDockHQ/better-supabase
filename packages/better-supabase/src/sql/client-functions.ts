@@ -138,6 +138,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "add_inspection_finding approve_inspection_program cancel_inspection close_inspection close_inspection_program complete_inspection delete_inspection_finding get_inspection list_inspection_programs list_inspections notify_overdue_inspections raise_inspection_finding_case save_inspection_checklist save_inspection_program schedule_inspection set_inspection_members start_inspection update_inspection update_inspection_finding",
   lims: "archive_lims_method complete_sample get_sample instrument_status list_lims_methods list_samples record_lims_result register_sample reject_sample release_sample save_lims_method",
   dam: "check_usage grant_usage_right list_renditions list_usage_rights notify_expiring_usage_rights record_rendition revoke_usage_right",
+  appraisals:
+    "calibrate_appraisal close_appraisal_cycle create_appraisal_cycle get_appraisal list_appraisal_cycles list_appraisals open_appraisal_cycle set_appraisal_goals sign_off_appraisal submit_appraisal_review",
   maintenance:
     "create_maintenance_meter create_maintenance_plan delete_maintenance_plan generate_maintenance_work_orders list_calibrations list_maintenance_meters list_maintenance_plans record_calibration record_meter_reading update_maintenance_plan",
   meetings:

@@ -6,6 +6,17 @@ msgstr ""
 "X-Generator: next-intl\n"
 "X-Message-Key: msgctxt\n"
 
+#: src/app/[locale]/(app)/appraisals/page.tsx
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.uiZ53z"
+msgid "Appraisals"
+msgstr "Appraisals"
+
+#: src/app/[locale]/(app)/appraisals/page.tsx
+msgctxt "appraisals.iBNQp0"
+msgid "Review cycles with self, peer and manager reviews, calibration and sign-off."
+msgstr "Review cycles with self, peer and manager reviews, calibration and sign-off."
+
 #: src/app/[locale]/(app)/approvals/page.tsx
 msgctxt "approvals.nFa1Ms"
 msgid "Approvals"
@@ -1708,6 +1719,86 @@ msgstr "Cancel"
 msgctxt "apiKeys.VzzYJk"
 msgid "Create"
 msgstr "Create"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.plemGH"
+msgid "In review"
+msgstr "In review"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.wiy-GN"
+msgid "Reviewed"
+msgstr "Reviewed"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.0LGX-k"
+msgid "Calibrated"
+msgstr "Calibrated"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.VYENfO"
+msgid "Awaiting sign-off"
+msgstr "Awaiting sign-off"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.D4NvAE"
+msgid "Signed off"
+msgstr "Signed off"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals._VS1yx"
+msgid "Sign off"
+msgstr "Sign off"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.1mnmBr"
+msgid "Person"
+msgstr "Person"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.ETRyBL"
+msgid "Rating"
+msgstr "Rating"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.yZSsV7"
+msgid "One appraisal per person in a review cycle, with its rating and where it stands."
+msgstr "One appraisal per person in a review cycle, with its rating and where it stands."
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.PcmXgz"
+msgid "The appraisals didn't load"
+msgstr "The appraisals didn't load"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.z7jb5m"
+msgid "No appraisals yet"
+msgstr "No appraisals yet"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.p9yFub"
+msgid "Open a review cycle with the people to review, and each gets an appraisal with self, peer and manager reviews."
+msgstr "Open a review cycle with the people to review, and each gets an appraisal with self, peer and manager reviews."
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.ZrWlbO"
+msgid "Read the appraisals guide"
+msgstr "Read the appraisals guide"
 
 #: src/features/approvals/components/approval-decision.tsx
 msgctxt "approvals.GkMwHf"
@@ -10613,13 +10704,19 @@ msgid "Assets"
 msgstr "Assets"
 
 #: src/features/navigation/components/side-nav.tsx
-#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.U2griC"
 msgid "Laboratory"
 msgstr "Laboratory"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.dudqv_"
 msgid "Maintenance"
 msgstr "Maintenance"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.uiZ53z"
+msgid "Appraisals"
+msgstr "Appraisals"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.poLbhw"

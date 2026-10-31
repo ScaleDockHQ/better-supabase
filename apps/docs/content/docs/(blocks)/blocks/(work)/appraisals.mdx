@@ -1,0 +1,111 @@
+---
+title: Appraisals
+description: Review cycles with self, peer and manager reviews, calibration sessions, goals and sign-off through approvals.
+---
+
+`appraisals` runs a performance review cycle. Opening a cycle gives each person
+an appraisal with a self review, a manager review and peer reviews. Once every
+review is in, a manager calibrates the rating and signs the appraisal off.
+
+```bash
+better-supabase add appraisals
+```
+
+```ts
+import { createAppraisals } from "better-supabase/blocks/appraisals";
+```
+
+The module requires `memberships`, `permissions` and `subjects`. With
+[enrollments](/docs/blocks/enrollments) a cycle follows a program and each stage
+marks a step. With [forms](/docs/blocks/forms) a review keeps the id of the
+submission that holds the longer answers. With [goals](/docs/blocks/goals) an
+appraisal looks back on goals. With [approvals](/docs/blocks/approvals) a
+sign-off waits for its request. With `outbox` it records the events, and with
+`audit` every change is audited.
+
+## Tables
+
+| Table                    | Holds                                                          |
+| ------------------------ | -------------------------------------------------------------- |
+| `appraisal_cycles`       | A cycle with its dates, status and optional enrollment program |
+| `appraisals`             | One appraisal per person and cycle, with rating and status     |
+| `appraisal_reviews`      | A self, peer or manager review with its rating and comments    |
+| `appraisal_calibrations` | The rating changes of calibration sessions, with their reasons |
+| `appraisal_goals`        | The goals an appraisal looks back on                           |
+
+An appraisal is a subject of type `appraisal`. Writes go through the functions
+below.
+
+| Permission          | Allows                                              | Default roles        |
+| ------------------- | --------------------------------------------------- | -------------------- |
+| `appraisals.read`   | reading every appraisal, review and calibration     | owner, admin         |
+| `appraisals.review` | writing the reviews assigned to you                 | owner, admin, member |
+| `appraisals.manage` | managing cycles, calibrating, goals and signing off | owner, admin         |
+
+A member without `appraisals.read` reads the appraisals about them or that
+they review, and only the reviews they wrote.
+
+## Cycles
+
+`createCycle` makes a draft cycle. `openCycle` creates an appraisal for each
+assignment: a self review, a manager review when `managerId` is set and one
+review per peer. Call it again to add people to an open cycle. A person who
+already has an appraisal keeps it.
+
+```ts
+const cycle = await db.appraisals
+  .createCycle({
+    name: "2031 review",
+    startsOn: "2031-01-01",
+    endsOn: "2031-03-31",
+  })
+  .orThrow();
+
+await db.appraisals
+  .openCycle(cycle.id, [{ subjectUserId, managerId, peerIds: [peerId] }])
+  .orThrow();
+```
+
+`closeCycle` ends a cycle once every appraisal in it is signed off.
+`listCycles` lists the cycles.
+
+## Reviews and calibration
+
+`submitReview` takes a rating from 1 to 5, optional comments and an optional
+`submissionId` from `forms`. Only the assigned reviewer submits. When the last
+review is in, the appraisal is `reviewed` and its rating is the average.
+
+`calibrate` changes the rating of a reviewed appraisal in an open cycle and
+keeps the previous rating and the reason. `setGoals` replaces the goals the
+appraisal links to.
+
+```ts
+await db.appraisals
+  .submitReview(reviewId, { rating: 4, comments: "Steady" })
+  .orThrow();
+await db.appraisals.calibrate(appraisalId, 3, "Matches the team bar").orThrow();
+```
+
+## Sign-off
+
+`signOff` finishes a reviewed or calibrated appraisal. With `approvals` it files
+a request under the policy for `sign_off` (default: a holder of
+`appraisals.manage`) and the appraisal is `awaiting_signoff` until the request
+is approved, and goes back to its previous state when it is rejected. Without
+`approvals`, a holder of `appraisals.manage` signs it off directly.
+
+```ts
+const appraisal = await db.appraisals.signOff(appraisalId).orThrow();
+```
+
+## Events
+
+| Event                                                                         | Data                                                                  |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `appraisal_cycle.created`, `appraisal_cycle.opened`, `appraisal_cycle.closed` | `organizationId`, `id`, `name`, `status`                              |
+| `appraisal.created`                                                           | `organizationId`, `id`, `cycleId`, `subjectUserId`, `status`          |
+| `appraisal.calibrated`, `appraisal.finalized`                                 | the appraisal data and `rating`                                       |
+| `appraisal_review.submitted`                                                  | `organizationId`, `id`, `appraisalId`, `reviewerId`, `kind`, `rating` |
+
+The hooks are `before_appraisal_cycle_create` and
+`after_appraisal_cycle_create`.
