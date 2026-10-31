@@ -7,7 +7,7 @@ import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 import { createIncidents } from "../../src/blocks/incidents/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
-import { renderBlocks } from "../../src/sql/render.ts";
+import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -150,8 +150,6 @@ describe.skipIf(!live)("incidents", () => {
         .savePostmortem(incident.id, {
           summary: "Replica lag caused failed writes.",
           rootCause: "A replica on an undersized disk",
-          // oxlint-disable-next-line typescript/no-deprecated -- the install without tasks still writes the deprecated list.
-          actionItems: [{ title: "Alert on replica lag" }],
         })
         .orThrow();
       await s.as(owner);
@@ -252,13 +250,6 @@ describe.skipIf(!live)("incidents", () => {
         .savePostmortem(incident.id, { summary: "Workers stalled" })
         .orThrow();
 
-      expect(
-        await incidents
-          // oxlint-disable-next-line typescript/no-deprecated -- checks that the deprecated key is refused with tasks.
-          .savePostmortem(incident.id, { actionItems: [{ title: "Old" }] })
-          .then(hint),
-      ).toBe("INCIDENTS_INVALID");
-
       const due = Temporal.Instant.from("2026-11-01T09:00:00Z");
 
       const action = await incidents
@@ -292,8 +283,6 @@ describe.skipIf(!live)("incidents", () => {
         "Alert on queue depth",
         "Runbook",
       ]);
-      // oxlint-disable-next-line typescript/no-deprecated -- checks that the deprecated list stays empty with tasks.
-      expect(detail?.postmortem?.actionItems).toEqual([]);
 
       await s.asRole(outsider);
       expect(await incidents.removePostmortemAction(action.id).then(hint)).toBe(
@@ -324,7 +313,7 @@ describe.skipIf(!live)("incidents", () => {
     }
   });
 
-  it("copies action items written before the tasks block into tasks without losing one", async () => {
+  it("moves action items written before the tasks block into tasks and drops the column", async () => {
     const s = await BlockSession.open(pool);
 
     try {
@@ -356,19 +345,31 @@ describe.skipIf(!live)("incidents", () => {
       ];
 
       await s.service();
+      // A database from before the column went.
+      await s.rows(
+        "alter table better_supabase.incident_postmortems add column action_items jsonb not null default '[]'::jsonb",
+      );
       await s.rows(
         "update better_supabase.incident_postmortems set action_items = $1::jsonb where id = $2",
         [JSON.stringify(items), postmortem.id],
       );
 
-      const data = renderBlocks(WITH_TASKS, TASKS_LAYOUT).find(
-        (file) => file.module === "incidents" && file.kind === "data",
-      );
+      const step = upgradePlan(
+        [
+          { module: "incidents", version: 2 },
+          // The tasks block is current: only its presence matters here.
+          { module: "tasks", version: 999 },
+        ],
+        TASKS_LAYOUT,
+      )
+        .find((plan) => plan.module === "incidents")
+        ?.steps.map((each) => each.sql)
+        .join("\n");
 
-      expect(data).toBeDefined();
-      await s.rows(data?.contents ?? "");
-      // A second run adds nothing.
-      await s.rows(data?.contents ?? "");
+      expect(step).toBeDefined();
+      await s.rows(step ?? "");
+      // A second run finds no column and changes nothing.
+      await s.rows(step ?? "");
 
       await s.asRole(owner);
       const detail = await incidents.get(incident.id).orThrow();
@@ -383,13 +384,11 @@ describe.skipIf(!live)("incidents", () => {
       expect(actions[0]?.dueAt?.toString()).toBe("2026-11-02T09:00:00Z");
 
       await s.service();
-      // The column stays readable.
       expect(
         await s.value<number>(
-          "(select jsonb_array_length(action_items) from better_supabase.incident_postmortems where id = $1)",
-          [postmortem.id],
+          "(select count(*)::int from pg_attribute where attrelid = 'better_supabase.incident_postmortems'::regclass and attname = 'action_items' and not attisdropped)",
         ),
-      ).toBe(items.length);
+      ).toBe(0);
     } finally {
       await s.close();
     }

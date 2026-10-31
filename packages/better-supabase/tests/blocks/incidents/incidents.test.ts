@@ -85,7 +85,6 @@ const POSTMORTEM = {
   impact: "20 minutes of errors",
   rootCause: "A stuck replica",
   resolution: "Promoted a new primary",
-  actionItems: [{ title: "Alert on replica lag" }],
   status: "published",
   publishedAt: AT,
   authorId: "u1",
@@ -96,7 +95,6 @@ const POSTMORTEM = {
 const BARE_POSTMORTEM = {
   id: "pm2",
   incidentId: "i2",
-  actionItems: null,
   status: "draft",
   createdAt: AT,
   updatedAt: AT,
@@ -330,10 +328,7 @@ describe("createIncidents", () => {
 
     expect(detail?.updates.map((update) => update.id)).toEqual(["u1", "u2"]);
     expect(detail?.updates[1]).not.toHaveProperty("authorId");
-    expect(detail?.postmortem).toMatchObject({
-      rootCause: "A stuck replica",
-      actionItems: [{ title: "Alert on replica lag" }],
-    });
+    expect(detail?.postmortem).toMatchObject({ rootCause: "A stuck replica" });
     expect(bare?.updates).toEqual([]);
     expect(bare).not.toHaveProperty("postmortem");
     expect(missing).toBeUndefined();
@@ -396,14 +391,12 @@ describe("createIncidents", () => {
         impact: "Errors",
         rootCause: "Replica",
         resolution: "Promoted",
-        // oxlint-disable-next-line typescript/no-deprecated -- covers the deprecated key until 0.47.
-        actionItems: ["Alert"],
       })
       .orThrow();
 
     const published = await incidents.publishPostmortem("i1").orThrow();
 
-    expect(draft).toMatchObject({ status: "draft", actionItems: [] });
+    expect(draft).toMatchObject({ status: "draft" });
     expect(draft).not.toHaveProperty("summary");
     expect(published.publishedAt?.toString()).toBe(AT);
     expect(t.calls).toEqual([
@@ -417,7 +410,6 @@ describe("createIncidents", () => {
             impact: "Errors",
             rootCause: "Replica",
             resolution: "Promoted",
-            actionItems: ["Alert"],
           },
         },
       ],
@@ -710,7 +702,7 @@ describe("incidents block", () => {
       validate(statusComponentInputSchema, { name: "" }).issues,
     ).toBeDefined();
     expect(
-      validate(postmortemInputSchema, { actionItems: ["Alert"] }).issues,
+      validate(postmortemInputSchema, { summary: "Failover" }).issues,
     ).toBeUndefined();
     expect(
       validate(statusPageInputSchema, { slug: "acme", title: "Acme" }).issues,

@@ -18,7 +18,7 @@ that nobody has used yet.
 - The migration guide lists them as removed in 0.47.
 - Postmortem `actionItems` and the foreign key column renames stay deprecated
   until 0.48, because the copy step for action items must run on a database
-  before the column goes.
+  before the column goes. 0149 removes `actionItems` in 0.47 with an upgrade step.
 
 ## Alternatives considered
 

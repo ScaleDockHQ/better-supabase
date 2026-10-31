@@ -6017,7 +6017,6 @@ export const PRESET_CATALOG: PresetCatalog = {
               "impact": "impact",
               "rootCause": "root_cause",
               "resolution": "resolution",
-              "actionItems": "action_items",
               "status": "status",
               "publishedAt": "published_at",
               "author": "author_id",
@@ -15874,11 +15873,6 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "string",
                 "optional": true,
                 "maxLength": 10000
-              },
-              "actionItems": {
-                "kind": "json",
-                "optional": true,
-                "array": true
               }
             },
             "jsonSchema": {
@@ -15901,10 +15895,6 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "resolution": {
                   "type": "string",
                   "maxLength": 10000
-                },
-                "actionItems": {
-                  "type": "array",
-                  "items": {}
                 }
               },
               "additionalProperties": false

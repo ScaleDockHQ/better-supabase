@@ -108,7 +108,7 @@ export function incidentsFunctions(ctx: BlockSqlContext): string {
   const withTasks = ctx.installed("tasks");
 
   const postmortemJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${pm("id")}, 'incidentId', ${row}.${pm("incident")}, 'summary', ${row}.${pm("summary")}, 'impact', ${field("postmortems", row, "impact")}, 'rootCause', ${field("postmortems", row, "rootCause")}, 'resolution', ${field("postmortems", row, "resolution")}, 'actionItems', ${has("postmortems", "actionItems") ? `${row}.${pm("actionItems")}` : "'[]'::jsonb"}, 'actions', ${withTasks ? `${fn("incident_postmortem_action_list")}(${row}.${pm("id")})` : "'[]'::jsonb"}, 'status', ${row}.${pm("status")}, 'publishedAt', ${row}.${pm("publishedAt")}, 'authorId', ${field("postmortems", row, "author")}, 'createdAt', ${field("postmortems", row, "createdAt")}, 'updatedAt', ${field("postmortems", row, "updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${pm("id")}, 'incidentId', ${row}.${pm("incident")}, 'summary', ${row}.${pm("summary")}, 'impact', ${field("postmortems", row, "impact")}, 'rootCause', ${field("postmortems", row, "rootCause")}, 'resolution', ${field("postmortems", row, "resolution")}, 'actions', ${withTasks ? `${fn("incident_postmortem_action_list")}(${row}.${pm("id")})` : "'[]'::jsonb"}, 'status', ${row}.${pm("status")}, 'publishedAt', ${row}.${pm("publishedAt")}, 'authorId', ${field("postmortems", row, "author")}, 'createdAt', ${field("postmortems", row, "createdAt")}, 'updatedAt', ${field("postmortems", row, "updatedAt")})`;
 
   const incidentRecord = (
     type: string,
@@ -134,7 +134,6 @@ export function incidentsFunctions(ctx: BlockSqlContext): string {
       { column: "impact", read: "->>" },
       { column: "rootCause", read: "->>" },
       { column: "resolution", read: "->>" },
-      ...(withTasks ? [] : [{ column: "actionItems", read: "->" }]),
     ]
       .filter(({ column }) => has("postmortems", column))
       .map(
@@ -583,8 +582,8 @@ $$;
 ${userGrant(`${fn("list_incidents")}(${idType}, text, text, uuid, timestamptz, integer)`)}
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
--- resolution and, without the tasks block, actionItems
--- ([{ title, ownerId, done }]); a key left out keeps its value.
+-- resolution; a key left out keeps its value. Action items are tasks:
+-- add_incident_postmortem_action writes them.
 create or replace function ${fn("save_incident_postmortem")}(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -606,15 +605,9 @@ begin
   if jsonb_typeof(save_incident_postmortem.attrs) is distinct from 'object' then
     ${invalid("attrs must be an object")}
   end if;
-  ${
-    withTasks
-      ? `if save_incident_postmortem.attrs ? 'actionItems' then
-    ${invalid("actionItems is read-only with the tasks block: add_incident_postmortem_action writes action items")}
-  end if;`
-      : `if save_incident_postmortem.attrs ? 'actionItems' and jsonb_typeof(save_incident_postmortem.attrs -> 'actionItems') is distinct from 'array' then
-    ${invalid("actionItems must be an array")}
-  end if;`
-  }
+  if save_incident_postmortem.attrs ? 'actionItems' then
+    ${invalid("actionItems was removed: add_incident_postmortem_action writes action items as tasks")}
+  end if;
   insert into ${postmortems} (${pm("tenant")}, ${pm("incident")}${insertCol("postmortems", "author")})
   values (v_row.${i("tenant")}, v_row.${i("id")}${insertVal("postmortems", "author", "auth.uid()")})
   on conflict (${pm("incident")}) do nothing;

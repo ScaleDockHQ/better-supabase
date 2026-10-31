@@ -34,7 +34,7 @@ items are tasks. The choices behind the anonymous surface are in
 | `incidents`                         | The title, description, severity, status, whether it is public, the commander, and the start and end     |
 | `incident_updates`                  | The timeline: each update's status, text and whether it is public                                        |
 | `incident_impacts`                  | The components an incident affects and how                                                               |
-| `incident_postmortems`              | One postmortem per incident: summary, impact, root cause, resolution and action items                    |
+| `incident_postmortems`              | One postmortem per incident: summary, impact, root cause and resolution                                  |
 | `incident_postmortem_actions`       | With `tasks`: the tasks that are a postmortem's action items                                             |
 | `incident_status_pages`             | One page per organization, with a slug unique across organizations                                       |
 
@@ -149,20 +149,16 @@ linked tasks with their title, state, due date and close time.
 `removePostmortemAction` removes the link and keeps the task. Both need
 `incidents.write`, and deleting the task removes the link.
 
-`actionItems` (the `action_items` column) is deprecated and is removed in
-0.48. It stays readable, and without `tasks` `savePostmortem` still
-writes it. With `tasks`, `savePostmortem` refuses it with
-`INCIDENTS_INVALID`; write action items through `addPostmortemAction`
-instead.
-
-When you add `tasks` to an install that already has postmortems with
-`action_items`, `better-supabase add --adopt` copies each item into a task through
-`add_incident_postmortem_action`. An item is a string or an object with a
-`title` (or `text`, `name`, `description`), an optional `assigneeId` and an
-optional `dueAt`. An assignee or due date that doesn't parse is dropped from the
-task, and an item without a title becomes "Action item N". The step leaves the
-column as it is and skips a postmortem that already has linked actions, so
-running it again adds nothing.
+Action items are tasks, so the block needs `tasks` for them. `savePostmortem`
+no longer takes `actionItems`, and `incident_postmortems` has no `action_items`
+column. The `incidents` upgrade step copies the items of a database that still
+has the column into tasks through `add_incident_postmortem_action`, then drops
+the column (ADR 0149). An item is a string or an object with a `title` (or
+`text`, `name`, `description`), an optional `assigneeId` and an optional
+`dueAt`. An assignee or due date that doesn't parse is dropped from the task,
+and an item without a title becomes "Action item N". The step skips a
+postmortem that already has linked actions and stops with an error, instead of
+dropping the column, when it holds items it can't copy.
 
 ## Status page
 

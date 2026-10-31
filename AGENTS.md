@@ -261,6 +261,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0145: Document templates read a typed variable contract, look up per legal entity and language, and use tenant-editable text blocks.
 - 0146: Controlled document types can set a `numberFormat` and count from their own numbering entity.
 - 0148: Purchase bills are invoices with `direction = 'purchase'`; receipts are rows, requisitions run on approvals, a three-way match gates payment, contacts credit limits gate orders and sales invoices.
+- 0149: Postmortem `actionItems` and the `action_items` column go in 0.47; an `incidents` upgrade step copies them into tasks first.
 
 ## Pre-release pins
 

@@ -16,7 +16,7 @@ import {
   schemaPreamble,
 } from "../shared.ts";
 import { tableMoves } from "../table-renames.ts";
-import { copyActionItems } from "./incidents-data.ts";
+import { ACTION_ITEMS_TO_TASKS } from "./incidents-data.ts";
 import { incidentsFunctions } from "./incidents-functions.ts";
 import {
   INCIDENT_RESERVED,
@@ -186,7 +186,6 @@ const NAMES: BlockSqlNames = {
         impact: "impact",
         rootCause: "root_cause",
         resolution: "resolution",
-        actionItems: "action_items",
         status: "status",
         publishedAt: "published_at",
         author: "author_id",
@@ -197,7 +196,6 @@ const NAMES: BlockSqlNames = {
         "impact",
         "rootCause",
         "resolution",
-        "actionItems",
         "author",
         "createdAt",
         "updatedAt",
@@ -385,7 +383,7 @@ create table if not exists ${postmortems} (
   ${pm("tenant")} ${ctx.idType} not null,
   ${pm("incident")} uuid not null unique,
   -- The only postmortem field a public incident's status page shows.
-  ${pm("summary")} text check (${pm("summary")} is null or length(${pm("summary")}) <= 4000),${opt("postmortems", "impact", () => `${pm("impact")} text check (${pm("impact")} is null or length(${pm("impact")}) <= 10000)`)}${opt("postmortems", "rootCause", () => `${pm("rootCause")} text check (${pm("rootCause")} is null or length(${pm("rootCause")}) <= 10000)`)}${opt("postmortems", "resolution", () => `${pm("resolution")} text check (${pm("resolution")} is null or length(${pm("resolution")}) <= 10000)`)}${opt("postmortems", "actionItems", () => `${pm("actionItems")} jsonb not null default '[]'::jsonb check (jsonb_typeof(${pm("actionItems")}) = 'array')`)}
+  ${pm("summary")} text check (${pm("summary")} is null or length(${pm("summary")}) <= 4000),${opt("postmortems", "impact", () => `${pm("impact")} text check (${pm("impact")} is null or length(${pm("impact")}) <= 10000)`)}${opt("postmortems", "rootCause", () => `${pm("rootCause")} text check (${pm("rootCause")} is null or length(${pm("rootCause")}) <= 10000)`)}${opt("postmortems", "resolution", () => `${pm("resolution")} text check (${pm("resolution")} is null or length(${pm("resolution")}) <= 10000)`)}
   ${pm("status")} text not null default 'draft' check (${pm("status")} in ('draft', 'published')),
   ${pm("publishedAt")} timestamptz,${opt("postmortems", "author", () => `${pm("author")} uuid`)}${opt("postmortems", "createdAt", () => `${pm("createdAt")} timestamptz not null default now()`)}${opt("postmortems", "updatedAt", () => `${pm("updatedAt")} timestamptz not null default now()`)}
   foreign key (${pm("tenant")}, ${pm("incident")}) references ${incidents} (${i("tenant")}, ${i("id")}) on delete cascade
@@ -540,9 +538,9 @@ export const INCIDENTS: BlockSqlDefinition = {
   integrates: ["notifications", "outbox", "audit", "tasks"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
+  upgrades: [ACTION_ITEMS_TO_TASKS],
   names: NAMES,
   contract,
   build,
-  data: copyActionItems,
 };
