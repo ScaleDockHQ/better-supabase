@@ -1165,7 +1165,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(
       await readFile(join(root, "supabase/migrations", upgrade!), "utf-8"),
     ).toContain(
-      'alter table "better_supabase"."task_assignees" rename column "work_item_id" to "task_id"',
+      'alter trigger "bsb_work_item_guard" on "better_supabase"."tasks" rename to "bsb_task_guard"',
     );
     expect((await sql(["upgrade", "--check"], config)).code).toBe(0);
   });
