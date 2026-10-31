@@ -1,6 +1,6 @@
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:77db8bd08c7960f590376659a53be0acd4b264772212006e10646ff5f80292b2
+-- @bsb-hash sha256:fcb24b1ebdeff7ed383890637dd9a9f8ebab82fb848cd395c71652cda394f870
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,14 +129,104 @@ alter table "better_supabase"."invoices" add column if not exists legal_entity_i
 alter table "better_supabase"."invoices" drop constraint if exists "bsb_invoices_legal_entity_fk";
 alter table "better_supabase"."invoices" add constraint "bsb_invoices_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
 create index if not exists "bsb_invoices_legal_entity_idx" on "better_supabase"."invoices" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
+do $$
+declare
+  v_key record;
+begin
+  for v_key in
+    select i.indexrelid, c.conname, ic.relname as index_name,
+      (select string_agg(quote_ident(a.attname), ', ' order by k.ord)
+       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum) as cols
+    from pg_index i
+    join pg_class ic on ic.oid = i.indexrelid
+    left join pg_constraint c on c.conindid = i.indexrelid and c.contype = 'u'
+    where i.indrelid = '"better_supabase"."invoices"'::regclass and i.indisunique and not i.indisprimary
+      and i.indpred is null and i.indexprs is null
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        @> array['tenant_id']
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        && array['number', 'identifier']
+      and not (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        @> array['legal_entity_id']
+  loop
+    if v_key.conname is not null then
+      execute format('alter table "better_supabase"."invoices" drop constraint %I', v_key.conname);
+    else
+      execute format('drop index %s', v_key.indexrelid::regclass);
+    end if;
+    execute format('create unique index %I on "better_supabase"."invoices" (%s, coalesce(legal_entity_id, ''00000000-0000-0000-0000-000000000000''::uuid))',
+      v_key.index_name, v_key.cols);
+  end loop;
+end $$;
 alter table "better_supabase"."quotes" add column if not exists legal_entity_id uuid;
 alter table "better_supabase"."quotes" drop constraint if exists "bsb_quotes_legal_entity_fk";
 alter table "better_supabase"."quotes" add constraint "bsb_quotes_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
 create index if not exists "bsb_quotes_legal_entity_idx" on "better_supabase"."quotes" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
+do $$
+declare
+  v_key record;
+begin
+  for v_key in
+    select i.indexrelid, c.conname, ic.relname as index_name,
+      (select string_agg(quote_ident(a.attname), ', ' order by k.ord)
+       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum) as cols
+    from pg_index i
+    join pg_class ic on ic.oid = i.indexrelid
+    left join pg_constraint c on c.conindid = i.indexrelid and c.contype = 'u'
+    where i.indrelid = '"better_supabase"."quotes"'::regclass and i.indisunique and not i.indisprimary
+      and i.indpred is null and i.indexprs is null
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        @> array['tenant_id']
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        && array['number']
+      and not (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        @> array['legal_entity_id']
+  loop
+    if v_key.conname is not null then
+      execute format('alter table "better_supabase"."quotes" drop constraint %I', v_key.conname);
+    else
+      execute format('drop index %s', v_key.indexrelid::regclass);
+    end if;
+    execute format('create unique index %I on "better_supabase"."quotes" (%s, coalesce(legal_entity_id, ''00000000-0000-0000-0000-000000000000''::uuid))',
+      v_key.index_name, v_key.cols);
+  end loop;
+end $$;
 alter table "better_supabase"."orders" add column if not exists legal_entity_id uuid;
 alter table "better_supabase"."orders" drop constraint if exists "bsb_orders_legal_entity_fk";
 alter table "better_supabase"."orders" add constraint "bsb_orders_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
 create index if not exists "bsb_orders_legal_entity_idx" on "better_supabase"."orders" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
+do $$
+declare
+  v_key record;
+begin
+  for v_key in
+    select i.indexrelid, c.conname, ic.relname as index_name,
+      (select string_agg(quote_ident(a.attname), ', ' order by k.ord)
+       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum) as cols
+    from pg_index i
+    join pg_class ic on ic.oid = i.indexrelid
+    left join pg_constraint c on c.conindid = i.indexrelid and c.contype = 'u'
+    where i.indrelid = '"better_supabase"."orders"'::regclass and i.indisunique and not i.indisprimary
+      and i.indpred is null and i.indexprs is null
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        @> array['tenant_id']
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        && array['number', 'invoice_number']
+      and not (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        @> array['legal_entity_id']
+  loop
+    if v_key.conname is not null then
+      execute format('alter table "better_supabase"."orders" drop constraint %I', v_key.conname);
+    else
+      execute format('drop index %s', v_key.indexrelid::regclass);
+    end if;
+    execute format('create unique index %I on "better_supabase"."orders" (%s, coalesce(legal_entity_id, ''00000000-0000-0000-0000-000000000000''::uuid))',
+      v_key.index_name, v_key.cols);
+  end loop;
+end $$;
 alter table "better_supabase"."number_sequences" add column if not exists legal_entity_id uuid;
 alter table "better_supabase"."number_sequences" drop constraint if exists "bsb_number_sequences_legal_entity_fk";
 alter table "better_supabase"."number_sequences" add constraint "bsb_number_sequences_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;

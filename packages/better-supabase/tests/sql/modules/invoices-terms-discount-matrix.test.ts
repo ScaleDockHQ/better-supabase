@@ -12,8 +12,10 @@ const t = (table: string): string => `"s"."${table}"`;
 const i = (column: string): string => `"${column}"`;
 
 describe("lineMatrix", () => {
-  it("adds nothing while the option is off", () => {
-    expect(lineMatrix(context(false), t, i, () => true)).toEqual({});
+  it("adds no matrix while the option is off", () => {
+    expect(
+      lineMatrix(context(false), t, i, () => true).discountMatrix,
+    ).toBeUndefined();
   });
 
   it("prices for the company, else the contact, today", () => {

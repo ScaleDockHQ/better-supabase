@@ -84,17 +84,13 @@ select is(
   '[1, []]'::jsonb,
   'the credit-restricted invoice imports'
 );
--- Known gap: an issued invoice's header total ignores the credit restriction
--- that its tax lines apply (121000 against 115750), so the import compares the
--- source's 115750 with a computed 121000 and reports a mismatch. The source's
--- figures are kept either way.
-select todo_start('the invoice header total does not follow the credit restriction of its tax lines');
+-- The header total follows the credit restriction as the tax lines do, so the
+-- source's 115750 matches the computed total and nothing is reported.
 select is(
   (select coalesce(result -> 'warnings', '[]'::jsonb) from batches where name = 'restricted'),
   '[]'::jsonb,
   'the credit-restricted invoice reports no totals mismatch'
 );
-select todo_end();
 select is(
   (select jsonb_build_array(sum(net)::text, sum(tax)::text, sum(gross)::text)
    from better_supabase.invoice_tax_lines where invoice_id = (select id from better_supabase.invoices where identifier = 'INV-2602')),

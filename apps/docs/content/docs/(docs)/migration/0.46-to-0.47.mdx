@@ -620,6 +620,19 @@ Other 0.47 additions to contacts and invoices are optional: `credit_block`
 `document_delivery_preferences`, the dunning run and history tables, and
 `handOverToCollection`. The collection event is `invoice.collection_started`.
 
+## Numbers per legal entity
+
+With the legal entities block and `options.on` listing `invoices`, `quotes` or
+`orders`, the unique keys on those numbers now include the legal entity: the
+generated migration drops the old constraints and creates unique indexes of the
+same name over the tenant, the number and the entity. Two entities can then
+hold the same number. Without the option, nothing changes. A row without an
+entity and a row of the default entity count as different keys.
+
+An issued invoice's header total now includes the payment-term credit
+restriction, as its tax lines already did. Invoices issued before the upgrade
+keep their stored totals.
+
 ## Custom field entities
 
 Field definitions name a registered subject type (ADR 0156), so this is a
