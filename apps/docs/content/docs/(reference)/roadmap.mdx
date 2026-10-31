@@ -9,6 +9,61 @@ when it ships. Items move between horizons as upstream releases land; the
 [changelog](/docs/changelog)
 records what shipped.
 
+## Shipped for 0.47
+
+These are merged on `main` and ship in 0.47.0. The
+[0.46 to 0.47 upgrade guide](/docs/migration/0.46-to-0.47) covers the
+breaking ones.
+
+- **Quality management** (the [qms](/docs/presets/qms),
+  [ehs](/docs/presets/ehs) and [isms](/docs/presets/isms) presets): the
+  [acknowledgements](/docs/blocks/acknowledgements),
+  [cases](/docs/blocks/cases), [inspections](/docs/blocks/inspections),
+  [risks](/docs/blocks/risks) and
+  [qualifications](/docs/blocks/qualifications) blocks, drive roles, file
+  requests and controlled documents numbered per type, all linked through
+  `relations` kinds. The [quality management](/docs/guides/quality-management)
+  guide walks ISO 9001 clause by clause. See
+  [ADR 0132](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0132-quality-blocks.md).
+- **Care records** (the [care](/docs/presets/care) preset): record teams,
+  emergency access and a read log with the NEN 7513 fields, encrypted
+  lookups, a subject export, representatives,
+  [consents](/docs/blocks/consents), progress notes,
+  [care plans](/docs/blocks/care-plans),
+  [observations](/docs/blocks/observations),
+  [medications](/docs/blocks/medications) with signatures and guest reads,
+  [funding](/docs/blocks/funding), [shifts](/docs/blocks/shifts) and
+  [FHIR R4 mappers](/docs/concepts/fhir). See
+  [ADR 0134](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0134-record-teams-access-and-read-logging.md)
+  and
+  [ADR 0135](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0135-care-records.md).
+- **ERP** (the [erp](/docs/presets/erp) and
+  [manufacturing](/docs/presets/manufacturing) presets): the
+  [accounting](/docs/blocks/accounting) books beside the ledger, with
+  postings from invoices, charges, write-offs and named instances; purchase
+  bills, requisitions, receipts and credit limits; [banking](/docs/blocks/banking)
+  with statement import and reconciliation; collections, dunning and UBL
+  e-invoices; [manufacturing](/docs/blocks/manufacturing), whose purchase
+  suggestions go through purchasing; fixed asset depreciation, project costing
+  and [legal entities](/docs/blocks/legal-entities). See
+  [ADR 0136](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0136-accounting-books-beside-the-ledger.md).
+- **Meetings and payroll export**: the [meetings](/docs/blocks/meetings) block
+  (agenda, attendees, minutes, decisions, votes and action items as tasks)
+  and the [payroll export](/docs/blocks/payroll-export) block with its
+  `PayrollExportFormat` port.
+- **One naming convention** (breaking): entity keys equal the entity's
+  singular, event types are `<entity>.<past verb>`, module tables and the task
+  and activity foreign key columns follow their entity, inbox contacts are
+  contacts people, sequence runs are enrollments, AI file versions live in
+  `versions`, postmortem actions are tasks and policy acknowledgements live in
+  `acknowledgements`. See
+  [ADR 0130](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0130-one-naming-convention-for-blocks.md)
+  and
+  [ADR 0131](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0131-merge-overlapping-blocks.md).
+- **Block overlaps decided**: each overlapping pair stays separate with a
+  stated job, and seven blocks moved to the matching docs group. See
+  [ADR 0150](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0150-block-overlaps.md).
+
 ## Shipped in 0.8
 
 The [0.8.0 changelog](/docs/changelog#080-2026-10-12)
@@ -191,6 +246,125 @@ records the decision.
 17. **Presets as products,** with `cms`, `erp` and `pim`.
 18. **Gaps between blocks** people pick together.
 19. **Local-first engines** behind the same hooks.
+
+## Planned: after quality, care and ERP
+
+These follow the 0.47 work. Each becomes its own plan, and each names the
+blocks it builds on.
+
+### New blocks
+
+- **Maintenance:** preventive schedules by time or meter, meter readings,
+  work orders, spare parts and calibration records tied to the
+  qualifications of assets, for CMMS, EAM and fleet apps. Builds on `assets`,
+  `dispatch`, `tasks`, `inventory` and `reminders`.
+- **RFQs and supplier quotes:** requests for quotation sent to several
+  suppliers and their answers compared, ahead of the purchase order that
+  purchasing already covers. Builds on `inventory`, `quotes` and `contacts`.
+- **Appraisals:** review cycles, self and peer reviews, and calibration.
+  Builds on `forms`, `enrollments`, `goals` and `approvals`.
+- **Warehouse:** pick lists, waves and cycle counts over the bins inventory
+  already keeps. Builds on `inventory`, `assets` and `tasks`.
+- **POS till sessions:** cash drawers and end-of-day counts on the `pos`
+  preset. Builds on `orders`, `accounting` and `banking`.
+- **Route optimization** for home care and field service visits, which
+  today a dispatcher orders by hand with `planRoute`. Builds on `dispatch`,
+  `bookings` and `shifts`.
+- **DAM:** renditions, usage rights with expiry and brand collections.
+  Builds on `drive`, `attachments`, `collections` and `custom-fields`.
+- **Samples and tests:** samples, test results and specification limits, for
+  LIMS and incoming inspection. Builds on `forms`, `cases`, `assets` and
+  `qualifications`.
+
+### Presets that only need wiring
+
+The help desk preset ships as `helpdesk`. Four more need only a block list:
+
+- **HRIS:** `people` plus `leave`, `shifts`, `qualifications`, `courses`,
+  `onboarding` and `payroll-export`.
+- **ATS:** `hiring`, `forms`, `bookings`, `calendar`, `mail-sync`,
+  `templates` and `comments`.
+- **PSA:** `projects` plus `billable-time`, `quotes`, `invoices`,
+  `expenses`, `contracts`, `approvals` and `accounting`.
+- **Intranet:** `announcements`, `knowledge`, `documents`, `channels`,
+  `teams`, `acknowledgements` and `search`.
+
+### Quality management and the drive
+
+- **Drive retention per label:** a retention policy that follows a file's
+  label. Builds on `drive`, `tags` and `data-lifecycle`.
+- **A drive changes feed** for sync clients, so a desktop client pulls what
+  changed since its last cursor. Builds on `drive`.
+- **WOPI office editing:** open drive files in an office suite through the
+  WOPI protocol. Builds on `drive` and `versions`.
+
+### Care
+
+- **Offline sync for the care blocks** through PowerSync, for progress notes,
+  observations and medication administration. Builds on the existing
+  PowerSync support.
+- **Funding on the ledger and approvals:** awards and claims that post to
+  `ledger`, and registrations that wait for an `approvals` request, plus a
+  funding UI recipe. Today registration approval is the block's own status.
+- **Read logging for direct selects:** the read log records reads through the
+  blocks' read functions. A plain PostgREST select on a care table is not
+  logged yet.
+- **More care preset blocks:** `access-requests` and `invoices` as optional
+  additions to the `care` preset.
+
+### ERP
+
+- **Drop ship receipts:** receiving a drop-ship purchase order fulfils the
+  sales order it came from. Today the receipt leaves the sales order unfulfilled.
+- **Credit limits on the order's customer:** the order credit limit and its
+  override use the cart user's contacts person; they should use the
+  customer the order is for.
+- **Three-way match status per bill:** an invoices list function that
+  returns the match status of each purchase bill, so a payables page shows it
+  next to the aging totals.
+- **Fuller UBL:** `toUbl` for invoices whose prices include VAT, and for
+  charges added after issue, such as reminder fees.
+- **Project revenue without a double count:** billed time and an invoice line
+  with a `project` dimension both count as project revenue today, so
+  [project costing](/docs/blocks/billable-time#project-costing) asks you to
+  leave the dimension off lines that bill time.
+
+### Adapter packages
+
+These ship outside the library and plug into its versioned ports:
+
+- iWlz, iJw and iWmo claims through `FundingClaimFormat`.
+- The G-Standaard through `MedicationCatalog`.
+- RGS chart of accounts imports.
+- Peppol access points through `EInvoiceChannel`, with a UBL schema
+  validator.
+- Bank feeds through `BankFeed`.
+
+### Platform and naming
+
+- **The ADR 0150 follow-ups:** a pipeline stage move runs through the state
+  machine when the record type has one, one SQL helper parses cron
+  expressions for `ai-schedules`, `queue` and `workflows`, and an
+  `automations` action starts a published `workflow-editor` workflow.
+- **The remaining foreign key columns:** `rule_id` in the automation tables
+  and `snapshot_id` in forecasts take their entity's name, as `task_id` and
+  `activity_id` did in 0.47.
+- **Adopted tables in `upgrade`:** an adopted inbox `contacts` table, an
+  adopted `members` table for sequences and an adopted
+  `ai_document_versions` table are copied by hand today. `upgrade` should
+  move them as it moves the block's own tables.
+- **Payload filters on subscriptions:** a webhook endpoint or outbox consumer
+  that subscribes to `enrollment.*` gets every program's events. A filter on
+  `data.program` would let it keep only `sequence:` runs.
+
+### Removed in 0.48
+
+0.48 drops what 0.47 keeps for one minor: the old entity keys and subject
+types, the 0.46 permission keys in configured roles, `DbError.legacyHint`,
+the outbox `legacyEventTypes` option, `SequenceEnrollmentEventData` and
+`workItemChecklistBinding`. The
+[upgrade guide](/docs/migration/0.46-to-0.47#removed-in-048) lists each one
+with its replacement.
 
 ## Later
 

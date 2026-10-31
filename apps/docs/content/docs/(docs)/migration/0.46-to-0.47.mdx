@@ -21,6 +21,7 @@ the tasks block installed, postmortem action items become tasks. Everything this
 | --------------------------------------------------- | --------------------------------------------------- |
 | [Entity keys](#entity-keys)                         | Run `codemod 0.47`                                  |
 | [Subject types](#subject-types)                     | Run `upgrade`; rename stored types outside SQL      |
+| [Permission keys](#permission-keys)                 | Run `codemod 0.46` if you skipped it                |
 | [Hint codes](#hint-codes)                           | Run `codemod 0.47`, then check `ACTIVITY_FORBIDDEN` |
 | [Function names](#function-names)                   | Rename calls in your own SQL                        |
 | [Event types](#event-types)                         | Run `codemod 0.47`, then check `saved` types        |
@@ -126,6 +127,25 @@ in `blocks.<name>.on` too (`on: { compliance_policy: ... }`); doctor reports an
 `on` type that is no record type (BS346). Rename types you store outside
 better-supabase tables yourself.
 
+## Permission keys
+
+0.46 named every permission area after its block (`engagements.read` became
+`activities.read`, `parties.write` became `contacts.write`); the
+[0.45 to 0.46 guide](/docs/migration/0.45-to-0.46#permission-keys) has the
+details. In 0.47 a role in `blocks.permissions.roles` that still grants a
+0.46 key also grants its new key, with a warning, and doctor reports the old
+key ([BS422](/docs/cli/doctor#bs422)). That fallback goes in 0.48, so run the
+0.46 codemod if you skipped it:
+
+```sh
+npx better-supabase@latest codemod 0.46
+```
+
+0.47 adds one rename: `compliance.acknowledge` is now
+`acknowledgements.acknowledge`, because policy acknowledgements moved onto the
+acknowledgements block (see [Policy acknowledgements](#policy-acknowledgements)).
+`PERMISSION_KEY_RENAMES` maps it with the 0.46 keys.
+
 ## Hint codes
 
 Hint codes follow the entity's new noun: `WORK_ITEM_NOT_FOUND` becomes
@@ -133,7 +153,8 @@ Hint codes follow the entity's new noun: `WORK_ITEM_NOT_FOUND` becomes
 `RULE_CONFLICT` becomes `AUTOMATION_CONFLICT`. The codemod renames the quoted
 codes in your code and SQL. The full list is `HINT_RENAMES`, and
 `legacyHintOf(hint)` returns a hint's 0.46 code for code that compares stored
-errors.
+errors. Until 0.48 a `DbError` with a renamed hint also carries the old code
+in `legacyHint`.
 
 `ACTIVITY_FORBIDDEN` was the timeline's code and is now the activities
 block's. The timeline uses `TIMELINE_ENTRY_FORBIDDEN`. The codemod lists every
@@ -555,12 +576,21 @@ npx better-supabase@latest db diff -f upgrade_0_46
 
 ## Removed in 0.48
 
-These keep working in 0.47 and go in 0.48. `codemod 0.47` and doctor point
-at each one.
+These keep working in 0.47 and go in 0.48. The codemods and doctor point at
+the old keys, types and imports in your code.
 
-| Deprecated in 0.47                   | Use instead                                |
-| ------------------------------------ | ------------------------------------------ |
-| Old keys in `blocks.<name>.entities` | The entity's singular                      |
-| The old subject types                | `task`, `activity` and `compliance_policy` |
-| The outbox `legacyEventTypes` option | The new event types in every receiver      |
-| `SequenceEnrollmentEventData`        | `EnrollmentEventData`                      |
+| Deprecated in 0.47                       | Use instead                                |
+| ---------------------------------------- | ------------------------------------------ |
+| Old keys in `blocks.<name>.entities`     | The entity's singular                      |
+| The old subject types                    | `task`, `activity` and `compliance_policy` |
+| 0.46 permission keys in configured roles | The keys in `PERMISSION_KEY_RENAMES`       |
+| `DbError.legacyHint`                     | Match `hint`, or call `legacyHintOf(hint)` |
+| The outbox `legacyEventTypes` option     | The new event types in every receiver      |
+| `SequenceEnrollmentEventData`            | `EnrollmentEventData`                      |
+| `workItemChecklistBinding`               | `taskChecklistBinding`                     |
+
+Removed in 0.47 already, without a shim: the compliance client methods
+`acknowledgePolicy`, `acknowledgements(policyId)` and
+`policies(organizationId, { pendingOnly })`, the inbox `contacts.upsert`
+method and `upsert_contact`, the postmortem `actionItems` field and the
+`blocks["ai-files"].tables.versions` key.
