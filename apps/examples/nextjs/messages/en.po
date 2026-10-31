@@ -3247,6 +3247,11 @@ msgid "Publish a new version of the affected documents."
 msgstr "Publish a new version of the affected documents."
 
 #: src/features/cases/components/case-labels.ts
+msgctxt "cases.8DJ0Vg"
+msgid "Ask for approval to close the case."
+msgstr "Ask for approval to close the case."
+
+#: src/features/cases/components/case-labels.ts
 msgctxt "cases.yC3EIo"
 msgid "Containment"
 msgstr "Containment"
@@ -9541,6 +9546,11 @@ msgid "Workspace"
 msgstr "Workspace"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.y-7ihJ"
+msgid "Quality"
+msgstr "Quality"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.K56Dim"
 msgid "Organization"
 msgstr "Organization"
@@ -13437,9 +13447,9 @@ msgid "Create code"
 msgstr "Create code"
 
 #: src/features/shop/components/request-purchase-button.tsx
-msgctxt "shop.l4-R6R"
-msgid "Request purchase"
-msgstr "Request purchase"
+msgctxt "shop.x11Lxx"
+msgid "Purchase requested"
+msgstr "Purchase requested"
 
 #: src/features/shop/components/request-purchase-button.tsx
 msgctxt "shop.UYH-bA"
@@ -13447,9 +13457,9 @@ msgid "Request {quantity} of {label}"
 msgstr "Request {quantity} of {label}"
 
 #: src/features/shop/components/request-purchase-button.tsx
-msgctxt "shop.x11Lxx"
-msgid "Purchase requested"
-msgstr "Purchase requested"
+msgctxt "shop.l4-R6R"
+msgid "Request purchase"
+msgstr "Request purchase"
 
 #: src/features/signing-keys/components/rotate-signing-key-button.tsx
 msgctxt "signingKeys.gHsayi"

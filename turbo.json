@@ -16,6 +16,7 @@
   "cacheMaxSize": "10GB",
   "globalPassThroughEnv": [
     "CI",
+    "MIGRATION_BASE",
     "NODE_ENV",
     "SUPABASE_*",
     "VERCEL_*",
@@ -173,6 +174,9 @@
     },
     "//#test:scripts": {
       "inputs": ["scripts/*.ts"]
+    },
+    "//#check:migration-order": {
+      "cache": false
     },
     "//#check:prose": {
       "inputs": [

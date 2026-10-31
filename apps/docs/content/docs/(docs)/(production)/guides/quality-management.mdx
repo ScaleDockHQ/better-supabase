@@ -1,0 +1,69 @@
+---
+title: Quality management
+description: Set up an ISO 9001 quality system with the qms preset, from controlled documents and acknowledgements to nonconformities, audits, risks and qualifications.
+---
+
+The `qms` preset installs the blocks an ISO 9001 quality system needs, and
+links them through [relations](/docs/blocks/relations) so an auditor can follow
+a requirement from the document to the case, the action and the person who
+read it. This guide walks the clauses in order and names the block behind each
+one.
+
+```bash
+better-supabase init --preset qms
+```
+
+Open the [qms preset page](/docs/presets/qms) for the full block list. The
+`ehs` and `isms` presets reuse the same blocks with other kinds and checklists.
+
+## Controlled documents (clause 7.5)
+
+Policies, procedures and work instructions live in [drive](/docs/blocks/drive)
+as controlled documents. Each change publishes a new version with
+[versions](/docs/blocks/versions), needs [approvals](/docs/blocks/approvals)
+before it is effective, and carries a [signature](/docs/blocks/signatures) from
+the approver. Numbers such as `SOP-014` come from
+[numbering](/docs/blocks/numbering).
+
+## Awareness and competence (clauses 7.2 and 7.3)
+
+[Acknowledgements](/docs/blocks/acknowledgements) ask people to confirm they
+read a new document version, and keep who confirmed and when.
+[Qualifications](/docs/blocks/qualifications) record the training, licences
+and certificates each person holds with their expiry dates, and
+[courses](/docs/blocks/courses) deliver the training that earns them.
+
+## Risks and opportunities (clause 6.1)
+
+[Risks](/docs/blocks/risks) keeps the register: each risk has an owner, a
+likelihood and an impact, and its treatments are work items. Link a risk to the
+process or document it concerns with a relation so the register and the
+documents stay connected.
+
+## Internal audit (clause 9.2)
+
+[Inspections](/docs/blocks/inspections) plans an audit programme. Each audit
+has a lead, a team and a checklist form, and its findings are typed as
+nonconformities, observations or opportunities. A nonconformity opens a case
+before the audit can close.
+
+## Nonconformity and corrective action (clause 10.2)
+
+[Cases](/docs/blocks/cases) tracks nonconformities, complaints and changes from
+the report to a verified close. Each kind has its own pipeline, a root cause
+and actions, and closes only after the effectiveness check its kind requires.
+A case names the documents it affects, so a corrective action that changes a
+procedure points at the new version.
+
+## Review and evidence
+
+The audit log records every change, and the data exporter writes it as CSV for
+the management review. The example app groups these pages under a Quality
+section in the navigation: compliance, qualifications, risks, cases and
+inspections.
+
+## Related
+
+- [Quality management preset](/docs/presets/qms)
+- [Cases](/docs/blocks/cases)
+- [Audits and inspections](/docs/blocks/inspections)
