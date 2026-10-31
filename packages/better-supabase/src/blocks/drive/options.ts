@@ -39,6 +39,14 @@ export type DriveControl = {
   readonly releaseRole?: string;
 };
 
+/**
+ * `blocks.drive.options.sync`: what `drive_sync_batch` does when a full listing
+ * no longer lists a node. `delete` (the default) removes it, unless a legal
+ * hold keeps it; `mark` keeps it and sets `missing_since` on its record in the
+ * imports record map, so it needs the `imports` block.
+ */
+export type DriveSync = { readonly prune?: "mark" | "delete" };
+
 export type DriveRoleFunctions = {
   readonly node?: DriveRoleHook;
   readonly drive?: DriveRoleHook;
@@ -64,6 +72,7 @@ export type DriveSqlOptions = {
   readonly maxTextBytes?: number;
   readonly quota?: DriveQuota;
   readonly control?: DriveControl;
+  readonly sync?: DriveSync;
 };
 
 export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
@@ -86,4 +95,5 @@ export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
     maxTextBytes: option.number({ default: 1_048_576 }),
     quota: option.unknown<DriveQuota>(),
     control: option.unknown<DriveControl>(),
+    sync: option.unknown<DriveSync>(),
   });

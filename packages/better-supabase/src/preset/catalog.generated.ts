@@ -2585,6 +2585,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "share-links",
         "settings",
         "guests",
+        "imports",
         "access-requests"
       ],
       "manifest": "drive",
@@ -2666,6 +2667,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "share-links",
         "settings",
         "guests",
+        "imports",
         "tags",
         "approvals",
         "rate-limit",

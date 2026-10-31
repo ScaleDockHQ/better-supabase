@@ -296,6 +296,23 @@ await db.drive.shareDrive(drive.id, { type: "team", id: designTeam }, "editor");
 
 A connection is the caller's link to an external account: `connect(organizationId, provider, name)` records one and `connections(organizationId)` lists the caller's own. `createDrive(organizationId, { name, connectionId })` creates a drive that mirrors that account, owned by the connection's user. Mirrored nodes have a `source` other than `internal`, an `externalId` and `externalMetadata`, and the nodes are read-only: only the service role's `drive_sync_batch` changes them. Renaming, moving, sharing, uploading and trashing them fails with `DRIVE_READ_ONLY`.
 
+### Sync and pruning
+
+`drive_sync_batch(drive, items, root_external_id, sync_run, prune, cursor)` applies a page of provider changes. With the [imports](/docs/blocks/imports) block installed it records every mirrored node in `import_records` (`source` is `drive:<connection id>`, `entity` is `drive_node`, `scope` is the drive id) with a hash of the name, kind, parent and metadata the provider sent. A node whose hash is unchanged is not written, and the function returns the number of nodes it wrote. Without the imports block it upserts every listed node and stamps `sync_run` in the node's metadata, as before.
+
+A full listing passes `sync_run` on every page and `prune` on the last one. `sync.prune` decides what happens to the nodes the listing did not reach:
+
+```ts title="better-supabase.config.ts"
+blocks: { drive: { options: { drives: true, sync: { prune: "mark" } } } },
+```
+
+| `sync.prune`       | Unlisted nodes                                                                                                       |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `delete` (default) | The node is deleted, unless a legal hold keeps it.                                                                   |
+| `mark`             | The node stays, and its `import_records` row gets `missing_since`. A later listing that includes it clears the mark. |
+
+`mark` needs the imports block and fails at render time without it. Nodes the provider reports as `removed` are always deleted, and a legal hold always keeps its node.
+
 A legal hold keeps a node and everything under it from being purged. `hold(id, until)` sets `legalHoldUntil`, `releaseHold(id)` clears it, and every node reports `held` when it or something under it is held. `delete(id)` fails with `DRIVE_HELD` while a hold applies, and `trash(id)` refuses to move a held subtree to the bin. Configure trash with the node's hold column so a held batch stays there:
 
 ```ts title="better-supabase.config.ts"

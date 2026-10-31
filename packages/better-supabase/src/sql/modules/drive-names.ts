@@ -157,6 +157,7 @@ export const NAMES: BlockSqlNames = {
     "maxTextBytes",
     "quota",
     "control",
+    "sync",
   ],
   tables: {
     nodes: {

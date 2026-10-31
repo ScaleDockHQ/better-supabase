@@ -6,17 +6,15 @@ import {
   fail,
   pageSize,
   SERVICE_CALLER,
-  serviceGrant,
   userGrant,
 } from "../shared.ts";
 import { READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
+import { syncBatchSql } from "./drive-sync.ts";
 
 /** The drives, their sharing and their external connections. */
 export function driveDrivesSql(kit: DriveKit): string {
   const {
     ctx,
-    T,
-    n,
     fn,
     read,
     create,
@@ -38,8 +36,6 @@ export function driveDrivesSql(kit: DriveKit): string {
     d,
     dg,
     c,
-    has,
-    binColumn,
     sourceColumn,
     externalColumn,
     metadataColumn,
@@ -57,7 +53,6 @@ export function driveDrivesSql(kit: DriveKit): string {
     m,
     rank,
     forbidden,
-    touch,
   } = kit;
 
   const teamExistsDrive =
@@ -458,134 +453,7 @@ end;
 $$;
 ${userGrant(`${fn("drive_list_connections")}(${ctx.idType}, integer)`)}${
         sourceColumn && externalColumn && metadataColumn
-          ? `
--- Applies one page of provider changes to a connected drive mirror. Items
--- carry the provider id, parent provider id, name, kind and metadata; removed
--- items are deleted with their subtree. Items whose parent is the provider
--- root become top-level nodes, and top-level nodes with any other parent are
--- dropped, so the mirror only holds the tree under root_external_id. A full
--- listing stamps every node with sync_run, and its final call passes prune to
--- remove every mirrored node without that stamp.
-create or replace function ${fn("drive_sync_batch")}(drive uuid, items jsonb, root_external_id text, sync_run text default null, prune boolean default false, cursor text default null)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_drive ${D}%rowtype;
-  v_connection ${C}%rowtype;
-  v_source text;
-  v_count integer := 0;
-begin
-  select * into v_drive from ${D} d where d.${d("id")} = drive_sync_batch.drive for update;
-  if not found or v_drive.${d("connection")} is null then
-    ${fail("DRIVE_NOT_CONNECTED", "drive is not a connected drive", "P0002")}
-  end if;
-  select * into v_connection from ${C} c where c.${c("id")} = v_drive.${d("connection")};
-  if not found then
-    ${fail("DRIVE_CONNECTION_NOT_FOUND", "connection not found", "P0002")}
-  end if;
-  v_source := v_connection.${c("provider")};
-  create temporary table pg_temp.drive_sync_items on commit drop as
-  select distinct on (item ->> 'externalId')
-    item ->> 'externalId' as external_id,
-    nullif(item ->> 'parentExternalId', '') as parent_external_id,
-    left(regexp_replace(coalesce(nullif(btrim(item ->> 'name'), ''), 'Untitled'), '[/[:cntrl:]]', '-', 'g'), 240) as name,
-    (case when item ->> 'kind' = 'folder' then 'folder' else 'file' end) as kind,
-    coalesce(item -> 'metadata', '{}'::jsonb)
-      || jsonb_build_object('parentExternalId', nullif(item ->> 'parentExternalId', ''), 'syncRun', drive_sync_batch.sync_run) as metadata,
-    coalesce((item ->> 'removed')::boolean, false) as removed
-  from jsonb_array_elements(coalesce(drive_sync_batch.items, '[]'::jsonb)) with ordinality as entry(item, position)
-  where nullif(item ->> 'externalId', '') is not null
-  order by item ->> 'externalId', position desc;
-  delete from ${T} s
-  using pg_temp.drive_sync_items item
-  where item.removed
-    and s.${n("drive")} = drive_sync_batch.drive
-    and s.${n("source")} = ${ctx.cast("nodes", "source", "v_source")}
-    and s.${n("externalId")} = item.external_id${
-      binColumn
-        ? `
-    and s.${n("deletedAt")} is null`
-        : ""
-    }
-    and not ${fn("drive_node_held")}(s.${n("id")});
-  insert into ${T} (${n("tenant")}, ${n("drive")}, ${n("parent")}, ${n("kind")}, ${n("name")}, ${n("source")}, ${n("externalId")}, ${n("externalMetadata")}${has("createdBy") ? `, ${n("createdBy")}` : ""})
-  select
-    v_drive.${d("tenant")},
-    drive_sync_batch.drive,
-    null,
-    ${ctx.cast("nodes", "kind", "item.kind")},
-    item.name,
-    ${ctx.cast("nodes", "source", "v_source")},
-    item.external_id,
-    item.metadata${has("createdBy") ? `, v_drive.${d("owner")}` : ""}
-  from pg_temp.drive_sync_items item
-  where not item.removed
-  on conflict (${n("drive")}, ${n("source")}, ${n("externalId")}) where ${n("externalId")} is not null${binColumn ? ` and ${n("deletedAt")} is null` : ""}
-  do update set
-    ${n("kind")} = excluded.${n("kind")},
-    ${n("name")} = excluded.${n("name")},
-    ${n("externalMetadata")} = excluded.${n("externalMetadata")}${
-      touch
-        ? `,
-    ${n("updatedAt")} = now()`
-        : ""
-    };
-  get diagnostics v_count = row_count;
-  update ${T} s
-  set ${n("parent")} = p.${n("id")}
-  from pg_temp.drive_sync_items item
-  left join ${T} p
-    on p.${n("drive")} = drive_sync_batch.drive
-    and p.${n("source")} = ${ctx.cast("nodes", "source", "v_source")}
-    and p.${n("externalId")} = item.parent_external_id
-    and p.${n("kind")} = 'folder'${
-      binColumn
-        ? `
-    and p.${n("deletedAt")} is null`
-        : ""
-    }
-  where not item.removed
-    and s.${n("drive")} = drive_sync_batch.drive
-    and s.${n("source")} = ${ctx.cast("nodes", "source", "v_source")}
-    and s.${n("externalId")} = item.external_id
-    and s.${n("parent")} is distinct from p.${n("id")}
-    and (p.${n("id")} is null or p.${n("id")} <> s.${n("id")});
-  delete from ${T} s
-  where s.${n("drive")} = drive_sync_batch.drive
-    and s.${n("source")} = ${ctx.cast("nodes", "source", "v_source")}
-    and s.${n("parent")} is null
-    and s.${n("externalMetadata")} ->> 'parentExternalId' is not null
-    and s.${n("externalMetadata")} ->> 'parentExternalId' <> drive_sync_batch.root_external_id
-    and not ${fn("drive_node_held")}(s.${n("id")});
-  if drive_sync_batch.prune and drive_sync_batch.sync_run is not null then
-    delete from ${T} s
-    where s.${n("drive")} = drive_sync_batch.drive
-      and s.${n("source")} = ${ctx.cast("nodes", "source", "v_source")}
-      and coalesce(s.${n("externalMetadata")} ->> 'syncRun', '') <> drive_sync_batch.sync_run
-      and not ${fn("drive_node_held")}(s.${n("id")});
-  end if;
-  update ${C} c set
-    ${c("syncCursor")} = coalesce(drive_sync_batch.cursor, c.${c("syncCursor")}),
-    ${c("syncClaimedAt")} = null,
-    ${c("lastSyncedAt")} = now(),
-    ${c("lastSyncError")} = null${
-      ctx.has("connections", "updatedAt")
-        ? `,
-    ${c("updatedAt")} = now()`
-        : ""
-    }
-  where c.${c("id")} = v_connection.${c("id")};
-  drop table pg_temp.drive_sync_items;
-  return v_count;
-end;
-$$;
-revoke execute on function ${fn("drive_sync_batch")}(uuid, jsonb, text, text, boolean, text) from public, anon, authenticated;
-${serviceGrant(`${fn("drive_sync_batch")}(uuid, jsonb, text, text, boolean, text)`)}
-`
+          ? syncBatchSql(kit)
           : ""
       }
 `

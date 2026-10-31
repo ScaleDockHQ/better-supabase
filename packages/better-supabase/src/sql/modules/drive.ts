@@ -189,6 +189,7 @@ const INTEGRATES = [
   "share-links",
   "settings",
   "guests",
+  "imports",
 ] as const;
 
 /**
