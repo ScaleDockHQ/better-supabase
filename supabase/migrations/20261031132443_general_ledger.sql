@@ -1596,11 +1596,12 @@ declare
   v_unchanged integer := 0;
   v_conflicted integer := 0;
   v_errors jsonb := '[]'::jsonb;
+  v_warnings jsonb := '[]'::jsonb;
   v_message text;
   v_hint text;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'customer']::text[]) then
+  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'order', 'quote', 'invoice', 'credit_note', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'customer']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -1666,6 +1667,14 @@ begin
           v_current := "better_supabase"."supplier_item_updated_at"(v_rec."subject_id");
         when 'product_identifier' then
           v_current := "better_supabase"."product_identifier_updated_at"(v_rec."subject_id");
+        when 'order' then
+          v_current := "better_supabase"."order_updated_at"(v_rec."subject_id");
+        when 'quote' then
+          v_current := "better_supabase"."quote_updated_at"(v_rec."subject_id");
+        when 'invoice' then
+          v_current := "better_supabase"."invoice_updated_at"(v_rec."subject_id");
+        when 'credit_note' then
+          v_current := "better_supabase"."invoice_updated_at"(v_rec."subject_id");
         when 'tax_code' then
           v_current := "better_supabase"."tax_code_updated_at"(v_rec."subject_id");
         when 'customer' then
@@ -1699,6 +1708,18 @@ begin
       when 'product_identifier' then
         v_subject_type := 'product_identifier';
         v_out := "better_supabase"."import_product_identifier"(v_run_id, v_call, v_subject_id);
+      when 'order' then
+        v_subject_type := 'order';
+        v_out := "better_supabase"."import_order"(v_run_id, v_call, v_subject_id);
+      when 'quote' then
+        v_subject_type := 'quote';
+        v_out := "better_supabase"."import_quote"(v_run_id, v_call, v_subject_id);
+      when 'invoice' then
+        v_subject_type := 'invoice';
+        v_out := "better_supabase"."import_invoice"(v_run_id, v_call, v_subject_id);
+      when 'credit_note' then
+        v_subject_type := 'invoice';
+        v_out := "better_supabase"."import_credit_note"(v_run_id, v_call, v_subject_id);
       when 'accounting_account' then
         v_subject_type := 'accounting_account';
         v_out := "better_supabase"."import_accounting_account"(v_run_id, v_call, v_subject_id);
@@ -1733,6 +1754,9 @@ begin
         end if;
 
         for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+          end if;
           insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_updated_at_at_import", "missing_since")
           values (
             v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
@@ -1764,7 +1788,7 @@ begin
     end;
   end loop;
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors);
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $function$;
 
