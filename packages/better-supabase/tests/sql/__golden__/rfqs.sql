@@ -1080,7 +1080,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_165_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:7875a2bf9115a3a65619c03db24367278489977c1832b38986406d038a450007
+-- @bsb-hash sha256:82bc55db8874cd551951dae33368874f119bd9763555c9f530f881a3eaa4ce32
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1566,7 +1566,7 @@ begin
   if coalesce(trim(invite_rfq_supplier.supplier_type), '') = '' or coalesce(trim(invite_rfq_supplier.supplier_id), '') = '' then
     raise exception 'a supplier needs a type and an id' using errcode = '22023', hint = 'RFQ_INVALID';
   end if;
-  if not exists (select 1 from (select p."roles", p."supplier_status" from "better_supabase"."companies" p where p."id"::text = invite_rfq_supplier.supplier_id and p."tenant_id" = v_row."tenant_id" and p."merged_into" is null union all select p."roles", p."supplier_status" from "better_supabase"."people" p where p."id"::text = invite_rfq_supplier.supplier_id and p."tenant_id" = v_row."tenant_id" and p."merged_into" is null) s(roles, status) where (s.roles is null or 'supplier' = any(s.roles)) and s.status is distinct from 'blocked') then
+  if not exists (select 1 from (select p."roles", p."supplier_status" from "better_supabase"."companies" p where p."id"::text = invite_rfq_supplier.supplier_id and p."tenant_id" = v_row."tenant_id" and p."merged_into" is null union all select p."roles", p."supplier_status" from "better_supabase"."people" p where p."id"::text = invite_rfq_supplier.supplier_id and p."tenant_id" = v_row."tenant_id" and p."merged_into" is null) s(roles, status) where (s.roles is null or cardinality(s.roles) = 0 or 'supplier' = any(s.roles)) and s.status is distinct from 'blocked') then
     raise exception 'the supplier is not an active supplier in contacts' using errcode = '22023', hint = 'RFQ_SUPPLIER_INVALID';
   end if;
   begin
