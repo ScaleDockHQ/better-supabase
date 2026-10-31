@@ -21,6 +21,7 @@ import type { CasesEvents } from "better-supabase/blocks/cases";
 import type { InspectionsEvents } from "better-supabase/blocks/inspections";
 import type { MeetingsEvents } from "better-supabase/blocks/meetings";
 import type { MaintenanceEvents } from "better-supabase/blocks/maintenance";
+import type { AppraisalsEvents } from "better-supabase/blocks/appraisals";
 import type { DriveEvents } from "better-supabase/blocks/drive";
 import type { EmployeesEvents } from "better-supabase/blocks/employees";
 import type { FormsEvents } from "better-supabase/blocks/forms";
@@ -55,6 +56,7 @@ import { casesBlock as casesBlockInstance } from "better-supabase/blocks/cases";
 import { inspectionsBlock as inspectionsBlockInstance } from "better-supabase/blocks/inspections";
 import { meetingsBlock as meetingsBlockInstance } from "better-supabase/blocks/meetings";
 import { maintenanceBlock as maintenanceBlockInstance } from "better-supabase/blocks/maintenance";
+import { appraisalsBlock as appraisalsBlockInstance } from "better-supabase/blocks/appraisals";
 import { driveBlock as driveBlockInstance } from "better-supabase/blocks/drive";
 import { employeesBlock as employeesBlockInstance } from "better-supabase/blocks/employees";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
@@ -157,6 +159,10 @@ export const blockConfig = {
     options: {},
   },
   maintenance: {
+    schema: "better_supabase",
+    options: {},
+  },
+  appraisals: {
     schema: "better_supabase",
     options: {},
   },
@@ -285,6 +291,7 @@ export const blocks = {
   inspections: inspectionsBlockInstance,
   meetings: meetingsBlockInstance,
   maintenance: maintenanceBlockInstance,
+  appraisals: appraisalsBlockInstance,
   drive: driveBlockInstance,
   employees: employeesBlockInstance,
   entitlements: entitlementsBlockInstance,
@@ -322,6 +329,11 @@ export const permissions = {
   "api-keys": {
     manage: "api_keys.manage",
     own: "api_keys.own",
+  },
+  appraisals: {
+    read: "appraisals.read",
+    review: "appraisals.review",
+    manage: "appraisals.manage",
   },
   approvals: {
     read: "approvals.read",
@@ -575,13 +587,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "compliance.collect" | "compliance.manage" | "compliance.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "maintenance.manage" | "maintenance.read" | "maintenance.record" | "meetings.manage" | "meetings.read" | "meetings.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "relations.manage" | "relations.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "appraisals.manage" | "appraisals.read" | "appraisals.review" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "compliance.collect" | "compliance.manage" | "compliance.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "maintenance.manage" | "maintenance.read" | "maintenance.record" | "meetings.manage" | "meetings.read" | "meetings.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "relations.manage" | "relations.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & AssetsEvents & EnrollmentsEvents & DispatchEvents & ComplianceEvents & AcknowledgementsEvents & CoursesEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DriveEvents & EmployeesEvents & FormsEvents & SignaturesEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & RelationsEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & VersionsEvents & TasksEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & AssetsEvents & EnrollmentsEvents & DispatchEvents & ComplianceEvents & AcknowledgementsEvents & CoursesEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & AppraisalsEvents & DriveEvents & EmployeesEvents & FormsEvents & SignaturesEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & RelationsEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & VersionsEvents & TasksEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -597,6 +609,13 @@ export const blockEvents: Events<BlockEvents> = {
     "api_key.created",
     "api_key.revoked",
     "api_key.rotated",
+    "appraisal.calibrated",
+    "appraisal.created",
+    "appraisal.finalized",
+    "appraisal_cycle.closed",
+    "appraisal_cycle.created",
+    "appraisal_cycle.opened",
+    "appraisal_review.submitted",
     "approval.approved",
     "approval.cancelled",
     "approval.consumed",
@@ -853,6 +872,13 @@ export const blockEventSchemas = {
   "api_key.created": true,
   "api_key.revoked": true,
   "api_key.rotated": true,
+  "appraisal.calibrated": true,
+  "appraisal.created": true,
+  "appraisal.finalized": true,
+  "appraisal_cycle.closed": true,
+  "appraisal_cycle.created": true,
+  "appraisal_cycle.opened": true,
+  "appraisal_review.submitted": true,
   "approval.approved": true,
   "approval.cancelled": true,
   "approval.consumed": true,

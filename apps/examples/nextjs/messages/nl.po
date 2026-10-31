@@ -6,6 +6,17 @@ msgstr ""
 "X-Generator: next-intl\n"
 "X-Message-Key: msgctxt\n"
 
+#: src/app/[locale]/(app)/appraisals/page.tsx
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.uiZ53z"
+msgid "Appraisals"
+msgstr "Beoordelingen"
+
+#: src/app/[locale]/(app)/appraisals/page.tsx
+msgctxt "appraisals.iBNQp0"
+msgid "Review cycles with self, peer and manager reviews, calibration and sign-off."
+msgstr "Beoordelingsrondes met zelf-, collega- en managerbeoordelingen, kalibratie en akkoord."
+
 #: src/app/[locale]/(app)/approvals/page.tsx
 msgctxt "approvals.nFa1Ms"
 msgid "Approvals"
@@ -1708,6 +1719,86 @@ msgstr "Annuleren"
 msgctxt "apiKeys.VzzYJk"
 msgid "Create"
 msgstr "Maken"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.plemGH"
+msgid "In review"
+msgstr "In beoordeling"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.wiy-GN"
+msgid "Reviewed"
+msgstr "Beoordeeld"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.0LGX-k"
+msgid "Calibrated"
+msgstr "Gekalibreerd"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.VYENfO"
+msgid "Awaiting sign-off"
+msgstr "Wacht op akkoord"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.D4NvAE"
+msgid "Signed off"
+msgstr "Akkoord gegeven"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals._VS1yx"
+msgid "Sign off"
+msgstr "Akkoord geven"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.1mnmBr"
+msgid "Person"
+msgstr "Persoon"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.ETRyBL"
+msgid "Rating"
+msgstr "Beoordeling"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.yZSsV7"
+msgid "One appraisal per person in a review cycle, with its rating and where it stands."
+msgstr "Eén beoordeling per persoon in een ronde, met cijfer en voortgang."
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.PcmXgz"
+msgid "The appraisals didn't load"
+msgstr "De beoordelingen zijn niet geladen"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.z7jb5m"
+msgid "No appraisals yet"
+msgstr "Nog geen beoordelingen"
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.p9yFub"
+msgid "Open a review cycle with the people to review, and each gets an appraisal with self, peer and manager reviews."
+msgstr "Open een beoordelingsronde met de mensen die je wilt beoordelen, en elk krijgt een beoordeling met zelf-, collega- en managerbeoordelingen."
+
+#: src/features/appraisals/components/appraisal-list.tsx
+msgctxt "appraisals.ZrWlbO"
+msgid "Read the appraisals guide"
+msgstr "Lees de gids over beoordelingen"
 
 #: src/features/approvals/components/approval-decision.tsx
 msgctxt "approvals.GkMwHf"
@@ -10613,13 +10704,19 @@ msgid "Assets"
 msgstr ""
 
 #: src/features/navigation/components/side-nav.tsx
-#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.U2griC"
 msgid "Laboratory"
-msgstr "Laboratorium"
+msgstr ""
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.dudqv_"
 msgid "Maintenance"
 msgstr "Onderhoud"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.uiZ53z"
+msgid "Appraisals"
+msgstr ""
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.poLbhw"

@@ -10,6 +10,7 @@ import type { aiKeysBlock } from "../../src/blocks/ai-keys/manifest.ts";
 import type { aiSchedulesBlock } from "../../src/blocks/ai-schedules/manifest.ts";
 import type { announcementsBlock } from "../../src/blocks/announcements/manifest.ts";
 import type { apiKeysBlock } from "../../src/blocks/api-keys/manifest.ts";
+import type { appraisalsBlock } from "../../src/blocks/appraisals/manifest.ts";
 import type { approvalsBlock } from "../../src/blocks/approvals/manifest.ts";
 import type { assetsBlock } from "../../src/blocks/assets/manifest.ts";
 import type { assignmentBlock } from "../../src/blocks/assignment/manifest.ts";
@@ -245,6 +246,7 @@ export type AllBlocks = {
   readonly maintenance: typeof maintenanceBlock;
   readonly dam: typeof damBlock;
   readonly lims: typeof limsBlock;
+  readonly appraisals: typeof appraisalsBlock;
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
   readonly tax: typeof taxBlock;

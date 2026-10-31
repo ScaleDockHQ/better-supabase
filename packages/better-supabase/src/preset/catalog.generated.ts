@@ -9773,6 +9773,130 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "appraisals",
+      "title": "Appraisals",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "enrollments",
+        "forms",
+        "goals",
+        "approvals",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "appraisals",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "appraisal": {
+            "table": "appraisals",
+            "singular": "appraisal",
+            "primary": true
+          },
+          "appraisal_cycle": {
+            "table": "cycles",
+            "singular": "appraisal_cycle"
+          },
+          "appraisal_review": {
+            "table": "reviews",
+            "singular": "appraisal_review"
+          },
+          "appraisal_calibration": {
+            "table": "calibrations",
+            "singular": "appraisal_calibration"
+          },
+          "appraisal_goal": {
+            "table": "goals",
+            "singular": "appraisal_goal"
+          }
+        },
+        "tables": {
+          "appraisals": {
+            "name": "appraisals",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "cycle": "cycle_id",
+              "subjectUser": "subject_user_id",
+              "manager": "manager_id",
+              "status": "status",
+              "rating": "rating",
+              "calibratedRating": "calibrated_rating",
+              "approval": "approval_id",
+              "signedOffAt": "signed_off_at",
+              "signedOffBy": "signed_off_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "cycles": {
+            "name": "appraisal_cycles",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "program": "program",
+              "status": "status",
+              "openedAt": "opened_at",
+              "closedAt": "closed_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          },
+          "reviews": {
+            "name": "appraisal_reviews",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "appraisal": "appraisal_id",
+              "reviewer": "reviewer_id",
+              "kind": "kind",
+              "rating": "rating",
+              "comments": "comments",
+              "submission": "submission_id",
+              "submittedAt": "submitted_at"
+            }
+          },
+          "calibrations": {
+            "name": "appraisal_calibrations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "appraisal": "appraisal_id",
+              "fromRating": "from_rating",
+              "toRating": "to_rating",
+              "reason": "reason",
+              "calibratedBy": "calibrated_by",
+              "calibratedAt": "calibrated_at"
+            }
+          },
+          "goals": {
+            "name": "appraisal_goals",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "appraisal": "appraisal_id",
+              "goal": "goal_id"
+            }
+          }
+        },
+        "keys": {
+          "read": "appraisals.read",
+          "review": "appraisals.review",
+          "manage": "appraisals.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -20750,6 +20874,191 @@ export const PRESET_CATALOG: PresetCatalog = {
           "lims_sample.rejected",
           "lims_result.recorded",
           "lims_result.flagged"
+        ]
+      }
+    },
+    {
+      "name": "appraisals",
+      "sql": [
+        "appraisals"
+      ],
+      "category": "work",
+      "client": {
+        "export": "appraisalsBlock",
+        "subpath": "better-supabase/blocks/appraisals"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Appraisal"
+        },
+        {
+          "name": "AppraisalAssignment"
+        },
+        {
+          "name": "AppraisalCalibration"
+        },
+        {
+          "name": "AppraisalCycle"
+        },
+        {
+          "name": "AppraisalCycleEventData"
+        },
+        {
+          "name": "AppraisalCycleInput"
+        },
+        {
+          "name": "AppraisalCycleStatus"
+        },
+        {
+          "name": "AppraisalEventData"
+        },
+        {
+          "name": "AppraisalListOptions"
+        },
+        {
+          "name": "AppraisalRatedEventData"
+        },
+        {
+          "name": "AppraisalReview"
+        },
+        {
+          "name": "AppraisalReviewEventData"
+        },
+        {
+          "name": "AppraisalReviewInput"
+        },
+        {
+          "name": "AppraisalReviewKind"
+        },
+        {
+          "name": "Appraisals"
+        },
+        {
+          "name": "AppraisalsEvents"
+        },
+        {
+          "name": "AppraisalsOptions"
+        },
+        {
+          "name": "AppraisalStatus"
+        }
+      ],
+      "entitySchemas": {
+        "appraisal_cycle": {
+          "input": {
+            "title": "AppraisalCycleInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "startsOn": {
+                "kind": "string",
+                "description": "A date, `YYYY-MM-DD`."
+              },
+              "endsOn": {
+                "kind": "string",
+                "description": "A date on or after `startsOn`, `YYYY-MM-DD`."
+              },
+              "program": {
+                "kind": "string",
+                "optional": true,
+                "description": "The key of an enrollment program the cycle's appraisals follow."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "AppraisalCycleInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "startsOn": {
+                  "type": "string",
+                  "description": "A date, `YYYY-MM-DD`."
+                },
+                "endsOn": {
+                  "type": "string",
+                  "description": "A date on or after `startsOn`, `YYYY-MM-DD`."
+                },
+                "program": {
+                  "type": "string",
+                  "description": "The key of an enrollment program the cycle's appraisals follow."
+                }
+              },
+              "required": [
+                "name",
+                "startsOn",
+                "endsOn"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "appraisal_review": {
+          "input": {
+            "title": "AppraisalReviewInput",
+            "fields": {
+              "rating": {
+                "kind": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "comments": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "submissionId": {
+                "kind": "uuid",
+                "optional": true,
+                "description": "The forms submission that holds the longer answers."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "AppraisalReviewInput",
+              "type": "object",
+              "properties": {
+                "rating": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "comments": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "submissionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "The forms submission that holds the longer answers."
+                }
+              },
+              "required": [
+                "rating"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "AppraisalsEvents",
+        "types": [
+          "appraisal_cycle.created",
+          "appraisal_cycle.opened",
+          "appraisal_cycle.closed",
+          "appraisal.created",
+          "appraisal.calibrated",
+          "appraisal.finalized",
+          "appraisal_review.submitted"
         ]
       }
     },
