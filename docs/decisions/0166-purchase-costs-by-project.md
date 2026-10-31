@@ -1,4 +1,4 @@
-# 0165: Purchase lines and expense lines carry dimensions for project costs
+# 0166: Purchase lines and expense lines carry dimensions for project costs
 
 - Status: accepted
 - Date: 2026-10-31
