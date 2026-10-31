@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:ecc6d5f166e3c8561ebc184e504c6357e09a16dbb422701a06b4789a1df6fd45
+-- @bsb-hash sha256:16c20467aca29c2cec04be025f58b1d3c5394490be8246a62f4cd5d3146179d5
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -530,7 +530,7 @@ $$;
 revoke execute on function "better_supabase"."install_field_pack"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."install_field_pack"(uuid, jsonb) to authenticated, service_role;
 
--- The import target of the field_value entity (ADR 0155). A subject is named by
+-- The import target of the field_value entity (ADR 0156). A subject is named by
 -- its external key in the run's source, so the value follows the record the
 -- import record map holds.
 create or replace function "better_supabase"."import_field_value"(run uuid, item jsonb, subject_id text)
