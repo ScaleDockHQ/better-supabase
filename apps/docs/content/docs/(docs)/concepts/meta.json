@@ -10,6 +10,7 @@
     "naming",
     "commerce",
     "fhir",
+    "e-invoicing",
     "nested-tenancy"
   ]
 }

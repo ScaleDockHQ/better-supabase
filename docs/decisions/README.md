@@ -151,3 +151,4 @@ add one, and link it from the code or config it explains.
 | [0147](0147-remove-047-deprecated-wrappers.md)                | The deprecated compliance acknowledgement wrappers and `inbox.contacts.upsert` are removed before 0.47 ships                                       |
 | [0148](0148-purchase-bills-on-invoices.md)                    | Purchase bills live on the invoices table by direction; receipts, requisitions on approvals, a three-way match and credit limits                   |
 | [0150](0150-block-overlaps.md)                                | The remaining block overlaps are decided pair by pair, and seven blocks move to the docs group that matches their job                              |
+| [0151](0151-collections-and-e-invoicing.md)                   | Party payments keep their rest as ledger credit, dunning levels raise overdue invoices, and e-invoices are UBL without a bundled validator         |

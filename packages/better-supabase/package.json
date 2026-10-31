@@ -485,6 +485,11 @@
       "types": "./dist/yjs/index.d.ts",
       "default": "./dist/yjs/index.js"
     },
+    "./e-invoicing": {
+      "@better-supabase/source": "./src/e-invoicing/index.ts",
+      "types": "./dist/e-invoicing/index.d.ts",
+      "default": "./dist/e-invoicing/index.js"
+    },
     "./better-result": {
       "@better-supabase/source": "./src/better-result/index.ts",
       "types": "./dist/better-result/index.d.ts",
@@ -1512,6 +1517,10 @@
         "types": "./dist/yjs/index.d.ts",
         "default": "./dist/yjs/index.js"
       },
+      "./e-invoicing": {
+        "types": "./dist/e-invoicing/index.d.ts",
+        "default": "./dist/e-invoicing/index.js"
+      },
       "./better-result": {
         "types": "./dist/better-result/index.d.ts",
         "default": "./dist/better-result/index.js"
@@ -2139,6 +2148,7 @@
     "eve": "catalog:",
     "expo-server": "catalog:",
     "express": "catalog:",
+    "fast-xml-parser": "catalog:",
     "fastest-levenshtein": "catalog:",
     "fastify": "catalog:",
     "flags": "catalog:",
@@ -2214,6 +2224,7 @@
     "eve": "catalog:peers",
     "expo-server": "catalog:peers",
     "express": "catalog:peers",
+    "fast-xml-parser": "catalog:peers",
     "fastify": "catalog:peers",
     "flags": "catalog:peers",
     "h3": "catalog:peers",
@@ -2343,6 +2354,9 @@
       "optional": true
     },
     "express": {
+      "optional": true
+    },
+    "fast-xml-parser": {
       "optional": true
     },
     "fastify": {

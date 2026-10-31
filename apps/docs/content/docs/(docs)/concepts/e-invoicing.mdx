@@ -1,0 +1,143 @@
+---
+title: E-invoicing
+description: Write issued invoices and credit notes as UBL 2.1 documents for Peppol, read received ones into purchase bills, and send them through your own access point.
+---
+
+`better-supabase/e-invoicing` turns an issued invoice from the
+[invoices block](/docs/blocks/invoices) into a UBL 2.1 document that follows
+EN 16931 and Peppol BIS Billing 3.0, and reads a received UBL invoice or
+credit note into the input of a purchase bill. It has pure functions and one
+port: no tables, no SQL module and no network client. It runs on every
+WinterTC runtime. The versions it follows are pinned in `SPEC_PINS.ubl`,
+`SPEC_PINS.en16931` and `SPEC_PINS.peppolBisBilling`.
+
+```ts
+import { fromUbl, toUbl } from "better-supabase/e-invoicing";
+```
+
+## Write
+
+`toUbl(invoice, { seller, buyer })` returns `{ type, id, xml }`: `type` is
+`Invoice` for an invoice and `CreditNote` for a credit note. The invoice must
+be issued, so it has a number and an issue date. Pass the parties with their
+Peppol endpoint (the scheme from the EAS code list and the id), their address
+and, where they have one, their VAT number.
+
+```ts
+const issued = await db.invoices.issue(invoiceId).orThrow();
+
+const document = toUbl(issued, {
+  seller: {
+    name: "Acme B.V.",
+    endpoint: { scheme: "0106", id: "12345678" },
+    address: {
+      street: "Main 1",
+      city: "Utrecht",
+      postalCode: "3511 AA",
+      country: "NL",
+    },
+    vatId: "NL123456789B01",
+  },
+  buyer: {
+    name: "Buyer NV",
+    endpoint: { scheme: "0208", id: "0123456789" },
+    address: { city: "Brussels", country: "BE" },
+    vatId: "BE0123456789",
+  },
+  payment: { iban: "NL91ABNA0417164300" },
+});
+```
+
+| Option             | What it writes                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------- |
+| `buyerReference`   | The buyer's reference (BT-10); defaults to the invoice number, since Peppol needs it or an order number |
+| `orderReference`   | The buyer's purchase order number (BT-13)                                                               |
+| `billingReference` | For a credit note: the number of the invoice it credits (BT-25)                                         |
+| `payment`          | The payment means (BG-16): `58` (SEPA credit transfer) with an `iban`, or your own `code`               |
+| `paymentTerms`     | The payment terms text; defaults to "Payment within N days" from the invoice's terms                    |
+| `unitCode`         | The UN/ECE Recommendation 20 unit of every line; default `C62` (one)                                    |
+| `taxCategory`      | A function from a line to its VAT category                                                              |
+| `exemptions`       | The exemption reason and VATEX code per category                                                        |
+
+A line's VAT category is its `taxCode` when that is a UNCL 5305 code (`S`,
+`Z`, `E`, `AE`, `K`, `G`, `O`, `L`, `M`), otherwise `S` for a rate above 0
+and `Z` for 0. The exempt categories need a 0 rate and get a default
+exemption reason, such as `VATEX-EU-AE` for a reverse charge.
+
+The totals follow EN 16931: VAT counts once per category and rate, and the
+discount on the whole invoice is spread over the categories by their net
+amount. The block counts tax per line, so the two can differ by a cent; that
+cent goes into the rounding amount (BT-114), and the payable amount stays
+the invoice's total. `toUbl` throws when the invoice's prices include tax,
+since EN 16931 states net prices, and when the total doesn't follow from the
+lines. Charges added after issue, such as dunning fees, are not part of the
+document.
+
+## Validate
+
+better-supabase does not bundle a validator. Check a document against the
+official rules before you send it:
+
+- the [Peppol BIS Billing 3.0 Schematron](https://github.com/OpenPEPPOL/peppol-bis-invoice-3/tree/master/rules) (EN 16931 and the Peppol rules),
+- the [CEN/TC 434 EN 16931 validation artefacts](https://github.com/ConnectingEurope/eInvoicing-EN16931),
+- or the validator of your access point, which most run on every document.
+
+## Read
+
+`fromUbl(xml)` reads a UBL invoice or credit note and resolves to a
+`UblBill`: the supplier and buyer, the dates and references, and an `input`
+and `lines` to create the purchase bill with. It loads the optional peer
+`fast-xml-parser` on first use; install it, or pass the module as
+`options.xmlParser`. It reads the document and does not validate it.
+
+```ts
+const bill = await fromUbl(xml);
+const supplier = await findCompanyByVat(bill.seller.vatId);
+
+const created = await db.invoices
+  .create(organizationId, { ...bill.input, company: supplier }, bill.lines)
+  .orThrow();
+```
+
+A line keeps its quantity, price and discount when the block's rounding gives
+the same net amount. A price with more decimals than the currency has, a base
+quantity or a line charge becomes one unit of the line's net amount instead.
+Allowances and charges on the whole document become lines of their own, an
+allowance with a negative amount. Compare `bill.payable` and `bill.taxTotal`
+with the created bill's totals before you approve it.
+
+## Send
+
+The library sends nothing itself. An `EInvoiceChannel` is the port to your
+access point, written over `fetch`:
+
+```ts
+import type { EInvoiceChannel } from "better-supabase/e-invoicing";
+
+import { eInvoiceChannelOf } from "better-supabase/e-invoicing";
+
+export const peppol: EInvoiceChannel = eInvoiceChannelOf({
+  apiVersion: 1,
+  name: "my-access-point",
+  async send(document, recipient) {
+    const response = await fetch("https://ap.example.com/documents", {
+      method: "POST",
+      headers: {
+        "content-type": "application/xml",
+        "x-recipient": `${recipient.scheme}:${recipient.id}`,
+      },
+      body: document.xml,
+    });
+
+    const { id } = await response.json();
+
+    return { messageId: id };
+  },
+});
+```
+
+`receive()` is optional, for access points that deliver by polling. The
+contract is versioned: `eInvoiceChannelOf` throws for a channel written
+against another `apiVersion`. The Next.js example's
+`POST /api/invoices/:id/ubl` route issues a draft and returns its UBL
+document.

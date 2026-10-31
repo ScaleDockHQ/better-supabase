@@ -59,6 +59,15 @@ export const SPEC_PINS: {
   /** FHIR R4 release whose base resources `better-supabase/fhir` maps to. */
   readonly fhirR4: "4.0.1";
   /**
+   * OASIS UBL release whose Invoice and CreditNote
+   * `better-supabase/e-invoicing` writes and reads.
+   */
+  readonly ubl: "2.1";
+  /** The European e-invoicing semantic model `toUbl` follows. */
+  readonly en16931: "EN 16931-1:2017";
+  /** The Peppol BIS Billing release in the documents' specification identifier. */
+  readonly peppolBisBilling: "3.0";
+  /**
    * RFC 6902 JSON Patch that the versions block's `createPatch` writes and
    * `applyPatch` applies.
    */
@@ -167,6 +176,9 @@ export const SPEC_PINS: {
   iso4217: "2026-09-17",
   iso13616: "2020",
   fhirR4: "4.0.1",
+  ubl: "2.1",
+  en16931: "EN 16931-1:2017",
+  peppolBisBilling: "3.0",
   rfc6902: "2013-04",
   rfc9396: "2023-05",
   rfc9864: "2025-10",

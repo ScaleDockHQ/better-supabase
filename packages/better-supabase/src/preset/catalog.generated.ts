@@ -3887,6 +3887,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "supplierReference": "supplier_reference",
               "purchaseOrder": "purchase_order_id",
               "dimensions": "dimensions",
+              "dunningLevel": "dunning_level",
+              "dunningAt": "dunning_at",
+              "dunningPausedUntil": "dunning_paused_until",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
@@ -3903,7 +3906,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "write": "invoices.write",
           "manage": "invoices.manage",
           "purchase": "invoices.purchase",
-          "overrideMatch": "invoices.override_match"
+          "overrideMatch": "invoices.override_match",
+          "collect": "invoices.collect"
         }
       }
     },
@@ -21498,9 +21502,20 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invoice.charged",
           "invoice.charge_removed",
           "invoice.payment_reversed",
-          "invoice.match_checked"
+          "invoice.match_checked",
+          "invoice.credit_applied",
+          "invoice.dunning_escalated",
+          "invoice.dunning_paused"
         ]
-      }
+      },
+      "schedules": [
+        {
+          "name": "dunning",
+          "cron": "0 6 * * *",
+          "runs": "runDunning()",
+          "description": "Raises overdue invoices to the reminder level they reached and adds the level's fee."
+        }
+      ]
     },
     {
       "name": "idempotency",
