@@ -38,6 +38,12 @@ export const expenseLineInputSchema: EntitySchema<ExpenseLineInput> =
       amount: moneyField,
       description: { kind: "string", minLength: 1, maxLength: 500 },
       merchant: { kind: "string", optional: true, maxLength: 200 },
+      dimensions: {
+        kind: "json",
+        optional: true,
+        description:
+          'Accounting dimensions of the line: `{ project: "<project id>" }`.',
+      },
     },
   });
 

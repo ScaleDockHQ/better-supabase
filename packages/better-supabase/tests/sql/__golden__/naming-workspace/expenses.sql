@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:c873676d15fff6c34ffa92cb25894b730acf169d28d68429501c27c898fc6639
+-- @bsb-hash sha256:706e0fb650d4a3ec9ed6a43df221f77ae7d2b48933c4030cf36c59c26b297315
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -143,10 +143,12 @@ create table if not exists "better_supabase"."expense_lines" (
   "merchant" text check ("merchant" is null or length("merchant") <= 200),
   -- Minor units of the report's currency (ADR 0037).
   "amount" bigint not null check ("amount" > 0),
+  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "category_id") references "better_supabase"."expense_categories" ("tenant_id", "id") on delete restrict
 );
+alter table "better_supabase"."expense_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
 create index if not exists "expense_lines_report_idx" on "better_supabase"."expense_lines" ("report_id", "spent_on");
 create index if not exists "expense_lines_category_idx" on "better_supabase"."expense_lines" ("tenant_id", "category_id");
 alter table "better_supabase"."expense_lines" enable row level security;
@@ -320,13 +322,13 @@ begin
   returning * into v_row;
   null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'title', v_row."title", 'currency', v_row."currency", 'note', v_row."note", 'status', (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)::text, 'approvalId', v_row."approval_id", 'submittedAt', v_row."submitted_at", 'approvedAt', v_row."approved_at", 'approvalTransactionId', v_row."approval_transaction_id", 'reimbursedAt', v_row."reimbursed_at", 'reimbursementTransactionId', v_row."reimbursement_transaction_id", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at",
-      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
+      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."create_expense_report"(uuid, text, text, text) from public, anon;
 grant execute on function "better_supabase"."create_expense_report"(uuid, text, text, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."add_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null)
+create or replace function "better_supabase"."add_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -373,19 +375,22 @@ begin
   if nullif(trim(add_expense_line.description), '') is null then
     raise exception 'a line needs a description' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  insert into "better_supabase"."expense_lines" ("tenant_id", "report_id", "category_id", "spent_on", "description", "merchant", "amount")
+  if add_expense_line.dimensions is not null and jsonb_typeof(add_expense_line.dimensions) not in ('object', 'null') then
+    raise exception 'dimensions is an object of dimension keys and value codes' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
+  end if;
+  insert into "better_supabase"."expense_lines" ("tenant_id", "report_id", "category_id", "spent_on", "description", "merchant", "dimensions", "amount")
   values (v_row."tenant_id", v_row."id", v_category."id", add_expense_line.spent_on, trim(add_expense_line.description),
-    nullif(trim(add_expense_line.merchant), ''), add_expense_line.amount)
+    nullif(trim(add_expense_line.merchant), ''), coalesce(nullif(add_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), add_expense_line.amount)
   returning * into v_line;
   update "better_supabase"."expense_reports" x set "updated_at" = now() where x."id" = v_row."id";
-  return jsonb_build_object('id', v_line."id", 'reportId', v_line."report_id", 'categoryId', v_line."category_id", 'spentOn', v_line."spent_on", 'description', v_line."description", 'merchant', v_line."merchant", 'amount', v_line."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = v_line."report_id"), 'receipts', 0, 'createdAt', v_line."created_at", 'updatedAt', v_line."updated_at");
+  return jsonb_build_object('id', v_line."id", 'reportId', v_line."report_id", 'categoryId', v_line."category_id", 'spentOn', v_line."spent_on", 'description', v_line."description", 'merchant', v_line."merchant", 'dimensions', v_line."dimensions", 'amount', v_line."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = v_line."report_id"), 'receipts', 0, 'createdAt', v_line."created_at", 'updatedAt', v_line."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text) from public, anon;
-grant execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
 -- Changes a line of a draft or rejected report; null keeps a value.
-create or replace function "better_supabase"."update_expense_line"(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null, currency text default null)
+create or replace function "better_supabase"."update_expense_line"(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null, currency text default null, dimensions jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -432,21 +437,25 @@ begin
   if update_expense_line.amount is not null and update_expense_line.amount <= 0 then
     raise exception 'an amount is more than zero minor units' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
+  if update_expense_line.dimensions is not null and jsonb_typeof(update_expense_line.dimensions) not in ('object', 'null') then
+    raise exception 'dimensions is an object of dimension keys and value codes' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
+  end if;
   update "better_supabase"."expense_lines" l set
       "category_id" = coalesce(update_expense_line.category_id, l."category_id"),
       "spent_on" = coalesce(update_expense_line.spent_on, l."spent_on"),
       "amount" = coalesce(update_expense_line.amount, l."amount"),
       "description" = coalesce(nullif(trim(update_expense_line.description), ''), l."description"),
       "merchant" = coalesce(nullif(trim(update_expense_line.merchant), ''), l."merchant"),
+      "dimensions" = coalesce(nullif(update_expense_line.dimensions, 'null'::jsonb), l."dimensions"),
       "updated_at" = now()
     where l."id" = v_line."id"
     returning * into v_line;
   update "better_supabase"."expense_reports" x set "updated_at" = now() where x."id" = v_row."id";
-  return jsonb_build_object('id', v_line."id", 'reportId', v_line."report_id", 'categoryId', v_line."category_id", 'spentOn', v_line."spent_on", 'description', v_line."description", 'merchant', v_line."merchant", 'amount', v_line."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = v_line."report_id"), 'receipts', 0, 'createdAt', v_line."created_at", 'updatedAt', v_line."updated_at");
+  return jsonb_build_object('id', v_line."id", 'reportId', v_line."report_id", 'categoryId', v_line."category_id", 'spentOn', v_line."spent_on", 'description', v_line."description", 'merchant', v_line."merchant", 'dimensions', v_line."dimensions", 'amount', v_line."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = v_line."report_id"), 'receipts', 0, 'createdAt', v_line."created_at", 'updatedAt', v_line."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text) from public, anon;
-grant execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."remove_expense_line"(line_id uuid)
 returns jsonb
@@ -481,7 +490,7 @@ begin
   update "better_supabase"."expense_reports" x set "updated_at" = now() where x."id" = v_row."id"
     returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'title', v_row."title", 'currency', v_row."currency", 'note', v_row."note", 'status', (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)::text, 'approvalId', v_row."approval_id", 'submittedAt', v_row."submitted_at", 'approvedAt', v_row."approved_at", 'approvalTransactionId', v_row."approval_transaction_id", 'reimbursedAt', v_row."reimbursed_at", 'reimbursementTransactionId', v_row."reimbursement_transaction_id", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at",
-      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
+      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."remove_expense_line"(uuid) from public, anon;
@@ -559,7 +568,7 @@ begin
   select * into v_approval from "better_supabase"."approval_requests" p where p."id" = v_row."approval_id";
   null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'title', v_row."title", 'currency', v_row."currency", 'note', v_row."note", 'status', (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)::text, 'approvalId', v_row."approval_id", 'submittedAt', v_row."submitted_at", 'approvedAt', v_row."approved_at", 'approvalTransactionId', v_row."approval_transaction_id", 'reimbursedAt', v_row."reimbursed_at", 'reimbursementTransactionId', v_row."reimbursement_transaction_id", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at",
-      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
+      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."submit_expense_report"(uuid) from public, anon;
@@ -646,7 +655,7 @@ begin
   
   null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'title', v_row."title", 'currency', v_row."currency", 'note', v_row."note", 'status', (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)::text, 'approvalId', v_row."approval_id", 'submittedAt', v_row."submitted_at", 'approvedAt', v_row."approved_at", 'approvalTransactionId', v_row."approval_transaction_id", 'reimbursedAt', v_row."reimbursed_at", 'reimbursementTransactionId', v_row."reimbursement_transaction_id", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at",
-      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
+      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."reimburse_expense_report"(uuid, timestamptz, text) from public, anon;
@@ -686,7 +695,7 @@ begin
   select * into v_approval from "better_supabase"."approval_requests" p where p."id" = v_row."approval_id";
   null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'title', v_row."title", 'currency', v_row."currency", 'note', v_row."note", 'status', (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)::text, 'approvalId', v_row."approval_id", 'submittedAt', v_row."submitted_at", 'approvedAt', v_row."approved_at", 'approvalTransactionId', v_row."approval_transaction_id", 'reimbursedAt', v_row."reimbursed_at", 'reimbursementTransactionId', v_row."reimbursement_transaction_id", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at",
-      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
+      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."cancel_expense_report"(uuid) from public, anon;
@@ -712,7 +721,7 @@ begin
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'title', v_row."title", 'currency', v_row."currency", 'note', v_row."note", 'status', (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)::text, 'approvalId', v_row."approval_id", 'submittedAt', v_row."submitted_at", 'approvedAt', v_row."approved_at", 'approvalTransactionId', v_row."approval_transaction_id", 'reimbursedAt', v_row."reimbursed_at", 'reimbursementTransactionId', v_row."reimbursement_transaction_id", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at",
-      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
+      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."get_expense_report"(uuid) from public, anon;
@@ -741,7 +750,7 @@ begin
     select coalesce(jsonb_agg(z.item order by z.created desc, z.id), '[]'::jsonb)
     from (
       select jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'title', q."title", 'currency', q."currency", 'note', q."note", 'status', (case when q."cancelled_at" is not null then 'cancelled' when q."reimbursed_at" is not null then 'reimbursed' when q."approved_at" is not null then 'approved' when p."status" = 'pending' then 'submitted' when p."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = q."id"), 0)::text, 'approvalId', q."approval_id", 'submittedAt', q."submitted_at", 'approvedAt', q."approved_at", 'approvalTransactionId', q."approval_transaction_id", 'reimbursedAt', q."reimbursed_at", 'reimbursementTransactionId', q."reimbursement_transaction_id", 'cancelledAt', q."cancelled_at", 'createdAt', q."created_at", 'updatedAt', q."updated_at",
-      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = q."id")) as item, q."created_at" as created, q."id" as id
+      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = q."id")) as item, q."created_at" as created, q."id" as id
       from "better_supabase"."expense_reports" q
       left join "better_supabase"."approval_requests" p on p."id" = q."approval_id"
       where q."tenant_id" = list_expense_reports.tenant

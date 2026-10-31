@@ -5341,6 +5341,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "description": "description",
               "merchant": "merchant",
               "amount": "amount",
+              "dimensions": "dimensions",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
@@ -14608,6 +14609,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "string",
                 "optional": true,
                 "maxLength": 200
+              },
+              "dimensions": {
+                "kind": "json",
+                "optional": true,
+                "description": "Accounting dimensions of the line: `{ project: \"<project id>\" }`."
               }
             },
             "jsonSchema": {
@@ -14652,6 +14658,9 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "merchant": {
                   "type": "string",
                   "maxLength": 200
+                },
+                "dimensions": {
+                  "description": "Accounting dimensions of the line: `{ project: \"<project id>\" }`."
                 }
               },
               "required": [

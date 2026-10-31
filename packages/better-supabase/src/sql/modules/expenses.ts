@@ -191,10 +191,11 @@ const NAMES: BlockSqlNames = {
         description: "description",
         merchant: "merchant",
         amount: "amount",
+        dimensions: "dimensions",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["merchant"],
+      optional: ["merchant", "dimensions"],
     },
     expenses: EXPENSE_TABLE,
   },
@@ -292,12 +293,12 @@ create table if not exists ${lines} (
   ${x("spentOn")} date not null,
   ${x("description")} text not null check (length(${x("description")}) between 1 and 500),${column("lines", "merchant", (name) => `${name} text check (${name} is null or length(${name}) <= 200)`)}
   -- Minor units of the report's currency (ADR 0037).
-  ${x("amount")} bigint not null check (${x("amount")} > 0),
+  ${x("amount")} bigint not null check (${x("amount")} > 0),${column("lines", "dimensions", (name) => `${name} jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}
   ${x("createdAt")} timestamptz not null default now(),
   ${x("updatedAt")} timestamptz not null default now(),
   foreign key (${x("tenant")}, ${x("category")}) references ${categories} (${k("tenant")}, ${k("id")}) on delete restrict
 );
-create index if not exists ${index("lines", "report_idx")} on ${lines} (${x("report")}, ${x("spentOn")});
+${ctx.has("lines", "dimensions") ? `alter table ${lines} add column if not exists ${x("dimensions")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${x("dimensions")}) = 'object');\n` : ""}create index if not exists ${index("lines", "report_idx")} on ${lines} (${x("report")}, ${x("spentOn")});
 create index if not exists ${index("lines", "category_idx")} on ${lines} (${x("tenant")}, ${x("category")});
 ${lockModuleTable(ctx, "lines", { read: true })}
 drop policy if exists ${index("lines", "read")} on ${lines};
@@ -381,12 +382,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     {
       name: "add_expense_line",
-      args: ["uuid", "uuid", "date", "bigint", "text", "text"],
+      args: ["uuid", "uuid", "date", "bigint", "text", "text", "text", "jsonb"],
       returns: "jsonb",
     },
     {
       name: "update_expense_line",
-      args: ["uuid", "uuid", "date", "bigint", "text", "text"],
+      args: ["uuid", "uuid", "date", "bigint", "text", "text", "text", "jsonb"],
       returns: "jsonb",
     },
     { name: "remove_expense_line", args: ["uuid"], returns: "jsonb" },

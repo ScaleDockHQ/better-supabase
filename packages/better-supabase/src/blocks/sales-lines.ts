@@ -14,6 +14,12 @@ export interface LineInput {
   readonly taxRateBps?: number;
   readonly taxCode?: string;
   readonly product?: RecordRef;
+  /**
+   * Accounting dimensions of a purchase bill line, such as `{ project:
+   * "<project id>" }`. They are merged over the bill's own dimensions when the
+   * bill books, and need the invoice lines `dimensions` column.
+   */
+  readonly dimensions?: Readonly<Record<string, string>>;
   readonly fields?: Readonly<Record<string, unknown>>;
 }
 
@@ -32,6 +38,21 @@ export interface Totals {
   readonly total: Money;
 }
 
+/** The dimensions of a line, or `undefined` when it has none. */
+function dimensionsOf(
+  value: unknown,
+): Readonly<Record<string, string>> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value).map(
+    ([key, code]): readonly [string, string] => [key, String(code)],
+  );
+
+  return entries.length === 0 ? undefined : Object.fromEntries(entries);
+}
+
 /** A line a document function returned, in the document's `currency`. */
 export function lineOf(value: unknown, currency: string): Line {
   const row = recordOf(value, "line");
@@ -45,6 +66,7 @@ export function lineOf(value: unknown, currency: string): Line {
     taxRateBps: Number(row["taxRateBps"] ?? 0),
     taxCode: optionalText(row["taxCode"]),
     product: refOf(product["type"], product["id"]),
+    dimensions: dimensionsOf(row["dimensions"]),
     fields: isRecord(row["fields"]) ? row["fields"] : undefined,
   });
 }
