@@ -61,6 +61,7 @@ import type { KnowledgeSqlOptions } from "./knowledge/options.ts";
 import type { LeadScoringSqlOptions } from "./lead-scoring/options.ts";
 import type { LeasesSqlOptions } from "./leases/options.ts";
 import type { LeaveSqlOptions } from "./leave/options.ts";
+import type { LegalEntitiesSqlOptions } from "./legal-entities/options.ts";
 import type { MailSyncSqlOptions } from "./mail-sync/options.ts";
 import type { ManufacturingSqlOptions } from "./manufacturing/options.ts";
 import type { MedicationsSqlOptions } from "./medications/options.ts";
@@ -203,6 +204,7 @@ import { knowledgeSqlOptions } from "./knowledge/options.ts";
 import { leadScoringSqlOptions } from "./lead-scoring/options.ts";
 import { leasesSqlOptions } from "./leases/options.ts";
 import { leaveSqlOptions } from "./leave/options.ts";
+import { legalEntitiesSqlOptions } from "./legal-entities/options.ts";
 import { mailSyncSqlOptions } from "./mail-sync/options.ts";
 import { manufacturingSqlOptions } from "./manufacturing/options.ts";
 import { medicationsSqlOptions } from "./medications/options.ts";
@@ -368,6 +370,7 @@ export interface BlockOptionsRegistry {
   readonly leases: LeasesSqlOptions;
   readonly leave: LeaveSqlOptions;
   readonly ledger: None;
+  readonly "legal-entities": LegalEntitiesSqlOptions;
   readonly "mail-sync": MailSyncSqlOptions;
   readonly manufacturing: ManufacturingSqlOptions;
   readonly memberships: MembershipsSqlOptions;
@@ -535,6 +538,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   leave: leaveSqlOptions,
   ledger: NO_OPTIONS,
   identities: identitiesSqlOptions,
+  "legal-entities": legalEntitiesSqlOptions,
   "mail-sync": mailSyncSqlOptions,
   memberships: membershipsSqlOptions,
   memory: memorySqlOptions,

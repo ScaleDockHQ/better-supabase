@@ -74,6 +74,7 @@ import type { leadScoringBlock } from "../../src/blocks/lead-scoring/manifest.ts
 import type { leasesBlock } from "../../src/blocks/leases/manifest.ts";
 import type { leaveBlock } from "../../src/blocks/leave/manifest.ts";
 import type { ledgerBlock } from "../../src/blocks/ledger/manifest.ts";
+import type { legalEntitiesBlock } from "../../src/blocks/legal-entities/manifest.ts";
 import type { mailSyncBlock } from "../../src/blocks/mail-sync/manifest.ts";
 import type { manufacturingBlock } from "../../src/blocks/manufacturing/manifest.ts";
 import type { medicationsBlock } from "../../src/blocks/medications/manifest.ts";
@@ -196,6 +197,7 @@ export type AllBlocks = {
   readonly drive: typeof driveBlock;
   readonly employees: typeof employeesBlock;
   readonly engagements: typeof activitiesBlock;
+  readonly "legal-entities": typeof legalEntitiesBlock;
   readonly "mail-sync": typeof mailSyncBlock;
   readonly segments: typeof segmentsBlock;
   readonly assignment: typeof assignmentBlock;

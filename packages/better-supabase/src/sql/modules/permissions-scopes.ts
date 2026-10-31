@@ -247,6 +247,7 @@ export const MODULE_PERMISSION_SCOPES: {
     send: "tenant",
     manage: "tenant",
   },
+  "legal-entities": { read: "tenant", manage: "tenant" },
   segments: { read: "tenant", edit: "tenant" },
   assignment: { read: "tenant", manage: "tenant", assign: "tenant" },
   enrichment: { read: "tenant", run: "tenant" },

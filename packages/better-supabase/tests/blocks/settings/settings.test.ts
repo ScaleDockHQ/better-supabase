@@ -176,3 +176,31 @@ describe("defineSettings", () => {
     >().toEqualTypeOf<number>();
   });
 });
+
+describe("resolve", () => {
+  it("applies the legal entity's value, then the organization's, then the default", async () => {
+    const sources = [
+      { value: 8, source: "legal_entity", legalEntityId: "le1" },
+      { value: 3, source: "organization", legalEntityId: "le1" },
+      { value: null, source: "default", legalEntityId: null },
+    ];
+
+    const queue = [...sources];
+    const { transport, calls } = fakeTransport(() => queue.shift());
+    const client = createSettings({ settings, transport });
+
+    expect(
+      await client
+        .resolve("org-1", "seats", { legalEntityId: "le1" })
+        .orThrow(),
+    ).toBe(8);
+    expect(await client.resolve("org-1", "seats").orThrow()).toBe(3);
+    expect(await client.resolve("org-1", "seats").orThrow()).toBe(5);
+    expect(calls[0]).toEqual([
+      "better_supabase",
+      "resolve_setting",
+      { tenant: "org-1", key: "seats", legal_entity: "le1" },
+    ]);
+    expect(calls[1]?.[2]["legal_entity"]).toBeNull();
+  });
+});

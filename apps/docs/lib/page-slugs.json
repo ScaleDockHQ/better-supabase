@@ -118,6 +118,7 @@
   "blocks/leases",
   "blocks/leave",
   "blocks/ledger",
+  "blocks/legal-entities",
   "blocks/mail-sync",
   "blocks/manufacturing",
   "blocks/medications",

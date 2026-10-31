@@ -428,6 +428,17 @@ msgctxt "navigation.6D4Ghb"
 msgid "Toggle sidebar"
 msgstr "Toggle sidebar"
 
+#: src/app/[locale]/(app)/legal-entities/page.tsx
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.8K_n1E"
+msgid "Legal entities"
+msgstr "Legal entities"
+
+#: src/app/[locale]/(app)/legal-entities/page.tsx
+msgctxt "legal-entities.PNZhVW"
+msgid "The companies inside this organization, each with its own VAT number, currency and tax period."
+msgstr "The companies inside this organization, each with its own VAT number, currency and tax period."
+
 #: src/app/[locale]/(app)/manufacturing/page.tsx
 msgctxt "manufacturing.z3FEm2"
 msgid "Manufacturing"
@@ -9035,6 +9046,91 @@ msgctxt "production.9MRsjL"
 msgid "Read the manufacturing guide"
 msgstr "Read the manufacturing guide"
 
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.UybXB6"
+msgid "Records without a legal entity belong to the default one. Settings fall back from the entity to the organization."
+msgstr "Records without a legal entity belong to the default one. Settings fall back from the entity to the organization."
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.fmTLpn"
+msgid "The legal entities didn't load"
+msgstr "The legal entities didn't load"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.R6A9ZR"
+msgid "No legal entities"
+msgstr "No legal entities"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.dC5NSh"
+msgid "A single-company organization needs none. Add one through the API when you invoice from several companies."
+msgstr "A single-company organization needs none. Add one through the API when you invoice from several companies."
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.jaYSv1"
+msgid "Read the legal entities guide"
+msgstr "Read the legal entities guide"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.h2vipu"
+msgid "Code"
+msgstr "Code"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.5VJ7dT"
+msgid "VAT number"
+msgstr "VAT number"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.55hdQy"
+msgid "Currency"
+msgstr "Currency"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.30HC4Q"
+msgid "Tax period"
+msgstr "Tax period"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.wYsv4Z"
+msgid "Monthly"
+msgstr "Monthly"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.b1Ou36"
+msgid "Quarterly"
+msgstr "Quarterly"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.lKv8ex"
+msgid "Default"
+msgstr "Default"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.0HT-Ib"
+msgid "Archived"
+msgstr "Archived"
+
 #: src/features/manufacturing/components/production-order-board.tsx
 msgctxt "manufacturing.W6nwjo"
 msgid "Draft"
@@ -9798,6 +9894,11 @@ msgstr "Production planning"
 msgctxt "navigation.wWUTla"
 msgid "Banking"
 msgstr "Banking"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.8K_n1E"
+msgid "Legal entities"
+msgstr "Legal entities"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.X7jl6w"

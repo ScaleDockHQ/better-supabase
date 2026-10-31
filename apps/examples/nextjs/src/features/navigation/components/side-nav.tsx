@@ -110,6 +110,7 @@ const ICONS = {
   manufacturing: FactoryIcon,
   production: PackageSearchIcon,
   banking: BanknoteIcon,
+  legalEntities: LandmarkIcon,
   orders: ReceiptIcon,
   dispatch: CalendarRangeIcon,
   myDay: RouteIcon,
@@ -247,6 +248,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "banking": {
         return t("Banking");
+      }
+
+      case "legalEntities": {
+        return t("Legal entities");
       }
 
       case "orders": {

@@ -107,6 +107,9 @@ const NO_FIELDS: readonly string[] = [
   // Accounts and entries are double-entry bookkeeping other blocks post to;
   // per-account data goes in `metadata`.
   "ledger",
+  // Legal entities are a fixed set of company details; per-entity data goes
+  // in legal_entity_settings.
+  "legal-entities",
   // Mailboxes, threads and messages mirror a provider's mail; app data goes on the linked records.
   "mail-sync",
   // Meetings, attendees, agendas and decisions are fixed records; app data

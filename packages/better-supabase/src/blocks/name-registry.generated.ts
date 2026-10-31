@@ -1252,6 +1252,21 @@ export interface BlockNameRegistry {
     readonly primary: "ledger_account";
     readonly formerKeys: never;
   };
+  readonly "legal-entities": {
+    readonly tables: {
+      readonly "entities": "id" | "tenant" | "code" | "name" | "address" | "vatNumber" | "cocNumber" | "iban" | "bic" | "logoAttachment" | "defaultCurrency" | "fiscal" | "isDefault" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "settings": "tenant" | "entity" | "key" | "value" | "updatedBy" | "updatedAt";
+    };
+    readonly functions: "create_legal_entity" | "get_legal_entity" | "get_legal_entity_settings" | "legal_entity_fiscal" | "legal_entity_of" | "list_legal_entities" | "reset_legal_entity_setting" | "resolve_setting" | "set_default_legal_entity" | "set_legal_entity_archived" | "set_legal_entity_setting" | "update_legal_entity";
+    readonly actions: "read" | "manage";
+    readonly hooks: "before_legal_entity_create" | "after_legal_entity_create" | "before_legal_entity_update" | "after_legal_entity_update";
+    readonly entities: {
+      readonly "legal_entity": "id" | "tenant_id" | "code" | "name" | "address" | "vat_number" | "coc_number" | "iban" | "bic" | "logo_attachment_id" | "default_currency" | "fiscal" | "is_default" | "archived_at" | "created_at" | "updated_at";
+      readonly "legal_entity_setting": "tenant_id" | "legal_entity_id" | "key" | "value" | "updated_by" | "updated_at";
+    };
+    readonly primary: "legal_entity";
+    readonly formerKeys: never;
+  };
   readonly "mail-sync": {
     readonly tables: {
       readonly "accounts": "id" | "tenant" | "user" | "provider" | "address" | "credentialRef" | "share" | "status" | "cursor" | "lastSyncedAt" | "lastError" | "createdAt" | "updatedAt";

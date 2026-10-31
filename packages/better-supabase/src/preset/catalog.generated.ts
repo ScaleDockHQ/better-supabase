@@ -8906,6 +8906,82 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "legal-entities",
+      "title": "Legal entities",
+      "category": "tenancy",
+      "requires": [
+        "memberships",
+        "permissions",
+        "settings"
+      ],
+      "integrates": [
+        "attachments",
+        "invoices",
+        "quotes",
+        "orders",
+        "numbering",
+        "accounting",
+        "inventory",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "legal-entities",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "legal_entity": {
+            "table": "entities",
+            "singular": "legal_entity",
+            "primary": true
+          },
+          "legal_entity_setting": {
+            "table": "settings",
+            "singular": "legal_entity_setting"
+          }
+        },
+        "tables": {
+          "entities": {
+            "name": "legal_entities",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "code": "code",
+              "name": "name",
+              "address": "address",
+              "vatNumber": "vat_number",
+              "cocNumber": "coc_number",
+              "iban": "iban",
+              "bic": "bic",
+              "logoAttachment": "logo_attachment_id",
+              "defaultCurrency": "default_currency",
+              "fiscal": "fiscal",
+              "isDefault": "is_default",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "settings": {
+            "name": "legal_entity_settings",
+            "columns": {
+              "tenant": "tenant_id",
+              "entity": "legal_entity_id",
+              "key": "key",
+              "value": "value",
+              "updatedBy": "updated_by",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "legal_entities.read",
+          "manage": "legal_entities.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -19837,6 +19913,174 @@ export const PRESET_CATALOG: PresetCatalog = {
           "bank_statement.imported",
           "bank_transaction.matched",
           "bank_transaction.unmatched"
+        ]
+      }
+    },
+    {
+      "name": "legal-entities",
+      "sql": [
+        "legal-entities"
+      ],
+      "category": "tenancy",
+      "client": {
+        "export": "legalEntitiesBlock",
+        "subpath": "better-supabase/blocks/legal-entities"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "CreateLegalEntityInput"
+        },
+        {
+          "name": "LegalEntities"
+        },
+        {
+          "name": "LegalEntitiesEvents"
+        },
+        {
+          "name": "LegalEntitiesOptions"
+        },
+        {
+          "name": "LegalEntitiesSqlOptions"
+        },
+        {
+          "name": "LegalEntity"
+        },
+        {
+          "name": "LegalEntityEventData"
+        },
+        {
+          "name": "LegalEntityFiscal"
+        },
+        {
+          "name": "LegalEntityInput"
+        }
+      ],
+      "entitySchemas": {
+        "legal_entity": {
+          "input": {
+            "title": "LegalEntityInput",
+            "fields": {
+              "code": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 50
+              },
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "address": {
+                "kind": "json",
+                "optional": true
+              },
+              "vatNumber": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "cocNumber": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "iban": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "bic": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "logoAttachmentId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "defaultCurrency": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "fiscal": {
+                "kind": "json",
+                "optional": true,
+                "description": "`{ fiscalYearStartMonth: 1 to 12, taxPeriod: 'monthly' | 'quarterly' }`."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "LegalEntityInput",
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "address": {},
+                "vatNumber": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "cocNumber": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "iban": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "bic": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "logoAttachmentId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "defaultCurrency": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fiscal": {
+                  "description": "`{ fiscalYearStartMonth: 1 to 12, taxPeriod: 'monthly' | 'quarterly' }`."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "LegalEntitiesEvents",
+        "types": [
+          "legal_entity.created",
+          "legal_entity.updated"
         ]
       }
     },

@@ -239,6 +239,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_meeting_hold",
     "after_meeting_decision",
   ],
+  "legal-entities": [
+    "before_legal_entity_create",
+    "after_legal_entity_create",
+    "before_legal_entity_update",
+    "after_legal_entity_update",
+  ],
   manufacturing: [
     "before_production_order_release",
     "after_production_order_release",

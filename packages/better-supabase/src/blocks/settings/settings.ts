@@ -114,6 +114,17 @@ export interface Settings<
     organizationId: string,
     key: keyof O & string,
   ): AsyncResult<boolean>;
+  /**
+   * One organization setting for a legal entity: its own value, else the
+   * organization's, else the key's default. Without `legalEntityId` the
+   * organization's default legal entity answers. Needs the `legal-entities`
+   * block; without it, use `getOrganization`.
+   */
+  resolve<K extends keyof O & string>(
+    organizationId: string,
+    key: K,
+    options?: { readonly legalEntityId?: string },
+  ): AsyncResult<SettingValues<O>[K]>;
   getPlatform(): AsyncResult<SettingValues<P>>;
   getPlatform<K extends keyof P & string>(
     key: K,
@@ -240,6 +251,15 @@ export function createSettings<
         { tenant: organizationId },
         key,
       ),
+    resolve: (organizationId, key, resolveOptions) =>
+      // SAFETY: resolver returns the key's schema output, SettingValues<O>[K].
+      resolver(
+        organization,
+        call,
+        organizationId,
+        key,
+        resolveOptions?.legalEntityId,
+      ) as AsyncResult<SettingValues<O>[typeof key]>,
     getPlatform,
     setPlatform: (key, value) =>
       // SAFETY: writer returns the key's schema output, SettingValues<P>[K].
@@ -333,6 +353,30 @@ function writer(
     validate(entry.schema, value, `setting "${key}"`),
   ).andThen((output) =>
     call(fn, { ...args, key, value: { value: output ?? null } }, () => output),
+  );
+}
+
+/** Reads one key through `resolve_setting`; the default applies when unset. */
+function resolver(
+  entries: SettingEntries,
+  call: BlockCall,
+  organizationId: string,
+  key: string,
+  legalEntityId: string | undefined,
+): AsyncResult<unknown> {
+  const entry = entries[key];
+
+  if (!entry) {
+    return unknownSetting(key);
+  }
+
+  return call(
+    "resolve_setting",
+    { tenant: organizationId, key, legal_entity: legalEntityId ?? null },
+    (resolved) =>
+      isRecord(resolved) && resolved["source"] !== "default"
+        ? readValue(entry, resolved["value"])
+        : entry.default,
   );
 }
 

@@ -475,6 +475,21 @@ export default defineConfig({
     // Bank accounts with imported statements, matched to invoices and booked
     // through the accounting journals; rules book recurring lines.
     banking: {},
+    // Several companies in one organization with one default; null means the
+    // default entity on the tables listed here.
+    "legal-entities": {
+      options: {
+        on: [
+          "invoices",
+          "quotes",
+          "orders",
+          "numbering",
+          "accounting",
+          "inventory_locations",
+          "settings",
+        ],
+      },
+    },
     // Members acknowledge the current version of each policy they are
     // assigned, directly, through a team or through their role.
     acknowledgements: {

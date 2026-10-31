@@ -428,6 +428,17 @@ msgctxt "navigation.6D4Ghb"
 msgid "Toggle sidebar"
 msgstr "Zijbalk tonen of verbergen"
 
+#: src/app/[locale]/(app)/legal-entities/page.tsx
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.8K_n1E"
+msgid "Legal entities"
+msgstr "Rechtspersonen"
+
+#: src/app/[locale]/(app)/legal-entities/page.tsx
+msgctxt "legal-entities.PNZhVW"
+msgid "The companies inside this organization, each with its own VAT number, currency and tax period."
+msgstr "De bedrijven binnen deze organisatie, elk met een eigen btw-nummer, valuta en aangifteperiode."
+
 #: src/app/[locale]/(app)/manufacturing/page.tsx
 msgctxt "manufacturing.z3FEm2"
 msgid "Manufacturing"
@@ -9035,6 +9046,91 @@ msgctxt "production.9MRsjL"
 msgid "Read the manufacturing guide"
 msgstr "Lees de handleiding voor productie"
 
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.UybXB6"
+msgid "Records without a legal entity belong to the default one. Settings fall back from the entity to the organization."
+msgstr "Records zonder rechtspersoon horen bij de standaard. Instellingen vallen terug van de rechtspersoon naar de organisatie."
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.fmTLpn"
+msgid "The legal entities didn't load"
+msgstr "De rechtspersonen zijn niet geladen"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het over een moment opnieuw."
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.R6A9ZR"
+msgid "No legal entities"
+msgstr "Geen rechtspersonen"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.dC5NSh"
+msgid "A single-company organization needs none. Add one through the API when you invoice from several companies."
+msgstr "Een organisatie met één bedrijf heeft er geen nodig. Voeg er een toe via de API wanneer je vanuit meerdere bedrijven factureert."
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.jaYSv1"
+msgid "Read the legal entities guide"
+msgstr "Lees de gids over rechtspersonen"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.h2vipu"
+msgid "Code"
+msgstr "Code"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.5VJ7dT"
+msgid "VAT number"
+msgstr "Btw-nummer"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.55hdQy"
+msgid "Currency"
+msgstr "Valuta"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.30HC4Q"
+msgid "Tax period"
+msgstr "Aangifteperiode"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.wYsv4Z"
+msgid "Monthly"
+msgstr "Maandelijks"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.b1Ou36"
+msgid "Quarterly"
+msgstr "Per kwartaal"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.lKv8ex"
+msgid "Default"
+msgstr "Standaard"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
 #: src/features/manufacturing/components/production-order-board.tsx
 msgctxt "manufacturing.W6nwjo"
 msgid "Draft"
@@ -9798,6 +9894,11 @@ msgstr "Productieplanning"
 msgctxt "navigation.wWUTla"
 msgid "Banking"
 msgstr "Bank"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.8K_n1E"
+msgid "Legal entities"
+msgstr "Rechtspersonen"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.X7jl6w"
