@@ -176,6 +176,133 @@ describe("accounting ledger client", () => {
     expect(t.calls[0]?.[1]).toMatchObject({ rollup: true, dimensions: {} });
   });
 
+  it("sends the report options and decodes optional fields", async () => {
+    const t = fieldsTransport({
+      accounting_column_balance: () => ({
+        accounts: [
+          {
+            accountId: "a2",
+            code: "1310",
+            name: "Child",
+            type: "asset",
+            parentId: "a1",
+            level: 2,
+            openingDebit: "0",
+            openingCredit: "5",
+            debit: "0",
+            credit: "0",
+            closingDebit: "0",
+            closingCredit: "5",
+          },
+        ],
+        totals: {
+          openingDebit: "0",
+          openingCredit: "5",
+          debit: "0",
+          credit: "0",
+          closingDebit: "0",
+          closingCredit: "5",
+        },
+      }),
+      accounting_journal_listing: () => ({
+        journals: [
+          {
+            journalId: "j1",
+            code: "GEN",
+            name: "General",
+            type: "general",
+            totalDebit: "1",
+            totalCredit: "1",
+            entries: [
+              {
+                id: "e1",
+                entryDate: "2026-01-02",
+                status: "reversed",
+                reference: "R1",
+                memo: "m",
+                lines: [
+                  {
+                    accountId: "a1",
+                    accountCode: "1300",
+                    accountName: "Receivable",
+                    debit: "1",
+                    credit: "0",
+                    taxAmount: "0",
+                    partyId: "c1",
+                    description: "d",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      save_accounting_opening_balances: () => ({}),
+      post_accounting_opening_balances: () => ({
+        id: "e1",
+        organizationId: "org-1",
+        journalId: "j9",
+        fiscalYear: 2026,
+        entryDate: "2026-01-01",
+        status: "posted",
+        total: "0",
+        createdAt: AT,
+        updatedAt: AT,
+      }),
+    });
+
+    const books = createAccounting({ transport: t });
+
+    const columns = await books
+      .columnBalance("org-1", {
+        since: Temporal.PlainDate.from("2026-01-01"),
+        until: Temporal.PlainDate.from("2026-12-31"),
+        dimensions: { project: "x" },
+      })
+      .orThrow();
+
+    const listing = await books
+      .journalListing("org-1", {
+        since: Temporal.PlainDate.from("2026-01-01"),
+        until: Temporal.PlainDate.from("2026-12-31"),
+        journalId: "j1",
+      })
+      .orThrow();
+
+    const saved = await books
+      .saveOpeningBalances("org-1", 2026, [{ accountId: "a1", amount: -5n }])
+      .orThrow();
+
+    await books
+      .postOpeningBalances("org-1", 2026, { journalId: "j9" })
+      .orThrow();
+
+    const line = listing.journals[0]?.entries[0]?.lines[0];
+
+    expect(columns.accounts[0]?.parentId).toBe("a1");
+    expect(columns.accounts[0]?.openingCredit).toBe(5n);
+    expect(line?.partyId).toBe("c1");
+    expect(line?.description).toBe("d");
+    expect(listing.journals[0]?.entries[0]).toMatchObject({
+      status: "reversed",
+      reference: "R1",
+      memo: "m",
+    });
+    expect(saved).toEqual([]);
+    expect(t.calls[0]?.[1]).toEqual({
+      tenant: "org-1",
+      since: "2026-01-01",
+      until: "2026-12-31",
+      dimensions: { project: "x" },
+      rollup: false,
+    });
+    expect(t.calls[1]?.[1]).toMatchObject({ journal_id: "j1" });
+    expect(t.calls[2]?.[1]).toMatchObject({
+      balances: [{ amount: "-5", accountId: "a1" }],
+    });
+    expect(t.calls[3]?.[1]).toMatchObject({ journal_id: "j9" });
+  });
+
   it("reads a period trial balance", async () => {
     const t = fieldsTransport({
       accounting_period_trial_balance: () => ({
