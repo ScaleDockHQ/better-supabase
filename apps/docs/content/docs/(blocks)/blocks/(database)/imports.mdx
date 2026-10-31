@@ -90,10 +90,11 @@ overwrites. An entity without a target fails the batch with
 
 These blocks contribute targets:
 
-| Block     | Entity               | Writes                                                 |
-| --------- | -------------------- | ------------------------------------------------------ |
-| `catalog` | `supplier_item`      | A supplier's price list row, by supplier and code      |
-| `catalog` | `product_identifier` | An EAN or a supplier or manufacturer code on a variant |
+| Block           | Entity               | Writes                                                                                |
+| --------------- | -------------------- | ------------------------------------------------------------------------------------- |
+| `catalog`       | `supplier_item`      | A supplier's price list row, by supplier and code                                     |
+| `catalog`       | `product_identifier` | An EAN or a supplier or manufacturer code on a variant                                |
+| `custom-fields` | `field_value`        | A custom field value of a record the record map knows, checked against its field type |
 
 The [catalog page](/docs/blocks/catalog#importing-price-lists-and-codes) lists
 the `data` each one takes.

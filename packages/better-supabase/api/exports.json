@@ -5821,7 +5821,9 @@
       "createCustomFields",
       "CUSTOM_FIELD_TYPES",
       "customFieldsBlock",
-      "customFieldsEvents"
+      "customFieldsEvents",
+      "defineFieldPack",
+      "FIELD_PACK_KEY_PATTERN"
     ],
     "types": [
       "CustomFields",
@@ -5830,6 +5832,10 @@
       "CustomFieldType",
       "FieldDefinition",
       "FieldDefinitionDetail",
+      "FieldEntityScope",
+      "FieldPack",
+      "FieldPackField",
+      "FieldPackInstall",
       "FieldValue",
       "SetFieldInput"
     ]
@@ -8659,6 +8665,7 @@
       "testEveDocumentBackend",
       "testEventSink",
       "testExecutor",
+      "testFieldPack",
       "testFundingClaimChannel",
       "testFundingClaimFormat",
       "testGenerator",
@@ -8754,6 +8761,7 @@
       "TestEveDocumentBackendOptions",
       "TestEventSinkOptions",
       "TestExecutorOptions",
+      "TestFieldPackOptions",
       "TestFundingClaimChannelOptions",
       "TestFundingClaimFormatOptions",
       "TestGeneratorOptions",

@@ -157,3 +157,4 @@ add one, and link it from the code or config it explains.
 | [0153](0153-banking-reconciliation.md)                        | Bank statements import idempotently and reconcile in SQL against invoices and the books; bank feeds are a versioned port                           |
 | [0154](0154-meetings-block.md)                                | Meetings are one block over subjects, reactions, documents and tasks; votes settle decisions and action items are tasks                            |
 | [0155](0155-payroll-export.md)                                | Payroll runs collect in SQL and render through a versioned port                                                                                    | accepted |
+| [0156](0156-field-packs-and-registered-entities.md)           | Field definitions name registered subject types, packs install them idempotently, values can belong to a legal entity, and `field_value` is an import target |

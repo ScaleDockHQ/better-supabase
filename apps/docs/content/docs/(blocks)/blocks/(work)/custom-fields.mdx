@@ -107,6 +107,70 @@ blocks: {
 
 `options.layout` is `normalized` (the default), `inline` or `keyed` ([below](#keyed-layout)). Inline layout stores the definition columns on the value row and skips the definitions table, which fits an existing table that keeps one value per row.
 
+## Entities are registered subject types
+
+In the normalized layout, `entity` names a subject type that the app registers: a key of [`config.subjects`](/docs/blocks/sql#actions-granted-per-row) or a type an installed block registers (`blocks.custom-fields.on` narrows the list). `save_field_definition` and `install_field_pack` fail with `FIELD_ENTITY_UNKNOWN` (SQLSTATE `22023`) for any other value. Without registered types the entity stays free text, so a project that has no subjects keeps working.
+
+The list of registered types is one function, `better_supabase.subject_types()`, which returns `text[]`. Code that needs to ask the database which types exist calls it instead of keeping its own list.
+
+Definitions that were saved with a free-text entity need a registered name before the block upgrades. `blocks.custom-fields.options.entityMap` maps each stored value to its replacement, and the upgrade renames the definitions and the value rows that point at them:
+
+```ts title="better-supabase.config.ts"
+subjects: { sales_invoice: { table: "public.invoices", idType: "uuid" } },
+blocks: {
+  "custom-fields": { options: { entityMap: { invoice: "sales_invoice" } } },
+},
+```
+
+The upgrade leaves a definition alone when its new name already has the same key in the organization. Run `better-supabase doctor` afterwards to list the entities that still aren't registered.
+
+## Field packs
+
+A field pack is a versioned set of definitions for registered subject types. The library ships none: an industry, a team or an app writes its own and installs it per organization.
+
+```ts title="src/packs/contacts.ts"
+import { defineFieldPack } from "better-supabase/blocks/custom-fields";
+
+export const contactsPack = defineFieldPack({
+  apiVersion: 1,
+  key: "contacts-basics",
+  version: 1,
+  subjects: {
+    customer: [
+      { key: "tier", label: "Tier", type: "option" },
+      { key: "referral_code", label: "Referral code", type: "text" },
+      { key: "tax_id", label: "Tax ID", type: "text", sensitive: true },
+    ],
+  },
+});
+```
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "custom-fields": { options: { packs: [contactsPack] } },
+},
+```
+
+`db.customFields.installPacks()` installs every pack of the option in the caller's organization, and `installPack(pack)` installs one. Both call `install_field_pack(tenant, pack jsonb)`, which needs `custom_fields.manage` and matches each definition by pack and key:
+
+- A new key creates the definition, ranked after the others of its entity.
+- A key the pack owns changes only when the label, type, `required`, `sensitive`, `permission` or the pack version differ, so installing the same version twice reports `unchanged` for every field.
+- A key that a definition outside the pack already uses fails with `FIELD_PACK_CONFLICT`, and a malformed pack fails with `FIELD_PACK_INVALID`.
+
+The result is `{ pack, version, created, updated, unchanged }`. `listDefinitions` reports the `pack` and `packVersion` of each definition. Raise `version` when the fields change and install again. A pack never deletes a definition, because the values behind it belong to the organization.
+
+Packs are a versioned extension interface (`apiVersion: 1`). `testFieldPack(pack, { subjects })` from `better-supabase/testing` checks one against the contract.
+
+## Values per legal entity
+
+With the [`legal-entities`](/docs/blocks/legal-entities) block installed, `field_values` gains a nullable `legal_entity_id`. A value without one belongs to the organization, and a value with one belongs to that entity. A record keeps at most one value per field for the organization and one per entity.
+
+`readValues(subject, { legalEntity })` returns the entity's value where the entity has one and the organization's value where it doesn't. `setValue(subject, definitionId, value, { legalEntity })` stores the entity's value. Without `legalEntity` both work on the organization's values as before. Without the legal-entities block the column and the extra argument don't exist.
+
+## Importing values
+
+With the [`imports`](/docs/database/imports) block installed, `field_value` is an import target. An item's `data` is `{ subject: { entity, key }, field, value }`, where `subject` names a record by the external key in the import record map, `field` is the key of its definition and `value` is text, a number or a boolean. Items can name the record by `subjectType` and `subjectId` instead, and add `legalEntityId` with the legal-entities block. `import_field_value` checks the value against the field's type, encrypts it for an encrypted field and writes it with the same event as `set_field_value`. A row that doesn't pass fails with `IMPORT_ITEM_INVALID` and a message that names the problem.
+
 ## Keyed layout
 
 `options.layout: "keyed"` keeps each field on its value row, the way a table of

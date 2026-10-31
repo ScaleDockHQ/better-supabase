@@ -37,6 +37,7 @@ import { testAuthResolver } from "../../src/testing/kits/auth-resolver.ts";
 import { testCacheAdapter } from "../../src/testing/kits/cache-adapter.ts";
 import { testEventSink } from "../../src/testing/kits/event-sink.ts";
 import { testExecutor } from "../../src/testing/kits/executor.ts";
+import { testFieldPack } from "../../src/testing/kits/field-pack.ts";
 import { testPlugin } from "../../src/testing/kits/plugin.ts";
 import { testQueueProvider } from "../../src/testing/kits/queue-provider.ts";
 import { testSupportSessionStore } from "../../src/testing/kits/support-session-store.ts";
@@ -1040,5 +1041,43 @@ describe("testGenerator imports", () => {
     expect(
       await failures(testGenerator(future, { meta: schema.meta })),
     ).toEqual(["targets generator API 1"]);
+  });
+});
+
+describe("testFieldPack", () => {
+  const pack = {
+    apiVersion: 1,
+    key: "neutral",
+    version: 1,
+    subjects: { company: [{ key: "badge", label: "Badge", type: "text" }] },
+  } as const;
+
+  it("passes a valid pack", async () => {
+    await testFieldPack(pack, { subjects: ["company"] });
+  });
+
+  it("fails an unregistered subject type, a duplicate key and an old API", async () => {
+    const broken = {
+      ...pack,
+      apiVersion: 2,
+      subjects: {
+        other: [
+          { key: "a", label: "A", type: "text" },
+          { key: "a", label: "A", type: "text" },
+        ],
+      },
+    };
+
+    expect(
+      await failures(
+        // SAFETY: the kit checks packs written for another API version.
+        testFieldPack(broken as never, { subjects: ["company"] }),
+      ),
+    ).toEqual([
+      "targets field pack API v1",
+      "uses valid, unique field keys and known types",
+      "passes defineFieldPack",
+      "names only registered subject types",
+    ]);
   });
 });

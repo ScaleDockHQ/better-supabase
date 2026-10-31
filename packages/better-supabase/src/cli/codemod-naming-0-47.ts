@@ -84,6 +84,12 @@ const REVIEW_0_47: readonly ReviewHint[] = [
       "Import runs name their `source` instead of their `kind`: rename `kind` in `defineImport`, `appTableImport` and queries on `import_runs`, and read `counts` per entity (`{ inserted, updated, unchanged, conflicted, missing }`) and `errors` as `{ entity, key, code, message }`. New code starts runs with `imports.runs.start` and writes through `imports.upsertBatch`",
   },
   {
+    pattern:
+      /\b(?:saveDefinition|listDefinitions)\s*\(\s*["'`]|\bsave_field_definition\s*\(|\binstall_field_pack\b/,
+    message:
+      "A field definition's entity is a registered subject type: `save_field_definition` fails with `FIELD_ENTITY_UNKNOWN` for a name that isn't a key of `config.subjects` or a type an installed block registers. Register the type, or map the stored value to one with `blocks.custom-fields.options.entityMap` before `upgrade`, which renames the definitions and their value rows",
+  },
+  {
     pattern: /\bsequences\b[^\n]*\btables\s*:\s*\{[^{}\n]*\bmembers\s*:/,
     message:
       "A `members` table adopted for sequence runs is not moved by the upgrade, which copies only `sequence_enrollments`: copy its rows onto `enrollments` (program `sequence:<id>`) and `enrollment_steps`, then remove the `tables.members` key. The pattern matches a config written on one line; doctor reports the key in any layout as BS425",

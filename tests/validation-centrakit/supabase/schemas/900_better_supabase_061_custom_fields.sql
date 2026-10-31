@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
--- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:38173a0a5a69711f5dd7f10eb244d6ab9282d80f28d5962eb57f2ecc0f92c4eb
+-- @bsb-block custom-fields@4 managed
+-- @bsb-hash sha256:2aef64c84ad5efd8cf73992953a35be23545f4d5c11fc2dbe5fbc8c7e2ec91ce
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -103,6 +103,8 @@ grant execute on function "better_supabase"."bsb_valid_iban"(text) to authentica
 -- permission, or custom_fields.sensitive.read when the field names none.
 -- centrakit.field_definitions is the app's table: this block adds only the columns it needs.
 alter table "centrakit"."field_definitions" add column if not exists "encrypted" boolean not null default false;
+alter table "centrakit"."field_definitions" add column if not exists "pack" text;
+alter table "centrakit"."field_definitions" add column if not exists "pack_version" integer;
 alter table "centrakit"."field_definitions" enable row level security;
 grant select on "centrakit"."field_definitions" to authenticated;
 grant all on "centrakit"."field_definitions" to service_role;
@@ -130,6 +132,9 @@ begin
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if save_field_definition.entity is null or save_field_definition.entity <> all (array['message', 'conversation', 'task', 'project', 'customer']::text[]) then
+    raise exception 'the entity is not a registered subject type' using errcode = '22023', hint = 'FIELD_ENTITY_UNKNOWN';
   end if;
   insert into "centrakit"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive")
   values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false))
@@ -245,6 +250,8 @@ as $$
     'required', d."required",
     'sensitive', d."sensitive",
     'encrypted', d."encrypted",
+    'pack', d."pack",
+    'packVersion', d."pack_version",
     'rank', null
   ) order by d."key"), '[]'::jsonb)
   from "centrakit"."field_definitions" d
@@ -254,6 +261,203 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_field_definitions"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."list_field_definitions"(uuid, text) to authenticated, service_role;
+
+-- Installs a field pack (apiVersion 1): { key, version, subjects: { <type>:
+-- [{ key, label, type, required?, sensitive?, permission? }] } }. A definition
+-- is matched by (pack, key), so a second install changes nothing.
+create or replace function "better_supabase"."install_field_pack"(tenant uuid, pack jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_key text := install_field_pack.pack ->> 'key';
+  v_version integer;
+  v_entity text;
+  v_fields jsonb;
+  v_field jsonb;
+  v_field_key text;
+  v_label text;
+  v_type text;
+  v_required boolean;
+  v_sensitive boolean;
+  v_permission text;
+  v_row record;
+  v_id uuid;
+  v_last text;
+  v_rank text;
+  v_created integer := 0;
+  v_updated integer := 0;
+  v_unchanged integer := 0;
+begin
+  if not (centrakit.authz_actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', install_field_pack.tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if jsonb_typeof(install_field_pack.pack) is distinct from 'object' or install_field_pack.pack ->> 'apiVersion' is distinct from '1' then
+    raise exception 'a field pack is an object with apiVersion 1' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+  end if;
+  if v_key is null or v_key !~ '^[a-z][a-z0-9_.-]{0,62}$' then
+    raise exception 'a field pack needs a key in lower case' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+  end if;
+  begin
+    v_version := (install_field_pack.pack ->> 'version')::integer;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    v_version := null;
+  end;
+  if v_version is null or v_version < 1 then
+    raise exception 'a field pack needs a version of 1 or more' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+  end if;
+  if jsonb_typeof(install_field_pack.pack -> 'subjects') is distinct from 'object' then
+    raise exception 'a field pack needs subjects: { <type>: fields }' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+  end if;
+
+  for v_entity, v_fields in select s.key, s.value from jsonb_each(install_field_pack.pack -> 'subjects') s order by s.key loop
+    if v_entity is null or v_entity <> all (array['message', 'conversation', 'task', 'project', 'customer']::text[]) then
+    raise exception 'the entity is not a registered subject type' using errcode = '22023', hint = 'FIELD_ENTITY_UNKNOWN';
+  end if;
+    if jsonb_typeof(v_fields) is distinct from 'array' then
+      raise exception 'the fields of a subject type are a list' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+    end if;
+    for v_field in select f.value from jsonb_array_elements(v_fields) f loop
+      if jsonb_typeof(v_field) is distinct from 'object' then
+        raise exception 'a field is an object of key, label and type' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+      end if;
+      v_field_key := v_field ->> 'key';
+      v_label := v_field ->> 'label';
+      v_type := v_field ->> 'type';
+      v_permission := nullif(v_field ->> 'permission', '');
+      if v_field_key is null or v_field_key !~ '^[a-z][a-z0-9_.-]{0,62}$' or v_label is null or btrim(v_label) = '' then
+        raise exception 'a field needs a key in lower case and a label' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+      end if;
+      if v_type is null or v_type not in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164') then
+        raise exception 'a field needs one of the custom field types' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+      end if;
+      if (v_field ? 'required' and jsonb_typeof(v_field -> 'required') <> 'boolean') or (v_field ? 'sensitive' and jsonb_typeof(v_field -> 'sensitive') <> 'boolean') then
+        raise exception 'required and sensitive are booleans' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+      end if;
+      v_required := coalesce((v_field ->> 'required')::boolean, false);
+      v_sensitive := coalesce((v_field ->> 'sensitive')::boolean, false);
+
+      select d."id" as id, d."pack" as pack, d."pack_version" as version, d."label" as label, d."type" as type,
+        d."required" as required, d."sensitive" as sensitive, d."permission" as permission
+      into v_row
+      from "centrakit"."field_definitions" d
+      where d."tenant_id" = install_field_pack.tenant and d."entity" = v_entity and d."key" = v_field_key;
+
+      if not found then
+        insert into "centrakit"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "required", "sensitive", "permission", "pack", "pack_version")
+        values (install_field_pack.tenant, v_entity, v_field_key, v_label, v_type, v_required, v_sensitive, v_permission, v_key, v_version)
+        returning "id" into v_id;
+        v_created := v_created + 1;
+        perform "better_supabase".emit_event('field_definition.created', jsonb_build_object('organizationId', install_field_pack.tenant, 'id', v_id, 'entity', v_entity), 'custom-fields/' || v_id::text, (install_field_pack.tenant)::text, null, 'domain');
+      elsif v_row.pack is distinct from v_key then
+        raise exception 'the field already exists and doesn''t belong to this pack' using errcode = '23505', hint = 'FIELD_PACK_CONFLICT';
+      elsif v_row.label = v_label and v_row.type = v_type and v_row.required = v_required and v_row.sensitive = v_sensitive
+        and v_row.permission is not distinct from v_permission and v_row.version is not distinct from v_version then
+        v_unchanged := v_unchanged + 1;
+      else
+        update "centrakit"."field_definitions" set "label" = v_label, "type" = v_type, "required" = v_required, "sensitive" = v_sensitive,
+          "permission" = v_permission, "pack_version" = v_version
+        where "id" = v_row.id;
+        v_updated := v_updated + 1;
+        perform "better_supabase".emit_event('field_definition.updated', jsonb_build_object('organizationId', install_field_pack.tenant, 'id', v_row.id, 'entity', v_entity), 'custom-fields/' || v_row.id::text, (install_field_pack.tenant)::text, null, 'domain');
+      end if;
+    end loop;
+  end loop;
+  return jsonb_build_object('pack', v_key, 'version', v_version, 'created', v_created, 'updated', v_updated, 'unchanged', v_unchanged);
+end;
+$$;
+revoke execute on function "better_supabase"."install_field_pack"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."install_field_pack"(uuid, jsonb) to authenticated, service_role;
+
+-- The import target of the field_value entity (ADR 0155). A subject is named by
+-- its external key in the run's source, so the value follows the record the
+-- import record map holds.
+create or replace function "better_supabase"."import_field_value"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid := (import_field_value.item ->> 'tenant')::uuid;
+  v_scope text := coalesce(import_field_value.item ->> 'scope', '');
+  v_data jsonb := import_field_value.item -> 'data';
+  v_reference jsonb := v_data -> 'subject';
+  v_type text := nullif(v_data ->> 'subjectType', '');
+  v_subject text := nullif(v_data ->> 'subjectId', '');
+  v_field text := v_data ->> 'field';
+  v_value text;
+  v_definition uuid;
+  v_field_type text;
+  v_row uuid;
+begin
+  if jsonb_typeof(v_data -> 'value') in ('object', 'array', 'null') or (v_data -> 'value') is null then
+    raise exception 'a field value needs a value of text, a number or a boolean' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_value := v_data ->> 'value';
+  if v_field is null or v_field = '' then
+    raise exception 'a field value needs the key of its field' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  begin
+  exception when invalid_text_representation then
+    raise exception 'legalEntityId must be a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if v_data ? 'legalEntityId' then
+    raise exception 'values per legal entity need the legal-entities block' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_reference is not null then
+    if jsonb_typeof(v_reference) is distinct from 'object' then
+      raise exception 'subject is { entity, key }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    select x."subject_type", x."subject_id" into v_type, v_subject
+    from "better_supabase"."import_records" x
+    join "centrakit"."import_runs" u on u."id" = import_field_value.run
+    where x."tenant_id" = v_tenant and x."source" = u."source"
+      and x."scope" = v_scope
+      and x."entity" = v_reference ->> 'entity' and x."external_key" = v_reference ->> 'key'
+      and x."role" = 'primary';
+    if not found then
+      raise exception 'the record isn''t in the import record map; import it first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+  end if;
+  if v_type is null or v_subject is null then
+    raise exception 'a field value needs a subject: { entity, key }, or subjectType and subjectId' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_type is null or v_type <> all (array['message', 'conversation', 'task', 'project', 'customer']::text[]) then
+    raise exception 'the entity is not a registered subject type' using errcode = '22023', hint = 'FIELD_ENTITY_UNKNOWN';
+  end if;
+  select d."id", d."type" into v_definition, v_field_type
+  from "centrakit"."field_definitions" d
+  where d."tenant_id" = v_tenant and d."entity" = v_type and d."key" = v_field;
+  if not found then
+    raise exception 'no field definition with this key on the subject type' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (case v_field_type when 'bsn' then "better_supabase"."bsb_valid_bsn"(v_value) when 'iban' then "better_supabase"."bsb_valid_iban"(v_value) when 'phone_e164' then v_value ~* '^\+[1-9][0-9]{1,14}$' else true end) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+
+  select y."id" into v_row from "centrakit"."field_values" y
+  where y."tenant_id" = v_tenant and y."subject_type" = v_type and y."subject_id" = v_subject and y."definition_id" = v_definition;
+  if found then
+    update "centrakit"."field_values" set "value_text" = v_value where "id" = v_row;
+  else
+    insert into "centrakit"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
+    values (v_tenant, v_definition, v_type, v_subject, v_value)
+    returning "id" into v_row;
+  end if;
+  perform "better_supabase".emit_event('field_value.set', jsonb_build_object('organizationId', v_tenant, 'id', v_row, 'subjectType', v_type, 'subjectId', v_subject), 'field-values/' || v_row::text, (v_tenant)::text, null, 'domain');
+  return jsonb_build_object('subjectId', v_row::text, 'subjectType', 'field_value');
+end;
+$$;
+revoke execute on function "better_supabase"."import_field_value"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_field_value"(uuid, jsonb, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

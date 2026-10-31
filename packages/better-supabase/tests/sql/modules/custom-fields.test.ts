@@ -40,7 +40,7 @@ describe("custom-fields module", () => {
 
   it("backfills rank keys in position order when upgrading from version 1", () => {
     const [plan] = upgradePlan([{ module: "custom-fields", version: 1 }]);
-    expect(plan).toMatchObject({ module: "custom-fields", from: 1, to: 3 });
+    expect(plan).toMatchObject({ module: "custom-fields", from: 1, to: 4 });
     const sql = plan!.steps[0]!.sql;
     expect(sql).toContain(
       `row_number() over (partition by "tenant_id", "entity" order by position, "key", "id") as nth`,
@@ -61,7 +61,7 @@ describe("custom-fields module", () => {
   it("adds the encrypted flag when upgrading from version 2", () => {
     const [plan] = upgradePlan([{ module: "custom-fields", version: 2 }]);
 
-    expect(plan).toMatchObject({ module: "custom-fields", from: 2, to: 3 });
+    expect(plan).toMatchObject({ module: "custom-fields", from: 2, to: 4 });
     expect(plan!.steps[0]!.sql).toBe(
       `alter table "better_supabase"."field_definitions" add column if not exists "encrypted" boolean not null default false;`,
     );
@@ -220,5 +220,88 @@ describe("custom-fields module", () => {
         modules: { "custom-fields": { options: { auditReads: true } } },
       }),
     ).toThrow("auditReads needs the audit block");
+  });
+
+  describe("registered entities, packs and per-entity values", () => {
+    const registry = {
+      subjects: {
+        task: {
+          table: "public.tasks",
+          idType: "bigint",
+          permissions: { read: "tasks.read" },
+        },
+      },
+    } as const;
+
+    it("rejects an entity that is not a registered subject type", () => {
+      const sql = sqlOf(registry, ["subjects"]);
+
+      expect(sql).toContain(
+        `if save_field_definition.entity is null or save_field_definition.entity <> all (array['task']::text[]) then`,
+      );
+      expect(sql).toContain("FIELD_ENTITY_UNKNOWN");
+    });
+
+    it("leaves the entity free text without registered types", () => {
+      expect(sqlOf()).not.toContain("FIELD_ENTITY_UNKNOWN");
+    });
+
+    it("installs a field pack idempotently by pack and key", () => {
+      const sql = sqlOf(registry, ["subjects"]);
+
+      expect(sql).toContain(
+        'create or replace function "better_supabase"."install_field_pack"(tenant uuid, pack jsonb)',
+      );
+      expect(sql).toContain("FIELD_PACK_INVALID");
+      expect(sql).toContain("FIELD_PACK_CONFLICT");
+      expect(sql).toContain(`"pack" text,`);
+      expect(sql).toContain(`"pack_version" integer,`);
+    });
+
+    it("has no pack function in the inline layout", () => {
+      const sql = sqlOf({
+        modules: { "custom-fields": { options: { layout: "inline" } } },
+      });
+
+      expect(sql).not.toContain("install_field_pack");
+    });
+
+    it("writes values by external key through an imports target", () => {
+      const sql = sqlOf(registry, ["subjects", "imports"]);
+
+      expect(sql).toContain("import_field_value");
+      expect(sql).toContain("FIELD_VALUE_INVALID");
+    });
+
+    it("keeps values per legal entity with the legal-entities block", () => {
+      const sql = sqlOf({}, [
+        "memberships",
+        "permissions",
+        "settings",
+        "legal-entities",
+      ]);
+
+      expect(sql).toContain(
+        `read_field_values"(tenant uuid, subject_type text, subject_id text, legal_entity uuid default null)`,
+      );
+      expect(sql).toContain("x.legal_entity_id nulls last");
+      expect(sql).toContain("legal_entity uuid default null)");
+    });
+
+    it("maps stored entities when upgrading from version 3", () => {
+      const [plan] = upgradePlan([{ module: "custom-fields", version: 3 }], {
+        modules: {
+          "custom-fields": {
+            options: { entityMap: { invoice: "sales_invoice" } },
+          },
+        },
+      });
+
+      expect(plan).toMatchObject({ module: "custom-fields", from: 3, to: 4 });
+      expect(plan!.steps[0]!.sql).toContain(`set "entity" = 'sales_invoice'`);
+      expect(plan!.steps[0]!.sql).toContain(
+        `add column if not exists "pack" text`,
+      );
+    });
   });
 });

@@ -227,6 +227,16 @@ cart line in cart order, then shipping, and a total that is their sum. A
 reversal has negative amounts and can't exceed the sale. `testTaxProvider`
 is its conformance kit.
 
+## FieldPack
+
+A set of field definitions for registered subject types, installed per
+organization by the [custom-fields block](/docs/blocks/custom-fields#field-packs).
+It has `apiVersion: 1`, a lower case `key`, a whole `version` and `subjects`,
+a map from subject type to fields of `{ key, label, type, required?,
+sensitive?, permission? }`. `defineFieldPack` checks one and
+`install_field_pack` matches definitions by pack and key, so installing a
+version twice changes nothing. `testFieldPack` is its conformance kit.
+
 ## ShippingProvider
 
 Buys labels and reads tracking for the [shipments block](/docs/blocks/shipments).

@@ -104,6 +104,8 @@ export { testExecutor } from "./kits/executor.ts";
 
 export { testPaymentProvider } from "./kits/payment-provider.ts";
 
+export { testFieldPack } from "./kits/field-pack.ts";
+
 export { testTaxProvider } from "./kits/tax-provider.ts";
 
 export { testShippingProvider } from "./kits/shipping-provider.ts";
@@ -181,6 +183,8 @@ export type { TestEventSinkOptions } from "./kits/event-sink.ts";
 export type { TestExecutorOptions } from "./kits/executor.ts";
 
 export type { TestPaymentProviderOptions } from "./kits/payment-provider.ts";
+
+export type { TestFieldPackOptions } from "./kits/field-pack.ts";
 
 export type { TestTaxProviderOptions } from "./kits/tax-provider.ts";
 

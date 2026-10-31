@@ -222,4 +222,16 @@ const total = 1;
     expect(result.review.map((entry) => entry.line)).toEqual([1, 2]);
     expect(result.review[0]?.message).toContain("`source`");
   });
+
+  it("lists the field definitions that name a literal entity", () => {
+    const source = `await db.customFields.saveDefinition("invoice", "tier", "Tier", "option");
+const entity = "invoice";
+`;
+
+    const result = applyCodemod(v047, source, "src/fields.ts");
+
+    expect(result.text).toBe(source);
+    expect(result.review.map((entry) => entry.line)).toEqual([1]);
+    expect(result.review[0]?.message).toContain("FIELD_ENTITY_UNKNOWN");
+  });
 });
