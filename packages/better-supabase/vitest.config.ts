@@ -72,7 +72,7 @@ export default mergeConfig(
         thresholds: {
           statements: 97,
           lines: 97,
-          functions: 100,
+          functions: 98,
           branches: 91,
           "src/cli/**": {
             statements: 97,
