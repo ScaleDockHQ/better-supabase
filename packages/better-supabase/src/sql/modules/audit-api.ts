@@ -351,7 +351,7 @@ declare
   details jsonb;
   revealed record;
 begin
-  select coalesce(jsonb_agg(jsonb_build_object('entry', l.${c("id")}::text, 'owner', l.${c("tenant")})), '[]') into visible
+  select coalesce(jsonb_agg(jsonb_build_object('entry', l.${c("id")}::text, 'owner', l.${c("tenant")}) order by l.${c("occurredAt")}, l.${c("id")}), '[]') into visible
   from ${log} l
   where l.${c("id")}::text = any (entries)
     and (
@@ -361,8 +361,8 @@ begin
   from jsonb_array_elements(visible) v
   left join ${ctx.table("restricted")} d on d.${r("entry")}::text = v ->> 'entry';
   for revealed in
-    select v ->> 'owner' as owner, jsonb_agg(v -> 'entry') as ids
-    from jsonb_array_elements(visible) v
+    select v ->> 'owner' as owner, jsonb_agg(v -> 'entry' order by n) as ids
+    from jsonb_array_elements(visible) with ordinality as e(v, n)
     group by v ->> 'owner'
   loop
     ${ctx.record({

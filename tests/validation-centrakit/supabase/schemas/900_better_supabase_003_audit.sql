@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:e6d228d7d264c7a572abe8ebf5f8a535df16d5c9e9b2391cdd9563a6af4e98af
+-- @bsb-hash sha256:06ff2f68c19ae02f8363bc12397385b0d31e33b5615de43210c08c440820036c
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1197,7 +1197,7 @@ declare
   details jsonb;
   revealed record;
 begin
-  select coalesce(jsonb_agg(jsonb_build_object('entry', l."id"::text, 'owner', l."organization_id")), '[]') into visible
+  select coalesce(jsonb_agg(jsonb_build_object('entry', l."id"::text, 'owner', l."organization_id") order by l."occurred_at", l."id"), '[]') into visible
   from "centrakit"."audit_logs" l
   where l."id"::text = any (entries)
     and (
@@ -1209,8 +1209,8 @@ begin
   from jsonb_array_elements(visible) v
   left join "centrakit"."audit_log_restricted_details" d on d."event_id"::text = v ->> 'entry';
   for revealed in
-    select v ->> 'owner' as owner, jsonb_agg(v -> 'entry') as ids
-    from jsonb_array_elements(visible) v
+    select v ->> 'owner' as owner, jsonb_agg(v -> 'entry' order by n) as ids
+    from jsonb_array_elements(visible) with ordinality as e(v, n)
     group by v ->> 'owner'
   loop
     perform "better_supabase".emit_event('audit.revealed', jsonb_build_object('organizationId', revealed.owner, 'entries', revealed.ids), 'audit-entries/' || coalesce(revealed.owner, 'platform'), ((revealed.owner)::uuid)::text, null, 'domain');
