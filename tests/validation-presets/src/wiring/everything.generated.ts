@@ -60,6 +60,7 @@ import { risksBlock } from "better-supabase/blocks/risks";
 import { casesBlock } from "better-supabase/blocks/cases";
 import { inspectionsBlock } from "better-supabase/blocks/inspections";
 import { manufacturingBlock } from "better-supabase/blocks/manufacturing";
+import { bankingBlock } from "better-supabase/blocks/banking";
 import { shiftsBlock } from "better-supabase/blocks/shifts";
 import { consentsBlock } from "better-supabase/blocks/consents";
 import { observationsBlock } from "better-supabase/blocks/observations";
@@ -199,6 +200,7 @@ export const blockSet = defineBlocks(blockConfig, {
   cases: casesBlock,
   inspections: inspectionsBlock,
   manufacturing: manufacturingBlock,
+  banking: bankingBlock,
   shifts: shiftsBlock,
   consents: consentsBlock,
   observations: observationsBlock,

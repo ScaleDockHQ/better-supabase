@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:7d70aa5b80c4e5ee08d31d8e8d4165ff325b33f0123712d1440d887d0797039d
+-- @bsb-hash sha256:6b0215d2901773f12d39df2b1e7918763b402d2e335f34f631d1992037a084e6
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1616,9 +1616,15 @@ begin
   end if;
   v_date := coalesce((v_doc ->> 'entryDate')::date, current_date);
   v_kind := coalesce(v_doc ->> 'journal', v_kind);
-  select * into v_journal from "better_supabase"."accounting_journals" y
-  where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
-  if not found then
+  if coalesce(v_doc ->> 'journalId', '') ~ '^[0-9a-fA-F-]{36}$' then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."id" = (v_doc ->> 'journalId')::uuid;
+  end if;
+  if v_journal."id" is null then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
+  end if;
+  if v_journal."id" is null then
     raise exception 'the organization has no journal of the type this document books in' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
   for v_line in select q.value from jsonb_array_elements(v_doc -> 'lines') q loop
@@ -1639,6 +1645,8 @@ begin
     v_account := null;
     if v_line.value ->> 'role' in ('tax_payable', 'tax_receivable') and v_tax."id" is not null then
       v_account := v_tax."account_id";
+    elsif coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'accountCode' is not null then
       select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'role' is not null then

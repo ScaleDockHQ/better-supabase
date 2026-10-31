@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:a9b5563c2e698396cc282af29a16f8d48ee4550f7d43e8d223d21fb3d8ff2f07
+-- @bsb-hash sha256:3c1dd29219c3f7c077ce30c725e8795814d29361fb2294abe5d28e86b0875393
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1616,9 +1616,15 @@ begin
   end if;
   v_date := coalesce((v_doc ->> 'entryDate')::date, current_date);
   v_kind := coalesce(v_doc ->> 'journal', v_kind);
-  select * into v_journal from "better_supabase"."accounting_journals" y
-  where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
-  if not found then
+  if coalesce(v_doc ->> 'journalId', '') ~ '^[0-9a-fA-F-]{36}$' then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."id" = (v_doc ->> 'journalId')::uuid;
+  end if;
+  if v_journal."id" is null then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
+  end if;
+  if v_journal."id" is null then
     raise exception 'the organization has no journal of the type this document books in' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
   for v_line in select q.value from jsonb_array_elements(v_doc -> 'lines') q loop
@@ -1639,6 +1645,8 @@ begin
     v_account := null;
     if v_line.value ->> 'role' in ('tax_payable', 'tax_receivable') and v_tax."id" is not null then
       v_account := v_tax."account_id";
+    elsif coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'accountCode' is not null then
       select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'role' is not null then
@@ -2742,7 +2750,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:6537d013e519982509bc422f3389624066230e48fd628d860477eec1ad8dbb8c
+-- @bsb-hash sha256:24b2ee0963174c9f48fb27f34b1f14b6528dbf95e4b0180f18ed72987e1f4fb0
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4373,7 +4381,7 @@ declare
   v_descriptions text[] := '{}';
 begin
   if accounting_post_source.source_type is null or accounting_post_source.source_id is null
-    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'invoice_charge', 'invoice_write_off', 'invoice_party_payment', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift', 'production_order') then
+    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'invoice_charge', 'invoice_write_off', 'invoice_party_payment', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift', 'production_order', 'bank_transaction') then
     raise exception 'no installed block books this source type' using errcode = '22023', hint = 'ACCOUNTING_SOURCE_INVALID';
   end if;
   v_doc := case accounting_post_source.source_type
@@ -4391,6 +4399,7 @@ begin
     when 'expense_reimbursement' then "better_supabase"."accounting_expense_reimbursement_lines"(accounting_post_source.source_id)
     when 'gift' then "better_supabase"."accounting_gift_lines"(accounting_post_source.source_id)
     when 'production_order' then "better_supabase"."accounting_production_order_lines"(accounting_post_source.source_id)
+    when 'bank_transaction' then "better_supabase"."accounting_bank_transaction_lines"(accounting_post_source.source_id)
   end;
   v_kind := case accounting_post_source.source_type
     when 'stock_movement' then 'general'
@@ -4407,6 +4416,7 @@ begin
     when 'expense_reimbursement' then 'bank'
     when 'gift' then 'bank'
     when 'production_order' then 'general'
+    when 'bank_transaction' then 'bank'
   end;
   if v_doc is null or jsonb_typeof(v_doc -> 'lines') is distinct from 'array' then
     return null;
@@ -4426,9 +4436,15 @@ begin
   end if;
   v_date := coalesce((v_doc ->> 'entryDate')::date, current_date);
   v_kind := coalesce(v_doc ->> 'journal', v_kind);
-  select * into v_journal from "better_supabase"."accounting_journals" y
-  where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
-  if not found then
+  if coalesce(v_doc ->> 'journalId', '') ~ '^[0-9a-fA-F-]{36}$' then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."id" = (v_doc ->> 'journalId')::uuid;
+  end if;
+  if v_journal."id" is null then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
+  end if;
+  if v_journal."id" is null then
     raise exception 'the organization has no journal of the type this document books in' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
   for v_line in select q.value from jsonb_array_elements(v_doc -> 'lines') q loop
@@ -4449,6 +4465,8 @@ begin
     v_account := null;
     if v_line.value ->> 'role' in ('tax_payable', 'tax_receivable') and v_tax."id" is not null then
       v_account := v_tax."account_id";
+    elsif coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'accountCode' is not null then
       select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'role' is not null then
@@ -4599,22 +4617,39 @@ end;
 $$;
 revoke execute on function "better_supabase"."accounting_sync_dimension_value"(uuid, text, text, text, text, boolean) from public, anon, authenticated;
 
--- What keeps a period from closing: draft entries dated in it.
+-- What keeps a period from closing: draft entries dated in it, and bank
+-- transactions booked in it that are neither matched nor ignored.
 create or replace function "better_supabase"."accounting_period_close_blockers"(period_id uuid)
 returns text[]
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(array_remove(array[
-    case when exists (
+declare
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_blockers text[] := '{}';
+begin
+  select * into v_period from "better_supabase"."accounting_periods" x where x."id" = accounting_period_close_blockers.period_id;
+  if not found then
+    return null;
+  end if;
+  if exists (
       select 1 from "better_supabase"."accounting_entries" y
-      where y."tenant_id" = x."tenant_id" and y."status" = 'draft'
-        and y."entry_date" >= x."starts_on" and y."entry_date" <= x."ends_on"
-    ) then 'draft_entries' end
-  ], null), '{}'::text[])
-  from "better_supabase"."accounting_periods" x where x."id" = accounting_period_close_blockers.period_id
+      where y."tenant_id" = v_period."tenant_id" and y."status" = 'draft'
+        and y."entry_date" >= v_period."starts_on" and y."entry_date" <= v_period."ends_on"
+    ) then
+    v_blockers := v_blockers || 'draft_entries'::text;
+  end if;
+  if exists (
+    select 1 from "better_supabase"."bank_transactions" y
+    where y."tenant_id" = v_period."tenant_id" and y."status" = 'unmatched'
+      and y."booked_on" >= v_period."starts_on" and y."booked_on" <= v_period."ends_on"
+  ) then
+    v_blockers := v_blockers || 'unreconciled_bank_transactions'::text;
+  end if;
+  return v_blockers;
+end;
 $$;
 revoke execute on function "better_supabase"."accounting_period_close_blockers"(uuid) from public, anon;
 grant execute on function "better_supabase"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
@@ -5612,7 +5647,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:1b389476a1d150c2b6fc88a0caa8a7f13d4b2f340e8671d6167084589a281762
+-- @bsb-hash sha256:0ca638fede6fea5dee4c1bfec3edcbd78cfaad6591f29590cfdf4400b926b8a1
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7232,9 +7267,15 @@ begin
   end if;
   v_date := coalesce((v_doc ->> 'entryDate')::date, current_date);
   v_kind := coalesce(v_doc ->> 'journal', v_kind);
-  select * into v_journal from "app_private"."accounting_journals" y
-  where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
-  if not found then
+  if coalesce(v_doc ->> 'journalId', '') ~ '^[0-9a-fA-F-]{36}$' then
+    select * into v_journal from "app_private"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."id" = (v_doc ->> 'journalId')::uuid;
+  end if;
+  if v_journal."id" is null then
+    select * into v_journal from "app_private"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
+  end if;
+  if v_journal."id" is null then
     raise exception 'the organization has no journal of the type this document books in' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
   for v_line in select q.value from jsonb_array_elements(v_doc -> 'lines') q loop
@@ -7255,6 +7296,8 @@ begin
     v_account := null;
     if v_line.value ->> 'role' in ('tax_payable', 'tax_receivable') and v_tax."id" is not null then
       v_account := v_tax."account_id";
+    elsif coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select y."id" into v_account from "app_private"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'accountCode' is not null then
       select y."id" into v_account from "app_private"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'role' is not null then
@@ -8358,7 +8401,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:97f25f9b3ad862d217ed094429eed410bb226a758d1ae256dd3ad317ff9af20c
+-- @bsb-hash sha256:0127f558533f98d711eab5ed89677cf3a3a1de80487cd531cfb5462de6fd28a0
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9973,9 +10016,15 @@ begin
   end if;
   v_date := coalesce((v_doc ->> 'entryDate')::date, current_date);
   v_kind := coalesce(v_doc ->> 'journal', v_kind);
-  select * into v_journal from "better_supabase"."accounting_journals" y
-  where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
-  if not found then
+  if coalesce(v_doc ->> 'journalId', '') ~ '^[0-9a-fA-F-]{36}$' then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."id" = (v_doc ->> 'journalId')::uuid;
+  end if;
+  if v_journal."id" is null then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
+  end if;
+  if v_journal."id" is null then
     raise exception 'the organization has no journal of the type this document books in' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
   for v_line in select q.value from jsonb_array_elements(v_doc -> 'lines') q loop
@@ -9996,6 +10045,8 @@ begin
     v_account := null;
     if v_line.value ->> 'role' in ('tax_payable', 'tax_receivable') and v_tax."id" is not null then
       v_account := v_tax."account_id";
+    elsif coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'accountCode' is not null then
       select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'role' is not null then
@@ -11465,7 +11516,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:1dcb898742082353323075bc8d134c479fbdb779d61e939b016133426a55f182
+-- @bsb-hash sha256:30fc6b682fa2a0b673682ee9a0b2e78133858ad71c39a009116736aa68ee1bb2
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13040,9 +13091,15 @@ begin
   end if;
   v_date := coalesce((v_doc ->> 'entryDate')::date, current_date);
   v_kind := coalesce(v_doc ->> 'journal', v_kind);
-  select * into v_journal from "better_supabase"."accounting_journals" y
-  where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
-  if not found then
+  if coalesce(v_doc ->> 'journalId', '') ~ '^[0-9a-fA-F-]{36}$' then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."id" = (v_doc ->> 'journalId')::uuid;
+  end if;
+  if v_journal."id" is null then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."tenant_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
+  end if;
+  if v_journal."id" is null then
     raise exception 'the organization has no journal of the type this document books in' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
   for v_line in select q.value from jsonb_array_elements(v_doc -> 'lines') q loop
@@ -13063,6 +13120,8 @@ begin
     v_account := null;
     if v_line.value ->> 'role' in ('tax_payable', 'tax_receivable') and v_tax."id" is not null then
       v_account := v_tax."account_id";
+    elsif coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'accountCode' is not null then
       select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'role' is not null then
@@ -14159,7 +14218,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:d3f3c99def5a545fd9a417cc8771396438e9422517e8299496970c33bba2ff3f
+-- @bsb-hash sha256:fa80f2d337b8cd45b1f45eafc878cf78ec284ea9089448a9011af5331e2b2dd5
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15774,9 +15833,15 @@ begin
   end if;
   v_date := coalesce((v_doc ->> 'entryDate')::date, current_date);
   v_kind := coalesce(v_doc ->> 'journal', v_kind);
-  select * into v_journal from "better_supabase"."accounting_journals" y
-  where y."org_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
-  if not found then
+  if coalesce(v_doc ->> 'journalId', '') ~ '^[0-9a-fA-F-]{36}$' then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."org_id" = v_tenant and y."id" = (v_doc ->> 'journalId')::uuid;
+  end if;
+  if v_journal."id" is null then
+    select * into v_journal from "better_supabase"."accounting_journals" y
+    where y."org_id" = v_tenant and y."type" = v_kind order by y."code" limit 1;
+  end if;
+  if v_journal."id" is null then
     raise exception 'the organization has no journal of the type this document books in' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
   for v_line in select q.value from jsonb_array_elements(v_doc -> 'lines') q loop
@@ -15797,6 +15862,8 @@ begin
     v_account := null;
     if v_line.value ->> 'role' in ('tax_payable', 'tax_receivable') and v_tax."id" is not null then
       v_account := v_tax."account_id";
+    elsif coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."org_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'accountCode' is not null then
       select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."org_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'role' is not null then

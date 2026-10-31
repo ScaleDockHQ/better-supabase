@@ -299,6 +299,27 @@ export interface BlockNameRegistry {
     readonly primary: "automation";
     readonly formerKeys: "rule";
   };
+  readonly "banking": {
+    readonly tables: {
+      readonly "accounts": "id" | "tenant" | "name" | "iban" | "bic" | "currency" | "journal" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "rules": "id" | "tenant" | "name" | "conditions" | "account" | "party" | "dimensions" | "priority" | "active" | "createdAt" | "updatedAt";
+      readonly "statements": "id" | "tenant" | "account" | "reference" | "fromOn" | "untilOn" | "openingBalance" | "closingBalance" | "format" | "attachment" | "importedBy" | "createdAt";
+      readonly "transactions": "id" | "tenant" | "account" | "statement" | "bookedOn" | "valueOn" | "amount" | "currency" | "counterpartyName" | "counterpartyIban" | "remittance" | "structuredReference" | "endToEndId" | "externalId" | "status" | "rule" | "matchedAt" | "matchedBy" | "createdAt" | "updatedAt";
+      readonly "matches": "id" | "tenant" | "transaction" | "targetType" | "targetId" | "amount" | "createdBy" | "createdAt";
+    };
+    readonly functions: "apply_bank_rules" | "bank_mod97" | "bank_reconciliation_status" | "bank_reference" | "bank_rule_condition" | "delete_bank_rule" | "get_bank_transaction" | "ignore_bank_transaction" | "import_bank_statement" | "list_bank_accounts" | "list_bank_rules" | "list_bank_statements" | "list_bank_transactions" | "match_bank_transaction" | "save_bank_account" | "save_bank_rule" | "suggest_bank_matches" | "unmatch_bank_transaction";
+    readonly actions: "read" | "import" | "reconcile" | "manage";
+    readonly hooks: "after_bank_statement_import" | "before_bank_transaction_match" | "after_bank_transaction_match";
+    readonly entities: {
+      readonly "bank_transaction": "id" | "tenant_id" | "account_id" | "statement_id" | "booked_on" | "value_on" | "amount" | "currency" | "counterparty_name" | "counterparty_iban" | "remittance" | "structured_reference" | "end_to_end_id" | "external_id" | "status" | "rule_id" | "matched_at" | "matched_by" | "created_at" | "updated_at";
+      readonly "bank_account": "id" | "tenant_id" | "name" | "iban" | "bic" | "currency" | "journal_id" | "archived_at" | "created_at" | "updated_at";
+      readonly "bank_statement": "id" | "tenant_id" | "account_id" | "reference" | "from_on" | "until_on" | "opening_balance" | "closing_balance" | "format" | "attachment_id" | "imported_by" | "created_at";
+      readonly "bank_match": "id" | "tenant_id" | "transaction_id" | "target_type" | "target_id" | "amount" | "created_by" | "created_at";
+      readonly "bank_rule": "id" | "tenant_id" | "name" | "conditions" | "account_id" | "party_id" | "dimensions" | "priority" | "active" | "created_at" | "updated_at";
+    };
+    readonly primary: "bank_transaction";
+    readonly formerKeys: never;
+  };
   readonly "billable-time": {
     readonly tables: {
       readonly "rates": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "rate" | "currency" | "effectiveFrom" | "cost" | "createdBy" | "createdAt";

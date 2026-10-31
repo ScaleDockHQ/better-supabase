@@ -72,3 +72,4 @@ care-plans
 cases
 inspections
 manufacturing
+banking

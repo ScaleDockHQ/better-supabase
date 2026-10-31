@@ -7387,7 +7387,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "audit",
-        "data-lifecycle"
+        "data-lifecycle",
+        "banking"
       ],
       "manifest": "accounting",
       "scopes": [
@@ -8604,6 +8605,155 @@ export const PRESET_CATALOG: PresetCatalog = {
           "write": "manufacturing.write",
           "produce": "manufacturing.produce",
           "manage": "manufacturing.manage"
+        }
+      }
+    },
+    {
+      "name": "banking",
+      "title": "Banking",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "accounting",
+        "invoices",
+        "expenses",
+        "attachments",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "banking",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "accounts",
+      "entities": {
+        "specs": {
+          "bank_transaction": {
+            "table": "transactions",
+            "singular": "bank_transaction",
+            "primary": true
+          },
+          "bank_account": {
+            "table": "accounts",
+            "singular": "bank_account",
+            "subject": {
+              "title": "name",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "bank_statement": {
+            "table": "statements",
+            "singular": "bank_statement"
+          },
+          "bank_match": {
+            "table": "matches",
+            "singular": "bank_match"
+          },
+          "bank_rule": {
+            "table": "rules",
+            "singular": "bank_rule"
+          }
+        },
+        "tables": {
+          "transactions": {
+            "name": "bank_transactions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "account": "account_id",
+              "statement": "statement_id",
+              "bookedOn": "booked_on",
+              "valueOn": "value_on",
+              "amount": "amount",
+              "currency": "currency",
+              "counterpartyName": "counterparty_name",
+              "counterpartyIban": "counterparty_iban",
+              "remittance": "remittance",
+              "structuredReference": "structured_reference",
+              "endToEndId": "end_to_end_id",
+              "externalId": "external_id",
+              "status": "status",
+              "rule": "rule_id",
+              "matchedAt": "matched_at",
+              "matchedBy": "matched_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "accounts": {
+            "name": "bank_accounts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "iban": "iban",
+              "bic": "bic",
+              "currency": "currency",
+              "journal": "journal_id",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "statements": {
+            "name": "bank_statements",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "account": "account_id",
+              "reference": "reference",
+              "fromOn": "from_on",
+              "untilOn": "until_on",
+              "openingBalance": "opening_balance",
+              "closingBalance": "closing_balance",
+              "format": "format",
+              "attachment": "attachment_id",
+              "importedBy": "imported_by",
+              "createdAt": "created_at"
+            }
+          },
+          "matches": {
+            "name": "bank_matches",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "transaction": "transaction_id",
+              "targetType": "target_type",
+              "targetId": "target_id",
+              "amount": "amount",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          },
+          "rules": {
+            "name": "bank_rules",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "conditions": "conditions",
+              "account": "account_id",
+              "party": "party_id",
+              "dimensions": "dimensions",
+              "priority": "priority",
+              "active": "active",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "banking.read",
+          "import": "banking.import",
+          "reconcile": "banking.reconcile",
+          "manage": "banking.manage"
         }
       }
     },
@@ -18810,6 +18960,345 @@ export const PRESET_CATALOG: PresetCatalog = {
           "production_order.released",
           "production_order.completed",
           "production_order.cancelled"
+        ]
+      }
+    },
+    {
+      "name": "banking",
+      "sql": [
+        "banking"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "bankingBlock",
+        "subpath": "better-supabase/blocks/banking"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "BankAccount",
+          "fields": true
+        },
+        {
+          "name": "BankAccountInput",
+          "fields": true
+        },
+        {
+          "name": "BankMatch"
+        },
+        {
+          "name": "BankMatchInput"
+        },
+        {
+          "name": "BankMatchReason"
+        },
+        {
+          "name": "BankMatchSuggestion"
+        },
+        {
+          "name": "BankMatchTarget"
+        },
+        {
+          "name": "BankRule"
+        },
+        {
+          "name": "BankRuleInput"
+        },
+        {
+          "name": "BankRuleRun"
+        },
+        {
+          "name": "BankStatement"
+        },
+        {
+          "name": "BankStatementFormat"
+        },
+        {
+          "name": "BankStatementImport"
+        },
+        {
+          "name": "BankStatementImportedEventData"
+        },
+        {
+          "name": "BankStatementInput"
+        },
+        {
+          "name": "BankTransaction"
+        },
+        {
+          "name": "BankTransactionEventData"
+        },
+        {
+          "name": "BankTransactionInput"
+        },
+        {
+          "name": "BankTransactionListOptions"
+        },
+        {
+          "name": "BankTransactionMatchedEventData"
+        },
+        {
+          "name": "BankTransactionStatus"
+        },
+        {
+          "name": "ParsedBankAccount"
+        },
+        {
+          "name": "ParsedBankStatement"
+        },
+        {
+          "name": "ParsedBankTransaction"
+        }
+      ],
+      "entitySchemas": {
+        "bank_account": {
+          "input": {
+            "title": "BankAccountInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "iban": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 42,
+                "description": "Checked against its ISO 13616 check digits; spaces are dropped."
+              },
+              "bic": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 11
+              },
+              "currency": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 3,
+                "maxLength": 3
+              },
+              "journalId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true,
+                "description": "An accounting journal of type bank or cash."
+              },
+              "archived": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "BankAccountInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "iban": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 42,
+                  "description": "Checked against its ISO 13616 check digits; spaces are dropped."
+                },
+                "bic": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 11
+                },
+                "currency": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 3
+                },
+                "journalId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid",
+                  "description": "An accounting journal of type bank or cash."
+                },
+                "archived": {
+                  "type": "boolean"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "bank_match": {
+          "input": {
+            "title": "BankMatchInput",
+            "fields": {
+              "targetType": {
+                "kind": "enum",
+                "values": [
+                  "invoice",
+                  "accounting_entry",
+                  "expense_report"
+                ]
+              },
+              "targetId": {
+                "kind": "uuid"
+              },
+              "amount": {
+                "kind": "custom",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "BankMatchInput",
+              "type": "object",
+              "properties": {
+                "targetType": {
+                  "type": "string",
+                  "enum": [
+                    "invoice",
+                    "accounting_entry",
+                    "expense_report"
+                  ]
+                },
+                "targetId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "amount": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "targetType",
+                "targetId"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "bank_rule": {
+          "input": {
+            "title": "BankRuleInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "conditions": {
+                "kind": "json",
+                "optional": true,
+                "description": "A filter tree over the transaction: accountId, bookedOn, valueOn, amount, direction, currency, counterpartyName, counterpartyIban, remittance, structuredReference, endToEndId."
+              },
+              "accountId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true,
+                "description": "The ledger account to book the other side to; none ignores the match."
+              },
+              "partyId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "dimensions": {
+                "kind": "json",
+                "optional": true
+              },
+              "priority": {
+                "kind": "integer",
+                "optional": true
+              },
+              "active": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "BankRuleInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "conditions": {
+                  "description": "A filter tree over the transaction: accountId, bookedOn, valueOn, amount, direction, currency, counterpartyName, counterpartyIban, remittance, structuredReference, endToEndId."
+                },
+                "accountId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid",
+                  "description": "The ledger account to book the other side to; none ignores the match."
+                },
+                "partyId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "dimensions": {},
+                "priority": {
+                  "type": "integer"
+                },
+                "active": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "BankingEvents",
+        "types": [
+          "bank_statement.imported",
+          "bank_transaction.matched",
+          "bank_transaction.unmatched"
         ]
       }
     },

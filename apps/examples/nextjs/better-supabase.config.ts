@@ -469,6 +469,9 @@ export default defineConfig({
     // Bills of materials on work centers, production orders that consume and
     // receive stock through inventory, lot genealogy and material requirements.
     manufacturing: {},
+    // Bank accounts with imported statements, matched to invoices and booked
+    // through the accounting journals; rules book recurring lines.
+    banking: {},
     // Members acknowledge the current version of each policy they are
     // assigned, directly, through a team or through their role.
     acknowledgements: {

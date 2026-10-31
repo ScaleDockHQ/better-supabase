@@ -265,6 +265,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0150: The remaining block overlaps are decided pair by pair (all stay separate, three follow-ups) and seven blocks move to the docs group that matches their job.
 - 0151: Party payments keep their rest as ledger credit; dunning levels raise overdue invoices; `better-supabase/e-invoicing` writes UBL for Peppol without a bundled validator.
 - 0152: The task and activity foreign key columns become `task_id` and `activity_id`, renamed by upgrade steps.
+- 0153: Banking imports camt.053 and MT940 statements idempotently, suggests and matches invoices in SQL through `record_invoice_payment`, books rule matches in the bank journal; bank feeds are a versioned `BankFeed` port over `fetch`.
 
 ## Pre-release pins
 

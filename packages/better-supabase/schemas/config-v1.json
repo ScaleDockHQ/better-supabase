@@ -1615,6 +1615,7 @@
               "attachments",
               "audit",
               "automations",
+              "banking",
               "billable-time",
               "billing",
               "bookings",
@@ -1782,6 +1783,7 @@
                   "attachments",
                   "audit",
                   "automations",
+                  "banking",
                   "billable-time",
                   "billing",
                   "bookings",
@@ -1977,6 +1979,9 @@
             },
             "automations": {
               "$ref": "#/$defs/blocks/automations"
+            },
+            "banking": {
+              "$ref": "#/$defs/blocks/banking"
             },
             "billable-time": {
               "$ref": "#/$defs/blocks/billable-time"
@@ -4256,6 +4261,24 @@
                   "type": "string"
                 },
                 "default": []
+              }
+            }
+          }
+        }
+      },
+      "banking": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           }

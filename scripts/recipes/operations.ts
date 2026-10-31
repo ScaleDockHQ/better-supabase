@@ -238,4 +238,26 @@ export const OPERATIONS_RECIPES: readonly RecipeSource[] = [
       glue: [],
     },
   },
+  {
+    slug: "bank-reconciliation",
+    title: "Bank reconciliation",
+    blocks: ["banking"],
+    kind: "component",
+    description:
+      "Each bank account's statement balance and what is left to match, then its latest transactions; an unmatched one offers its best invoice to match or can be ignored.",
+    web: {
+      file: `${WEB_APP}/src/features/banking/components/bank-reconciliation.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "card",
+        "empty",
+        "skeleton",
+        "@reui/frame",
+        "@reui/data-grid",
+      ],
+      glue: [],
+    },
+  },
 ];

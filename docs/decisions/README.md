@@ -154,3 +154,4 @@ add one, and link it from the code or config it explains.
 | [0150](0150-block-overlaps.md)                                | The remaining block overlaps are decided pair by pair, and seven blocks move to the docs group that matches their job                              |
 | [0151](0151-collections-and-e-invoicing.md)                   | Party payments keep their rest as ledger credit, dunning levels raise overdue invoices, and e-invoices are UBL without a bundled validator         |
 | [0152](0152-fk-columns-follow-entities.md)                    | The task and activity foreign key columns become `task_id` and `activity_id`, renamed by upgrade steps                                             |
+| [0153](0153-banking-reconciliation.md)                        | Bank statements import idempotently and reconcile in SQL against invoices and the books; bank feeds are a versioned port                           |

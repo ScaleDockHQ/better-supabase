@@ -56,6 +56,13 @@ export const SPEC_PINS: {
    * electronic form and the mod 97 check digits.
    */
   readonly iso13616: "2020";
+  /** ISO 20022 bank-to-customer statement versions `parseCamt053` reads. */
+  readonly camt053v02: "camt.053.001.02";
+  readonly camt053v08: "camt.053.001.08";
+  /** SWIFT MT940 customer statement layout `parseMt940` reads. */
+  readonly mt940: "SR2025";
+  /** ISO 11649 creditor references the banking block matches on. */
+  readonly iso11649: "2009";
   /** FHIR R4 release whose base resources `better-supabase/fhir` maps to. */
   readonly fhirR4: "4.0.1";
   /**
@@ -175,6 +182,10 @@ export const SPEC_PINS: {
   rfc4180: "2005-10",
   iso4217: "2026-09-17",
   iso13616: "2020",
+  camt053v02: "camt.053.001.02",
+  camt053v08: "camt.053.001.08",
+  mt940: "SR2025",
+  iso11649: "2009",
   fhirR4: "4.0.1",
   ubl: "2.1",
   en16931: "EN 16931-1:2017",

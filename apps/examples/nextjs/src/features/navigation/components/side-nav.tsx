@@ -3,6 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 
 import {
+  BanknoteIcon,
   ActivityIcon,
   HeartPulseIcon,
   BadgeCheckIcon,
@@ -104,6 +105,7 @@ const ICONS = {
   shop: StoreIcon,
   inventory: BoxesIcon,
   manufacturing: FactoryIcon,
+  banking: BanknoteIcon,
   orders: ReceiptIcon,
   dispatch: CalendarRangeIcon,
   myDay: RouteIcon,
@@ -231,6 +233,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "manufacturing": {
         return t("Manufacturing");
+      }
+
+      case "banking": {
+        return t("Banking");
       }
 
       case "orders": {

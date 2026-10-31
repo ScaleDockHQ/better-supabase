@@ -1,0 +1,261 @@
+---
+title: Banking
+description: Bank accounts with imported camt.053, MT940 and bank feed statements, invoice suggestions from RF and Dutch payment references, matches that record invoice payments, bank rules that book recurring lines, and a reconciliation status against the ledger.
+---
+
+`banking` brings the bank into the books. Import a bank statement, and each
+transaction waits as `unmatched` until it is matched to the invoices it pays,
+booked by a bank rule, or ignored. The reconciliation status per account
+compares the statement's closing balance with the ledger.
+
+```bash
+better-supabase add banking
+```
+
+```ts
+import { createBanking, parseMt940 } from "better-supabase/blocks/banking";
+```
+
+The module requires `tenant` and `permissions`. With
+[invoices](/docs/blocks/invoices) a match to an invoice records an invoice
+payment and suggestions look for open invoices, with
+[accounting](/docs/blocks/accounting) a bank rule books its transactions in
+the account's journal and the reconciliation compares with the ledger, and
+with [expenses](/docs/blocks/expenses) a transaction can pay an expense
+report. With [attachments](/docs/blocks/attachments) a statement keeps its
+file, with `outbox` it records the events, and with `audit` every change is
+audited.
+
+## Tables
+
+| Table               | Holds                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------- |
+| `bank_accounts`     | An account with its name, IBAN, BIC, currency and the accounting journal it books to   |
+| `bank_statements`   | An imported statement: its reference, period, opening and closing balance, and format  |
+| `bank_transactions` | A booked line with its amount, counterparty, remittance, references and status         |
+| `bank_matches`      | What a transaction is matched to: an invoice, an accounting entry or an expense report |
+| `bank_rules`        | Conditions on a transaction, the account and party they book to, and a priority        |
+
+Members with `banking.read` read every table. Writes go through the
+functions below. Bank accounts are subjects of type `bank_account`, so
+comments, attachments, tags and the other subject blocks work on them.
+
+| Permission          | Allows                                               | Default roles        |
+| ------------------- | ---------------------------------------------------- | -------------------- |
+| `banking.read`      | reading accounts, statements, transactions and rules | owner, admin, member |
+| `banking.import`    | importing statements and syncing a bank feed         | owner, admin         |
+| `banking.reconcile` | matching, unmatching, ignoring and applying rules    | owner, admin, member |
+| `banking.manage`    | changing bank accounts and bank rules                | owner, admin         |
+
+## Accounts and statements
+
+`saveAccount` adds an account, or changes one when it passes an `accountId`.
+The IBAN must pass its check digits, or the call fails with
+`BANK_ACCOUNT_INVALID`. With accounting installed, `journalId` names the
+bank journal its rules book to.
+
+`parseMt940(text)` and `parseCamt053(xml)` read a statement file into
+`ParsedBankStatement`s, one per statement in the file. `parseMt940` has no
+dependency. `parseCamt053` reads camt.053.001.02 to .001.08 and loads
+[`fast-xml-parser`](/docs/getting-started/peers) on first use, so install it
+when you import camt.053 files.
+
+```ts
+const account = await db.banking
+  .saveAccount({
+    name: "Operating",
+    iban: "NL91ABNA0417164300",
+    currency: "EUR",
+  })
+  .orThrow();
+
+const [statement] = parseMt940(await file.text());
+const result = await db.banking
+  .importStatement(account.id, statement)
+  .orThrow();
+// result.imported and result.skipped
+```
+
+`importStatement` is idempotent per transaction: a transaction whose
+`externalId` the account has seen is skipped. The parsers take it from the
+bank's entry reference; without one, the import derives it from the date,
+amount, counterparty, references and position in the statement. A
+transaction in another currency than the account's fails with
+`BANK_STATEMENT_INVALID`.
+
+## Matching
+
+`suggestMatches(transactionId)` lists open invoices the transaction may pay,
+best first. Each suggestion carries its `reasons`:
+
+| Reason         | When                                                                                                  |
+| -------------- | ----------------------------------------------------------------------------------------------------- |
+| `reference`    | the structured reference is the invoice's RF creditor reference (ISO 11649) or Dutch betalingskenmerk |
+| `remittance`   | the remittance text names the invoice number                                                          |
+| `amount`       | the amount equals the invoice's open balance                                                          |
+| `counterparty` | the counterparty's IBAN is one the invoice's party paid from before                                   |
+
+`match(transactionId, matches)` matches the transaction to one or more
+invoices, posted accounting entries or expense reports. The amounts must add
+up to the transaction's, or the call fails with
+`BANK_TRANSACTION_MATCH_INVALID`; one match without an amount takes the
+whole transaction. An invoice match records an invoice payment for its
+amount, so the invoice moves to `paid` once its balance is zero.
+
+```ts
+const [best] = await db.banking.suggestMatches(transaction.id).orThrow();
+
+await db.banking
+  .match(transaction.id, [{ targetType: "invoice", targetId: best.targetId }])
+  .orThrow();
+```
+
+`unmatch` puts a transaction back as `unmatched`: invoice payments it
+recorded are refunded and an entry a rule posted is reversed. `ignore` sets
+a transaction aside, such as a transfer between your own accounts, and
+`ignore(transactionId, false)` brings it back.
+
+`creditorReference(payload)` builds an RF reference for an invoice, and
+`referencePayload(reference)` reads the payload back from an RF reference or
+a Dutch betalingskenmerk.
+
+## Bank rules
+
+A bank rule matches a transaction by a [filter tree](/docs/blocks/rules) over
+its `amount`, `direction` (`in` or `out`), `currency`, `counterpartyName`,
+`counterpartyIban`, `remittance`, `structuredReference`, `endToEndId`,
+`bookedOn` and `valueOn`. A rule with an `accountId` books the transaction in
+the bank account's journal against that account, with the rule's party and
+dimensions. A rule without one ignores the transaction. `applyRules` runs the
+active rules over the account's unmatched transactions, the lowest
+`priority` first, and the first rule that matches wins.
+
+```ts
+await db.banking
+  .saveRule({
+    name: "Bank fees",
+    conditions: {
+      id: "root",
+      type: "group",
+      combinator: "and",
+      rules: [
+        {
+          id: "name",
+          type: "rule",
+          path: ["counterpartyName"],
+          operator: "is",
+          value: "Bank",
+        },
+        {
+          id: "out",
+          type: "rule",
+          path: ["direction"],
+          operator: "is",
+          value: "out",
+        },
+      ],
+    },
+    accountId: feesAccountId,
+    priority: 10,
+  })
+  .orThrow();
+
+const run = await db.banking.applyRules(account.id).orThrow();
+// run.matched and run.ignored
+```
+
+A condition on an unknown field or with an unknown operator fails with
+`BANK_RULE_INVALID`.
+
+## Reconciliation
+
+`reconciliation(accountId, asOf)` reads the latest statement up to `asOf`
+(default today) and returns its closing balance, the total of the account's
+transactions, how many are unmatched and their total, and with accounting
+the ledger balance of the journal's account and the difference. `reconciled`
+is true when nothing is unmatched and the statement balance equals the
+ledger.
+
+## Bank feeds
+
+A bank feed reads transactions from a bank or an aggregator, so you don't
+import files. better-supabase bundles no feed; a provider package implements
+the versioned `BankFeed` port over `fetch`:
+
+```ts
+interface BankFeed {
+  readonly apiVersion: 1;
+  readonly name: string;
+  listAccounts(): AsyncResult<readonly BankFeedAccount[]>;
+  transactions(
+    accountRef: string,
+    since: BankDate,
+  ): AsyncResult<readonly BankTransactionInput[]>;
+}
+```
+
+`syncFeed(accountId, feed, { accountRef, since })` reads the transactions
+booked on or after `since` and imports them like a statement, so a sync that
+runs twice adds nothing. `bankFeedOf(feed)` throws for a feed that targets
+another `apiVersion`.
+
+## Methods
+
+| Method                                  | Returns                                                     |
+| --------------------------------------- | ----------------------------------------------------------- |
+| `saveAccount(input, accountId)`         | the bank account                                            |
+| `accounts({ includeArchived })`         | the bank accounts by name                                   |
+| `importStatement(accountId, statement)` | the statement and how many transactions were imported       |
+| `statements(accountId)`                 | the account's statements, the latest first                  |
+| `transactions(accountId, options)`      | the transactions by status and date, the latest first       |
+| `getTransaction(transactionId)`         | the transaction with its matches, or `undefined`            |
+| `suggestMatches(transactionId)`         | the open invoices it may pay, best first                    |
+| `match(transactionId, matches)`         | the matched transaction                                     |
+| `unmatch(transactionId)`                | the unmatched transaction                                   |
+| `ignore(transactionId, ignored)`        | the ignored or unmatched transaction                        |
+| `saveRule(input, ruleId)`               | the bank rule                                               |
+| `rules()`                               | the bank rules by priority                                  |
+| `deleteRule(ruleId)`                    | nothing                                                     |
+| `applyRules(accountId)`                 | how many transactions the rules matched and ignored         |
+| `reconciliation(accountId, asOf)`       | the reconciliation status                                   |
+| `syncFeed(accountId, feed, sync)`       | the imported statement and how many transactions were added |
+
+## Options
+
+| Option         | Default | Does                                     |
+| -------------- | ------- | ---------------------------------------- |
+| `extraColumns` | none    | Extra columns on the bank accounts table |
+
+The client's `fields` schema types those columns on every account it
+returns.
+
+## Errors
+
+| Hint                              | Cause                                                      |
+| --------------------------------- | ---------------------------------------------------------- |
+| `BANKING_FORBIDDEN`               | the caller lacks the permission                            |
+| `BANK_ACCOUNT_INVALID`            | a field is invalid, such as an IBAN that fails its check   |
+| `BANK_ACCOUNT_NOT_FOUND`          | no bank account with this id that the caller sees          |
+| `BANK_STATEMENT_INVALID`          | a transaction is invalid, such as one in another currency  |
+| `BANK_TRANSACTION_NOT_FOUND`      | no transaction with this id that the caller sees           |
+| `BANK_TRANSACTION_MATCH_INVALID`  | the matches don't add up or a target doesn't fit           |
+| `BANK_TRANSACTION_STATUS_INVALID` | the call doesn't fit the status, such as matching it twice |
+| `BANK_RULE_INVALID`               | a condition names an unknown field or operator             |
+| `BANK_RULE_NOT_FOUND`             | no bank rule with this id that the caller sees             |
+
+## Events
+
+`bank_statement.imported`, `bank_transaction.matched` and
+`bank_transaction.unmatched`. The [events page](/docs/extending/events)
+lists their payloads.
+
+## Without the client
+
+`db.banking` is this client. Code that does not go through `bsb.db()` builds
+it with a transport and an organization id:
+
+```ts
+const banking = createBanking({ transport, tenant: organizationId });
+
+const status = await banking.reconciliation(accountId).orThrow();
+```

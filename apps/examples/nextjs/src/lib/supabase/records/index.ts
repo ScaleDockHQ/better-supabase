@@ -2,6 +2,7 @@
 
 export { activityRecord } from "./activity.ts";
 export { applicationRecord } from "./application.ts";
+export { bankAccountRecord } from "./bank-account.ts";
 export { bookingRecord } from "./booking.ts";
 export { calendarEventRecord } from "./calendar-event.ts";
 export { carePlanRecord } from "./care-plan.ts";
