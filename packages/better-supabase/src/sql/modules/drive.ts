@@ -14,6 +14,7 @@ import {
 } from "./drive-documents.ts";
 import { driveFilesSql } from "./drive-files.ts";
 import { driveKit, driveSubjectType, labelTags } from "./drive-kit.ts";
+import { driveRetentionSupported } from "./drive-lifecycle.ts";
 import { FILE_EVENTS, NAMES } from "./drive-names.ts";
 import { driveRequestsSupported } from "./drive-ownership.ts";
 
@@ -173,9 +174,43 @@ function fileContract(
           { name: "drive_approvals", args: ["uuid"], returns: "jsonb" },
         ]
       : []),
+    ...lifecycleContract(ctx),
     ...(driveControl(ctx.of("drive"), ctx) === undefined
       ? []
       : DOCUMENT_FUNCTIONS),
+  ];
+}
+
+function lifecycleContract(
+  ctx: BlockSqlContext,
+): readonly BlockSqlContractFunction[] {
+  const drive = ctx.of("drive");
+
+  // A custom drive-files keeps the contract it had; the new functions are only rendered.
+  if (ctx.mode === "custom" || drive.mode === "custom") {
+    return [];
+  }
+
+  return [
+    ...(drive.has("nodes", "updatedAt")
+      ? [
+          {
+            name: "drive_changes",
+            args: ["{id}", "text", "integer", "uuid"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
+    ...(driveRetentionSupported(driveKit(drive, ctx))
+      ? [
+          { name: "drive_retention_kind", args: ["text"], returns: "text" },
+          {
+            name: "drive_retention_sweep",
+            args: ["{id}", "integer"],
+            returns: "integer",
+          },
+        ]
+      : []),
   ];
 }
 
@@ -190,6 +225,7 @@ const INTEGRATES = [
   "settings",
   "guests",
   "imports",
+  "data-lifecycle",
 ] as const;
 
 /**

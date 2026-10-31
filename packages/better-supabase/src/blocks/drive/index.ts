@@ -109,3 +109,10 @@ export { driveBlock } from "./manifest.ts";
 export { driveEvents } from "./events.ts";
 
 export type { DriveEvents } from "./events.ts";
+
+export type {
+  DriveChange,
+  DriveChanges,
+  DriveChangesOptions,
+  DriveLifecycle,
+} from "./changes.ts";

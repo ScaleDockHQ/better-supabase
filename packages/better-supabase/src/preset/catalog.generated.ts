@@ -2651,6 +2651,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "settings",
         "guests",
         "imports",
+        "data-lifecycle",
         "access-requests"
       ],
       "manifest": "drive",
@@ -2733,6 +2734,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "settings",
         "guests",
         "imports",
+        "data-lifecycle",
         "tags",
         "approvals",
         "rate-limit",
