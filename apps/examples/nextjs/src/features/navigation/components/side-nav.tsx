@@ -48,6 +48,7 @@ import {
   AwardIcon,
   Trash2Icon,
   CreditCardIcon,
+  FileQuestionMarkIcon,
   FlaskConicalIcon,
   GridIcon,
   BellIcon,
@@ -142,6 +143,7 @@ const ICONS = {
   lims: FlaskConicalIcon,
   appraisals: AwardIcon,
   warehouse: ClipboardListIcon,
+  rfqs: FileQuestionMarkIcon,
   shifts: CalendarDaysIcon,
   finance: LandmarkIcon,
   payables: ReceiptTextIcon,
@@ -354,6 +356,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "lims": {
         return t("Laboratory");
+      }
+
+      case "rfqs": {
+        return t("Requests for quotation");
       }
 
       case "maintenance": {

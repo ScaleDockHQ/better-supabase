@@ -55,6 +55,7 @@ import {
   FlameIcon,
   FunnelIcon,
   FlaskConicalIcon,
+  FileQuestionMarkIcon,
   FolderOpenIcon,
   GaugeIcon,
   GavelIcon,
@@ -343,6 +344,7 @@ export const BLOCK_ICONS = {
   lims: FlaskConicalIcon,
   appraisals: AwardIcon,
   warehouse: ClipboardListIcon,
+  rfqs: FileQuestionMarkIcon,
   "care-plans": ClipboardPlusIcon,
   // Database primitives
   "updated-at": ClockIcon,

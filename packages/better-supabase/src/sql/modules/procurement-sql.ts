@@ -11,7 +11,7 @@ const PARTY_TABLES = ["companies", "people"] as const;
  * company or person that matches, with the `columns` asked for (null where the
  * table lacks one). Undefined without the contacts block.
  */
-function partyRows(
+export function partyRows(
   ctx: BlockSqlContext,
   id: string,
   tenant: string,

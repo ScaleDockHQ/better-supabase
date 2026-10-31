@@ -10011,6 +10011,144 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "rfqs",
+      "title": "Requests for quotation",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "contacts",
+        "inventory",
+        "numbering",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "rfqs",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "rfq": {
+            "table": "rfqs",
+            "singular": "rfq",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          },
+          "rfq_line": {
+            "table": "lines",
+            "singular": "rfq_line"
+          },
+          "rfq_supplier": {
+            "table": "suppliers",
+            "singular": "rfq_supplier"
+          },
+          "rfq_quote": {
+            "table": "quotes",
+            "singular": "rfq_quote"
+          },
+          "rfq_quote_line": {
+            "table": "quoteLines",
+            "singular": "rfq_quote_line"
+          }
+        },
+        "tables": {
+          "rfqs": {
+            "name": "rfqs",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "number": "number",
+              "sequence": "sequence",
+              "title": "title",
+              "status": "status",
+              "currency": "currency",
+              "dueAt": "due_at",
+              "notes": "notes",
+              "awardedQuote": "awarded_quote_id",
+              "purchaseOrder": "purchase_order_id",
+              "cancelReason": "cancel_reason",
+              "openedAt": "opened_at",
+              "closedAt": "closed_at",
+              "awardedAt": "awarded_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "lines": {
+            "name": "rfq_lines",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "rfq": "rfq_id",
+              "ordinal": "ordinal",
+              "description": "description",
+              "variant": "variant_id",
+              "quantity": "quantity",
+              "unit": "unit"
+            }
+          },
+          "suppliers": {
+            "name": "rfq_suppliers",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "rfq": "rfq_id",
+              "supplierType": "supplier_type",
+              "supplierId": "supplier_id",
+              "status": "status",
+              "invitedAt": "invited_at",
+              "respondedAt": "responded_at"
+            }
+          },
+          "quotes": {
+            "name": "rfq_quotes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "rfq": "rfq_id",
+              "invitation": "invitation_id",
+              "status": "status",
+              "total": "total_amount",
+              "leadTimeDays": "lead_time_days",
+              "validUntil": "valid_until",
+              "notes": "notes",
+              "revision": "revision",
+              "submittedBy": "submitted_by",
+              "submittedAt": "submitted_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "quoteLines": {
+            "name": "rfq_quote_lines",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "quote": "quote_id",
+              "line": "line_id",
+              "unitAmount": "unit_amount",
+              "leadTimeDays": "lead_time_days"
+            }
+          }
+        },
+        "keys": {
+          "read": "rfqs.read",
+          "write": "rfqs.write",
+          "manage": "rfqs.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -21477,6 +21615,171 @@ export const PRESET_CATALOG: PresetCatalog = {
           "pick_list.picked",
           "count_plan.created",
           "count_plan.executed"
+        ]
+      }
+    },
+    {
+      "name": "rfqs",
+      "sql": [
+        "rfqs"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "rfqsBlock",
+        "subpath": "better-supabase/blocks/rfqs"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Rfq"
+        },
+        {
+          "name": "RfqComparison"
+        },
+        {
+          "name": "RfqComparisonLine"
+        },
+        {
+          "name": "RfqComparisonQuote"
+        },
+        {
+          "name": "RfqDetail"
+        },
+        {
+          "name": "RfqEventData"
+        },
+        {
+          "name": "RfqInput"
+        },
+        {
+          "name": "RfqLine"
+        },
+        {
+          "name": "RfqLineInput"
+        },
+        {
+          "name": "RfqListOptions"
+        },
+        {
+          "name": "RfqOffer"
+        },
+        {
+          "name": "RfqQuote"
+        },
+        {
+          "name": "RfqQuoteEventData"
+        },
+        {
+          "name": "RfqQuoteInput"
+        },
+        {
+          "name": "RfqQuoteLine"
+        },
+        {
+          "name": "RfqQuoteLineInput"
+        },
+        {
+          "name": "RfqQuoteStatus"
+        },
+        {
+          "name": "Rfqs"
+        },
+        {
+          "name": "RfqsEvents"
+        },
+        {
+          "name": "RfqsOptions"
+        },
+        {
+          "name": "RfqStatus"
+        },
+        {
+          "name": "RfqSupplier"
+        },
+        {
+          "name": "RfqSupplierStatus"
+        }
+      ],
+      "entitySchemas": {
+        "rfq": {
+          "input": {
+            "title": "RfqInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "currency": {
+                "kind": "string",
+                "minLength": 3,
+                "maxLength": 3,
+                "description": "An ISO 4217 code such as EUR."
+              },
+              "dueAt": {
+                "kind": "instant",
+                "optional": true,
+                "nullable": true
+              },
+              "notes": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 4000
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "RfqInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "currency": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 3,
+                  "description": "An ISO 4217 code such as EUR."
+                },
+                "dueAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 4000
+                }
+              },
+              "required": [
+                "title",
+                "currency"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "RfqsEvents",
+        "types": [
+          "rfq.created",
+          "rfq.updated",
+          "rfq.opened",
+          "rfq.closed",
+          "rfq.awarded",
+          "rfq.cancelled",
+          "rfq_quote.submitted",
+          "rfq_quote.withdrawn"
         ]
       }
     },
