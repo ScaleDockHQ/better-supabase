@@ -43,4 +43,4 @@ The bin touch trigger changes `updated_at` on every trash and restore, which
 also restarts a node's retention clock. The feed doesn't carry access
 changes. A sweep that meets more locked nodes than its batch size at the
 head of the queue binds on them again next time; raise `batchSize`. The
-WOPI host (ADR 0166) reads the check-out lock, not this feed.
+WOPI host (ADR 0168) reads the check-out lock, not this feed.

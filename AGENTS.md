@@ -279,8 +279,10 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0162: Care blocks sync offline: streams by organization and `read` role, upload routes that replay through block functions, clinical conflicts surface in `connector.rejected`.
 - 0163: Digital asset management is renditions made through the drive preview port and usage rights with territory, channel and expiry on drive files.
 - 0164: `lims` keeps samples, methods with specification limits and results; an out of specification result opens a `cases` nonconformity and blocks release, and instruments are assets with qualifications.
+- 0165: Drive retention sweeps bin files by label, and a changes feed serves sync clients.
 - 0166: Purchase bill lines and expense lines carry `dimensions`; a report books one expense line per dimension set, so project costs split.
 - 0167: Appraisals run review cycles over enrollments, forms, goals and approvals, with calibration and sign-off.
+- 0168: A WOPI host on the check-out lock lets office editors open and save drive files.
 
 ## Pre-release pins
 

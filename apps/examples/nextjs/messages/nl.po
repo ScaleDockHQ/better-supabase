@@ -256,12 +256,12 @@ msgstr "Iedereen met wie je organisatie werkt."
 #: src/app/[locale]/(app)/dam/page.tsx
 msgctxt "dam.d1uESJ"
 msgid "Assets"
-msgstr ""
+msgstr "Assets"
 
 #: src/app/[locale]/(app)/dam/page.tsx
 msgctxt "dam.NZSq_3"
 msgid "Who may use your files, where, and until when."
-msgstr ""
+msgstr "Wie uw bestanden mag gebruiken, waar en tot wanneer."
 
 #: src/app/[locale]/(app)/documents/[id]/page.tsx
 msgctxt "documents.lXxMRw"
@@ -6721,97 +6721,97 @@ msgstr "Gearchiveerd"
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.jh-9q7"
 msgid "Everywhere"
-msgstr ""
+msgstr "Overal"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.6XI_gj"
 msgid "Every channel"
-msgstr ""
+msgstr "Elk kanaal"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.3a5wL8"
 msgid "Active"
-msgstr ""
+msgstr "Actief"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.6_aEFZ"
 msgid "Upcoming"
-msgstr ""
+msgstr "Gepland"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.RahCRH"
 msgid "Expired"
-msgstr ""
+msgstr "Verlopen"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.f0W26f"
 msgid "Revoked"
-msgstr ""
+msgstr "Ingetrokken"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.2ycmtn"
 msgid "Licensee"
-msgstr ""
+msgstr "Licentiehouder"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.50ToSt"
 msgid "Territory and channel"
-msgstr ""
+msgstr "Gebied en kanaal"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.xhQMeQ"
 msgid "Expires"
-msgstr ""
+msgstr "Verloopt"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.tzMNF3"
 msgid "Status"
-msgstr ""
+msgstr "Status"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.ILMGTJ"
 msgid "Usage rights"
-msgstr ""
+msgstr "Gebruiksrechten"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.uVlJ68"
 msgid "Each right names a licensee, where it applies and when it ends."
-msgstr ""
+msgstr "Elk recht noemt een licentiehouder, waar het geldt en wanneer het eindigt."
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.AWWxQW"
 msgid "The usage rights didn't load"
-msgstr ""
+msgstr "De gebruiksrechten zijn niet geladen"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.162kF7"
 msgid "Try again in a moment."
-msgstr ""
+msgstr "Probeer het zo meteen opnieuw."
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.62nsdy"
 msgid "Retry"
-msgstr ""
+msgstr "Opnieuw proberen"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.K9hKm9"
 msgid "No usage rights yet"
-msgstr ""
+msgstr "Nog geen gebruiksrechten"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.qieq3I"
 msgid "Grant a right on a file with a licensee, a territory and an expiry date, and the member who granted it is reminded before it ends."
-msgstr ""
+msgstr "Verleen een recht op een bestand met een licentiehouder, een gebied en een einddatum. Het lid dat het verleende krijgt een herinnering voordat het eindigt."
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.3hJIvX"
 msgid "Read the asset management guide"
-msgstr ""
+msgstr "Lees de gids over assetbeheer"
 
 #: src/features/dam/components/usage-rights.tsx
 msgctxt "dam.FnQZ7R"
 msgid "Revoke the next active right"
-msgstr ""
+msgstr "Het volgende actieve recht intrekken"
 
 #: src/features/dashboard/components/customers-card.tsx
 msgctxt "dashboard.2PTEWU"
@@ -10701,12 +10701,12 @@ msgstr "Vergaderingen"
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.d1uESJ"
 msgid "Assets"
-msgstr ""
+msgstr "Assets"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.U2griC"
 msgid "Laboratory"
-msgstr ""
+msgstr "Laboratorium"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.dudqv_"
@@ -10716,7 +10716,7 @@ msgstr "Onderhoud"
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.uiZ53z"
 msgid "Appraisals"
-msgstr ""
+msgstr "Beoordelingen"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.poLbhw"
