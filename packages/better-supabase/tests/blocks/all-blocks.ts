@@ -144,6 +144,7 @@ import type { streamsBlock } from "../../src/blocks/streams/manifest.ts";
 import type { subjectsBlock } from "../../src/blocks/subjects/manifest.ts";
 import type { tagsBlock } from "../../src/blocks/tags/manifest.ts";
 import type { tasksBlock } from "../../src/blocks/tasks/manifest.ts";
+import type { taxBlock } from "../../src/blocks/tax/manifest.ts";
 import type { teamsBlock } from "../../src/blocks/teams/manifest.ts";
 import type { templatesBlock } from "../../src/blocks/templates/manifest.ts";
 import type { timeTrackingBlock } from "../../src/blocks/time-tracking/manifest.ts";
@@ -243,6 +244,7 @@ export type AllBlocks = {
   readonly dam: typeof damBlock;
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
+  readonly tax: typeof taxBlock;
   readonly funding: typeof fundingBlock;
   readonly "payroll-export": typeof payrollExportBlock;
   readonly courses: typeof coursesBlock;

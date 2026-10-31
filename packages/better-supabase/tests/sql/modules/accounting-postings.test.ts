@@ -230,7 +230,6 @@ describe("accounting postings", () => {
               accounting_period: "eu_period",
               accounting_entry: "eu_entry",
               accounting_dimension: "eu_dimension",
-              accounting_tax_code: "eu_tax_code",
               accounting_budget: "eu_budget",
             },
           },

@@ -33,7 +33,6 @@ import {
   profitAndLossOf,
   rolesOf,
   settingsOf,
-  taxCodeOf,
   trialBalanceOf,
 } from "./decode.ts";
 import { accountingPostings } from "./postings.ts";
@@ -208,34 +207,6 @@ export interface AccountingDimensionValueInput {
 }
 
 export type TaxCodeKind = "sales" | "purchase";
-
-export interface AccountingTaxCode {
-  readonly id: string;
-  readonly organizationId: string;
-  readonly code: string;
-  readonly name: string;
-  /** Basis points: 2100 is 21%. */
-  readonly rateBps: number;
-  readonly kind: TaxCodeKind;
-  /** The account the tax posts to. */
-  readonly accountId: string;
-  /** The boxes of a tax return the tax and its base count toward. */
-  readonly reportBoxes: readonly string[];
-  readonly archivedAt?: Temporal.Instant;
-  readonly createdAt: Temporal.Instant;
-  readonly updatedAt: Temporal.Instant;
-}
-
-export interface AccountingTaxCodeInput {
-  /** Saving a code again updates that tax code. */
-  readonly code: string;
-  readonly name: string;
-  readonly rateBps: number;
-  readonly kind: TaxCodeKind;
-  readonly accountId: string;
-  readonly reportBoxes?: readonly string[];
-  readonly archived?: boolean;
-}
 
 export interface AccountingFxRateInput {
   readonly base: string;
@@ -501,15 +472,6 @@ export interface Accounting<
     organizationId: string,
   ): AsyncResult<readonly AccountingDimension[]>;
   /** Needs `accounting.manage`. */
-  saveTaxCode(
-    organizationId: string,
-    input: AccountingTaxCodeInput,
-  ): AsyncResult<AccountingTaxCode>;
-  taxCodes(
-    organizationId: string,
-    options?: { readonly includeArchived?: boolean },
-  ): AsyncResult<readonly AccountingTaxCode[]>;
-  /** Needs `accounting.manage`. */
   setFxRate(
     organizationId: string,
     input: AccountingFxRateInput,
@@ -713,30 +675,6 @@ export function createAccounting<
         "list_accounting_dimensions",
         { tenant: organizationId },
         many("list_accounting_dimensions", dimensionOf),
-      ),
-    saveTaxCode: (organizationId, input) =>
-      call(
-        "save_accounting_tax_code",
-        {
-          tenant: organizationId,
-          code: input.code,
-          name: input.name,
-          rate_bps: input.rateBps,
-          kind: input.kind,
-          account_id: input.accountId,
-          report_boxes: input.reportBoxes ?? null,
-          archived: input.archived ?? false,
-        },
-        (value) => taxCodeOf(value, "save_accounting_tax_code"),
-      ),
-    taxCodes: (organizationId, list = {}) =>
-      call(
-        "list_accounting_tax_codes",
-        {
-          tenant: organizationId,
-          include_archived: list.includeArchived ?? false,
-        },
-        many("list_accounting_tax_codes", taxCodeOf),
       ),
     setFxRate: (organizationId, input) =>
       call(

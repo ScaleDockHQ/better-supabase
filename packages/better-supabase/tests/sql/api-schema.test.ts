@@ -183,7 +183,9 @@ describe("blocks.<module>.api", () => {
         wrapped: granted,
       });
     }
-  });
+    // Renders every module on its own; the count grows with each block, and a
+    // shard under load took 20 s.
+  }, 90_000);
 
   it("drops the wrappers of signatures the module itself drops", () => {
     const notifications = schemaFile("notifications", "api");

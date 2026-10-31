@@ -9,7 +9,6 @@ import {
   accountingAccountInputSchema,
   accountingEntryInputSchema,
   accountingJournalInputSchema,
-  accountingTaxCodeInputSchema,
 } from "./schemas.ts";
 
 /** The `accounting` block's manifest (ADR 0029). */
@@ -26,7 +25,6 @@ export const accountingBlock: BlockOf<
     accounting_account: { input: accountingAccountInputSchema },
     accounting_journal: { input: accountingJournalInputSchema },
     accounting_entry: { input: accountingEntryInputSchema },
-    accounting_tax_code: { input: accountingTaxCodeInputSchema },
   },
   create: createAccounting,
   recipes: ["trial-balance"],

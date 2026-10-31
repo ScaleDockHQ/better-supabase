@@ -16,6 +16,7 @@ import { assetsBlock } from "better-supabase/blocks/assets";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { expensesBlock } from "better-supabase/blocks/expenses";
 import { bankingBlock } from "better-supabase/blocks/banking";
+import { taxBlock } from "better-supabase/blocks/tax";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
@@ -53,6 +54,7 @@ export const blockSet = defineBlocks(blockConfig, {
   enrollments: enrollmentsBlock,
   expenses: expensesBlock,
   banking: bankingBlock,
+  tax: taxBlock,
   employees: employeesBlock,
   entitlements: entitlementsBlock,
   inventory: inventoryBlock,

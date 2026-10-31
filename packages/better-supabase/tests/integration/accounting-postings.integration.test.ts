@@ -9,6 +9,7 @@ import { createDonations } from "../../src/blocks/donations/index.ts";
 import { createExpenses } from "../../src/blocks/expenses/index.ts";
 import { createInvoices } from "../../src/blocks/invoices/index.ts";
 import { createLeases } from "../../src/blocks/leases/index.ts";
+import { createTax } from "../../src/blocks/tax/index.ts";
 import { money } from "../../src/commerce/money.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
@@ -30,6 +31,7 @@ const MODULES = [
   "assets",
   "ledger",
   "catalog",
+  "tax",
   "accounting",
   "invoices",
   "expenses",
@@ -98,14 +100,14 @@ describe.skipIf(!live)("accounting postings", () => {
     await books.setup(tenant, { functionalCurrency: "EUR" }).orThrow();
     await books.openFiscalYear(tenant, 2026).orThrow();
     const accounts = await books.accounts(tenant).orThrow();
-    await books
-      .saveTaxCode(tenant, {
+    await createTax({ transport: sqlTransport(s.sql), tenant })
+      .saveCode({
         code: "VAT21",
         name: "VAT 21%",
+        type: "sales",
         rateBps: 2100,
-        kind: "sales",
-        accountId: accounts.find((account) => account.code === "2100")!.id,
-        reportBoxes: ["1a"],
+        salesAccountId: accounts.find((account) => account.code === "2100")!.id,
+        returnBoxes: ["1a"],
       })
       .orThrow();
   });

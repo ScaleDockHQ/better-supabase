@@ -122,6 +122,7 @@ describe("blocks.<name>.entities in the SQL", () => {
     memory: ["'/memories'", "'/memories{}'"],
     orders: ["'cartId'", "'orderId'"],
     promotions: ['"promotions"', "'promotionId'"],
+    tax: ["'taxCodeId'"],
   };
 
   const renamable = Object.entries(SQL_MODULES).flatMap(([name, module]) => {

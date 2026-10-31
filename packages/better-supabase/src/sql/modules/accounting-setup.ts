@@ -19,7 +19,6 @@ export interface AccountingJson {
   account(row: string): string;
   journal(row: string): string;
   period(row: string): string;
-  taxCode(row: string): string;
   dimension(row: string): string;
 }
 
@@ -29,7 +28,6 @@ export function accountingJson(ctx: BlockSqlContext): AccountingJson {
   const r = (column: string): string => ctx.col("roles", column);
   const j = (column: string): string => ctx.col("journals", column);
   const p = (column: string): string => ctx.col("periods", column);
-  const t = (column: string): string => ctx.col("taxCodes", column);
   const d = (column: string): string => ctx.col("dimensions", column);
   const v = (column: string): string => ctx.col("dimensionValues", column);
 
@@ -42,8 +40,6 @@ export function accountingJson(ctx: BlockSqlContext): AccountingJson {
       `jsonb_build_object('id', ${row}.${j("id")}, 'organizationId', ${row}.${j("tenant")}, 'code', ${row}.${j("code")}, 'name', ${row}.${j("name")}, 'type', ${row}.${j("type")}, 'defaultAccountId', ${row}.${j("defaultAccount")}, 'currency', ${row}.${j("currency")}, 'createdAt', ${row}.${j("createdAt")}, 'updatedAt', ${row}.${j("updatedAt")})`,
     period: (row) =>
       `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'fiscalYear', ${row}.${p("fiscalYear")}, 'number', ${row}.${p("number")}, 'startsOn', ${row}.${p("startsOn")}, 'endsOn', ${row}.${p("endsOn")}, 'status', ${row}.${p("status")}, 'closedAt', ${row}.${p("closedAt")}, 'closedBy', ${row}.${p("closedBy")})`,
-    taxCode: (row) =>
-      `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, 'code', ${row}.${t("code")}, 'name', ${row}.${t("name")}, 'rateBps', ${row}.${t("rateBps")}, 'kind', ${row}.${t("kind")}, 'accountId', ${row}.${t("account")}, 'reportBoxes', to_jsonb(${row}.${t("reportBoxes")}), 'archivedAt', ${row}.${t("archivedAt")}, 'createdAt', ${row}.${t("createdAt")}, 'updatedAt', ${row}.${t("updatedAt")})`,
     dimension: (row) =>
       `jsonb_build_object('id', ${row}.${d("id")}, 'organizationId', ${row}.${d("tenant")}, 'key', ${row}.${d("key")}, 'name', ${row}.${d("name")}, 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv.${v("id")}, 'code', dv.${v("code")}, 'name', dv.${v("name")}, 'archivedAt', dv.${v("archivedAt")}) order by dv.${v("code")}) from ${ctx.table("dimensionValues")} dv where dv.${v("dimension")} = ${row}.${d("id")}), '[]'::jsonb), 'createdAt', ${row}.${d("createdAt")})`,
   };
@@ -76,7 +72,8 @@ export function accountingSetupFunctions(ctx: BlockSqlContext): string {
   const dimensions = ctx.table("dimensions");
   const values = ctx.table("dimensionValues");
   const rates = ctx.table("fxRates");
-  const taxes = ctx.table("taxCodes");
+  const tax = ctx.of("tax");
+  const taxes = tax.table("codes");
   const s = (column: string): string => ctx.col("settings", column);
   const a = (column: string): string => ctx.col("accounts", column);
   const r = (column: string): string => ctx.col("roles", column);
@@ -87,7 +84,7 @@ export function accountingSetupFunctions(ctx: BlockSqlContext): string {
   const d = (column: string): string => ctx.col("dimensions", column);
   const v = (column: string): string => ctx.col("dimensionValues", column);
   const x = (column: string): string => ctx.col("fxRates", column);
-  const t = (column: string): string => ctx.col("taxCodes", column);
+  const t = (column: string): string => tax.col("codes", column);
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
   const config = accountingConfig(ctx);
@@ -312,7 +309,7 @@ begin
   if coalesce(archive_accounting_account.archived, true) and (
     exists (select 1 from ${roles} y where y.${r("account")} = v_row.${a("id")})
     or exists (select 1 from ${journals} y where y.${j("defaultAccount")} = v_row.${a("id")})
-    or exists (select 1 from ${taxes} y where y.${t("account")} = v_row.${a("id")} and y.${t("archivedAt")} is null)
+    or exists (select 1 from ${taxes} y where (y.${t("salesAccount")} = v_row.${a("id")} or y.${t("purchaseAccount")} = v_row.${a("id")}) and y.${t("archivedAt")} is null)
   ) then
     ${fail("ACCOUNTING_ACCOUNT_IN_USE", "the account is mapped to a role, a journal or a tax code", "55000")}
   end if;
@@ -558,59 +555,6 @@ as $$
   where x.${d("tenant")} = list_accounting_dimensions.tenant
 $$;
 ${userGrant(`${fn("list_accounting_dimensions")}(${idType})`)}
-
--- Creates or changes a tax code by code. rate_bps is basis points (2100 is 21%).
-create or replace function ${fn("save_accounting_tax_code")}(tenant ${idType}, code text, name text, rate_bps integer, kind text, account_id uuid, report_boxes text[] default null, archived boolean default false)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row ${taxes}%rowtype;
-begin
-  if not ${allowed("save_accounting_tax_code.tenant", sql.manage)} then
-    ${sql.forbidden("ACCOUNTING_TAX_CODE", "not allowed to manage tax codes")}
-  end if;
-  if nullif(trim(save_accounting_tax_code.code), '') is null or nullif(trim(save_accounting_tax_code.name), '') is null
-    or save_accounting_tax_code.rate_bps is null or save_accounting_tax_code.rate_bps < 0 or save_accounting_tax_code.rate_bps > 100000
-    or save_accounting_tax_code.kind is null or save_accounting_tax_code.kind not in ('sales', 'purchase') then
-    ${sql.invalid("ACCOUNTING_TAX_CODE", "a tax code needs a code, a name, a rate in basis points and a kind (sales or purchase)")}
-  end if;
-  if not exists (
-    select 1 from ${accounts} y where y.${a("id")} = save_accounting_tax_code.account_id
-      and y.${a("tenant")} = save_accounting_tax_code.tenant and y.${a("archivedAt")} is null
-  ) then
-    ${notFound("ACCOUNTING_ACCOUNT", "account")}
-  end if;
-  insert into ${taxes} (${t("tenant")}, ${t("code")}, ${t("name")}, ${t("rateBps")}, ${t("kind")}, ${t("account")}, ${t("reportBoxes")}, ${t("archivedAt")})
-  values (save_accounting_tax_code.tenant, trim(save_accounting_tax_code.code), trim(save_accounting_tax_code.name), save_accounting_tax_code.rate_bps,
-    save_accounting_tax_code.kind, save_accounting_tax_code.account_id, coalesce(save_accounting_tax_code.report_boxes, '{}'),
-    case when coalesce(save_accounting_tax_code.archived, false) then now() end)
-  on conflict (${t("tenant")}, ${t("code")}) do update
-    set ${t("name")} = excluded.${t("name")}, ${t("rateBps")} = excluded.${t("rateBps")}, ${t("kind")} = excluded.${t("kind")},
-      ${t("account")} = excluded.${t("account")}, ${t("reportBoxes")} = excluded.${t("reportBoxes")}, ${t("archivedAt")} = excluded.${t("archivedAt")},
-      ${t("updatedAt")} = now()
-  returning * into v_row;
-  return ${json.taxCode("v_row")};
-end;
-$$;
-${userGrant(`${fn("save_accounting_tax_code")}(${idType}, text, text, integer, text, uuid, text[], boolean)`)}
-
-create or replace function ${fn("list_accounting_tax_codes")}(tenant ${idType}, include_archived boolean default false)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(${json.taxCode("x")} order by x.${t("code")}), '[]'::jsonb)
-  from ${taxes} x
-  where x.${t("tenant")} = list_accounting_tax_codes.tenant
-    and (coalesce(list_accounting_tax_codes.include_archived, false) or x.${t("archivedAt")} is null)
-$$;
-${userGrant(`${fn("list_accounting_tax_codes")}(${idType}, boolean)`)}
 
 -- Records what one unit of base costs in quote on a date.
 create or replace function ${fn("set_accounting_fx_rate")}(tenant ${idType}, base text, quote text, on_date date, rate numeric)

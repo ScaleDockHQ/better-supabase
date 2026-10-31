@@ -3,7 +3,6 @@ import type {
   AccountingAccountInput,
   AccountingEntryInput,
   AccountingJournalInput,
-  AccountingTaxCodeInput,
 } from "./accounting.ts";
 
 import { entitySchema } from "../entity-schema.ts";
@@ -69,20 +68,5 @@ export const accountingEntryInputSchema: EntitySchema<AccountingEntryInput> =
         optional: true,
         description: "The extra columns, keyed by database name.",
       },
-    },
-  });
-
-/** What `saveTaxCode` takes. */
-export const accountingTaxCodeInputSchema: EntitySchema<AccountingTaxCodeInput> =
-  entitySchema<AccountingTaxCodeInput>({
-    title: "AccountingTaxCodeInput",
-    fields: {
-      code: { kind: "string", minLength: 1, maxLength: 50 },
-      name: { kind: "string", minLength: 1, maxLength: 200 },
-      rateBps: { kind: "integer", minimum: 0, maximum: 100_000 },
-      kind: { kind: "enum", values: ["sales", "purchase"] },
-      accountId: { kind: "uuid" },
-      reportBoxes: { kind: "string", optional: true, array: true },
-      archived: { kind: "boolean", optional: true },
     },
   });

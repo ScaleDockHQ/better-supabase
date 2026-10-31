@@ -41,4 +41,5 @@ export { qualificationTypeRecord } from "./qualification-type.ts";
 export { quoteRecord } from "./quote.ts";
 export { riskRecord } from "./risk.ts";
 export { taskRecord } from "./task.ts";
+export { taxCodeRecord } from "./tax-code.ts";
 export { workCenterRecord } from "./work-center.ts";

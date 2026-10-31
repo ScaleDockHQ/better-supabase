@@ -219,7 +219,7 @@ const NAMES: BlockSqlNames = {
       ],
       typed: ["status", "kind", "direction"],
     },
-    lines: lineTableSpec("invoice_lines"),
+    lines: lineTableSpec("invoice_lines", { tax: true }),
     charges: {
       name: "invoice_charges",
       app: {},
@@ -697,6 +697,7 @@ export const INVOICES: BlockSqlDefinition = {
     "quotes",
     "relations",
     "accounting",
+    "tax",
     "inventory",
     "contacts",
     "orders",

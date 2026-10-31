@@ -1110,6 +1110,11 @@
       "types": "./dist/blocks/manufacturing/index.d.ts",
       "default": "./dist/blocks/manufacturing/index.js"
     },
+    "./blocks/tax": {
+      "@better-supabase/source": "./src/blocks/tax/index.ts",
+      "types": "./dist/blocks/tax/index.d.ts",
+      "default": "./dist/blocks/tax/index.js"
+    },
     "./blocks/banking": {
       "@better-supabase/source": "./src/blocks/banking/index.ts",
       "types": "./dist/blocks/banking/index.d.ts",
@@ -2052,6 +2057,10 @@
       "./blocks/manufacturing": {
         "types": "./dist/blocks/manufacturing/index.d.ts",
         "default": "./dist/blocks/manufacturing/index.js"
+      },
+      "./blocks/tax": {
+        "types": "./dist/blocks/tax/index.d.ts",
+        "default": "./dist/blocks/tax/index.js"
       },
       "./blocks/banking": {
         "types": "./dist/blocks/banking/index.d.ts",

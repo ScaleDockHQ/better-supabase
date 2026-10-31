@@ -22,8 +22,6 @@ export {
   type AccountingReportOptions,
   type AccountingSettings,
   type AccountingSetupInput,
-  type AccountingTaxCode,
-  type AccountingTaxCodeInput,
   type BalanceSheet,
   type FiscalYearClose,
   type GeneralLedger,
@@ -79,7 +77,6 @@ export {
   accountingAccountInputSchema,
   accountingEntryInputSchema,
   accountingJournalInputSchema,
-  accountingTaxCodeInputSchema,
 } from "./schemas.ts";
 
 export { accountingEvents } from "./events.ts";

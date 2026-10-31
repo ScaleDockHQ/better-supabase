@@ -42,7 +42,7 @@ export function accountingEntryFunctions(ctx: BlockSqlContext): string {
   const lines = ctx.table("lines");
   const dimensions = ctx.table("dimensions");
   const values = ctx.table("dimensionValues");
-  const taxes = ctx.table("taxCodes");
+  const taxes = ctx.of("tax").table("codes");
   const s = (column: string): string => ctx.col("settings", column);
   const a = (column: string): string => ctx.col("accounts", column);
   const j = (column: string): string => ctx.col("journals", column);
@@ -51,7 +51,7 @@ export function accountingEntryFunctions(ctx: BlockSqlContext): string {
   const l = (column: string): string => ctx.col("lines", column);
   const d = (column: string): string => ctx.col("dimensions", column);
   const v = (column: string): string => ctx.col("dimensionValues", column);
-  const t = (column: string): string => ctx.col("taxCodes", column);
+  const t = (column: string): string => ctx.of("tax").col("codes", column);
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
   const sql = accountingSql(ctx);

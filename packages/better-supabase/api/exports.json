@@ -7153,7 +7153,6 @@
       "accountingEntryInputSchema",
       "accountingEvents",
       "accountingJournalInputSchema",
-      "accountingTaxCodeInputSchema",
       "chartFormatOf",
       "createAccounting",
       "dbTransport",
@@ -7199,8 +7198,6 @@
       "AccountingReportOptions",
       "AccountingSettings",
       "AccountingSetupInput",
-      "AccountingTaxCode",
-      "AccountingTaxCodeInput",
       "AccountRole",
       "AccountType",
       "BalanceSheet",
@@ -9641,6 +9638,46 @@
       "TraceLot",
       "WorkCenter",
       "WorkCenterInput"
+    ]
+  },
+  "./blocks/tax": {
+    "values": [
+      "createTax",
+      "dbTransport",
+      "extendBlock",
+      "prepareTaxReturnInputSchema",
+      "rpcTransport",
+      "sqlTransport",
+      "taxBlock",
+      "taxCodeInputSchema",
+      "taxEvents",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "EuSalesListLine",
+      "PrepareTaxReturnInput",
+      "RpcClient",
+      "Tax",
+      "TaxCode",
+      "TaxCodeEventData",
+      "TaxCodeInput",
+      "TaxCodeType",
+      "TaxComputation",
+      "TaxComputeInput",
+      "TaxDate",
+      "TaxEvents",
+      "TaxGroup",
+      "TaxLineInput",
+      "TaxOptions",
+      "TaxRate",
+      "TaxReturn",
+      "TaxReturnBox",
+      "TaxReturnIssue",
+      "TaxReturnPreparedEventData"
     ]
   },
   "./blocks/banking": {

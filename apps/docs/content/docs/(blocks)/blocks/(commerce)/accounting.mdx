@@ -217,9 +217,9 @@ kind.
 that lines may carry in `dimensions`. Posting refuses an unknown key or value
 (`ACCOUNTING_DIMENSION_INVALID`), and every report filters on dimensions.
 
-`saveTaxCode` stores a code with a rate in basis points (`2100` is 21%), a
-kind (`sales` or `purchase`), the account the tax posts to and the boxes of a
-tax return it counts toward. `setFxRate` stores one unit of `base` in `quote`
+Tax codes live in the [tax block](/docs/blocks/tax), which accounting
+requires: a code has dated rates, the accounts the tax posts to and the boxes
+of a tax return. `accounting_tax_report` reads them from there. `setFxRate` stores one unit of `base` in `quote`
 on a date, and `fxRate(organizationId, base, quote, onDate)` reads the latest
 rate on or before that date, direct or inverted.
 

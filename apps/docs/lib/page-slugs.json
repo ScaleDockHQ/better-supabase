@@ -185,6 +185,7 @@
   "blocks/subjects",
   "blocks/tags",
   "blocks/tasks",
+  "blocks/tax",
   "blocks/teams",
   "blocks/templates",
   "blocks/time-tracking",

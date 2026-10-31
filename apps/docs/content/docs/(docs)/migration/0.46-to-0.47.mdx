@@ -30,6 +30,7 @@ the tasks block installed, postmortem action items become tasks. Everything this
 | [Policy acknowledgements](#policy-acknowledgements) | Call the acknowledgements block                     |
 | [Sequence runs](#sequence-runs)                     | Rename SQL that reads `sequence_enrollments`        |
 | [Inbox contacts](#inbox-contacts)                   | Install `contacts`; call its identity methods       |
+| [Tax codes](#tax-codes)                             | Install `tax`; call its code methods                |
 | [Import runs](#import-runs)                         | Rename `kind` to `source`; use `runs.start`         |
 | [Table names](#table-names)                         | Rename queries on the old tables in your own code   |
 | [The SQL modules](#the-sql-modules)                 | Run `upgrade` and generate a migration              |
@@ -487,6 +488,62 @@ erases their inbox contact: call `purgeContact(personId)` for a data subject
 request, which deletes the person, their identities and their
 conversations. The codemod lists the old calls and tables for review, and
 doctor reports the removed methods.
+
+## Tax codes
+
+Tax codes moved out of accounting into the new [tax block](/docs/blocks/tax),
+which adds dated rates, return boxes, tax returns and the intra-EU sales
+list. The `accounting_tax_codes` table is gone and `accounting.tax_report`
+reads from `tax_codes`. Accounting now requires `tax` instead of working
+without it, so `upgrade` installs it next to accounting and the check that
+keeps accounting running without `tax` doesn't exist.
+
+| 0.46                                  | 0.47                                              |
+| ------------------------------------- | ------------------------------------------------- |
+| `accounting.saveTaxCode(...)`         | `tax.saveCode({ ..., rateBps, type })`            |
+| `accounting.taxCodes(organizationId)` | `tax.codes()`                                     |
+| `save_accounting_tax_code`            | `save_tax_code`                                   |
+| `list_accounting_tax_codes`           | `list_tax_codes`                                  |
+| `accounting_tax_codes.kind`           | `tax_codes.type` (`sales` or `purchase`)          |
+| `accounting_tax_codes.rate_bps`       | a row in `tax_rates` valid from the start of time |
+| `accounting_tax_codes.report_boxes`   | `tax_codes.return_boxes`                          |
+| `accounting_tax_codes.account_id`     | `sales_account_id` or `purchase_account_id`       |
+
+`codemod 0.47` lists the lines that use the old table, functions and
+methods. After `upgrade` and `db diff`, add this data step to the generated
+migration before it drops `accounting_tax_codes`. It keeps every id, so the
+`tax_code_id` of existing accounting lines stays valid:
+
+```sql
+alter table better_supabase.accounting_entry_lines
+  drop constraint if exists accounting_entry_lines_tax_code_id_fkey;
+
+insert into better_supabase.tax_codes
+  (id, tenant_id, code, name, type, sales_account_id, purchase_account_id,
+   return_boxes, archived_at, created_at, updated_at)
+select id, tenant_id, code, name, kind,
+  case when kind = 'sales' then account_id end,
+  case when kind = 'purchase' then account_id end,
+  report_boxes, archived_at, created_at, updated_at
+from better_supabase.accounting_tax_codes;
+
+insert into better_supabase.tax_rates
+  (tenant_id, tax_code_id, rate_bps, valid_from)
+select tenant_id, id, rate_bps, date '1970-01-01'
+from better_supabase.accounting_tax_codes;
+
+alter table better_supabase.accounting_entry_lines
+  add constraint accounting_entry_lines_tax_code_id_fkey
+    foreign key (tax_code_id) references better_supabase.tax_codes (id)
+    on delete restrict;
+
+drop table better_supabase.accounting_tax_codes;
+```
+
+Invoice lines gain optional `tax_code_id` and `unit_cost` columns. An existing
+caller that sets only `tax_code` and `tax_rate_bps` keeps working: `issue_invoice`
+resolves the code by its text and falls back to the line's rate when no code
+has that name. Quote lines keep `tax_code` and `tax_rate_bps` only.
 
 ## Import runs
 

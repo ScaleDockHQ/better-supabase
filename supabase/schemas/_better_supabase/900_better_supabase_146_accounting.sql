@@ -1,6 +1,6 @@
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:2d27b012f6670f1015c53b7df9cdb38d6467f924d425c56d5378dbd587e33393
+-- @bsb-hash sha256:0b3d2ba26548702778b60cbadde9e42cbc311de4eafd84936fa915c5ecd15fb5
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -121,14 +121,6 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_tax_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -363,32 +355,6 @@ create policy accounting_fx_rates_read on "better_supabase"."accounting_fx_rates
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_tax_codes" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  -- Basis points: 2100 is 21%.
-  "rate_bps" integer not null check ("rate_bps" >= 0 and "rate_bps" <= 100000),
-  "kind" text not null check ("kind" in ('sales', 'purchase')),
-  "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
-  -- The boxes of a tax return the tax and its base count toward.
-  "report_boxes" text[] not null default '{}',
-  "archived_at" timestamptz,
-  "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now(),
-  unique ("tenant_id", "code")
-);
-create index if not exists "accounting_tax_codes_account_idx" on "better_supabase"."accounting_tax_codes" ("account_id");
-alter table "better_supabase"."accounting_tax_codes" enable row level security;
-revoke all on "better_supabase"."accounting_tax_codes" from public, anon, authenticated;
-grant select on "better_supabase"."accounting_tax_codes" to authenticated;
-grant all on "better_supabase"."accounting_tax_codes" to service_role;
-drop policy if exists accounting_tax_codes_read on "better_supabase"."accounting_tax_codes";
-create policy accounting_tax_codes_read on "better_supabase"."accounting_tax_codes"
-  for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
-
 create table if not exists "better_supabase"."accounting_entry_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -402,7 +368,7 @@ create table if not exists "better_supabase"."accounting_entry_lines" (
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "amount_currency" bigint not null,
   "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
-  "tax_code_id" uuid references "better_supabase"."accounting_tax_codes" ("id") on delete restrict,
+  "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete restrict,
   -- The customer, supplier or employee the line concerns.
   "party_id" uuid,
   "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
@@ -724,7 +690,7 @@ begin
   if coalesce(archive_accounting_account.archived, true) and (
     exists (select 1 from "better_supabase"."accounting_account_roles" y where y."account_id" = v_row."id")
     or exists (select 1 from "better_supabase"."accounting_journals" y where y."default_account_id" = v_row."id")
-    or exists (select 1 from "better_supabase"."accounting_tax_codes" y where y."account_id" = v_row."id" and y."archived_at" is null)
+    or exists (select 1 from "better_supabase"."tax_codes" y where (y."sales_account_id" = v_row."id" or y."purchase_account_id" = v_row."id") and y."archived_at" is null)
   ) then
     raise exception 'the account is mapped to a role, a journal or a tax code' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
   end if;
@@ -998,64 +964,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_accounting_dimensions"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_accounting_dimensions"(uuid) to authenticated, service_role;
-
--- Creates or changes a tax code by code. rate_bps is basis points (2100 is 21%).
-create or replace function "better_supabase"."save_accounting_tax_code"(tenant uuid, code text, name text, rate_bps integer, kind text, account_id uuid, report_boxes text[] default null, archived boolean default false)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."accounting_tax_codes"%rowtype;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_tax_code.tenant, 'accounting.manage'), false)) then
-    raise exception 'not allowed to manage tax codes' using errcode = '42501', hint = 'ACCOUNTING_TAX_CODE_FORBIDDEN';
-  end if;
-  if nullif(trim(save_accounting_tax_code.code), '') is null or nullif(trim(save_accounting_tax_code.name), '') is null
-    or save_accounting_tax_code.rate_bps is null or save_accounting_tax_code.rate_bps < 0 or save_accounting_tax_code.rate_bps > 100000
-    or save_accounting_tax_code.kind is null or save_accounting_tax_code.kind not in ('sales', 'purchase') then
-    raise exception 'a tax code needs a code, a name, a rate in basis points and a kind (sales or purchase)' using errcode = '22023', hint = 'ACCOUNTING_TAX_CODE_INVALID';
-  end if;
-  if not exists (
-    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_tax_code.account_id
-      and y."tenant_id" = save_accounting_tax_code.tenant and y."archived_at" is null
-  ) then
-    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
-  end if;
-  insert into "better_supabase"."accounting_tax_codes" ("tenant_id", "code", "name", "rate_bps", "kind", "account_id", "report_boxes", "archived_at")
-  values (save_accounting_tax_code.tenant, trim(save_accounting_tax_code.code), trim(save_accounting_tax_code.name), save_accounting_tax_code.rate_bps,
-    save_accounting_tax_code.kind, save_accounting_tax_code.account_id, coalesce(save_accounting_tax_code.report_boxes, '{}'),
-    case when coalesce(save_accounting_tax_code.archived, false) then now() end)
-  on conflict ("tenant_id", "code") do update
-    set "name" = excluded."name", "rate_bps" = excluded."rate_bps", "kind" = excluded."kind",
-      "account_id" = excluded."account_id", "report_boxes" = excluded."report_boxes", "archived_at" = excluded."archived_at",
-      "updated_at" = now()
-  returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'rateBps', v_row."rate_bps", 'kind', v_row."kind", 'accountId', v_row."account_id", 'reportBoxes', to_jsonb(v_row."report_boxes"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
-end;
-$$;
-revoke execute on function "better_supabase"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) from public, anon;
-grant execute on function "better_supabase"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) to authenticated, service_role;
-
-create or replace function "better_supabase"."list_accounting_tax_codes"(tenant uuid, include_archived boolean default false)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'rateBps', x."rate_bps", 'kind', x."kind", 'accountId', x."account_id", 'reportBoxes', to_jsonb(x."report_boxes"), 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
-  from "better_supabase"."accounting_tax_codes" x
-  where x."tenant_id" = list_accounting_tax_codes.tenant
-    and (coalesce(list_accounting_tax_codes.include_archived, false) or x."archived_at" is null)
-$$;
-revoke execute on function "better_supabase"."list_accounting_tax_codes"(uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."list_accounting_tax_codes"(uuid, boolean) to authenticated, service_role;
 
 -- Records what one unit of base costs in quote on a date.
 create or replace function "better_supabase"."set_accounting_fx_rate"(tenant uuid, base text, quote text, on_date date, rate numeric)
@@ -1376,7 +1284,7 @@ begin
     end if;
     v_tax := null;
     if v_line.value ->> 'taxCodeId' is not null then
-      select y."id" into v_tax from "better_supabase"."accounting_tax_codes" y
+      select y."id" into v_tax from "better_supabase"."tax_codes" y
       where y."id"::text = v_line.value ->> 'taxCodeId' and y."tenant_id" = v_journal."tenant_id";
       if v_tax is null then
         raise exception 'tax code not found' using errcode = 'P0002', hint = 'ACCOUNTING_TAX_CODE_NOT_FOUND';
@@ -1617,7 +1525,7 @@ declare
   v_rate numeric;
   v_currency text;
   v_account uuid;
-  v_tax "better_supabase"."accounting_tax_codes"%rowtype;
+  v_tax "better_supabase"."tax_codes"%rowtype;
   v_diff bigint;
   v_largest integer;
   v_accounts uuid[] := '{}';
@@ -1702,19 +1610,21 @@ begin
     continue when v_amount = 0;
     v_tax := null;
     if v_line.value ->> 'taxCode' is not null then
-      select * into v_tax from "better_supabase"."accounting_tax_codes" y
-      where y."tenant_id" = v_tenant and y."code" = v_line.value ->> 'taxCode' and y."archived_at" is null;
+      select * into v_tax from "better_supabase"."tax_codes" y
+      where y."tenant_id" = v_tenant and y."code" = v_line.value ->> 'taxCode' and y."archived_at" is null
+      order by y."legal_entity_id" nulls first limit 1;
     end if;
     if v_tax."id" is null and coalesce(v_line.value ->> 'taxRateBps', '') ~ '^[0-9]{1,6}$' then
-      select * into v_tax from "better_supabase"."accounting_tax_codes" y
-      where y."tenant_id" = v_tenant and y."rate_bps" = (v_line.value ->> 'taxRateBps')::integer
-        and y."kind" = case when v_journal."type" = 'purchase' then 'purchase' else 'sales' end
+      select * into v_tax from "better_supabase"."tax_codes" y
+      where y."tenant_id" = v_tenant and "better_supabase"."tax_rate_on"(y."id", v_date) = (v_line.value ->> 'taxRateBps')::integer
+        and y."type" = case when v_journal."type" = 'purchase' then 'purchase' else 'sales' end
         and y."archived_at" is null
-      order by y."code" limit 1;
+      order by y."legal_entity_id" nulls first, y."code" limit 1;
     end if;
     v_account := null;
     if v_line.value ->> 'role' in ('tax_payable', 'tax_receivable') and v_tax."id" is not null then
-      v_account := v_tax."account_id";
+      v_account := case when v_tax."type" = 'purchase' then v_tax."purchase_account_id"
+        else coalesce(v_tax."sales_account_id", v_tax."purchase_account_id") end;
     elsif coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
       select y."id" into v_account from "better_supabase"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."tenant_id" = v_tenant and y."archived_at" is null;
     elsif v_line.value ->> 'accountCode' is not null then
@@ -2316,11 +2226,12 @@ as $$
       and z."entry_date" >= accounting_tax_report.since and z."entry_date" <= accounting_tax_report.until
   ),
   codes as (
-    select w."id" as id, w."code" as code, w."name" as name, w."kind" as kind,
-      w."rate_bps" as rate_bps, w."report_boxes" as boxes,
-      (case when w."kind" = 'sales' then 1 else -1 end) * coalesce(sum(b.net) filter (where b.account <> w."account_id"), 0) as base,
-      (case when w."kind" = 'sales' then 1 else -1 end) * coalesce(sum(b.net) filter (where b.account = w."account_id"), 0) as tax
-    from booked b join "better_supabase"."accounting_tax_codes" w on w."id" = b.tax_code
+    select w."id" as id, w."code" as code, w."name" as name,
+      (case when w."type" = 'purchase' then 'purchase' else 'sales' end) as kind,
+      coalesce("better_supabase"."tax_rate_on"(w."id", accounting_tax_report.until), 0) as rate_bps, w."return_boxes" as boxes,
+      (case when w."type" = 'purchase' then -1 else 1 end) * coalesce(sum(b.net) filter (where b.account is distinct from (case when w."type" = 'purchase' then w."purchase_account_id" else coalesce(w."sales_account_id", w."purchase_account_id") end)), 0) as base,
+      (case when w."type" = 'purchase' then -1 else 1 end) * coalesce(sum(b.net) filter (where b.account = (case when w."type" = 'purchase' then w."purchase_account_id" else coalesce(w."sales_account_id", w."purchase_account_id") end)), 0) as tax
+    from booked b join "better_supabase"."tax_codes" w on w."id" = b.tax_code
     group by w."id"
   )
   select jsonb_build_object(
@@ -2787,27 +2698,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_f
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_tax_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes";
-create policy bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes";
-create policy bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes";
-create policy bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()))
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes";
-create policy bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budgets";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_budgets" as restrictive
@@ -3000,24 +2890,6 @@ set search_path = ''
 as $$ select "better_supabase"."list_accounting_dimensions"($1) $$;
 revoke execute on function "api"."list_accounting_dimensions"(uuid) from public, anon;
 grant execute on function "api"."list_accounting_dimensions"(uuid) to authenticated, service_role;
-
-create or replace function "api"."save_accounting_tax_code"(tenant uuid, code text, name text, rate_bps integer, kind text, account_id uuid, report_boxes text[] default null, archived boolean default false)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."save_accounting_tax_code"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) from public, anon;
-grant execute on function "api"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) to authenticated, service_role;
-
-create or replace function "api"."list_accounting_tax_codes"(tenant uuid, include_archived boolean default false)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."list_accounting_tax_codes"($1, $2) $$;
-revoke execute on function "api"."list_accounting_tax_codes"(uuid, boolean) from public, anon;
-grant execute on function "api"."list_accounting_tax_codes"(uuid, boolean) to authenticated, service_role;
 
 create or replace function "api"."set_accounting_fx_rate"(tenant uuid, base text, quote text, on_date date, rate numeric)
 returns jsonb

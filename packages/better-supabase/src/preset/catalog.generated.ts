@@ -3842,6 +3842,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "quotes",
         "relations",
         "accounting",
+        "tax",
         "inventory",
         "contacts",
         "orders"
@@ -7396,7 +7397,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "commerce",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "tax"
       ],
       "integrates": [
         "outbox",
@@ -7432,10 +7434,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "accounting_dimension": {
             "table": "dimensions",
             "singular": "accounting_dimension"
-          },
-          "accounting_tax_code": {
-            "table": "taxCodes",
-            "singular": "accounting_tax_code"
           },
           "accounting_budget": {
             "table": "budgets",
@@ -7521,22 +7519,6 @@ export const PRESET_CATALOG: PresetCatalog = {
               "key": "key",
               "name": "name",
               "createdAt": "created_at"
-            }
-          },
-          "taxCodes": {
-            "name": "accounting_tax_codes",
-            "columns": {
-              "id": "id",
-              "tenant": "tenant_id",
-              "code": "code",
-              "name": "name",
-              "rateBps": "rate_bps",
-              "kind": "kind",
-              "account": "account_id",
-              "reportBoxes": "report_boxes",
-              "archivedAt": "archived_at",
-              "createdAt": "created_at",
-              "updatedAt": "updated_at"
             }
           },
           "budgets": {
@@ -9436,6 +9418,107 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "tax",
+      "title": "Tax",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "accounting",
+        "invoices",
+        "contacts",
+        "legal-entities",
+        "outbox",
+        "audit",
+        "imports"
+      ],
+      "manifest": "tax",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "tax_code": {
+            "table": "codes",
+            "singular": "tax_code",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "tax_rate": {
+            "table": "rates",
+            "singular": "tax_rate"
+          },
+          "tax_return": {
+            "table": "returns",
+            "singular": "tax_return"
+          }
+        },
+        "tables": {
+          "codes": {
+            "name": "tax_codes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "legalEntity": "legal_entity_id",
+              "code": "code",
+              "name": "name",
+              "type": "type",
+              "salesAccount": "sales_account_id",
+              "purchaseAccount": "purchase_account_id",
+              "returnBoxes": "return_boxes",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "rates": {
+            "name": "tax_rates",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "taxCode": "tax_code_id",
+              "rateBps": "rate_bps",
+              "validFrom": "valid_from",
+              "validTo": "valid_to",
+              "createdAt": "created_at"
+            }
+          },
+          "returns": {
+            "name": "tax_returns",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "legalEntity": "legal_entity_id",
+              "period": "period",
+              "periodStart": "period_start",
+              "periodEnd": "period_end",
+              "status": "status",
+              "currency": "currency",
+              "boxes": "boxes",
+              "preparedBy": "prepared_by",
+              "preparedAt": "prepared_at",
+              "filedAt": "filed_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "tax.read",
+          "manage": "tax.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -9591,12 +9674,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "AccountingPeriodStatus"
-        },
-        {
-          "name": "AccountingTaxCode"
-        },
-        {
-          "name": "AccountingTaxCodeInput"
         }
       ],
       "entitySchemas": {
@@ -9877,97 +9954,6 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "journalId",
                 "entryDate",
                 "lines"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "accounting_tax_code": {
-          "input": {
-            "title": "AccountingTaxCodeInput",
-            "fields": {
-              "code": {
-                "kind": "string",
-                "minLength": 1,
-                "maxLength": 50
-              },
-              "name": {
-                "kind": "string",
-                "minLength": 1,
-                "maxLength": 200
-              },
-              "rateBps": {
-                "kind": "integer",
-                "minimum": 0,
-                "maximum": 100000
-              },
-              "kind": {
-                "kind": "enum",
-                "values": [
-                  "sales",
-                  "purchase"
-                ]
-              },
-              "accountId": {
-                "kind": "uuid"
-              },
-              "reportBoxes": {
-                "kind": "string",
-                "optional": true,
-                "array": true
-              },
-              "archived": {
-                "kind": "boolean",
-                "optional": true
-              }
-            },
-            "jsonSchema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "AccountingTaxCodeInput",
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 50
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "rateBps": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 100000
-                },
-                "kind": {
-                  "type": "string",
-                  "enum": [
-                    "sales",
-                    "purchase"
-                  ]
-                },
-                "accountId": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "reportBoxes": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "archived": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "code",
-                "name",
-                "rateBps",
-                "kind",
-                "accountId"
               ],
               "additionalProperties": false
             }
@@ -21355,6 +21341,201 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "payroll_run.created",
           "payroll_run.exported"
+        ]
+      }
+    },
+    {
+      "name": "tax",
+      "sql": [
+        "tax"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "taxBlock",
+        "subpath": "better-supabase/blocks/tax"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "PrepareTaxReturnInput"
+        },
+        {
+          "name": "TaxCode"
+        },
+        {
+          "name": "TaxCodeEventData"
+        },
+        {
+          "name": "TaxCodeInput"
+        },
+        {
+          "name": "TaxCodeType"
+        },
+        {
+          "name": "TaxRate"
+        },
+        {
+          "name": "TaxReturn"
+        },
+        {
+          "name": "TaxReturnBox"
+        },
+        {
+          "name": "TaxReturnIssue"
+        },
+        {
+          "name": "TaxReturnPreparedEventData"
+        }
+      ],
+      "entitySchemas": {
+        "tax_code": {
+          "input": {
+            "title": "TaxCodeInput",
+            "fields": {
+              "code": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "type": {
+                "kind": "enum",
+                "optional": true,
+                "values": [
+                  "sales",
+                  "purchase",
+                  "exempt",
+                  "zero",
+                  "reverse_charge",
+                  "intra_eu_goods",
+                  "intra_eu_services",
+                  "export",
+                  "margin"
+                ]
+              },
+              "legalEntityId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "salesAccountId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "purchaseAccountId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "returnBoxes": {
+                "kind": "string",
+                "array": true,
+                "optional": true,
+                "description": "The tax return boxes the code reports in."
+              },
+              "archived": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "rateBps": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "validFrom": {
+                "kind": "string",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "TaxCodeInput",
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "sales",
+                    "purchase",
+                    "exempt",
+                    "zero",
+                    "reverse_charge",
+                    "intra_eu_goods",
+                    "intra_eu_services",
+                    "export",
+                    "margin"
+                  ]
+                },
+                "legalEntityId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "salesAccountId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "purchaseAccountId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "returnBoxes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The tax return boxes the code reports in."
+                },
+                "archived": {
+                  "type": "boolean"
+                },
+                "rateBps": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10000
+                },
+                "validFrom": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "TaxEvents",
+        "types": [
+          "tax_code.created",
+          "tax_code.updated",
+          "tax_return.prepared"
         ]
       }
     },

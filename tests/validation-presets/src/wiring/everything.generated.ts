@@ -67,6 +67,7 @@ import { bankingBlock } from "better-supabase/blocks/banking";
 import { legalEntitiesBlock } from "better-supabase/blocks/legal-entities";
 import { fundingBlock } from "better-supabase/blocks/funding";
 import { payrollExportBlock } from "better-supabase/blocks/payroll-export";
+import { taxBlock } from "better-supabase/blocks/tax";
 import { shiftsBlock } from "better-supabase/blocks/shifts";
 import { consentsBlock } from "better-supabase/blocks/consents";
 import { observationsBlock } from "better-supabase/blocks/observations";
@@ -213,6 +214,7 @@ export const blockSet = defineBlocks(blockConfig, {
   legalEntities: legalEntitiesBlock,
   funding: fundingBlock,
   payrollExport: payrollExportBlock,
+  tax: taxBlock,
   shifts: shiftsBlock,
   consents: consentsBlock,
   observations: observationsBlock,

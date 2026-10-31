@@ -53,6 +53,8 @@ const LINE_DEFAULTS: Readonly<Record<string, string>> = {
   discountBps: "0",
   taxRateBps: "0",
   taxCode: "null::text",
+  taxCodeId: "null::uuid",
+  unitCost: "null::bigint",
 };
 
 /** The line columns an app's line table may lack. */
@@ -77,6 +79,15 @@ const DOCUMENT_LINE_COLUMNS = {
 } as const;
 
 /**
+ * The line columns of the tax block: a tax code by id, and what the goods cost
+ * for a line with a margin-scheme code.
+ */
+const TAX_LINE_COLUMNS = {
+  taxCodeId: "tax_code_id",
+  unitCost: "unit_cost",
+} as const;
+
+/**
  * A `NAMES.tables` entry for a line table called `name`. The app's own line
  * table can stand in; it may lack the product, discount, tax and creation
  * columns, and its product type may be an enum. `document` adds a section
@@ -84,20 +95,22 @@ const DOCUMENT_LINE_COLUMNS = {
  */
 export function lineTableSpec(
   name: string,
-  options: { readonly document?: boolean } = {},
+  options: { readonly document?: boolean; readonly tax?: boolean } = {},
 ): BlockSqlTableSpec {
   return {
     name,
     app: {},
     lifecycle: { tenant: "tenant", export: true },
-    columns:
-      options.document === true
-        ? { ...LINE_COLUMNS, ...DOCUMENT_LINE_COLUMNS }
-        : LINE_COLUMNS,
-    optional:
-      options.document === true
-        ? [...OPTIONAL_LINE_COLUMNS, ...Object.keys(DOCUMENT_LINE_COLUMNS)]
-        : OPTIONAL_LINE_COLUMNS,
+    columns: {
+      ...LINE_COLUMNS,
+      ...(options.document === true ? DOCUMENT_LINE_COLUMNS : {}),
+      ...(options.tax === true ? TAX_LINE_COLUMNS : {}),
+    },
+    optional: [
+      ...OPTIONAL_LINE_COLUMNS,
+      ...(options.document === true ? Object.keys(DOCUMENT_LINE_COLUMNS) : []),
+      ...(options.tax === true ? Object.keys(TAX_LINE_COLUMNS) : []),
+    ],
     typed: ["productType"],
   };
 }
@@ -217,6 +230,8 @@ export function lineCopyColumns(
     "discountBps",
     "taxRateBps",
     "taxCode",
+    "taxCodeId",
+    "unitCost",
     "position",
     ...Object.keys(DOCUMENT_LINE_COLUMNS),
   ].filter((column) => declared(ctx, lines, column));
@@ -353,6 +368,8 @@ export function lineItemsSql(
       ["discountBps", "coalesce((x.value ->> 'discountBps')::integer, 0)"],
       ["taxRateBps", "coalesce((x.value ->> 'taxRateBps')::integer, 0)"],
       ["taxCode", "x.value ->> 'taxCode'"],
+      ["taxCodeId", "nullif(x.value ->> 'taxCodeId', '')::uuid"],
+      ["unitCost", "(x.value ->> 'unitCost')::bigint"],
       ["section", "nullif(trim(x.value ->> 'section'), '')"],
       ["optional", "coalesce((x.value ->> 'optional')::boolean, false)"],
       [
@@ -389,7 +406,7 @@ export function lineItemsSql(
   ${c("parent")} uuid not null references ${p} (${pc("id")}) on delete cascade,${optional("productType")}${optional("productId")}
   ${c("description")} text not null check (length(${c("description")}) between 1 and 2000),
   ${c("quantity")} numeric(18, 4) not null check (${c("quantity")} > 0),
-  ${c("unitAmount")} bigint not null,${optional("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${optional("taxRateBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 100000)`)}${optional("taxCode")}${optional("section", (section) => `text check (length(${section}) between 1 and 300)`)}${optional("optional", () => "boolean not null default false")}${optional("selected", () => "boolean not null default true")}${optional("periods", (periods) => `integer not null default 1 check (${periods} > 0)`)}
+  ${c("unitAmount")} bigint not null,${optional("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${optional("taxRateBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 100000)`)}${optional("taxCode")}${optional("taxCodeId", () => "uuid")}${optional("unitCost", () => "bigint")}${optional("section", (section) => `text check (length(${section}) between 1 and 300)`)}${optional("optional", () => "boolean not null default false")}${optional("selected", () => "boolean not null default true")}${optional("periods", (periods) => `integer not null default 1 check (${periods} > 0)`)}
   ${c("position")} integer not null${has("createdAt") ? `,\n  ${c("createdAt")} timestamptz not null default now()` : ""}${has("productType") && has("productId") ? `,\n  check ((${c("productType")} is null) = (${c("productId")} is null))` : ""}
 );
 ${has("periods") ? `alter table ${t} add column if not exists ${c("periods")} integer not null default 1 check (${c("periods")} > 0);\n` : ""}create index if not exists ${sqlIdent(`${name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});${

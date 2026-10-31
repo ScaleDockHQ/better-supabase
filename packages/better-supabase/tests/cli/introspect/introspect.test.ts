@@ -142,6 +142,8 @@ describe("fromCatalog", () => {
 describe("stabilizeMetadata", () => {
   it("derives ids from names, so oids do not leak into snapshots", () => {
     const shifted = structuredClone(snapshot.generator);
+    // Larger than the table count, or a shifted id lands on another table's.
+    const SHIFT = 100_000;
 
     for (const table of [
       ...shifted.tables,
@@ -149,15 +151,15 @@ describe("stabilizeMetadata", () => {
       ...shifted.materializedViews,
       ...shifted.foreignTables,
     ]) {
-      table.id += 500;
+      table.id += SHIFT;
     }
 
     for (const column of shifted.columns) {
-      column.table_id += 500;
+      column.table_id += SHIFT;
     }
 
     for (const key of shifted.primaryKeys) {
-      key.table_id += 500;
+      key.table_id += SHIFT;
     }
 
     expect(stabilizeMetadata(shifted).metadata).toEqual(

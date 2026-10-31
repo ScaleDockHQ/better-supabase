@@ -56,6 +56,12 @@ const REVIEW_0_47: readonly ReviewHint[] = [
       )}. Old types still resolve until 0.48; rename the ones that name a block's subject`,
   },
   {
+    pattern:
+      /\baccounting_tax_codes\b|\b(?:save|list)_accounting_tax_codes?\b|\.saveTaxCode\(|\baccounting\.taxCodes\(/,
+    message:
+      "Tax codes moved to the tax block: read `tax_codes` and `tax_rates` instead of `accounting_tax_codes`, and call `tax.saveCode` and `tax.codes` instead of the accounting `saveTaxCode` and `taxCodes` (`save_tax_code` and `list_tax_codes` in SQL)",
+  },
+  {
     pattern: /\bactionItems\b|\baction_items\b/,
     message:
       "Postmortem `actionItems` and the `action_items` column are removed: write action items with `addPostmortemAction` (tasks block) and read the postmortem's `actions`",
