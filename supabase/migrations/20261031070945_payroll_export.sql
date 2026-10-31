@@ -767,6 +767,11 @@ CREATE OR REPLACE FUNCTION better_supabase.data_lifecycle_tables()
     ('organization', 'better_supabase.meeting_action_items', '"better_supabase"."meeting_action_items"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.legal_entities', '"better_supabase"."legal_entities"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.legal_entity_settings', '"better_supabase"."legal_entity_settings"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.funding_products', '"better_supabase"."funding_products"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.funding_awards', '"better_supabase"."funding_awards"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.funding_deliveries', '"better_supabase"."funding_deliveries"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.funding_claims', '"better_supabase"."funding_claims"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.funding_claim_lines', '"better_supabase"."funding_claim_lines"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.payroll_runs', '"better_supabase"."payroll_runs"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.payroll_lines', '"better_supabase"."payroll_lines"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
@@ -1070,6 +1075,12 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'forms.read' then 'forms.read'
     when 'forms.review' then 'forms.review'
     when 'forms.submit' then 'forms.submit'
+    when 'funding.approve' then 'funding.approve'
+    when 'funding.claim' then 'funding.claim'
+    when 'funding.manage' then 'funding.manage'
+    when 'funding.read' then 'funding.read'
+    when 'funding.register' then 'funding.register'
+    when 'funding.write' then 'funding.write'
     when 'goals.manage' then 'goals.manage'
     when 'goals.read' then 'goals.read'
     when 'guests.manage' then 'guests.manage'
