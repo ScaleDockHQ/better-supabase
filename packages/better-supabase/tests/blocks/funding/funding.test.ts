@@ -651,6 +651,62 @@ describe("createFunding", () => {
     expect(unpolled).toBeUndefined();
   });
 
+  it("sends empty answers and missing dates as null and passes the signal to the channel", async () => {
+    const signals: (AbortSignal | undefined)[] = [];
+
+    const t = fieldsTransport({
+      save_funding_product: () => PRODUCT,
+      list_funding_awards: () => [
+        { ...AWARD, units: null, fields: null, product: PRODUCT },
+      ],
+      get_funding_claim: () => ({ ...SENT, lines: [LINE] }),
+      record_funding_claim_response: () => ({ ...SENT, lines: [LINE] }),
+    });
+
+    const funding = createFunding({
+      transport: t,
+      formats: [format],
+      channel: channelOf({
+        poll: (_ref, context) => {
+          signals.push(context.signal);
+
+          return Promise.resolve(undefined);
+        },
+      }),
+      logger: { debug() {}, info() {}, warn() {}, error() {} },
+    });
+
+    await funding
+      .saveProduct("org-1", {
+        code: "H126",
+        title: "Personal care",
+        unit: "hour",
+        rate: money(7500n, "EUR"),
+      })
+      .orThrow();
+
+    const [award] = await funding.awards("org-1").orThrow();
+    await funding.recordResponse("k1", { lines: [] }).orThrow();
+    await funding
+      .recordResponse("k1", { lines: [{ lineId: "l1", status: "accepted" }] })
+      .orThrow();
+
+    const controller = new AbortController();
+    await funding.poll("k1", { signal: controller.signal }).orThrow();
+
+    expect(t.calls[0]?.[1]).toMatchObject({ valid_from: null });
+    expect(award).toMatchObject({ units: 0, fields: {} });
+    expect(t.calls[2]?.[1]).toEqual({
+      claim_id: "k1",
+      lines: null,
+      response: null,
+    });
+    expect(t.calls[3]?.[1]).toMatchObject({
+      lines: [{ lineId: "l1", status: "accepted", rejectionCode: null }],
+    });
+    expect(signals).toEqual([controller.signal]);
+  });
+
   it("validates award input and ships its manifest", () => {
     const ok = fundingAwardInputSchema["~standard"].validate({
       funderId: "00000000-0000-4000-8000-000000000001",

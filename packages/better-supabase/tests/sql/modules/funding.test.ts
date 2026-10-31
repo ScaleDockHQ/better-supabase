@@ -106,6 +106,104 @@ describe("funding module", () => {
     ).toThrow("needs the time-tracking block");
   });
 
+  it("reads the time-tracking zone and the user's time zone", () => {
+    const sql = renderBlocks(TIME, {
+      modules: {
+        "time-tracking": {
+          tables: {
+            entries: "public.time_entries",
+            timesheets: "public.timesheets",
+          },
+          columns: { timesheets: { approval: null } },
+          values: {
+            timesheets: { status: { open: "draft", rejected: "returned" } },
+          },
+          options: {
+            approvals: false,
+            timeZone: "Europe/Amsterdam",
+            userTimeZone: { column: "public.profiles.timezone" },
+          },
+        },
+      },
+      ownTables: {
+        "public.time_entries": "app.sql",
+        "public.timesheets": "app.sql",
+      },
+    })
+      .filter((file) => file.module === "funding")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain("'Europe/Amsterdam'");
+    expect(sql).toMatch(/time_week"\([^()]+, [^()]+\)/);
+    expect(sqlOf(TIME)).toContain("'UTC'");
+  });
+
+  it("runs over app tables without the optional columns", () => {
+    const sql = sqlOf([...BASE, "invoices"], {
+      modules: {
+        contacts: {
+          columns: { companies: { roles: null }, people: { roles: null } },
+        },
+        funding: {
+          tables: {
+            products: "public.care_products",
+            awards: "public.care_awards",
+            deliveries: "public.care_deliveries",
+            claims: "public.care_claims",
+          },
+          columns: {
+            products: { createdAt: null, updatedAt: null },
+            awards: { createdBy: null, createdAt: null, updatedAt: null },
+            deliveries: { note: null, createdAt: null },
+            claims: {
+              invoice: null,
+              createdBy: null,
+              createdAt: null,
+              updatedAt: null,
+            },
+          },
+        },
+      },
+      ownTables: {
+        "public.care_products": "app.sql",
+        "public.care_awards": "app.sql",
+        "public.care_deliveries": "app.sql",
+        "public.care_claims": "app.sql",
+      },
+    });
+
+    expect(sql).toContain("create policy bsb_care_awards_read");
+    expect(sql).toContain('"bsb_care_products_tenant_id_key"');
+    expect(sql).not.toContain('"created_by"');
+    expect(sql).not.toContain('"updated_at" = now()');
+    expect(sql).not.toContain("'funder' = any");
+  });
+
+  it("numbers claims from a format column and needs a non-empty timeCategory", () => {
+    const sql = sqlOf([...BASE, "numbering"], {
+      modules: {
+        numbering: {
+          options: {
+            entities: {
+              funding_claim: {
+                format: "FC-{seq}",
+                formatFrom: { column: "public.organizations.claim_format" },
+                period: "none",
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain('number_format"(');
+    expect(sqlOf([...BASE, "numbering"])).toContain('max(x."number"::bigint)');
+    expect(() =>
+      sqlOf(TIME, { modules: { funding: { options: { timeCategory: "" } } } }),
+    ).toThrow("timeCategory takes an extra column");
+  });
+
   it("invoices accepted claims only with invoices", () => {
     expect(sqlOf()).not.toContain("invoice_funding_claim");
     const sql = sqlOf([...BASE, "invoices"]);

@@ -50,9 +50,7 @@ export function fundingTimeFunctions(ctx: BlockSqlContext): string {
       ? `${time.fn("time_week")}(${at})`
       : `${time.fn("time_week")}(${at}, ${owner})`;
 
-  const approved = time.has("timesheets", "approvedAt")
-    ? `s.${t("approvedAt")} is not null`
-    : `s.${t("status")} = 'approved'`;
+  const approved = `s.${t("approvedAt")} is not null`;
 
   const { rowSubject } = entrySubjects(time, subjectsOption(time, ["column"]));
   const subject = rowSubject("x");
