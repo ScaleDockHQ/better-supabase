@@ -17311,3 +17311,113 @@ msgstr "Too many requests. Wait a moment and try again."
 msgctxt "errors.L-85Jk"
 msgid "Your plan's limit is reached. Upgrade to continue."
 msgstr "Your plan's limit is reached. Upgrade to continue."
+
+#: src/app/[locale]/(app)/rfqs/page.tsx
+msgctxt "rfqs.nkj_Ln"
+msgid "Requests for quotation"
+msgstr "Requests for quotation"
+
+#: src/app/[locale]/(app)/rfqs/page.tsx
+msgctxt "rfqs.yaZl1M"
+msgid "Requests sent to suppliers, their quotes and the award."
+msgstr "Requests sent to suppliers, their quotes and the award."
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.Fv1ZSz"
+msgid "Closed"
+msgstr "Closed"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.hY7lUE"
+msgid "Awarded"
+msgstr "Awarded"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.3wsVWF"
+msgid "Cancelled"
+msgstr "Cancelled"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.kFkPWB"
+msgid "Number"
+msgstr "Number"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.p1P-hQ"
+msgid "Request"
+msgstr "Request"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.Oe2XGA"
+msgid "Quotes due"
+msgstr "Quotes due"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.bkM1H6"
+msgid "New request"
+msgstr "New request"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.MNFqIW"
+msgid "Requests"
+msgstr "Requests"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.3L29w5"
+msgid "Suppliers quote the same lines, and an award turns one quote into a purchase order."
+msgstr "Suppliers quote the same lines, and an award turns one quote into a purchase order."
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.j3JiWt"
+msgid "The requests didn't load"
+msgstr "The requests didn't load"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.W0cwWp"
+msgid "No requests yet"
+msgstr "No requests yet"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.XT6hMf"
+msgid "Create a request, invite suppliers, then compare their quotes and award one."
+msgstr "Create a request, invite suppliers, then compare their quotes and award one."
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.4_J8tL"
+msgid "Create a request"
+msgstr "Create a request"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.o9xrOU"
+msgid "Read the requests guide"
+msgstr "Read the requests guide"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.nkj_Ln"
+msgid "Requests for quotation"
+msgstr "Requests for quotation"

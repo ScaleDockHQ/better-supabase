@@ -1,6 +1,6 @@
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:693b737ed12ee59fc152ca43a1a6a305ffff181de4caccfaf8537f34282a2bd2
+-- @bsb-hash sha256:91754948f8b60b2f170ac2169c7efcf9089d2a9b89b5aa1b68adf76f68b2dc85
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -895,6 +895,7 @@ begin
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'ledger.read'), false)
     when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'catalog.read'), false)
     when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'catalog.read'), false)
+    when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'rfqs.read'), false)
     when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'orders.read'), false)
     when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'calendar.read'), false)
     when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'bookings.read'), false)

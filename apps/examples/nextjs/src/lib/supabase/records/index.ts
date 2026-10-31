@@ -40,6 +40,7 @@ export { productionOrderRecord } from "./production-order.ts";
 export { projectRecord } from "./project.ts";
 export { qualificationTypeRecord } from "./qualification-type.ts";
 export { quoteRecord } from "./quote.ts";
+export { rfqRecord } from "./rfq.ts";
 export { riskRecord } from "./risk.ts";
 export { taskRecord } from "./task.ts";
 export { taxCodeRecord } from "./tax-code.ts";

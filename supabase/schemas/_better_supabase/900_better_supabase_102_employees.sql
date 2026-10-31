@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:39bb2a6110837bdc42948af5e2ee7f66d3a91134f1681d9563fc6463d0abac80
+-- @bsb-hash sha256:075eb87895caa106923a06fc335d860efe044f2aa4a4bb281a954201956a1645
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -697,6 +697,7 @@ begin
       when 'ledger_account' then (select s."name"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_application."candidate_id")::uuid)
       when 'product' then (select s."title"::text from "better_supabase"."products" s where s."id" = (v_application."candidate_id")::uuid)
       when 'product_variant' then (select s."sku"::text from "better_supabase"."product_variants" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'rfq' then (select s."title"::text from "better_supabase"."rfqs" s where s."id" = (v_application."candidate_id")::uuid)
       when 'order' then (select s."number"::text from "better_supabase"."orders" s where s."id" = (v_application."candidate_id")::uuid)
       when 'calendar_event' then (select s."title"::text from "better_supabase"."calendar_events" s where s."id" = (v_application."candidate_id")::uuid)
       when 'booking' then (select s."customer_name"::text from "better_supabase"."bookings" s where s."id" = (v_application."candidate_id")::uuid)

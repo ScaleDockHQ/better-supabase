@@ -1746,6 +1746,7 @@
               "reminders",
               "reserved-slugs",
               "reviews",
+              "rfqs",
               "risks",
               "rls-guard",
               "saved-views",
@@ -1923,6 +1924,7 @@
                   "reminders",
                   "reserved-slugs",
                   "reviews",
+                  "rfqs",
                   "risks",
                   "rls-guard",
                   "saved-views",
@@ -2340,6 +2342,9 @@
             },
             "reviews": {
               "$ref": "#/$defs/blocks/reviews"
+            },
+            "rfqs": {
+              "$ref": "#/$defs/blocks/rfqs"
             },
             "risks": {
               "$ref": "#/$defs/blocks/risks"
@@ -7077,6 +7082,17 @@
                 }
               }
             }
+          }
+        }
+      },
+      "rfqs": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

@@ -423,6 +423,8 @@ export default defineConfig({
     },
     catalog: { names: { product: { url: "/shop" } } },
     inventory: {},
+    // Requests for quotation to suppliers; an award creates the purchase order.
+    rfqs: {},
     // The kitchen display and order board under /shop/kitchen.
     orders: { options: { kitchen: true } },
     promotions: {},
