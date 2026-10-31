@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:e741a4f462023dbcdcff0a356d07971db65188b9021e43aae5e6a66ed097c0a0
+-- @bsb-hash sha256:68e08d48fe77cf30446cf5a9a7d3358f42a7b5fcf044ebaa0de7d5884519c8bd
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -228,6 +228,61 @@ end;
 $$;
 revoke all on function "better_supabase"."drive_link"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."drive_link"(text, uuid) to anon, authenticated, service_role;
+
+-- The nodes that changed after a cursor, oldest first, that the caller can
+-- read. Changes from the last five seconds wait, so a transaction that
+-- commits late isn't skipped.
+create or replace function "better_supabase"."drive_changes"(tenant uuid, after text default null, page_size integer default 200, drive uuid default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_at timestamptz;
+  v_id uuid;
+  v_size integer := least(greatest(coalesce(drive_changes.page_size, 200), 1), 500);
+  v_row "centrakit"."file_node"%rowtype;
+  v_items jsonb := '[]'::jsonb;
+  v_count integer := 0;
+  v_more boolean := false;
+  v_cursor text := drive_changes.after;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_changes.tenant, 'drive.read'), false)) then
+    raise exception 'not allowed to read this organization''s drive' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if drive_changes.after is not null then
+    begin
+      v_at := split_part(drive_changes.after, '|', 1)::timestamptz;
+      v_id := split_part(drive_changes.after, '|', 2)::uuid;
+    exception when others then
+      raise exception 'the changes cursor is not valid' using errcode = '22023', hint = 'DRIVE_CURSOR_INVALID';
+    end;
+  end if;
+  for v_row in
+    select * from "centrakit"."file_node" x
+    where x."organization_id" = drive_changes.tenant
+      and (v_at is null or (x."updated_at", x."id") > (v_at, v_id))
+      and x."updated_at" <= now() - interval '5 seconds'
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+    order by x."updated_at", x."id"
+    limit v_size + 1
+  loop
+    v_count := v_count + 1;
+    if v_count > v_size then
+      v_more := true;
+      exit;
+    end if;
+    v_items := v_items || jsonb_build_array(jsonb_build_object('removed', false, 'node', ("better_supabase"."drive_node_json"(v_row) || jsonb_build_object('role', "better_supabase"."drive_role"((v_row)."id"), 'readOnly', (false or false), 'held', "better_supabase"."drive_node_held"((v_row)."id")))));
+    v_cursor := to_char(v_row."updated_at" at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') || '|' || v_row."id"::text;
+  end loop;
+  return jsonb_build_object('changes', v_items, 'cursor', v_cursor, 'more', v_more);
+end;
+$$;
+revoke execute on function "better_supabase"."drive_changes"(uuid, text, integer, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_changes"(uuid, text, integer, uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
