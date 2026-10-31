@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
--- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:e85680bca3255ce1df4997365a9f0349a3611ce9d6996402280d0255a536c5be
+-- @bsb-block mail-sync@2 managed
+-- @bsb-hash sha256:24ccf26d3d50541497d4205cfa26201c84d1c43ad102287673ab2a4fe39aad24
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,13 +129,13 @@ create table if not exists "better_supabase"."mail_threads" (
   "snippet" text,
   "last_message_at" timestamptz,
   "message_count" integer not null default 0,
-  "engagement_id" uuid,
+  "activity_id" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("account_id", "external_id")
 );
 create index if not exists mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("engagement_id") where "engagement_id" is not null;
+create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
@@ -1030,21 +1030,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block-data mail-sync
--- @bsb-hash sha256:46311682c487754840b6dda39ab820fa307ebdbc908bd9a0af515f5ba0f8ed0f
+-- @bsb-hash sha256:a455c51c4d5ee70107696c80dad74fd5dee24dfb085ce0167490dd90eb1ef9c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('mail-sync', 1, 'managed')
+values ('mail-sync', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
--- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:9c7a86fdd1a63a2d8e06ab5a6c13de4bb0b6c8da13cc1f77329d2b721bb61fd4
+-- @bsb-block mail-sync@2 managed
+-- @bsb-hash sha256:bf1e7c9820e8f1f9c643f93e5465f30fb185205bd31cf72e4d46f11f0eb79275
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1172,13 +1172,13 @@ create table if not exists "better_supabase"."mail_threads" (
   "snippet" text,
   "last_message_at" timestamptz,
   "message_count" integer not null default 0,
-  "engagement_id" uuid references "better_supabase"."activities" ("id") on delete set null,
+  "activity_id" uuid references "better_supabase"."activities" ("id") on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("account_id", "external_id")
 );
 create index if not exists mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("engagement_id") where "engagement_id" is not null;
+create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
@@ -1464,7 +1464,7 @@ begin
     'externalRef', 'mail:' || v_row.id::text
   ), v_subjects);
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
-  update "better_supabase"."mail_threads" x set "engagement_id" = (v_result ->> 'id')::uuid
+  update "better_supabase"."mail_threads" x set "activity_id" = (v_result ->> 'id')::uuid
   where x."id" = v_row.id;
 end;
 $$;
@@ -2179,21 +2179,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block-data mail-sync
--- @bsb-hash sha256:46311682c487754840b6dda39ab820fa307ebdbc908bd9a0af515f5ba0f8ed0f
+-- @bsb-hash sha256:a455c51c4d5ee70107696c80dad74fd5dee24dfb085ce0167490dd90eb1ef9c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('mail-sync', 1, 'managed')
+values ('mail-sync', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
--- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:f6d101a57a7300b073796f816c6a41465b66a5634890f6bcf2f04c64d08e6eda
+-- @bsb-block mail-sync@2 managed
+-- @bsb-hash sha256:4aa2697cc1d915e91cb99622243f6044f0d79a67603fcbd02a4b0aeb8731c072
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2326,13 +2326,13 @@ create table if not exists "app_private"."mail_threads" (
   "snippet" text,
   "last_message_at" timestamptz,
   "message_count" integer not null default 0,
-  "engagement_id" uuid,
+  "activity_id" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("account_id", "external_id")
 );
 create index if not exists mail_threads_tenant_recent_idx on "app_private"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index if not exists mail_threads_engagement_idx on "app_private"."mail_threads" ("engagement_id") where "engagement_id" is not null;
+create index if not exists mail_threads_engagement_idx on "app_private"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "app_private"."mail_threads" enable row level security;
 revoke all on "app_private"."mail_threads" from public, anon, authenticated;
 grant select on "app_private"."mail_threads" to authenticated;
@@ -3227,21 +3227,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block-data mail-sync
--- @bsb-hash sha256:46311682c487754840b6dda39ab820fa307ebdbc908bd9a0af515f5ba0f8ed0f
+-- @bsb-hash sha256:a455c51c4d5ee70107696c80dad74fd5dee24dfb085ce0167490dd90eb1ef9c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('mail-sync', 1, 'managed')
+values ('mail-sync', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
--- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:41fe6b01301c1e0c5741dc395904febf96c7948a5784d483556ea2abc09da329
+-- @bsb-block mail-sync@2 managed
+-- @bsb-hash sha256:efeffddd19a2e3a76e750665311daed413558942a80631a6dde15a53dd36d00f
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3369,13 +3369,13 @@ create table if not exists "better_supabase"."mail_threads" (
   "snippet" text,
   "last_message_at" timestamptz,
   "message_count" integer not null default 0,
-  "engagement_id" uuid,
+  "activity_id" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("account_id", "external_id")
 );
 create index if not exists mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("engagement_id") where "engagement_id" is not null;
+create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
@@ -4445,21 +4445,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block-data mail-sync
--- @bsb-hash sha256:46311682c487754840b6dda39ab820fa307ebdbc908bd9a0af515f5ba0f8ed0f
+-- @bsb-hash sha256:a455c51c4d5ee70107696c80dad74fd5dee24dfb085ce0167490dd90eb1ef9c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('mail-sync', 1, 'managed')
+values ('mail-sync', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
--- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:1429ef5cc7d933f410011ae0d469743b087565adbe02e0405c6e049f5b438093
+-- @bsb-block mail-sync@2 managed
+-- @bsb-hash sha256:e1c02a5b3fa8312fe9b4976be4e585b2d921c621e69a48122167052de09d8f78
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4601,12 +4601,12 @@ alter table "better_supabase"."mail_threads" add column if not exists "subject" 
 alter table "better_supabase"."mail_threads" add column if not exists "snippet" text;
 alter table "better_supabase"."mail_threads" add column if not exists "last_message_at" timestamptz;
 alter table "better_supabase"."mail_threads" add column if not exists "message_count" integer not null default 0;
-alter table "better_supabase"."mail_threads" add column if not exists "engagement_id" uuid;
+alter table "better_supabase"."mail_threads" add column if not exists "activity_id" uuid;
 alter table "better_supabase"."mail_threads" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."mail_threads" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_mail_threads_external_key" on "better_supabase"."mail_threads" ("account_id", "external_id");
 create index if not exists mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("engagement_id") where "engagement_id" is not null;
+create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 grant select on "better_supabase"."mail_threads" to authenticated;
 grant all on "better_supabase"."mail_threads" to service_role;
@@ -5150,7 +5150,7 @@ begin
     on conflict ("thread_id", "subject_type", "subject_id") do update set "source" = better_supabase.as_column_type('manual', (null::"better_supabase"."mail_thread_subjects")."source");
   end loop;
   
-  return (select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'engagement_id', x."engagement_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) from "better_supabase"."mail_threads" x where x."id" = v_thread);
+  return (select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'activity_id', x."activity_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) from "better_supabase"."mail_threads" x where x."id" = v_thread);
 end;
 $$;
 revoke execute on function "better_supabase"."link_mail_thread"(uuid, jsonb) from public, anon;
@@ -5189,7 +5189,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'engagement_id', x."engagement_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as value, x."last_message_at" as at, x."id" as id
+    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'activity_id', x."activity_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as value, x."last_message_at" as at, x."id" as id
     from "better_supabase"."mail_threads" x
     join "better_supabase"."mail_thread_subjects" s on s."thread_id" = x."id"
     where s."subject_type" = mail_threads_of.subject_type and s."subject_id" = mail_threads_of.subject_id
@@ -5212,7 +5212,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'engagement_id', x."engagement_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as value, x."last_message_at" as at, x."id" as id
+    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'activity_id', x."activity_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as value, x."last_message_at" as at, x."id" as id
     from "better_supabase"."mail_threads" x
     where x."tenant_id" = list_mail_threads.tenant
       and (list_mail_threads.account is null or x."account_id" = list_mail_threads.account)
@@ -5232,7 +5232,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'engagement_id', x."engagement_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('messages', coalesce((
+  select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'activity_id', x."activity_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('messages', coalesce((
     select jsonb_agg(jsonb_build_object('id', y."id", 'tenant_id', y."tenant_id", 'account_id', y."account_id", 'thread_id', y."thread_id", 'external_id', y."external_id", 'rfc_message_id', y."rfc_message_id", 'direction', y."direction", 'from_address', y."from_address", 'from_name', y."from_name", 'to_addresses', y."to_addresses", 'cc_addresses', y."cc_addresses", 'subject', y."subject", 'snippet', y."snippet", 'body_text', y."body_text", 'body_html', y."body_html", 'sent_at', y."sent_at", 'template_version_id', y."template_version_id", 'tracking_hash', y."tracking_hash", 'opened_at', y."opened_at", 'open_count', y."open_count", 'clicked_at', y."clicked_at", 'click_count', y."click_count", 'created_at', y."created_at") order by y."sent_at", y."id")
     from "better_supabase"."mail_messages" y where y."thread_id" = x."id"
   ), '[]'::jsonb))
@@ -5490,21 +5490,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block-data mail-sync
--- @bsb-hash sha256:46311682c487754840b6dda39ab820fa307ebdbc908bd9a0af515f5ba0f8ed0f
+-- @bsb-hash sha256:a455c51c4d5ee70107696c80dad74fd5dee24dfb085ce0167490dd90eb1ef9c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('mail-sync', 1, 'managed')
+values ('mail-sync', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
--- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:24ca5668238b15ddc29316db27a068eba2f9a64d88be2815437803e2816f7e40
+-- @bsb-block mail-sync@2 managed
+-- @bsb-hash sha256:423aab89aaec7377d0658dad019b6eca0d31ffcedeff6bed62c029ab9673721f
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5632,13 +5632,13 @@ create table if not exists "better_supabase"."mail_threads" (
   "snippet" text,
   "last_message_at" timestamptz,
   "message_count" integer not null default 0,
-  "engagement_id" uuid,
+  "activity_id" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("account_id", "external_id")
 );
 create index if not exists mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("org_id", "last_message_at" desc);
-create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("engagement_id") where "engagement_id" is not null;
+create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
@@ -6533,13 +6533,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block-data mail-sync
--- @bsb-hash sha256:46311682c487754840b6dda39ab820fa307ebdbc908bd9a0af515f5ba0f8ed0f
+-- @bsb-hash sha256:a455c51c4d5ee70107696c80dad74fd5dee24dfb085ce0167490dd90eb1ef9c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('mail-sync', 1, 'managed')
+values ('mail-sync', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

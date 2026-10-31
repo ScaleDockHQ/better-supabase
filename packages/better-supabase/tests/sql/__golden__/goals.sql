@@ -222,7 +222,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:dd6686ca6d62cbc09cc26b53923aebed0f7a60146274cf715456572977a9ccef
+-- @bsb-hash sha256:70ae2f7d52c8d482f8d299452b096e77ca1607ab93b31631548c14c341b60772
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -375,7 +375,7 @@ as $$
         when 'work_items.completed' then (select count(*) from "better_supabase"."tasks" w
       where w."tenant_id" = x."tenant_id" and w."state" = 'completed' and w."closed_at"::date between x."period_start" and x."period_end"
         and (x."team_id" is null or w."team_id" = x."team_id")
-        and (x."owner_user_id" is null or exists (select 1 from "better_supabase"."task_assignees" a where a."work_item_id" = w."id" and a."user_id" = x."owner_user_id")))
+        and (x."owner_user_id" is null or exists (select 1 from "better_supabase"."task_assignees" a where a."task_id" = w."id" and a."user_id" = x."owner_user_id")))
         when 'invoices.paid_amount' then (select coalesce(sum(e."amount"), 0) from "better_supabase"."ledger_entries" e
       join "better_supabase"."ledger_accounts" a on a."id" = e."account_id"
       join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"

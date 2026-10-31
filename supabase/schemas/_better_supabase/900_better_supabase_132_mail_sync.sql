@@ -1,6 +1,6 @@
 -- better-supabase module: mail-sync
--- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:b38dc503e4bfe3ed02ca288dd479887970c620c5a5fc20187c023b11051ebd68
+-- @bsb-block mail-sync@2 managed
+-- @bsb-hash sha256:5b65cc14cb6c2f5557a4a30016bfd87037679ad49907063bdf66162bd272c0ab
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -128,13 +128,13 @@ create table if not exists "better_supabase"."mail_threads" (
   "snippet" text,
   "last_message_at" timestamptz,
   "message_count" integer not null default 0,
-  "engagement_id" uuid references "better_supabase"."activities" ("id") on delete set null,
+  "activity_id" uuid references "better_supabase"."activities" ("id") on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("account_id", "external_id")
 );
 create index if not exists mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("engagement_id") where "engagement_id" is not null;
+create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
@@ -420,7 +420,7 @@ begin
     'externalRef', 'mail:' || v_row.id::text
   ), v_subjects);
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
-  update "better_supabase"."mail_threads" x set "engagement_id" = (v_result ->> 'id')::uuid
+  update "better_supabase"."mail_threads" x set "activity_id" = (v_result ->> 'id')::uuid
   where x."id" = v_row.id;
 end;
 $$;

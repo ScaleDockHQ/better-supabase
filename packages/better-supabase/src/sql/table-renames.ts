@@ -53,3 +53,22 @@ export const tableBase = (
   movedTable(resolved.module, logical)
     ? resolved.functionNouns.rename(name)
     : name;
+
+/**
+ * The default name of a logical column before the config's renames. A column a
+ * migration renamed after an entity's new singular (`task_id`) starts from the
+ * old noun (`work_item_id`) on an install that names the entity, as its table
+ * does.
+ */
+export const columnBase = (
+  resolved: ResolvedNames,
+  migrations: readonly BlockSqlNameMigration[] | undefined,
+  table: string,
+  logical: string,
+  name: string,
+): string =>
+  migrations?.some(
+    (move) => move.table === table && move.columns?.[logical] !== undefined,
+  )
+    ? resolved.functionNouns.rename(name)
+    : name;

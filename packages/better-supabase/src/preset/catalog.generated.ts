@@ -3691,7 +3691,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "columns": {
               "id": "id",
               "tenant": "tenant_id",
-              "item": "work_item_id",
+              "item": "task_id",
               "title": "title",
               "done": "done",
               "doneAt": "done_at",
@@ -6453,7 +6453,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "snippet": "snippet",
               "lastMessageAt": "last_message_at",
               "messageCount": "message_count",
-              "engagement": "engagement_id",
+              "engagement": "activity_id",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }

@@ -170,7 +170,7 @@ select results_eq(
 );
 select is(
   (select count(*)::int from better_supabase.engagement_subjects
-   where engagement_id = current_setting('test.subject')::uuid),
+   where activity_id = current_setting('test.subject')::uuid),
   1,
   'a guest reads the subject note''s record link'
 );

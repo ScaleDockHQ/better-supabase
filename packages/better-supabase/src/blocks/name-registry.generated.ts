@@ -1240,7 +1240,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "connect" | "send" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "mail_thread": "id" | "tenant_id" | "account_id" | "external_id" | "subject" | "snippet" | "last_message_at" | "message_count" | "engagement_id" | "created_at" | "updated_at";
+      readonly "mail_thread": "id" | "tenant_id" | "account_id" | "external_id" | "subject" | "snippet" | "last_message_at" | "message_count" | "activity_id" | "created_at" | "updated_at";
       readonly "mail_account": "id" | "tenant_id" | "user_id" | "provider" | "address" | "credential_ref" | "share" | "status" | "sync_cursor" | "last_synced_at" | "last_error" | "created_at" | "updated_at";
       readonly "mail_message": "id" | "tenant_id" | "account_id" | "thread_id" | "external_id" | "rfc_message_id" | "direction" | "from_address" | "from_name" | "to_addresses" | "cc_addresses" | "subject" | "snippet" | "body_text" | "body_html" | "sent_at" | "template_version_id" | "tracking_hash" | "opened_at" | "open_count" | "clicked_at" | "click_count" | "created_at";
     };
@@ -2069,7 +2069,7 @@ export interface BlockNameRegistry {
       readonly "task": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "recurs_from" | "created_by" | "created_at" | "updated_at";
       readonly "project": "id" | "tenant_id" | "key" | "name" | "owner_user_id" | "status" | "start_on" | "target_on" | "budget_amount" | "budget_currency" | "budget_hours" | "archived_at" | "created_at" | "updated_at";
       readonly "iteration": "id" | "tenant_id" | "team_id" | "name" | "starts_on" | "ends_on" | "created_at";
-      readonly "checklist_item": "id" | "tenant_id" | "work_item_id" | "title" | "done" | "done_at" | "done_by" | "rank" | "created_by" | "created_at";
+      readonly "checklist_item": "id" | "tenant_id" | "task_id" | "title" | "done" | "done_at" | "done_by" | "rank" | "created_by" | "created_at";
     };
     readonly primary: "task";
     readonly formerKeys: "work_item";

@@ -338,7 +338,7 @@ function threadOf(value: unknown): MailThread {
     subject: optionalText(row["subject"]),
     snippet: optionalText(row["snippet"]),
     lastMessageAt: optionalInstant(row["last_message_at"]),
-    engagementId: optionalText(row["engagement_id"]),
+    engagementId: optionalText(row["activity_id"] ?? row["engagement_id"]),
   };
 
   return {

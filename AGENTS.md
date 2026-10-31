@@ -264,6 +264,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0149: Postmortem `actionItems` and the `action_items` column go in 0.47; an `incidents` upgrade step copies them into tasks first.
 - 0150: The remaining block overlaps are decided pair by pair (all stay separate, three follow-ups) and seven blocks move to the docs group that matches their job.
 - 0151: Party payments keep their rest as ledger credit; dunning levels raise overdue invoices; `better-supabase/e-invoicing` writes UBL for Peppol without a bundled validator.
+- 0152: The task and activity foreign key columns become `task_id` and `activity_id`, renamed by upgrade steps.
 
 ## Pre-release pins
 

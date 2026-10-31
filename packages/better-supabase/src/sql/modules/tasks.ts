@@ -81,7 +81,23 @@ const EVENTS: BlockSqlEvents<TasksEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("tasks", 2),
+  migrations: [
+    ...tableMoves("tasks", 2),
+    {
+      from: 3,
+      description:
+        "The checklist items' task column is task_id, after the task entity (ADR 0152).",
+      table: "checklist",
+      columns: { item: "work_item_id" },
+    },
+    {
+      from: 3,
+      description:
+        "The assignees' task column is task_id, after the task entity (ADR 0152).",
+      table: "assignees",
+      columns: { item: "work_item_id" },
+    },
+  ],
   events: EVENTS,
   entities: {
     task: {
@@ -173,7 +189,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         tenant: "tenant_id",
-        item: "work_item_id",
+        item: "task_id",
         title: "title",
         done: "done",
         doneAt: "done_at",
@@ -190,7 +206,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         tenant: "tenant_id",
-        item: "work_item_id",
+        item: "task_id",
         user: "user_id",
         createdAt: "created_at",
       },
@@ -642,7 +658,7 @@ export const WORK_ITEMS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,

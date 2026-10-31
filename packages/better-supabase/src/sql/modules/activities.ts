@@ -83,7 +83,28 @@ const EVENTS: BlockSqlEvents<ActivitiesEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("activities", 1),
+  migrations: [
+    ...tableMoves("activities", 1),
+    {
+      from: 2,
+      description:
+        "The links' activity column is activity_id, after the activity entity (ADR 0152).",
+      table: "links",
+      columns: { engagement: "engagement_id" },
+    },
+    {
+      from: 2,
+      description: "The recordings' activity column is activity_id (ADR 0152).",
+      table: "recordings",
+      columns: { engagement: "engagement_id" },
+    },
+    {
+      from: 2,
+      description: "The notes' activity column is activity_id (ADR 0152).",
+      table: "notes",
+      columns: { engagement: "engagement_id" },
+    },
+  ],
   entities: {
     activity: {
       table: "engagements",
@@ -138,7 +159,7 @@ const NAMES: BlockSqlNames = {
       optional: ["position"],
       columns: {
         tenant: "tenant_id",
-        engagement: "engagement_id",
+        engagement: "activity_id",
         subjectType: "subject_type",
         subjectId: "subject_id",
         position: "position",
@@ -744,7 +765,7 @@ export const ENGAGEMENTS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   names: NAMES,
   contract,
   build,

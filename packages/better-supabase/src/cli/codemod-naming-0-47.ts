@@ -84,6 +84,11 @@ const REVIEW_0_47: readonly ReviewHint[] = [
       "Import runs name their `source` instead of their `kind`: rename `kind` in `defineImport`, `appTableImport` and queries on `import_runs`, and read `counts` per entity (`{ inserted, updated, unchanged, conflicted, missing }`) and `errors` as `{ entity, key, code, message }`. New code starts runs with `imports.runs.start` and writes through `imports.upsertBatch`",
   },
   {
+    pattern: /\bwork_item_id\b|\bengagement_id\b/,
+    message:
+      "The task and activity foreign key columns follow the entity: `work_item_id` is `task_id` in `task_checklist_items` and `task_assignees`, and `engagement_id` is `activity_id` in `engagement_subjects`, the recordings and notes tables and `mail_threads`. The upgrade migration renames them in the block tables; rename them in your own queries, views and policies. Tables you adopted keep their columns",
+  },
+  {
     pattern: new RegExp(
       `\\bbetter_supabase"?\\."?(?:${OLD_TABLES.map(escapeRegExp).join("|")})\\b`,
     ),
