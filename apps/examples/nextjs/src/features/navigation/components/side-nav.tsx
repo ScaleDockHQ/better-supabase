@@ -417,6 +417,7 @@ export function SideNav({ visible }: { visible: readonly NavId[] }) {
 
   const groups = [
     { id: "workspace", label: t("Workspace") },
+    { id: "quality", label: t("Quality") },
     { id: "organization", label: t("Organization") },
   ] as const;
 

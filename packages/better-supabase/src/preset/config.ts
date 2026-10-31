@@ -213,7 +213,8 @@ export type ExpandedConfig<C extends BetterSupabaseConfig> = C extends {
  * `config` with its `preset` expanded: the preset's blocks (and what they
  * require) and conventions first, then the config's own keys over them, so
  * explicit config wins. A block in both keeps the preset's settings that the
- * config's entry leaves unset. Expanding twice gives the same config.
+ * config's entry leaves unset, and merges `options` key by key. Expanding twice
+ * gives the same config.
  */
 export function expandPreset<const C extends BetterSupabaseConfig>(
   config: C,
@@ -254,7 +255,14 @@ export function expandFlatPreset(config: FlatConfig): FlatConfig {
     Object.fromEntries(Object.entries(base.blocks));
 
   for (const [name, entry] of Object.entries(own)) {
-    blocks[name] = { ...blocks[name], ...entry };
+    const preset = blocks[name];
+    const options = { ...preset?.options, ...entry?.options };
+
+    blocks[name] = {
+      ...preset,
+      ...entry,
+      ...(Object.keys(options).length === 0 ? {} : { options }),
+    };
   }
 
   return {

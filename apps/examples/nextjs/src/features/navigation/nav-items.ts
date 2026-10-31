@@ -70,7 +70,7 @@ export interface NavItem {
   readonly id: NavId;
   /** Without the locale prefix. */
   readonly href: AppHref;
-  readonly group: "workspace" | "organization";
+  readonly group: "workspace" | "quality" | "organization";
   /**
    * Hidden from the menu without it, and the proxy answers the page with a 403
    * when the token's `permissions` claim lacks it.
@@ -237,16 +237,16 @@ export const navItems: readonly NavItem[] = [
   {
     id: "compliance",
     href: "/compliance",
-    group: "workspace",
+    group: "quality",
     requires: "compliance.read",
   },
-  { id: "qualifications", href: "/qualifications", group: "workspace" },
-  { id: "risks", href: "/risks", group: "workspace", requires: "risks.read" },
-  { id: "cases", href: "/cases", group: "workspace", requires: "cases.read" },
+  { id: "qualifications", href: "/qualifications", group: "quality" },
+  { id: "risks", href: "/risks", group: "quality", requires: "risks.read" },
+  { id: "cases", href: "/cases", group: "quality", requires: "cases.read" },
   {
     id: "inspections",
     href: "/inspections",
-    group: "workspace",
+    group: "quality",
     requires: "inspections.read",
   },
   { id: "shifts", href: "/shifts", group: "workspace" },

@@ -115,6 +115,20 @@ describe("expandPreset", () => {
     expect(expandPreset(expanded)).toEqual(expanded);
   });
 
+  it("merges a block's options key by key", () => {
+    const expanded = expandPreset({
+      preset: "pim",
+      blocks: { attachments: { options: { requireScan: true } } },
+    });
+
+    expect(expanded.blocks).toMatchObject({
+      attachments: {
+        options: { publicBuckets: ["attachments"], requireScan: true },
+      },
+    });
+    expect(expandPreset(expanded)).toEqual(expanded);
+  });
+
   it("takes a list of blocks next to the preset", () => {
     expect(
       expandPreset({ preset: "minimal", blocks: ["tags"] }).blocks,

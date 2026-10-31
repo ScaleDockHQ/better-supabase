@@ -21,6 +21,8 @@ what it checks.
   `.localhost` URLs (see Local development).
 - `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack on the CLI's stack engine (native runtime, ports per checkout and branch, URLs written to `.env.development.local`), a reset from the migrations and seed, and the pgTAP tests.
 - `pnpm supabase:prune`: list the running stacks of branches merged into `main`, in this checkout and its worktrees; `--apply` stops them and keeps their data. macOS runs out of shared memory segments after about 30 running stacks.
+- `pnpm check:migration-order`: fails when the branch adds a migration that sorts before the newest one on `origin/main` (`MIGRATION_BASE` names another base).
+- `node scripts/print-renames.ts`: the 0.46 to 0.47 rename tables from `src/core/renames.ts`; the guide pastes them and `test:scripts` compares.
 - `pnpm test:scripts`: the tests of the repo scripts in `scripts/`.
 - `pnpm supabase:diff <name>`: a migration from the changes in `supabase/schemas` (pg-delta).
 - `pnpm db:gen`: regenerate the typed client in every example and validation project.

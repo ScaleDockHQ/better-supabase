@@ -299,6 +299,7 @@
   "guides/limitations",
   "guides/monorepo",
   "guides/offline-first",
+  "guides/quality-management",
   "guides/read-replicas",
   "guides/supabase-blocks",
   "guides/without-a-session",
