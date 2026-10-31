@@ -2,7 +2,11 @@ import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import type { PurchaseNames } from "./invoices-purchase.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { bookSource, unbookSource } from "../accounting-sources-sql.ts";
+import {
+  bookSource,
+  booksAccounting,
+  unbookSource,
+} from "../accounting-sources-sql.ts";
 import { asColumnType } from "../column-type.ts";
 import {
   lineColumn,
@@ -516,6 +520,14 @@ ${userGrant(`${fn("delete_invoice")}(uuid)`)}
     typeof ctx.config.columns["invoices"]?.["writeOffReason"] === "string" &&
     ctx.has("invoices", "writeOffReason");
 
+  // Voiding an issued invoice also takes back the entries of its charges.
+  const voidCharges =
+    charges && booksAccounting(ctx)
+      ? `
+  perform ${ctx.of("accounting").fn("accounting_reverse_source")}(v_row.${i("tenant")}, 'invoice_charge', c.${ch("id")}::text)
+  from ${t("charges")} c where c.${ch("invoice")} = v_row.${i("id")};`
+      : "";
+
   const addCharge = charges
     ? `
 ${chargeFields.drop(fn("add_invoice_charge"), "uuid, bigint, text, text")}
@@ -552,6 +564,7 @@ begin
   insert into ${t("charges")} (${chargeColumns.join(", ")}${chargeExtras.columns})
   values (${chargeValues.join(", ")}${chargeExtras.values})
   returning ${ch("id")} into v_charge;${settle("v_row")}
+  ${bookSource(ctx, "invoice_charge", "v_charge")}
   ${record("invoice.charged", "v_row", `, 'chargeId', v_charge, 'amount', add_invoice_charge.amount::text, 'balance', ${balance("v_row")}::text`, true)}
   return ${row("v_row")};
 end;
@@ -581,6 +594,7 @@ begin
   ${transitionActorSql("remove_invoice_charge.actor", "INVOICE_ACTOR_INVALID")}
   delete from ${t("charges")} c where c.${ch("id")} = remove_invoice_charge.charge
   returning c.${ch("amount")} into v_amount;${settle("v_row")}
+  ${unbookSource(ctx, "invoice_charge", `v_row.${i("tenant")}`, "remove_invoice_charge.charge")}
   ${record("invoice.charge_removed", "v_row", `, 'chargeId', remove_invoice_charge.charge, 'amount', v_amount::text, 'balance', ${balance("v_row")}::text`, true)}
   return ${row("v_row")};
 end;
@@ -998,7 +1012,7 @@ begin
   update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "void")}, ${i("voidedAt")} = now(),
     ${has("voidReason") ? `${i("voidReason")} = nullif(trim(void_invoice.reason), ''), ` : ""}${i("updatedAt")} = now()
   where x.${i("id")} = v_row.${i("id")} returning * into v_row;
-  ${unbookSource(ctx, "invoice", `v_row.${i("tenant")}`, `v_row.${i("id")}`)}
+  ${unbookSource(ctx, "invoice", `v_row.${i("tenant")}`, `v_row.${i("id")}`)}${voidCharges}
   ${transitionReasonSql()}
   ${record("invoice.voided", "v_row", `, 'reason', ${has("voidReason") ? `v_row.${i("voidReason")}` : "nullif(trim(void_invoice.reason), '')"}`, true)}
   return ${row("v_row")};
@@ -1027,6 +1041,7 @@ begin
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_OPEN", "only an open invoice you can manage is written off", "55000")}
   end if;
+  ${bookSource(ctx, "invoice_write_off", `v_row.${i("id")}`)}
   ${transitionReasonSql()}
   ${record("invoice.uncollected", "v_row", `, 'balance', ${balance("v_row")}::text, 'reason', nullif(trim(write_off_invoice.reason), '')`, true)}
   return ${row("v_row")};

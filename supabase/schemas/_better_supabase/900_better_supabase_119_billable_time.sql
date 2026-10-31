@@ -1,6 +1,6 @@
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:b15e42ec18a29a7f7f6a8bd809ba4951d646d2065d81f917f6971bee23e5d761
+-- @bsb-hash sha256:240f6cda53f2998ce8bacc9bcd1604f1979fed5179ad27d980f14ea73c44f5ab
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -697,8 +697,9 @@ comment on function "better_supabase"."billable_time_subject_merge"(text, text, 
 
 -- What a project cost and earned, per currency: its time at the rate card's
 -- cost (on the project and its work items), the time billed on invoices at
--- the billed rate and, with accounting, the posted expense and income lines
--- on its project dimension (expense claims and purchase bills). The margin is
+-- the billed rate (left out when the invoice's booked revenue is already on
+-- the project dimension) and, with accounting, the posted expense and income
+-- lines on its project dimension (expense claims and purchase bills). The margin is
 -- the billed time and income less the time cost and expenses; budget use
 -- compares the hours and, in the budget's currency, the cost to the budget.
 create or replace function "better_supabase"."project_costs"(project_id uuid)
@@ -732,6 +733,16 @@ begin
       limit 1
     ) card on true
     left join "better_supabase"."time_invoice_entries" d on d."entry_id" = x."id"
+      and not exists (
+        select 1 from "better_supabase"."accounting_entries" n
+        join "better_supabase"."accounting_entry_lines" l on l."entry_id" = n."id"
+        join "better_supabase"."accounting_accounts" a on a."id" = l."account_id"
+        where n."tenant_id" = v_project."tenant_id"
+          and n."source_type" = 'invoice' and n."source_id" = d."invoice_id"::text
+          and n."status" in ('posted', 'reversed')
+          and a."type" = 'income'
+          and l."dimensions" ->> 'project' = v_project."id"::text
+      )
     where x."tenant_id" = v_project."tenant_id"
       and x."ended_at" is not null
       and ((x."subject_type" = 'project' and x."subject_id" = v_project."id"::text) or (x."subject_type" = 'work_item' and x."subject_id" in (

@@ -5,14 +5,21 @@ import { sqlString } from "../core/template.ts";
 
 /**
  * Whether the accounting block books this block's documents: accounting is
- * installed and managed, and this is the block's own instance (a block
- * installed under another name books nothing).
+ * installed and managed, and either this is the block's own instance or the
+ * instance's `uses` names its own accounting instance. A named instance that
+ * leaves `uses` alone books nothing, because the default instance already
+ * contributes the same sources to the default accounting.
  */
 export function booksAccounting(ctx: BlockSqlContext): boolean {
+  if (!ctx.installed("accounting")) {
+    return false;
+  }
+
+  const accounting = ctx.of("accounting");
+
   return (
-    ctx.instance === ctx.module &&
-    ctx.installed("accounting") &&
-    ctx.of("accounting").mode !== "custom"
+    accounting.mode !== "custom" &&
+    (ctx.instance === ctx.module || accounting.instance !== accounting.module)
   );
 }
 

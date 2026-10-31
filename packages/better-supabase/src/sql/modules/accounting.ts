@@ -13,6 +13,7 @@ import {
   accountingCloseFunctions,
   accountingReportFunctions,
 } from "./accounting-close.ts";
+import { seedDisposalAccounts } from "./accounting-data.ts";
 import { accountingEntryFunctions } from "./accounting-entries.ts";
 import {
   accountingPostingFunctions,
@@ -553,4 +554,5 @@ export const ACCOUNTING: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  data: seedDisposalAccounts,
 };

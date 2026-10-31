@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:769dddf2d13bc274cc7469b622f1cdb5cfc26eebfce76292fe66a88cbcb2fb4a
+-- @bsb-hash sha256:dbdbdd3b342b868d2624ccd3e0698252575e827dd14dab35e9f7f8d577b56db2
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1160,6 +1160,8 @@ begin
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
   perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'invoice', v_row."id"::text);
+  perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'invoice_charge', c."id"::text)
+  from "better_supabase"."invoice_charges" c where c."invoice_id" = v_row."id";
   perform set_config('better_supabase.transition_reason', '', true);
   perform "better_supabase".emit_event('invoice.voided', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'reason', v_row."void_reason"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
@@ -1220,6 +1222,7 @@ begin
   if v_row."id" is null then
     raise exception 'only an open invoice you can manage is written off' using errcode = '55000', hint = 'INVOICE_NOT_OPEN';
   end if;
+  perform "better_supabase"."accounting_post_source"('invoice_write_off', v_row."id"::text);
   perform set_config('better_supabase.transition_reason', '', true);
   perform "better_supabase".emit_event('invoice.uncollected', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text, 'reason', nullif(trim(write_off_invoice.reason), '')), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
@@ -1397,6 +1400,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  perform "better_supabase"."accounting_post_source"('invoice_charge', v_charge::text);
   perform "better_supabase".emit_event('invoice.charged', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'chargeId', v_charge, 'amount', add_invoice_charge.amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
     event_type => 'invoice.charged',
@@ -1471,6 +1475,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'invoice_charge', remove_invoice_charge.charge::text);
   perform "better_supabase".emit_event('invoice.charge_removed', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'chargeId', remove_invoice_charge.charge, 'amount', v_amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
     event_type => 'invoice.charge_removed',
@@ -1805,6 +1810,55 @@ as $$
   where y."id"::text = source_id and y."reference_type" = 'invoices' and p.amount <> 0
 $$;
 revoke execute on function "better_supabase"."accounting_invoice_payment_lines"(text) from public, anon, authenticated;
+
+-- The entry of an invoice charge for accounting: the receivable against
+-- revenue, with no tax.
+create or replace function "better_supabase"."accounting_invoice_charge_lines"(source_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'organizationId', inv."tenant_id",
+    'entryDate', (c."created_at" at time zone 'UTC')::date,
+    'currency', inv."currency",
+    'reference', inv."identifier",
+    'memo', 'Charge on ' || coalesce(inv."identifier", inv."title"),
+    'lines', jsonb_build_array(
+      jsonb_strip_nulls(jsonb_build_object('role', 'receivable', 'debit', c."amount"::text, 'partyId', inv."company_id"::text)),
+      jsonb_strip_nulls(jsonb_build_object('role', 'revenue', 'credit', c."amount"::text, 'description', c."description")))
+  )
+  from "better_supabase"."invoice_charges" c
+  join "better_supabase"."invoices" inv on inv."id" = c."invoice_id"
+  where c."id"::text = source_id and c."amount" <> 0 and not (inv."direction" = 'purchase')
+$$;
+revoke execute on function "better_supabase"."accounting_invoice_charge_lines"(text) from public, anon, authenticated;
+
+-- The entry of a written-off invoice for accounting: the open balance against
+-- expenses, the receivable cleared.
+create or replace function "better_supabase"."accounting_invoice_write_off_lines"(source_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'organizationId', inv."tenant_id",
+    'currency', inv."currency",
+    'reference', inv."identifier",
+    'memo', 'Write-off of ' || coalesce(inv."identifier", inv."title"),
+    'lines', jsonb_build_array(
+      jsonb_build_object('role', 'expense', 'debit', b.balance::text),
+      jsonb_strip_nulls(jsonb_build_object('role', 'receivable', 'credit', b.balance::text, 'partyId', inv."company_id"::text)))
+  )
+  from "better_supabase"."invoices" inv
+  cross join lateral (select inv."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = inv."id"), 0) - inv."credited_total" - inv."paid_total" as balance) b
+  where inv."id"::text = source_id and b.balance > 0 and not (inv."direction" = 'purchase')
+$$;
+revoke execute on function "better_supabase"."accounting_invoice_write_off_lines"(text) from public, anon, authenticated;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
