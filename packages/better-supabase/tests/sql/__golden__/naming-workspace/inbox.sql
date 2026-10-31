@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@8 managed
--- @bsb-hash sha256:67b5429ea6f63aa55f263565ed63cd90ba7d042d901c1a1849d56d10618c96cd
+-- @bsb-hash sha256:cab44f7d95d0e715a6b78453e5abca2131ad3843e61f2a34a97f98723023aa07
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -721,30 +721,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_inbox_team_member"(uuid, uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."set_inbox_team_member"(uuid, uuid, boolean) to authenticated, service_role;
-
--- Deprecated: contacts are people of the contacts block. Finds or creates the
--- person by id, identity, user or email and returns it as an inbox contact.
-create or replace function "better_supabase"."upsert_contact"(tenant uuid, input jsonb)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_person uuid;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_contact.tenant, 'inbox.reply'), false)) then
-    raise exception 'not allowed to edit contacts' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
-  end if;
-  v_person := "better_supabase"."resolve_person"(upsert_contact.tenant, coalesce(input, '{}'::jsonb));
-  return (
-    select jsonb_build_object('id', p."id", 'tenant_id', p."tenant_id", 'user_id', p."user_id", 'name', p."name", 'email', p."email", 'phone', p."phone", 'avatar_url', p."avatar_url", 'metadata', p."metadata", 'created_at', p."created_at")
-    from "better_supabase"."people" p where p."id" = v_person
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."upsert_contact"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."upsert_contact"(uuid, jsonb) to authenticated, service_role;
 
 -- Stores a message on a conversation as a core message with its inbox
 -- fields, and moves the conversation along: the preview, the first response,

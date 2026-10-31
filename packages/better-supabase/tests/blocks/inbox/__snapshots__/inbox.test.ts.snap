@@ -57,19 +57,6 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
     },
   ],
   [
-    "upsert_contact",
-    {
-      "input": {
-        "identity": {
-          "channel": "whatsapp",
-          "external_id": "+3199",
-        },
-        "name": "Ada",
-      },
-      "tenant": "org",
-    },
-  ],
-  [
     "start_conversation",
     {
       "inbox": "i1",

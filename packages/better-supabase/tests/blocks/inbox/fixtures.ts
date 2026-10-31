@@ -19,7 +19,7 @@ export const inboxRow: Row = {
   archived_at: null,
 };
 
-export const contactRow: Row = {
+const contactRow: Row = {
   id: "ct1",
   tenant_id: "org",
   user_id: null,

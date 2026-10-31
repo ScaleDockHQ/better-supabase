@@ -465,7 +465,6 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["uuid", "uuid", "boolean"],
       returns: "boolean",
     },
-    { name: "upsert_contact", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "start_conversation", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "send_inbox_message", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "record_inbound", args: ["jsonb"], returns: "jsonb" },

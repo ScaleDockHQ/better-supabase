@@ -204,9 +204,7 @@ const status = await db.acknowledgements.status(record).orThrow();
 ```
 
 Acknowledging needs `acknowledgements.acknowledge`, which members have. The
-policy's current version is the one members acknowledge. `acknowledgePolicy`,
-`acknowledgements(policyId)` and `policies(organizationId, { pendingOnly })`
-still work in 0.47 and call the acknowledgements functions; they go in 0.48.
+policy's current version is the one members acknowledge.
 
 | Method                                 | Returns                                  |
 | -------------------------------------- | ---------------------------------------- |

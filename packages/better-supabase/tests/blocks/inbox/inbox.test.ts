@@ -6,7 +6,6 @@ import {
 } from "../../../src/blocks/inbox/index.ts";
 import {
   AT,
-  contactRow,
   conversationRow,
   fakeTransport,
   inboxRow,
@@ -21,7 +20,6 @@ const answers = {
   set_inbox_member: true,
   create_inbox_team: { id: "team1", name: "Tier 1" },
   set_inbox_team_member: true,
-  upsert_contact: contactRow,
   start_conversation: conversationRow,
   list_inbox_conversations: [conversationRow],
   get_conversation: null,
@@ -148,16 +146,6 @@ describe("createInbox", () => {
       name: "Tier 1",
     });
     await inbox.inboxes.setTeamMember("team1", "u1").orThrow();
-
-    const contact = await inbox.contacts
-      // oxlint-disable-next-line typescript/no-deprecated -- covers the wrapper until 0.48 (1 finding)
-      .upsert("org", {
-        name: "Ada",
-        identity: { channel: "whatsapp", externalId: "+3199" },
-      })
-      .orThrow();
-
-    expect(contact).toMatchObject({ name: "Ada", metadata: { plan: "pro" } });
 
     const open = await inbox.conversations
       .open("i1", { contact: { email: "ada@example.test" }, message: "hi" })

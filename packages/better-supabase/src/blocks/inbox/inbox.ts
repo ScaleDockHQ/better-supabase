@@ -8,7 +8,6 @@ import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import type { InboxDrafts } from "./drafts.ts";
 import type {
   BotMode,
-  Contact,
   Conversation,
   ConversationEvent,
   ConversationPriority,
@@ -44,7 +43,6 @@ import {
 } from "../shared.ts";
 import { inboxDrafts } from "./drafts.ts";
 import {
-  contactOf,
   conversationOf,
   conversationsOf,
   countsOf,
@@ -213,7 +211,6 @@ export interface TemplateInput {
 /** Hooks for `Inbox`: the top-level methods, and each group's under its name. */
 export type InboxHooks = BlockHooks<Inbox> & {
   readonly inboxes?: BlockHooks<Inbox["inboxes"]>;
-  readonly contacts?: BlockHooks<Inbox["contacts"]>;
   readonly conversations?: BlockHooks<Inbox["conversations"]>;
   readonly messages?: BlockHooks<Inbox["messages"]>;
   readonly drafts?: BlockHooks<Inbox["drafts"]>;
@@ -242,17 +239,6 @@ export interface Inbox {
       userId: string,
       present?: boolean,
     ): AsyncResult<boolean>;
-  };
-  readonly contacts: {
-    /**
-     * Finds the person by id, identity, user or email, filling in what is
-     * missing, or creates one.
-     *
-     * @deprecated A contact is a person of the contacts block: use
-     * `contacts.savePerson` and `contacts.addIdentity`, or
-     * `contacts.findByIdentity`. Removed in 0.48.
-     */
-    upsert(tenant: string, input: ContactInput): AsyncResult<Contact>;
   };
   readonly conversations: {
     open(
@@ -642,15 +628,6 @@ export function createInbox(options: InboxOptions): Inbox {
           (value) => value === true,
         ),
     },
-    contacts: {
-      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated wrapper itself, until 0.48 (1 finding)
-      upsert: (tenant, input) =>
-        call(
-          "upsert_contact",
-          { tenant, input: compact(contactArg(input)) },
-          contactOf,
-        ),
-    },
     conversations: {
       open: (inboxId, input = {}) =>
         call(
@@ -941,7 +918,6 @@ export function createInbox(options: InboxOptions): Inbox {
 
   const {
     inboxes,
-    contacts,
     conversations,
     messages,
     drafts,
@@ -954,7 +930,6 @@ export function createInbox(options: InboxOptions): Inbox {
 
   const groups = {
     inboxes,
-    contacts,
     conversations,
     messages,
     drafts,
@@ -971,10 +946,6 @@ export function createInbox(options: InboxOptions): Inbox {
       ...client,
       inboxes: withBlockHooks(client.inboxes, groups.inboxes, {
         block: "inbox.inboxes",
-        ...logger,
-      }),
-      contacts: withBlockHooks(client.contacts, groups.contacts, {
-        block: "inbox.contacts",
         ...logger,
       }),
       conversations: withBlockHooks(

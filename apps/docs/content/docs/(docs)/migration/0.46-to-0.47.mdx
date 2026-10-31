@@ -344,8 +344,7 @@ requires acknowledgement assigns it the same way.
 | `POLICY_NOT_PUBLISHED` hint                                    | `ACKNOWLEDGEMENT_NO_VERSION`, `ACKNOWLEDGEMENT_NOT_ASSIGNED` |
 
 The client methods `acknowledgePolicy`, `acknowledgements(policyId)` and
-`policies(organizationId, { pendingOnly })` still work and call the
-acknowledgements functions; they are deprecated and go in 0.48. Move to
+`policies(organizationId, { pendingOnly })` are removed in 0.47. Use
 `db.acknowledgements.acknowledge`, `mine` and `status`. A role that granted
 `compliance.acknowledge` grants `acknowledgements.acknowledge`
 (`PERMISSION_KEY_RENAMES`), and `EVENT_TYPE_RENAMES` maps the old event. The
@@ -452,7 +451,7 @@ await db.contacts
 | `contact_identities` (`contact_id`, `external_id`)                | `person_identities` (`person_id`, `address`, `verified_at`) |
 | `person_inbox_contacts`                                           | none: the conversation's `contact_id` is the person         |
 | `personForInboxContact`, `linkInboxContact`, `unlinkInboxContact` | `findByIdentity`, `addIdentity`, `removeIdentity`           |
-| `inbox.contacts.upsert` (deprecated)                              | `contacts.savePerson` and `addIdentity`                     |
+| `inbox.contacts.upsert` and `upsert_contact` (removed)            | `contacts.savePerson` and `addIdentity`                     |
 
 A person has no user lifecycle of its own, so deleting a user no longer
 erases their inbox contact: call `purgeContact(personId)` for a data subject
@@ -536,12 +535,10 @@ npx better-supabase@latest db diff -f upgrade_0_46
 These keep working in 0.47 and go in 0.48. `codemod 0.47` and doctor point
 at each one.
 
-| Deprecated in 0.47                                                   | Use instead                                            |
-| -------------------------------------------------------------------- | ------------------------------------------------------ |
-| Old keys in `blocks.<name>.entities`                                 | The entity's singular                                  |
-| The old subject types                                                | `task`, `activity` and `compliance_policy`             |
-| The outbox `legacyEventTypes` option                                 | The new event types in every receiver                  |
-| Postmortem `actionItems` and the `action_items` column               | `addPostmortemAction` and the postmortem's `actions`   |
-| `acknowledgePolicy`, `acknowledgements(policyId)`, `{ pendingOnly }` | `db.acknowledgements.acknowledge`, `mine` and `status` |
-| `SequenceEnrollmentEventData`                                        | `EnrollmentEventData`                                  |
-| `inbox.contacts.upsert`                                              | `contacts.savePerson` and `contacts.addIdentity`       |
+| Deprecated in 0.47                                     | Use instead                                          |
+| ------------------------------------------------------ | ---------------------------------------------------- |
+| Old keys in `blocks.<name>.entities`                   | The entity's singular                                |
+| The old subject types                                  | `task`, `activity` and `compliance_policy`           |
+| The outbox `legacyEventTypes` option                   | The new event types in every receiver                |
+| Postmortem `actionItems` and the `action_items` column | `addPostmortemAction` and the postmortem's `actions` |
+| `SequenceEnrollmentEventData`                          | `EnrollmentEventData`                                |
