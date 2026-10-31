@@ -70,10 +70,12 @@ export async function RiskHeatmap() {
       <FrameHeader className="gap-0.5">
         <FrameTitle>{t("Heatmap")}</FrameTitle>
         <FrameDescription>
-          {t(
-            "{total, plural, =0 {No open risks} one {# open risk} other {# open risks}} on the {matrix} matrix, by residual rating.",
-            { total, matrix: matrixName },
-          )}
+          {matrixName === null
+            ? t("Create a risk matrix to see where the risks sit.")
+            : t(
+                "{total, plural, =0 {No open risks} one {# open risk} other {# open risks}} on the {matrix} matrix, by residual rating.",
+                { total, matrix: matrixName },
+              )}
         </FrameDescription>
       </FrameHeader>
       <FramePanel>
@@ -83,11 +85,19 @@ export async function RiskHeatmap() {
               <EmptyMedia variant="icon">
                 <GridIcon />
               </EmptyMedia>
-              <EmptyTitle>{t("Nothing assessed yet")}</EmptyTitle>
+              <EmptyTitle>
+                {matrixName === null
+                  ? t("No risk matrix yet")
+                  : t("Nothing assessed yet")}
+              </EmptyTitle>
               <EmptyDescription>
-                {t(
-                  "Assessed risks appear here in the cell of their residual likelihood and impact.",
-                )}
+                {matrixName === null
+                  ? t(
+                      "Add a matrix with its likelihood and impact levels and bands, then assess risks against it.",
+                    )
+                  : t(
+                      "Assessed risks appear here in the cell of their residual likelihood and impact.",
+                    )}
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
