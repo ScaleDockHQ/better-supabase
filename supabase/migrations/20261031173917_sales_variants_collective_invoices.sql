@@ -1561,6 +1561,9 @@ CREATE INDEX invoice_line_sources_order_line_idx ON better_supabase.invoice_line
 
 CREATE INDEX invoice_line_sources_source_idx ON better_supabase.invoice_line_sources USING btree (tenant_id, source, source_id);
 
+CREATE INDEX orders_variant_idx ON better_supabase.orders USING btree (variant_of)
+  WHERE (variant_of IS NOT NULL);
+
 CREATE INDEX quotes_variant_idx ON better_supabase.quotes USING btree (variant_of)
   WHERE (variant_of IS NOT NULL);
 

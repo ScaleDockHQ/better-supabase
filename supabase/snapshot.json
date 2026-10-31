@@ -291465,6 +291465,17 @@
             "partial": false,
             "method": "btree",
             "predicate": null
+          },
+          {
+            "name": "orders_variant_idx",
+            "columns": [
+              "variant_of"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": true,
+            "method": "btree",
+            "predicate": "(variant_of IS NOT NULL)"
           }
         ],
         "policies": [

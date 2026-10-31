@@ -540,6 +540,11 @@ create index if not exists ${ctx.naming.rename("orders_sequence_idx")} on ${t("o
       ? `
 create unique index if not exists ${ctx.naming.rename("orders_origin_idx")} on ${t("orders")} (${o("tenant")}, ${o("originType")}, ${o("originId")}) where ${o("originId")} is not null and ${ctx.is("orders", "status", o("status"), ["cancelled"], true)};`
       : ""
+  }${
+    ctx.has("orders", "variantOf")
+      ? `
+create index if not exists ${ctx.naming.rename("orders_variant_idx")} on ${t("orders")} (${o("variantOf")}) where ${o("variantOf")} is not null;`
+      : ""
   }${addExtraColumns(t("orders"), names.extras)}
 ${lockModuleTable(ctx, "orders", { read: true })}
 ${policy("orders", `${o("customer")} = (select auth.uid()) or ${tenantRead("orders")}`)}

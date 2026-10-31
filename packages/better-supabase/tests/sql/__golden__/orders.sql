@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:29b78d6a74e66b951f11085ad43745f6c27709576c4dc386486e20b36ef34246
+-- @bsb-hash sha256:9772ca22ef0a5e050f2166eda7929d90b537ad419b33a074eca0604368b74c10
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -276,6 +276,7 @@ create index if not exists orders_status_idx on "better_supabase"."orders" ("ten
 create index if not exists orders_customer_idx on "better_supabase"."orders" ("customer_id");
 create index if not exists orders_sequence_idx on "better_supabase"."orders" ("tenant_id", "sequence");
 create unique index if not exists orders_origin_idx on "better_supabase"."orders" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
+create index if not exists orders_variant_idx on "better_supabase"."orders" ("variant_of") where "variant_of" is not null;
 alter table "better_supabase"."orders" enable row level security;
 revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
@@ -2609,7 +2610,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:17359834e5bd67b0eb25444fea5ad02521bb813ee13fb925b0da6c51d3820ceb
+-- @bsb-hash sha256:b3790e098b3761475d815562399196ae1879ee5d14eb9dbf02a39012f900660c
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2884,6 +2885,7 @@ create index if not exists orders_status_idx on "better_supabase"."orders" ("ten
 create index if not exists orders_customer_idx on "better_supabase"."orders" ("customer_id");
 create index if not exists orders_sequence_idx on "better_supabase"."orders" ("tenant_id", "sequence");
 create unique index if not exists orders_origin_idx on "better_supabase"."orders" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
+create index if not exists orders_variant_idx on "better_supabase"."orders" ("variant_of") where "variant_of" is not null;
 alter table "better_supabase"."orders" enable row level security;
 revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
@@ -5444,7 +5446,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:232a626bd96ab5652d68f55a8244291f80b400b0024a52b100c5e98815a097b8
+-- @bsb-hash sha256:60c4ef2c14571194c6bb1410520a8d72f7638f2c5b0c3c7bd7db653bebd5e989
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5724,6 +5726,7 @@ create index if not exists orders_status_idx on "app_private"."orders" ("tenant_
 create index if not exists orders_customer_idx on "app_private"."orders" ("customer_id");
 create index if not exists orders_sequence_idx on "app_private"."orders" ("tenant_id", "sequence");
 create unique index if not exists orders_origin_idx on "app_private"."orders" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
+create index if not exists orders_variant_idx on "app_private"."orders" ("variant_of") where "variant_of" is not null;
 alter table "app_private"."orders" enable row level security;
 revoke all on "app_private"."orders" from public, anon, authenticated;
 grant select on "app_private"."orders" to authenticated;
@@ -8057,7 +8060,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:c8c99e9210b0082309995b5a485fc87232777aa8a2f7a52ad6992c698a5cd827
+-- @bsb-hash sha256:fdfc572f51e3f765f9c66a748718b39351589992a4a00dd8ed305af9d1710d77
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8332,6 +8335,7 @@ create index if not exists orders_status_idx on "better_supabase"."orders" ("ten
 create index if not exists orders_customer_idx on "better_supabase"."orders" ("customer_id");
 create index if not exists orders_sequence_idx on "better_supabase"."orders" ("tenant_id", "sequence");
 create unique index if not exists orders_origin_idx on "better_supabase"."orders" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
+create index if not exists orders_variant_idx on "better_supabase"."orders" ("variant_of") where "variant_of" is not null;
 alter table "better_supabase"."orders" enable row level security;
 revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
@@ -10986,7 +10990,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:9ef17cc2c10313932c1e050086b847436c0c768970bd0b377a8bd28f164d5cc7
+-- @bsb-hash sha256:43e6c192b534c9712c8447646760313e3513f30083240f893aae41a789dc0a9a
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11267,6 +11271,7 @@ create index if not exists orders_status_idx on "better_supabase"."orders" ("ten
 create index if not exists orders_customer_idx on "better_supabase"."orders" ("customer_id");
 create index if not exists orders_sequence_idx on "better_supabase"."orders" ("tenant_id", "sequence");
 create unique index if not exists orders_origin_idx on "better_supabase"."orders" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
+create index if not exists orders_variant_idx on "better_supabase"."orders" ("variant_of") where "variant_of" is not null;
 alter table "better_supabase"."orders" enable row level security;
 grant select on "better_supabase"."orders" to authenticated;
 grant all on "better_supabase"."orders" to service_role;
@@ -13585,7 +13590,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:5e00a3a71c47bb4c08884a8b285fc5a159dad39169415b7010ce86c856967f04
+-- @bsb-hash sha256:c3ede74a03ad4190e11fd966c356a4bdc5b8bedd77cd4a39ad166694f6a0357e
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13860,6 +13865,7 @@ create index if not exists orders_status_idx on "better_supabase"."orders" ("org
 create index if not exists orders_customer_idx on "better_supabase"."orders" ("customer_id");
 create index if not exists orders_sequence_idx on "better_supabase"."orders" ("org_id", "sequence");
 create unique index if not exists orders_origin_idx on "better_supabase"."orders" ("org_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
+create index if not exists orders_variant_idx on "better_supabase"."orders" ("variant_of") where "variant_of" is not null;
 alter table "better_supabase"."orders" enable row level security;
 revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
