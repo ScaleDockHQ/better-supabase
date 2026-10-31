@@ -6,8 +6,8 @@ import type {
   BlockSqlEvents,
   BlockSqlTableSpec,
 } from "../context.ts";
-import type { InvoiceNames } from "./invoices-functions.ts";
 import type { InvoiceLedger } from "./invoices-ledger.ts";
+import type { InvoiceNames } from "./invoices-names.ts";
 import type { BlockSqlOperations } from "./permissions-model.ts";
 
 import { bookSource } from "../accounting-sources-sql.ts";

@@ -1,10 +1,27 @@
 -- ==== schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:e9d5a9a22a9efbc60a7fdfa2748b5121037bf9b98a81699f4dad7554310d6fde
+-- @bsb-hash sha256:b58482b28775c266cbc4ebe705884a8edd0cfdb3c62da0b36019a399386a1233
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.import_run()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
+  end;
+$$;
+revoke execute on function better_supabase.import_run() from public;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -526,9 +543,18 @@ begin
         using schedule_inspection.tenant, schedule_inspection.input;
     end if;
   end;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(schedule_inspection.tenant::text || ':inspection', 0));
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'inspection' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'inspection' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    if better_supabase.import_run() is null then
+      raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
+    end if;
+    v_seq := coalesce(substring(v_number from '([0-9]+)$')::bigint, 0);
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(schedule_inspection.tenant::text || ':inspection', 0));
   select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."inspections" x where x."tenant_id" = schedule_inspection.tenant;
   v_number := 'AUD-' || v_seq::text;
+  end if;
   insert into "better_supabase"."inspections" ("tenant_id", "program_id", "number", "sequence", "kind", "title", "scope", "criteria", "auditee_type", "auditee_id", "planned_start", "planned_end", "checklist_form_id", "created_by")
   values (schedule_inspection.tenant, v_program, v_number, v_seq, v_kind, v_title, nullif(trim(schedule_inspection.input ->> 'scope'), ''), nullif(trim(schedule_inspection.input ->> 'criteria'), ''), v_auditee_type, v_auditee_id, v_start, v_end, v_form, auth.uid())
   returning * into v_row;

@@ -46,6 +46,14 @@ export interface SequenceEntity {
   readonly assignOn: string;
   readonly periodColumn?: string;
   readonly permission?: string;
+  /** A uuid column of `table` (a legal entity) that scopes the series. */
+  readonly scopeColumn?: string;
+  /** `kind`: credit notes have their own series; `none`: one shared series. */
+  readonly series: "kind" | "none";
+  /** SQL over `t` that picks the rows this series numbers (sync only). */
+  readonly rowFilter?: string;
+  /** The table's rows are numbered elsewhere: sync reads them, no trigger. */
+  readonly syncOnly?: boolean;
 }
 
 const YEAR_TOKEN = /\{yy(?:yy)?\}/;
@@ -89,6 +97,91 @@ function tenantSource(where: string, value: unknown): TenantColumn | undefined {
  * app leaves out.
  */
 export function sequences(ctx: BlockSqlContext): readonly SequenceEntity[] {
+  return withInvoiceSources(ctx, ownSequences(ctx));
+}
+
+/**
+ * The invoices table numbers its rows in `issue_invoice`, so an entity named
+ * `invoice` or `credit_note` (and their purchase twins) with no table of its
+ * own gets one for `sync_number_sequences`: the issued rows of its kind and
+ * direction, scoped by the legal entity column when `options.on` has one.
+ */
+function withInvoiceSources(
+  ctx: BlockSqlContext,
+  items: readonly SequenceEntity[],
+): readonly SequenceEntity[] {
+  if (!ctx.installed("invoices")) {
+    return items;
+  }
+
+  const own = ctx.of("invoices");
+
+  if (own.mode === "custom") {
+    return items;
+  }
+
+  const direction = own.has("invoices", "direction");
+
+  const scoped =
+    ctx.installed("legal-entities") &&
+    ctx.of("legal-entities").list("on", []).includes("invoices");
+
+  const roles: readonly {
+    readonly name: string;
+    readonly credit: boolean;
+    readonly purchase: boolean;
+  }[] = [
+    { name: "invoice", credit: false, purchase: false },
+    { name: "credit_note", credit: true, purchase: false },
+    { name: "purchase_bill", credit: false, purchase: true },
+    { name: "purchase_credit_note", credit: true, purchase: true },
+  ];
+
+  const { schema, name: tableName } = own.tableName("invoices");
+
+  return items.map((item) => {
+    const role = roles.find(({ name }) => name === item.name);
+
+    if (role === undefined || item.table !== undefined) {
+      return item;
+    }
+
+    if (role.purchase && !direction) {
+      return item;
+    }
+
+    const twin = role.purchase ? "purchase_bill" : "invoice";
+
+    const shared =
+      items.find((other) => other.name === twin)?.series === "none";
+
+    if (role.credit && shared) {
+      return item;
+    }
+
+    const side = direction
+      ? ` and t.${own.col("invoices", "direction")} = '${role.purchase ? "purchase" : "sales"}'`
+      : "";
+
+    const kind = shared
+      ? ""
+      : ` and ${own.is("invoices", "kind", `t.${own.col("invoices", "kind")}`, [role.credit ? "credit_note" : "invoice"])}`;
+
+    return {
+      ...item,
+      table: `${schema}.${tableName}`,
+      column: own.colName("invoices", "identifier"),
+      sequenceColumn: own.colName("invoices", "number"),
+      tenantColumn: own.colName("invoices", "tenant"),
+      periodColumn: own.colName("invoices", "issuedOn"),
+      ...(scoped ? { scopeColumn: "legal_entity_id" } : {}),
+      rowFilter: `true${side}${kind}`,
+      syncOnly: true,
+    };
+  });
+}
+
+function ownSequences(ctx: BlockSqlContext): readonly SequenceEntity[] {
   const raw = ctx.option("entities");
 
   if (
@@ -272,6 +365,25 @@ function entity(
     throw new TypeError(`${where}.permission must be a permission key`);
   }
 
+  const scopeColumn = record["scopeColumn"];
+
+  if (
+    scopeColumn !== undefined &&
+    (typeof scopeColumn !== "string" ||
+      !ENTITY.test(scopeColumn) ||
+      table === undefined)
+  ) {
+    throw new TypeError(
+      `${where}.scopeColumn must be a column name, with table and column set`,
+    );
+  }
+
+  const series = record["series"] ?? "kind";
+
+  if (series !== "kind" && series !== "none") {
+    throw new TypeError(`${where}.series must be "kind" or "none"`);
+  }
+
   const assignOn = record["assignOn"] ?? "true";
 
   if (typeof assignOn !== "string" || !isPredicate(assignOn)) {
@@ -295,6 +407,8 @@ function entity(
     assignOn,
     ...(typeof periodColumn === "string" ? { periodColumn } : {}),
     ...(typeof permission === "string" ? { permission } : {}),
+    ...(typeof scopeColumn === "string" ? { scopeColumn } : {}),
+    series,
   };
 }
 

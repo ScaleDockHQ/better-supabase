@@ -1476,9 +1476,9 @@ export interface BlockNameRegistry {
   };
   readonly "numbering": {
     readonly tables: {
-      readonly "sequences": "tenant" | "entity" | "period" | "lastNumber" | "createdAt" | "updatedAt";
+      readonly "sequences": "tenant" | "entity" | "scope" | "period" | "lastNumber" | "createdAt" | "updatedAt";
     };
-    readonly functions: "next_number" | "number_format" | "number_period" | "preview_number" | "sync_number_sequences";
+    readonly functions: "next_number" | "number_format" | "number_period" | "number_scope" | "preview_number" | "register_fixed_number" | "set_fixed_number" | "sync_number_sequences";
     readonly actions: "assign";
     readonly hooks: "before_number_assign" | "after_number_assign";
     readonly entities: {};

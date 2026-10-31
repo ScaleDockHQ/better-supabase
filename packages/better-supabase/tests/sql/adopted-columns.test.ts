@@ -238,7 +238,7 @@ create table public.app_events (
       { "public.org_sequences": "supabase/schemas/sequences.sql" },
     );
 
-    expect(table?.textColumns).toEqual(["period"]);
+    expect(table?.textColumns).toEqual(["scope", "period"]);
   });
 
   it("leaves out a mappable column the app gives a values entry", () => {

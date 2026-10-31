@@ -1,5 +1,5 @@
 import type { BlockSqlContext } from "../context.ts";
-import type { InvoiceNames } from "./invoices-functions.ts";
+import type { InvoiceNames } from "./invoices-names.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { tryColumnType } from "../column-type.ts";

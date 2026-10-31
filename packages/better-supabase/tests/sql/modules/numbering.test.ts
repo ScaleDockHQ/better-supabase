@@ -22,7 +22,7 @@ describe("number sequences", () => {
       '"next_number"(uuid, text, timestamptz) to authenticated',
     );
     expect(sql).toContain(
-      'grant execute on function "better_supabase"."preview_number"(uuid, text, timestamptz) to authenticated, service_role;',
+      'grant execute on function "better_supabase"."preview_number"(uuid, text, timestamptz, text) to authenticated, service_role;',
     );
     expect(sql).toContain(
       "coalesce(better_supabase.can('tenant', p_tenant, 'numbering.assign'), false)",
@@ -183,7 +183,7 @@ describe("number sequences", () => {
     });
 
     expect(sql).toContain(
-      '"better_supabase"."sync_number_sequences"(p_tenant uuid default null, p_entity text default null)',
+      '"better_supabase"."sync_number_sequences"(p_tenant uuid default null, p_entity text default null, p_scope text default null)',
     );
     expect(sql).toContain(
       "p_entity in ('invoice', 'order', 'receipt', 'quote')",
@@ -192,7 +192,7 @@ describe("number sequences", () => {
       "regexp_match(t.\"number\"::text, '^INV-([0-9]{4})-([0-9]+)$')",
     );
     expect(sql).toContain(
-      'select t."organization_id" as tenant, m.parts[1] as period, (m.parts[2])::bigint as n',
+      "select t.\"organization_id\" as tenant, '' as scope, m.parts[1] as period, (m.parts[2])::bigint as n",
     );
     expect(sql).toContain("'^PO\\.([0-9]{2})([0-9]{2})/([0-9]+)$'");
     expect(sql).toContain(
@@ -212,7 +212,7 @@ describe("number sequences", () => {
       'greatest("better_supabase"."number_sequences"."last_number", excluded."last_number")',
     );
     expect(sql).toContain(
-      'grant execute on function "better_supabase"."sync_number_sequences"(uuid, text) to service_role;',
+      'grant execute on function "better_supabase"."sync_number_sequences"(uuid, text, text) to service_role;',
     );
   });
 
@@ -485,5 +485,73 @@ describe("per-tenant periods", () => {
         },
       }),
     ).toThrow(/periodFrom\.column must be/);
+  });
+
+  it("validates series and scopeColumn", () => {
+    const entity = (extra: Record<string, unknown>): AnyBlocksConfig => ({
+      numbering: {
+        options: {
+          entities: {
+            doc: {
+              period: "none",
+              format: "{n}",
+              table: "public.docs",
+              column: "number",
+              ...extra,
+            },
+          },
+        },
+      },
+    });
+
+    expect(() => sqlOf(entity({ series: "many" }))).toThrow(/series/);
+    expect(() => sqlOf(entity({ scopeColumn: 5 }))).toThrow(/scopeColumn/);
+    expect(() => sqlOf(entity({ scopeColumn: "a b" }))).toThrow(/scopeColumn/);
+    expect(() =>
+      sqlOf({
+        numbering: {
+          options: {
+            entities: {
+              doc: { period: "none", format: "{n}", scopeColumn: "entity_id" },
+            },
+          },
+        },
+      }),
+    ).toThrow(/scopeColumn/);
+    expect(
+      sqlOf(entity({ series: "none", scopeColumn: "entity_id" })),
+    ).toContain("entity_id");
+  });
+
+  it("derives the sync sources of invoices and credit notes", () => {
+    const render = (
+      series: string,
+      invoices: Record<string, unknown> = {},
+    ): string =>
+      renderBlocks(["invoices", "numbering"], {
+        modules: {
+          invoices,
+          numbering: {
+            options: {
+              entities: {
+                invoice: { period: "year", format: "{yy}{n:6}", series },
+                credit_note: { period: "year", format: "CN{n:4}" },
+                purchase_bill: { period: "year", format: "B{n}" },
+              },
+            },
+          },
+        },
+      })
+        .filter((file) => file.module === "numbering")
+        .map((file) => file.contents)
+        .join("\n");
+
+    const kinds = render("kind");
+    const shared = render("none");
+
+    expect(kinds).toContain("credit_note");
+    expect(kinds).toContain("issued_on");
+    expect(shared).toContain("issued_on");
+    expect(render("kind", { mode: "custom" })).not.toContain("issued_on");
   });
 });

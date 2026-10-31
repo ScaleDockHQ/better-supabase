@@ -1,6 +1,6 @@
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:4d24ce1a497fb8af1ea98046265c38da0f95d054b21c3d58e359ce0cfe2cd180
+-- @bsb-hash sha256:769bb40d651d0034ab0f907c4e12f123e3adfbea29e4611e65622a2997efb7dd
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -944,8 +944,14 @@ begin
   if v_bom is null then
     raise exception 'the variant has no active bill of materials' using errcode = '55000', hint = 'BOM_NOT_ACTIVE';
   end if;
-  v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(create_production_order.tenant, 'production_order', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(create_production_order.tenant, 'production_order', now(), '');
   v_number := better_supabase.format_assigned_number('MO-{yyyy}-{n:4}', v_seq, now());
+  end if;
   insert into "better_supabase"."production_orders" ("tenant_id", "number", "sequence", "variant_id", "bom_id", "quantity", "location_id", "due_on", "note", "created_by")
   values (create_production_order.tenant, v_number, v_seq, v_variant, v_bom, v_quantity, v_location,
     nullif(create_production_order.input ->> 'dueOn', '')::date, nullif(trim(create_production_order.input ->> 'note'), ''), auth.uid())

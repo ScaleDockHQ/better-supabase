@@ -26,11 +26,12 @@ create type public.tag_kind as enum ('task', 'customer');
 create table public.org_sequences (
   organization_id uuid not null,
   entity public.subject_type not null,
+  scope text not null default '',
   period text not null default '',
   last_number bigint not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  primary key (organization_id, entity, period)
+  primary key (organization_id, entity, scope, period)
 );
 
 create table public.invoices (

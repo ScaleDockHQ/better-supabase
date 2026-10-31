@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:3b4bfa06fbc9c51e9fb27eda662959cb35e5d18f4abd1af199b9ac0483ef62bb
+-- @bsb-hash sha256:5f64d13b21184cf10e675ef78dd27ef298b1673fa00065f54a3c5be295ecea3a
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -784,8 +784,14 @@ begin
     select * into v_receipt from "better_supabase"."donation_receipts" x where x."id" = v_row."receipt_id";
     return jsonb_build_object('id', v_receipt."id", 'organizationId', v_receipt."tenant_id", 'donorType', v_receipt."donor_type", 'donorId', v_receipt."donor_id", 'sequence', v_receipt."sequence"::text, 'number', v_receipt."number", 'kind', v_receipt."kind", 'year', v_receipt."year", 'amount', v_receipt."amount"::text, 'currency', v_receipt."currency", 'issuedAt', v_receipt."issued_at", 'voidedAt', v_receipt."voided_at", 'voidReason', v_receipt."void_reason");
   end if;
-  v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(v_row."tenant_id", 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (v_row."tenant_id", v_row."donor_type", v_row."donor_id", v_seq, v_number, 'gift', extract(year from v_row."received_on")::integer,
     v_row."amount", v_row."currency")
@@ -838,8 +844,14 @@ begin
   if v_amount <= 0 then
     raise exception 'the donor has no posted gifts in this year and currency' using errcode = '22023', hint = 'DONATION_RECEIPT_EMPTY';
   end if;
-  v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(issue_yearly_receipt.tenant, 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (issue_yearly_receipt.tenant, issue_yearly_receipt.donor_type, issue_yearly_receipt.donor_id, v_seq, v_number, 'yearly',
     issue_yearly_receipt.year, v_amount, issue_yearly_receipt.currency)
@@ -1097,7 +1109,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:8b1cb2251decda5aefdbb6c141b4a792bc9afd73983d67a038e5e4eac6d2f8a6
+-- @bsb-hash sha256:1f73b6ee55ca6351e7f7adf2de94aae96c4898a26c8d4d423af0181d38c513fa
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1944,8 +1956,14 @@ begin
     select * into v_receipt from "better_supabase"."donation_receipts" x where x."id" = v_row."receipt_id";
     return jsonb_build_object('id', v_receipt."id", 'organizationId', v_receipt."tenant_id", 'donorType', v_receipt."donor_type", 'donorId', v_receipt."donor_id", 'sequence', v_receipt."sequence"::text, 'number', v_receipt."number", 'kind', v_receipt."kind", 'year', v_receipt."year", 'amount', v_receipt."amount"::text, 'currency', v_receipt."currency", 'issuedAt', v_receipt."issued_at", 'voidedAt', v_receipt."voided_at", 'voidReason', v_receipt."void_reason");
   end if;
-  v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(v_row."tenant_id", 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (v_row."tenant_id", v_row."donor_type", v_row."donor_id", v_seq, v_number, 'gift', extract(year from v_row."received_on")::integer,
     v_row."amount", v_row."currency")
@@ -2008,8 +2026,14 @@ begin
   if v_amount <= 0 then
     raise exception 'the donor has no posted gifts in this year and currency' using errcode = '22023', hint = 'DONATION_RECEIPT_EMPTY';
   end if;
-  v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(issue_yearly_receipt.tenant, 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (issue_yearly_receipt.tenant, issue_yearly_receipt.donor_type, issue_yearly_receipt.donor_id, v_seq, v_number, 'yearly',
     issue_yearly_receipt.year, v_amount, issue_yearly_receipt.currency)
@@ -2309,7 +2333,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:daf38b599ea3ca6615786131e9d9b7d1e9c664cba0fd2be4d41b1be43e8e6d2e
+-- @bsb-hash sha256:b50406112629055679b61e02ecdc4c85bf2c5b67256f8428e61b0c00d2973872
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3097,8 +3121,14 @@ begin
     select * into v_receipt from "app_private"."donation_receipts" x where x."id" = v_row."receipt_id";
     return jsonb_build_object('id', v_receipt."id", 'organizationId', v_receipt."tenant_id", 'donorType', v_receipt."donor_type", 'donorId', v_receipt."donor_id", 'sequence', v_receipt."sequence"::text, 'number', v_receipt."number", 'kind', v_receipt."kind", 'year', v_receipt."year", 'amount', v_receipt."amount"::text, 'currency', v_receipt."currency", 'issuedAt', v_receipt."issued_at", 'voidedAt', v_receipt."voided_at", 'voidReason', v_receipt."void_reason");
   end if;
-  v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(v_row."tenant_id", 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "app_private"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (v_row."tenant_id", v_row."donor_type", v_row."donor_id", v_seq, v_number, 'gift', extract(year from v_row."received_on")::integer,
     v_row."amount", v_row."currency")
@@ -3151,8 +3181,14 @@ begin
   if v_amount <= 0 then
     raise exception 'the donor has no posted gifts in this year and currency' using errcode = '22023', hint = 'DONATION_RECEIPT_EMPTY';
   end if;
-  v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(issue_yearly_receipt.tenant, 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "app_private"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (issue_yearly_receipt.tenant, issue_yearly_receipt.donor_type, issue_yearly_receipt.donor_id, v_seq, v_number, 'yearly',
     issue_yearly_receipt.year, v_amount, issue_yearly_receipt.currency)
@@ -3410,7 +3446,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:b39768a5386343351c99e3b42783d1b964fec21d2cfa8eb26c7262574045fa30
+-- @bsb-hash sha256:f8a45d9168c16033ca35541c2eefb947a68b6205c3e234daaa77e0035e29e485
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4193,8 +4229,14 @@ begin
     select * into v_receipt from "better_supabase"."donation_receipts" x where x."id" = v_row."receipt_id";
     return jsonb_build_object('id', v_receipt."id", 'organizationId', v_receipt."tenant_id", 'donorType', v_receipt."donor_type", 'donorId', v_receipt."donor_id", 'sequence', v_receipt."sequence"::text, 'number', v_receipt."number", 'kind', v_receipt."kind", 'year', v_receipt."year", 'amount', v_receipt."amount"::text, 'currency', v_receipt."currency", 'issuedAt', v_receipt."issued_at", 'voidedAt', v_receipt."voided_at", 'voidReason', v_receipt."void_reason");
   end if;
-  v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(v_row."tenant_id", 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (v_row."tenant_id", v_row."donor_type", v_row."donor_id", v_seq, v_number, 'gift', extract(year from v_row."received_on")::integer,
     v_row."amount", v_row."currency")
@@ -4247,8 +4289,14 @@ begin
   if v_amount <= 0 then
     raise exception 'the donor has no posted gifts in this year and currency' using errcode = '22023', hint = 'DONATION_RECEIPT_EMPTY';
   end if;
-  v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(issue_yearly_receipt.tenant, 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (issue_yearly_receipt.tenant, issue_yearly_receipt.donor_type, issue_yearly_receipt.donor_id, v_seq, v_number, 'yearly',
     issue_yearly_receipt.year, v_amount, issue_yearly_receipt.currency)
@@ -4684,7 +4732,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:4579393109c4406b0b1c98ccb0b3f2df48cf9ba4ad6b83431f81e2a5c0b1abd5
+-- @bsb-hash sha256:ab174b6ea2043327799041db43219e22d24d6602ca377530e43552c2d03b4626
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5468,8 +5516,14 @@ begin
     select * into v_receipt from "better_supabase"."donation_receipts" x where x."id" = v_row."receipt_id";
     return jsonb_build_object('id', v_receipt."id", 'organizationId', v_receipt."tenant_id", 'donorType', v_receipt."donor_type", 'donorId', v_receipt."donor_id", 'sequence', v_receipt."sequence"::text, 'number', v_receipt."number", 'kind', v_receipt."kind", 'year', v_receipt."year", 'amount', v_receipt."amount"::text, 'currency', v_receipt."currency", 'issuedAt', v_receipt."issued_at", 'voidedAt', v_receipt."voided_at", 'voidReason', v_receipt."void_reason");
   end if;
-  v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(v_row."tenant_id", 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (v_row."tenant_id", v_row."donor_type", v_row."donor_id", v_seq, v_number, 'gift', extract(year from v_row."received_on")::integer,
     v_row."amount", v_row."currency")
@@ -5522,8 +5576,14 @@ begin
   if v_amount <= 0 then
     raise exception 'the donor has no posted gifts in this year and currency' using errcode = '22023', hint = 'DONATION_RECEIPT_EMPTY';
   end if;
-  v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(issue_yearly_receipt.tenant, 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (issue_yearly_receipt.tenant, issue_yearly_receipt.donor_type, issue_yearly_receipt.donor_id, v_seq, v_number, 'yearly',
     issue_yearly_receipt.year, v_amount, issue_yearly_receipt.currency)
@@ -5781,7 +5841,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:417fd26c895a22857e6ebb2df4ae59d9a257f4cb251e80ac8f872bb99817b726
+-- @bsb-hash sha256:5373ce379ff82b7c6631d7958a99476f916b8c3210b7064b58cf8858b0dcbba1
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6564,8 +6624,14 @@ begin
     select * into v_receipt from "better_supabase"."donation_receipts" x where x."id" = v_row."receipt_id";
     return jsonb_build_object('id', v_receipt."id", 'organizationId', v_receipt."org_id", 'donorType', v_receipt."donor_type", 'donorId', v_receipt."donor_id", 'sequence', v_receipt."sequence"::text, 'number', v_receipt."number", 'kind', v_receipt."kind", 'year', v_receipt."year", 'amount', v_receipt."amount"::text, 'currency', v_receipt."currency", 'issuedAt', v_receipt."issued_at", 'voidedAt', v_receipt."voided_at", 'voidReason', v_receipt."void_reason");
   end if;
-  v_seq := "better_supabase"."next_number"(v_row."org_id", 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(v_row."org_id", 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(v_row."org_id", 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "better_supabase"."donation_receipts" ("org_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (v_row."org_id", v_row."donor_type", v_row."donor_id", v_seq, v_number, 'gift', extract(year from v_row."received_on")::integer,
     v_row."amount", v_row."currency")
@@ -6618,8 +6684,14 @@ begin
   if v_amount <= 0 then
     raise exception 'the donor has no posted gifts in this year and currency' using errcode = '22023', hint = 'DONATION_RECEIPT_EMPTY';
   end if;
-  v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'donation_receipt' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(issue_yearly_receipt.tenant, 'donation_receipt', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now(), '');
   v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
+  end if;
   insert into "better_supabase"."donation_receipts" ("org_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (issue_yearly_receipt.tenant, issue_yearly_receipt.donor_type, issue_yearly_receipt.donor_id, v_seq, v_number, 'yearly',
     issue_yearly_receipt.year, v_amount, issue_yearly_receipt.currency)

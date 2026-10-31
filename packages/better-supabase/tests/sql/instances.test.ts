@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { BlockSqlFile } from "../../src/sql/module-types.ts";
 
 import { resolveConfig } from "../../src/config/resolve.ts";
+import { withColumnTypeFunction } from "../../src/sql/column-type.ts";
 import {
   createdNames,
   renameIdentifiers,
@@ -72,6 +73,13 @@ describe("block instances", () => {
   it("gives every instance names its block's other instance doesn't create", () => {
     const shared = new Map<string, number>();
 
+    // The helpers every module that calls them defines for itself.
+    const helpers = createdNames(
+      withColumnTypeFunction(
+        "better_supabase.as_column_type( better_supabase.try_column_type( better_supabase.value_unsupported( better_supabase.column_default( better_supabase.import_run(",
+      ),
+    );
+
     for (const file of files) {
       if (file.kind === "schema" && file.instance === undefined) {
         for (const name of createdNames(file.contents)) {
@@ -88,7 +96,8 @@ describe("block instances", () => {
       const own = createdNames(schemaOf(block).contents);
 
       const clashes = [...createdNames(schemaOf(instance).contents)].filter(
-        (name) => own.has(name) && (shared.get(name) ?? 0) < 2,
+        (name) =>
+          own.has(name) && !helpers.has(name) && (shared.get(name) ?? 0) < 2,
       );
 
       expect({ instance, clashes }).toStrictEqual({ instance, clashes: [] });

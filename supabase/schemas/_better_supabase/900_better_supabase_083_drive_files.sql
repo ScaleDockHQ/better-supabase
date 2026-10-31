@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:a81ace354358fa2c8bf997f4bdfcdbd0e4558a3d8c9f026a5be4db63415b6791
+-- @bsb-hash sha256:b8a3b4c3d9a865d35b680d40c2b512fc91bacbd528698a5359981f76244aafb3
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1203,8 +1203,14 @@ begin
         v_entity := 'drive_document';
         v_format := 'DOC-{n:5}';
     end case;
+    if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = v_entity then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = v_entity then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(v_node."tenant_id", v_entity, v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
     v_seq := "better_supabase"."next_number"(v_node."tenant_id", v_entity, now());
     v_number := better_supabase.format_assigned_number(v_format, v_seq, now());
+  end if;
   end if;
   update "better_supabase"."drive_nodes" x set "document_number" = v_number,
     "document_type" = drive_document_save.document_type,

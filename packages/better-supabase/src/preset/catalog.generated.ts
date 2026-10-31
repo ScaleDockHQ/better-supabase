@@ -1384,7 +1384,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "audit"
+        "audit",
+        "invoices",
+        "legal-entities",
+        "imports"
       ],
       "manifest": "numbering",
       "scopes": [
@@ -3829,6 +3832,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "notifications",
         "numbering",
+        "legal-entities",
         "quotes",
         "relations",
         "accounting",

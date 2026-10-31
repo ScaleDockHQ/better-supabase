@@ -1,6 +1,6 @@
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:28a5cc8a7d9d388e8161f9b05295e8498a208cdf701a7617cca3c6d68f47d497
+-- @bsb-hash sha256:4269d9e59caed7c284226a35598edeeb54adb38b7e49a4f76f1cf090faf14cae
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -491,8 +491,14 @@ begin
         using create_risk.tenant, create_risk.input;
     end if;
   end;
-  v_seq := "better_supabase"."next_number"(create_risk.tenant, 'risk', now());
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'risk' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'risk' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+    v_seq := "better_supabase"."register_fixed_number"(create_risk.tenant, 'risk', v_number, now(), '');
+    perform set_config('better_supabase.fixed_number', '', true);
+  else
+    v_seq := "better_supabase"."next_number"(create_risk.tenant, 'risk', now(), '');
   v_number := better_supabase.format_assigned_number('RSK-{n:4}', v_seq, now());
+  end if;
   insert into "better_supabase"."risks" ("tenant_id", "number", "sequence", "matrix_id", "title", "category", "description", "cause", "consequence", "owner_id", "review_interval_months", "created_by")
   values (create_risk.tenant, v_number, v_seq, v_matrix, v_title, v_category, nullif(trim(create_risk.input ->> 'description'), ''), nullif(trim(create_risk.input ->> 'cause'), ''), nullif(trim(create_risk.input ->> 'consequence'), ''), nullif(create_risk.input ->> 'ownerId', '')::uuid, (create_risk.input ->> 'reviewIntervalMonths')::integer, auth.uid())
   returning * into v_row;

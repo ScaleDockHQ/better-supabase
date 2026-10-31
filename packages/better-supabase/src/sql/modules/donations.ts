@@ -503,11 +503,11 @@ function receiptNumbersUpgrade(ctx: BlockSqlContext): string {
   const receipt = (column: string): string => ctx.col("receipts", column);
 
   return `${sequencesTable(numbering)}
-insert into ${sequences} (${seq("tenant")}, ${seq("entity")}, ${seq("period")}, ${seq("lastNumber")})
-select r.${receipt("tenant")}, ${numbering.cast("sequences", "entity", sqlString(receiptEntity(ctx)))}, '', max(r.${receipt("sequence")})
+insert into ${sequences} (${seq("tenant")}, ${seq("entity")}, ${seq("scope")}, ${seq("period")}, ${seq("lastNumber")})
+select r.${receipt("tenant")}, ${numbering.cast("sequences", "entity", sqlString(receiptEntity(ctx)))}, '', '', max(r.${receipt("sequence")})
 from ${ctx.table("receipts")} r
 group by r.${receipt("tenant")}
-on conflict (${seq("tenant")}, ${seq("entity")}, ${seq("period")})
+on conflict (${seq("tenant")}, ${seq("entity")}, ${seq("scope")}, ${seq("period")})
 do update set ${seq("lastNumber")} = greatest(${sequences}.${seq("lastNumber")}, excluded.${seq("lastNumber")});`;
 }
 
