@@ -200,6 +200,10 @@ may be your own enum or domain.
   - `better_supabase.product_translations`, once mapped: `tenant_id`, `product_id`, `locale`, `title`, `updated_at`
   - `better_supabase.product_variant_translations`, once mapped: `tenant_id`, `variant_id`, `locale`, `title`, `updated_at`
   - `better_supabase.product_media`, once mapped: `id`, `tenant_id`, `product_id`, `variant_id`, `attachment_id`, `position`, `alt`, `created_at`
+  - `better_supabase.product_identifiers`, once mapped: `id`, `tenant_id`, `variant_id`, `type`, `value`, `party_id`, `created_at`, `updated_at`
+  - `better_supabase.product_relations`, once mapped: `tenant_id`, `from_variant_id`, `to_variant_id`, `kind`, `created_at`
+  - `better_supabase.supplier_items`, once mapped: `id`, `tenant_id`, `supplier_id`, `code`, `description`, `price`, `currency`, `unit`, `keywords_text`, `keywords`, `variant_id`, `created_at`, `updated_at`
+  - `better_supabase.supplier_item_mappings`, once mapped: `tenant_id`, `supplier_id`, `columns`, `defaults`, `updated_at`
 - `channels`
   - `better_supabase.channels`: `id`, `tenant_id`, `name`, `visibility`, `topic`, `purpose`, `created_by`; typed: `visibility`
 - `chat-sdk-state`

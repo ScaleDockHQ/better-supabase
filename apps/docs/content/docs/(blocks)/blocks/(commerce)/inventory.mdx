@@ -76,6 +76,28 @@ per organization. `setLocationActive(id, false)` stops new reservations and
 transfers at a location, and a location with stock history can't be deleted
 (`INVENTORY_LOCATION_IN_USE`).
 
+### Location address
+
+`setLocationAddress` stores where a location is, for shipping labels and
+customs documents:
+
+```ts
+await db.inventory
+  .setLocationAddress(warehouse.id, {
+    line1: "Dam 1",
+    postalCode: "1012 JS",
+    city: "Amsterdam",
+    country: "NL",
+  })
+  .orThrow();
+```
+
+The keys are `line1`, `line2`, `postalCode`, `city`, `region` and `country`,
+all text, and `country` is a two-letter ISO 3166 code in capitals. Any other
+key or a bad country fails with `INVENTORY_ADDRESS_INVALID`. Passing `null`
+clears the address. Locations at the assets block keep their own columns, so
+the address column exists only on inventory's own `locations` table.
+
 ### Stock at the assets locations
 
 With the [assets](/docs/blocks/assets) block installed, turn the

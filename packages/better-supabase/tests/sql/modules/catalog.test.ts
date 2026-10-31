@@ -235,4 +235,53 @@ describe("catalog module", () => {
       );
     }
   });
+
+  it("adds identifiers, relations and supplier items", () => {
+    const sql = sqlOf();
+
+    for (const table of [
+      "product_identifiers",
+      "product_relations",
+      "supplier_items",
+      "supplier_item_mappings",
+    ]) {
+      expect(sql).toContain(
+        `create table if not exists "better_supabase"."${table}"`,
+      );
+    }
+
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."save_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)',
+    );
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."promote_supplier_item"(item uuid, sku text default null)',
+    );
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."set_variant_trade_code"(variant uuid, trade_code text)',
+    );
+    expect(sql).toContain("CATALOG_RELATION_CYCLE");
+    expect(sql).toContain("CATALOG_SKU_TAKEN");
+    expect(sql).toContain(`"trade_code" text`);
+    expect(sql).toContain("using gin");
+  });
+
+  it("registers the supplier item and identifier import targets", () => {
+    const sql = renderBlocks(["catalog", "imports"], {})
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain('"better_supabase"."import_supplier_item"');
+    expect(sql).toContain('"better_supabase"."import_product_identifier"');
+    expect(sql).toContain("supplier_item_updated_at");
+    expect(sql).toContain("product_identifier_updated_at");
+    expect(sql).not.toContain('"""');
+  });
+
+  it("grants the import writers to the service role only", () => {
+    const sql = sqlOf();
+
+    expect(sql).toContain(
+      'revoke execute on function "better_supabase"."import_supplier_item"(uuid, jsonb, text) from public, anon, authenticated;',
+    );
+  });
 });

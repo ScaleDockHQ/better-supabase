@@ -72,6 +72,17 @@ export interface InventoryOptions<
   readonly logger?: Logger;
 }
 
+/** Where a location is. */
+export interface LocationAddress {
+  readonly line1?: string;
+  readonly line2?: string;
+  readonly postalCode?: string;
+  readonly city?: string;
+  readonly region?: string;
+  /** A two-letter ISO 3166 code in capitals. */
+  readonly country?: string;
+}
+
 export interface LocationInput<F extends object = Record<never, never>> {
   /** Updates this location; creates one when left out. */
   readonly id?: string;
@@ -187,6 +198,15 @@ export interface Inventory<F extends object = Record<never, never>>
   ): AsyncResult<SavedLocation<F>>;
   /** An inactive location takes no new reservations or transfers. */
   setLocationActive(locationId: string, active: boolean): AsyncResult<boolean>;
+  /**
+   * Sets a location's address, or clears it with null. Refused with
+   * `INVENTORY_ADDRESS_INVALID` for a key besides the ones of `LocationAddress`
+   * or a country that isn't a two-letter capital code.
+   */
+  setLocationAddress(
+    locationId: string,
+    address: LocationAddress | null,
+  ): AsyncResult<boolean>;
   /** Refused with `INVENTORY_LOCATION_IN_USE` once it has stock history. */
   deleteLocation(locationId: string): AsyncResult<boolean>;
   /**
@@ -369,6 +389,8 @@ export function createInventory<
         }),
     setLocationActive: (locationId, active) =>
       call("set_location_active", { location: locationId, active }, isTrue),
+    setLocationAddress: (locationId, address) =>
+      call("set_location_address", { location: locationId, address }, isTrue),
     deleteLocation: (locationId) =>
       call("delete_location", { location: locationId }, isTrue),
     ...inventoryTracking(call),

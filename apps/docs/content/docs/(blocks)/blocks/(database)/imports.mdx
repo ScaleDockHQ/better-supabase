@@ -88,6 +88,16 @@ role is the one `resolve` returns). `updatedAt` is
 overwrites. An entity without a target fails the batch with
 `IMPORT_TARGET_UNKNOWN`.
 
+These blocks contribute targets:
+
+| Block     | Entity               | Writes                                                 |
+| --------- | -------------------- | ------------------------------------------------------ |
+| `catalog` | `supplier_item`      | A supplier's price list row, by supplier and code      |
+| `catalog` | `product_identifier` | An EAN or a supplier or manufacturer code on a variant |
+
+The [catalog page](/docs/blocks/catalog#importing-price-lists-and-codes) lists
+the `data` each one takes.
+
 Pass `target: { entity, item }` to `defineImport` and `hooks.upsertBatch` to
 `runImport` to write a file through the record map instead of `insert`.
 `appTableImport` keeps its repository `insert` for now.

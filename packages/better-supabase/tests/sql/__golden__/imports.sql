@@ -811,7 +811,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:726fa7349f733e556b8967e010d5b1cb31a6d441cdf1fb91f1fd8a99e195f463
+-- @bsb-hash sha256:cba9458d90f3e02d9bc98803eb2d9071befa2ea11dd8370946408d3ca134ff7e
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1185,7 +1185,7 @@ declare
   v_hint text;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array[]::text[]) then
+  if v_entity <> all (array['supplier_item', 'product_identifier']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -1246,7 +1246,13 @@ begin
       else
         -- A row a user changed after the last import stays as it is.
         v_current := null;
-        null;
+        case v_entity
+        when 'supplier_item' then
+          v_current := "better_supabase"."supplier_item_updated_at"(v_rec."subject_id");
+        when 'product_identifier' then
+          v_current := "better_supabase"."product_identifier_updated_at"(v_rec."subject_id");
+          else null;
+        end case;
         if v_current is not null and v_rec."subject_updated_at_at_import" is not null and v_current > v_rec."subject_updated_at_at_import" then
           update "better_supabase"."import_records" x set "last_run_id" = v_run_id, "missing_since" = null
           where x."id" = v_rec."id";
@@ -1258,7 +1264,16 @@ begin
       if not v_done then
         v_subject_id := case when v_found then v_rec."subject_id" else null end;
         v_call := v_item || jsonb_build_object('tenant', v_run."tenant_id", 'scope', v_scope);
+        case v_entity
+      when 'supplier_item' then
+        v_subject_type := 'supplier_item';
+        v_out := "better_supabase"."import_supplier_item"(v_run_id, v_call, v_subject_id);
+      when 'product_identifier' then
+        v_subject_type := 'product_identifier';
+        v_out := "better_supabase"."import_product_identifier"(v_run_id, v_call, v_subject_id);
+      else
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
+    end case;
 
         v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
         if not exists (

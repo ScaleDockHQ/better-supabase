@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
--- @bsb-block catalog@4 managed
--- @bsb-hash sha256:d9ec3143e24ea0623dc7d04be5940f0d889b94e2470caf6e07e308328e7df69b
+-- @bsb-block catalog@5 managed
+-- @bsb-hash sha256:2da47721b9093d5433c0919177f9af5bef608dc6d496a6c6afc6161081efb608
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -170,6 +170,38 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_variant_translations";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_variant_translations";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_variant_translations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_identifiers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_identifiers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_identifiers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_identifiers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_identifiers";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_relations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_relations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_relations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_relations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_relations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."supplier_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."supplier_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."supplier_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."supplier_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."supplier_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."supplier_item_mappings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."supplier_item_mappings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."supplier_item_mappings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."supplier_item_mappings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."supplier_item_mappings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -490,7 +522,104 @@ drop policy if exists product_variant_translations_read on "better_supabase"."pr
 create policy product_variant_translations_read on "better_supabase"."product_variant_translations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create table if not exists "better_supabase"."product_identifiers" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "type" text not null check ("type" in ('ean', 'supplier', 'manufacturer', 'other')),
+  "value" text not null check (length("value") between 1 and 100),
+  -- The supplier or manufacturer the code belongs to; a soft reference, so the
+  -- contacts block stays optional.
+  "party_id" uuid,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+create unique index if not exists product_identifiers_key on "better_supabase"."product_identifiers" ("variant_id", "type", "value", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid));
+create index if not exists product_identifiers_lookup_idx on "better_supabase"."product_identifiers" ("tenant_id", "type", "value");
+alter table "better_supabase"."product_identifiers" enable row level security;
+revoke all on "better_supabase"."product_identifiers" from public, anon, authenticated;
+grant select on "better_supabase"."product_identifiers" to authenticated;
+grant all on "better_supabase"."product_identifiers" to service_role;
+drop policy if exists product_identifiers_read on "better_supabase"."product_identifiers";
+create policy product_identifiers_read on "better_supabase"."product_identifiers"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
+-- A relation points from a variant to another: the variant "from" has the
+-- alternative, is superseded by the variant "to", or has it as an accessory.
+create table if not exists "better_supabase"."product_relations" (
+  "tenant_id" uuid not null,
+  "from_variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "to_variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "kind" text not null check ("kind" in ('alternative', 'superseded_by', 'accessory')),
+  "created_at" timestamptz not null default now(),
+  primary key ("from_variant_id", "to_variant_id", "kind"),
+  check ("from_variant_id" <> "to_variant_id")
+);
+create index if not exists product_relations_to_idx on "better_supabase"."product_relations" ("to_variant_id", "kind");
+alter table "better_supabase"."product_relations" enable row level security;
+revoke all on "better_supabase"."product_relations" from public, anon, authenticated;
+grant select on "better_supabase"."product_relations" to authenticated;
+grant all on "better_supabase"."product_relations" to service_role;
+drop policy if exists product_relations_read on "better_supabase"."product_relations";
+create policy product_relations_read on "better_supabase"."product_relations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- What a supplier sells under its own code. A row becomes a catalog variant
+-- when it is first used (promote_supplier_item).
+create table if not exists "better_supabase"."supplier_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "supplier_id" uuid not null,
+  "code" text not null check (length("code") between 1 and 100),
+  "description" text,
+  "price" bigint check ("price" >= 0),
+  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "unit" text,
+  "keywords_text" text,
+  "keywords" tsvector generated always as (to_tsvector('simple', "code" || ' ' || coalesce("description", '') || ' ' || coalesce("keywords_text", ''))) stored,
+  "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete set null,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "supplier_id", "code")
+);
+create index if not exists supplier_items_keywords_idx on "better_supabase"."supplier_items" using gin ("keywords");
+create index if not exists supplier_items_variant_idx on "better_supabase"."supplier_items" ("variant_id");
+alter table "better_supabase"."supplier_items" enable row level security;
+revoke all on "better_supabase"."supplier_items" from public, anon, authenticated;
+grant select on "better_supabase"."supplier_items" to authenticated;
+grant all on "better_supabase"."supplier_items" to service_role;
+drop policy if exists supplier_items_read on "better_supabase"."supplier_items";
+create policy supplier_items_read on "better_supabase"."supplier_items"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- Which column of a supplier's price list fills which field: columns maps
+-- code, description, price, currency, unit and keywords to source column names
+-- (keywords may list several); defaults holds the currency and unit for rows
+-- that carry none.
+create table if not exists "better_supabase"."supplier_item_mappings" (
+  "tenant_id" uuid not null,
+  "supplier_id" uuid not null,
+  "columns" jsonb not null check (jsonb_typeof("columns") = 'object'),
+  "defaults" jsonb not null default '{}'::jsonb check (jsonb_typeof("defaults") = 'object'),
+  "updated_at" timestamptz not null default now(),
+  primary key ("tenant_id", "supplier_id")
+);
+alter table "better_supabase"."supplier_item_mappings" enable row level security;
+revoke all on "better_supabase"."supplier_item_mappings" from public, anon, authenticated;
+grant select on "better_supabase"."supplier_item_mappings" to authenticated;
+grant all on "better_supabase"."supplier_item_mappings" to service_role;
+drop policy if exists supplier_item_mappings_read on "better_supabase"."supplier_item_mappings";
+create policy supplier_item_mappings_read on "better_supabase"."supplier_item_mappings"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- The Combined Nomenclature code (4 to 10 digits) customs and Intrastat use.
+alter table "better_supabase"."product_variants" add column if not exists "trade_code" text;
+alter table "better_supabase"."product_variants" drop constraint if exists product_variants_trade_code_check;
+alter table "better_supabase"."product_variants" add constraint product_variants_trade_code_check check ("trade_code" ~ '^[0-9]{4,10}$');
 -- Creates a product (product null) or updates one. Returns its id, slug and
 -- status. On an update a null argument keeps the column and clear names the
 -- columns to empty; a cleared slug is derived from the title again.
@@ -2121,6 +2250,734 @@ $$;
 revoke execute on function "better_supabase"."product_text"(uuid, text) from public;
 grant execute on function "better_supabase"."product_text"(uuid, text) to anon, authenticated, service_role;
 
+-- Adds an identifier (an EAN, a supplier's or manufacturer's code) to a
+-- variant. A code is stored once per variant, type and party, so a second
+-- call returns the existing row with created false.
+create or replace function "better_supabase"."save_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid;
+  v_created boolean := false;
+  v_value text := btrim(save_product_identifier.value);
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_identifier.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if save_product_identifier.type is null or save_product_identifier.type not in ('ean', 'supplier', 'manufacturer', 'other') then
+    raise exception 'the type must be one of ean, supplier, manufacturer, other' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_TYPE_INVALID';
+  end if;
+  if v_value is null or length(v_value) not between 1 and 100 then
+    raise exception 'the value must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
+  end if;
+  if save_product_identifier.type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
+    raise exception 'an EAN has 8, 12, 13 or 14 digits' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = save_product_identifier.variant and x."tenant_id" = save_product_identifier.tenant) then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  select x."id" into v_id from "better_supabase"."product_identifiers" x
+  where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
+    and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+  if v_id is null then
+    begin
+      insert into "better_supabase"."product_identifiers" as x ("tenant_id", "variant_id", "type", "value", "party_id")
+      values (save_product_identifier.tenant, save_product_identifier.variant, save_product_identifier.type, v_value, save_product_identifier.party)
+      returning x."id" into v_id;
+      v_created := true;
+    exception when unique_violation then
+      select x."id" into v_id from "better_supabase"."product_identifiers" x
+      where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
+        and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+    end;
+  end if;
+  return jsonb_build_object('id', v_id, 'created', v_created);
+end;
+$$;
+revoke execute on function "better_supabase"."save_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."save_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
+
+-- Removes an identifier.
+create or replace function "better_supabase"."delete_product_identifier"(identifier uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_identifiers" x where x."id" = delete_product_identifier.identifier;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."product_identifiers" x where x."id" = delete_product_identifier.identifier;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_product_identifier"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_product_identifier"(uuid) to authenticated, service_role;
+
+-- The variants that carry a code, with the identifier that matched. type and
+-- party narrow the search; the caller's read access limits the rows.
+create or replace function "better_supabase"."find_variants_by_identifier"(tenant uuid, value text, type text default null, party uuid default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('identifierId', x."id", 'variantId', y."id", 'productId', y."product_id", 'sku', y."sku", 'type', x."type", 'value', x."value", 'partyId', x."party_id") order by y."sku", x."type"), '[]'::jsonb)
+  from "better_supabase"."product_identifiers" x join "better_supabase"."product_variants" y on y."id" = x."variant_id"
+  where x."tenant_id" = $1 and x."value" = btrim($2)
+    and ($3 is null or x."type" = $3)
+    and ($4 is null or x."party_id" = $4)
+$$;
+revoke execute on function "better_supabase"."find_variants_by_identifier"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."find_variants_by_identifier"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- Every identifier of a variant.
+create or replace function "better_supabase"."variant_identifiers"(variant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'type', x."type", 'value', x."value", 'partyId', x."party_id") order by x."type", x."value"), '[]'::jsonb)
+  from "better_supabase"."product_identifiers" x where x."variant_id" = $1
+$$;
+revoke execute on function "better_supabase"."variant_identifiers"(uuid) from public, anon;
+grant execute on function "better_supabase"."variant_identifiers"(uuid) to authenticated, service_role;
+
+-- Links the variant "from" to the variant "to": "from" has "to" as an
+-- alternative or an accessory, or is superseded by it. A repeated call
+-- returns created false. A supersession can't point back along its own chain.
+create or replace function "better_supabase"."save_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_created boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_relation.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if save_product_relation.kind is null or save_product_relation.kind not in ('alternative', 'superseded_by', 'accessory') then
+    raise exception 'the kind must be one of alternative, superseded_by, accessory' using errcode = '22023', hint = 'CATALOG_RELATION_KIND_INVALID';
+  end if;
+  if save_product_relation.from_variant = save_product_relation.to_variant then
+    raise exception 'a variant can''t relate to itself' using errcode = '22023', hint = 'CATALOG_RELATION_INVALID';
+  end if;
+  if (select count(*) from "better_supabase"."product_variants" x where x."tenant_id" = save_product_relation.tenant and x."id" in (save_product_relation.from_variant, save_product_relation.to_variant)) <> 2 then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if save_product_relation.kind = 'superseded_by' and exists (
+    with recursive chain(id, depth) as (
+      select save_product_relation.to_variant, 0
+      union all
+      select y."to_variant_id", c.depth + 1 from "better_supabase"."product_relations" y join chain c on y."from_variant_id" = c.id and y."kind" = 'superseded_by' where c.depth < 50
+    )
+    select 1 from chain where id = save_product_relation.from_variant
+  ) then
+    raise exception 'the replacement already points back at this variant' using errcode = '22023', hint = 'CATALOG_RELATION_CYCLE';
+  end if;
+  insert into "better_supabase"."product_relations" ("tenant_id", "from_variant_id", "to_variant_id", "kind")
+  values (save_product_relation.tenant, save_product_relation.from_variant, save_product_relation.to_variant, save_product_relation.kind)
+  on conflict do nothing;
+  v_created := found;
+  return jsonb_build_object('created', v_created);
+end;
+$$;
+revoke execute on function "better_supabase"."save_product_relation"(uuid, uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."save_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
+
+-- Removes one relation.
+create or replace function "better_supabase"."delete_product_relation"(from_variant uuid, to_variant uuid, kind text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_relations" x
+  where x."from_variant_id" = delete_product_relation.from_variant and x."to_variant_id" = delete_product_relation.to_variant and x."kind" = delete_product_relation.kind;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."product_relations" x
+  where x."from_variant_id" = delete_product_relation.from_variant and x."to_variant_id" = delete_product_relation.to_variant and x."kind" = delete_product_relation.kind;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_product_relation"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."delete_product_relation"(uuid, uuid, text) to authenticated, service_role;
+
+-- The relations a variant is part of. direction is outgoing where the variant
+-- is "from" (it is superseded by, or has as an alternative or accessory, the
+-- variant named) and incoming where it is "to".
+create or replace function "better_supabase"."variant_relations"(variant uuid, kind text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('kind', q.kind, 'direction', q.direction, 'variantId', q.other, 'sku', y."sku") order by q.kind, q.direction, y."sku"), '[]'::jsonb)
+  from (
+    select x."kind" as kind, 'outgoing' as direction, x."to_variant_id" as other from "better_supabase"."product_relations" x where x."from_variant_id" = $1
+    union all
+    select x."kind", 'incoming', x."from_variant_id" from "better_supabase"."product_relations" x where x."to_variant_id" = $1
+  ) q
+  join "better_supabase"."product_variants" y on y."id" = q.other
+  where $2 is null or q.kind = $2
+$$;
+revoke execute on function "better_supabase"."variant_relations"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."variant_relations"(uuid, text) to authenticated, service_role;
+
+-- The variant at the end of a variant's superseded_by chain: the variant
+-- itself when nothing replaces it.
+create or replace function "better_supabase"."replacement_variant"(variant uuid)
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with recursive chain(id, depth) as (
+    select $1, 0
+    union all
+    select x."to_variant_id", c.depth + 1 from "better_supabase"."product_relations" x join chain c on x."from_variant_id" = c.id and x."kind" = 'superseded_by' where c.depth < 50
+  )
+  select id from chain order by depth desc, id limit 1
+$$;
+revoke execute on function "better_supabase"."replacement_variant"(uuid) from public, anon;
+grant execute on function "better_supabase"."replacement_variant"(uuid) to authenticated, service_role;
+
+-- Sets how a supplier's price list columns fill supplier items. columns maps
+-- code, description, price, currency, unit, keywords to source column names (keywords
+-- may list several); defaults may hold currency and unit.
+create or replace function "better_supabase"."set_supplier_item_mapping"(tenant uuid, supplier uuid, columns jsonb, defaults jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_key text;
+  v_value jsonb;
+  v_defaults jsonb := coalesce(set_supplier_item_mapping.defaults, '{}'::jsonb);
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', set_supplier_item_mapping.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if jsonb_typeof(set_supplier_item_mapping.columns) is distinct from 'object' or jsonb_typeof(v_defaults) <> 'object' then
+    raise exception 'columns and defaults must be objects' using errcode = '22023', hint = 'CATALOG_SUPPLIER_MAPPING_INVALID';
+  end if;
+  for v_key, v_value in select e.key, e.value from jsonb_each(set_supplier_item_mapping.columns) e loop
+    if v_key <> all (array['code', 'description', 'price', 'currency', 'unit', 'keywords']) then
+      raise exception 'a mapping fills only code, description, price, currency, unit, keywords' using errcode = '22023', hint = 'CATALOG_SUPPLIER_MAPPING_INVALID';
+    end if;
+    if not (jsonb_typeof(v_value) = 'string' or (v_key = 'keywords' and jsonb_typeof(v_value) = 'array' and not exists (select 1 from jsonb_array_elements(v_value) a where jsonb_typeof(a.value) <> 'string'))) then
+      raise exception 'a mapping value is a source column name (keywords may list several)' using errcode = '22023', hint = 'CATALOG_SUPPLIER_MAPPING_INVALID';
+    end if;
+  end loop;
+  if not (set_supplier_item_mapping.columns ? 'code') then
+    raise exception 'a mapping needs a code column' using errcode = '22023', hint = 'CATALOG_SUPPLIER_MAPPING_INVALID';
+  end if;
+  if exists (select 1 from jsonb_object_keys(v_defaults) k where k <> all (array['currency', 'unit'])) then
+    raise exception 'defaults may hold currency and unit' using errcode = '22023', hint = 'CATALOG_SUPPLIER_MAPPING_INVALID';
+  end if;
+  if v_defaults ? 'currency' and "better_supabase"."currency_minor_units"(v_defaults ->> 'currency') is null then
+    raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
+  end if;
+  insert into "better_supabase"."supplier_item_mappings" as x ("tenant_id", "supplier_id", "columns", "defaults")
+  values (set_supplier_item_mapping.tenant, set_supplier_item_mapping.supplier, set_supplier_item_mapping.columns, v_defaults)
+  on conflict ("tenant_id", "supplier_id") do update set "columns" = excluded."columns", "defaults" = excluded."defaults", "updated_at" = now();
+  return jsonb_build_object('supplierId', set_supplier_item_mapping.supplier, 'columns', set_supplier_item_mapping.columns, 'defaults', v_defaults);
+end;
+$$;
+revoke execute on function "better_supabase"."set_supplier_item_mapping"(uuid, uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."set_supplier_item_mapping"(uuid, uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- A supplier's mapping, or null.
+create or replace function "better_supabase"."supplier_item_mapping"(tenant uuid, supplier uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('supplierId', x."supplier_id", 'columns', x."columns", 'defaults', x."defaults")
+  from "better_supabase"."supplier_item_mappings" x where x."tenant_id" = $1 and x."supplier_id" = $2
+$$;
+revoke execute on function "better_supabase"."supplier_item_mapping"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."supplier_item_mapping"(uuid, uuid) to authenticated, service_role;
+
+-- Removes a supplier's mapping.
+create or replace function "better_supabase"."delete_supplier_item_mapping"(tenant uuid, supplier uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', delete_supplier_item_mapping.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."supplier_item_mappings" x where x."tenant_id" = delete_supplier_item_mapping.tenant and x."supplier_id" = delete_supplier_item_mapping.supplier;
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_supplier_item_mapping"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_supplier_item_mapping"(uuid, uuid) to authenticated, service_role;
+
+-- One source row of a supplier's price list as supplier item fields, through
+-- the supplier's mapping. price is in minor units: the source value is a
+-- decimal in major units, with a comma or a dot as the decimal separator.
+create or replace function "better_supabase"."supplier_item_from_row"(tenant uuid, supplier uuid, source jsonb)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_columns jsonb;
+  v_defaults jsonb;
+  v_code text;
+  v_description text;
+  v_unit text;
+  v_currency text;
+  v_price text;
+  v_amount bigint;
+  v_scale integer;
+  v_keywords text;
+  v_source jsonb;
+begin
+  select x."columns", x."defaults" into v_columns, v_defaults
+  from "better_supabase"."supplier_item_mappings" x where x."tenant_id" = supplier_item_from_row.tenant and x."supplier_id" = supplier_item_from_row.supplier;
+  if v_columns is null then
+    raise exception 'this supplier has no column mapping' using errcode = 'P0002', hint = 'CATALOG_SUPPLIER_MAPPING_NOT_FOUND';
+  end if;
+  if jsonb_typeof(supplier_item_from_row.source) is distinct from 'object' then
+    raise exception 'a row is an object of source columns' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ROW_INVALID';
+  end if;
+  v_code := nullif(btrim(supplier_item_from_row.source ->> (v_columns ->> 'code')), '');
+  v_description := nullif(btrim(supplier_item_from_row.source ->> (v_columns ->> 'description')), '');
+  v_unit := coalesce(nullif(btrim(supplier_item_from_row.source ->> (v_columns ->> 'unit')), ''), v_defaults ->> 'unit');
+  v_currency := upper(coalesce(nullif(btrim(supplier_item_from_row.source ->> (v_columns ->> 'currency')), ''), v_defaults ->> 'currency'));
+  v_price := nullif(btrim(supplier_item_from_row.source ->> (v_columns ->> 'price')), '');
+  if v_currency is not null and "better_supabase"."currency_minor_units"(v_currency) is null then
+    raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
+  end if;
+  if v_price is not null then
+    v_price := regexp_replace(v_price, '[^0-9.,-]', '', 'g');
+    if position(',' in v_price) > 0 and position('.' in v_price) > 0 then
+      -- The separator that comes last is the decimal one.
+      if length(v_price) - length(regexp_replace(v_price, '^.*,', '')) > length(v_price) - length(regexp_replace(v_price, '^.*\.', '')) then
+        v_price := replace(replace(v_price, '.', ''), ',', '.');
+      else
+        v_price := replace(v_price, ',', '');
+      end if;
+    else
+      v_price := replace(v_price, ',', '.');
+    end if;
+    v_scale := coalesce("better_supabase"."currency_minor_units"(v_currency), 2);
+    begin
+      v_amount := round(v_price::numeric * power(10::numeric, v_scale))::bigint;
+    exception when others then
+      raise exception 'the price is not a number' using errcode = '22023', hint = 'CATALOG_SUPPLIER_PRICE_INVALID';
+    end;
+    if v_amount < 0 then
+      raise exception 'the price can''t be negative' using errcode = '22023', hint = 'CATALOG_SUPPLIER_PRICE_INVALID';
+    end if;
+  end if;
+  v_source := case jsonb_typeof(v_columns -> 'keywords') when 'array' then v_columns -> 'keywords' when 'string' then jsonb_build_array(v_columns -> 'keywords') else '[]'::jsonb end;
+  select nullif(string_agg(btrim(supplier_item_from_row.source ->> (a.value #>> '{}')), ' ') filter (where nullif(btrim(supplier_item_from_row.source ->> (a.value #>> '{}')), '') is not null), '')
+  into v_keywords from jsonb_array_elements(v_source) a;
+  return jsonb_strip_nulls(jsonb_build_object('code', v_code, 'description', v_description, 'price', v_amount, 'currency', v_currency, 'unit', v_unit, 'keywords', v_keywords));
+end;
+$$;
+revoke execute on function "better_supabase"."supplier_item_from_row"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."supplier_item_from_row"(uuid, uuid, jsonb) to authenticated, service_role;
+
+-- Creates a supplier item (item null) or updates one; on an update a null
+-- argument keeps the column. price is in minor units.
+create or replace function "better_supabase"."save_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_supplier_item.item;
+  v_code text := btrim(save_supplier_item.code);
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_supplier_item.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_code is null or length(v_code) not between 1 and 100 then
+    raise exception 'the code must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
+  end if;
+  if save_supplier_item.price is not null and save_supplier_item.price < 0 then
+    raise exception 'the price can''t be negative' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
+  end if;
+  if save_supplier_item.currency is not null and "better_supabase"."currency_minor_units"(save_supplier_item.currency) is null then
+    raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
+  end if;
+  begin
+    if v_id is null then
+      insert into "better_supabase"."supplier_items" as x ("tenant_id", "supplier_id", "code", "description", "price", "currency", "unit", "keywords_text")
+      values (save_supplier_item.tenant, save_supplier_item.supplier, v_code, save_supplier_item.description, save_supplier_item.price, save_supplier_item.currency, save_supplier_item.unit, save_supplier_item.keywords)
+      returning x."id" into v_id;
+    else
+      update "better_supabase"."supplier_items" x set "supplier_id" = coalesce(save_supplier_item.supplier, x."supplier_id"), "code" = v_code,
+        "description" = coalesce(save_supplier_item.description, x."description"), "price" = coalesce(save_supplier_item.price, x."price"),
+        "currency" = coalesce(save_supplier_item.currency, x."currency"), "unit" = coalesce(save_supplier_item.unit, x."unit"),
+        "keywords_text" = coalesce(save_supplier_item.keywords, x."keywords_text"), "updated_at" = now()
+      where x."id" = save_supplier_item.item and x."tenant_id" = save_supplier_item.tenant;
+      if not found then
+        raise exception 'supplier item not found' using errcode = 'P0002', hint = 'CATALOG_SUPPLIER_ITEM_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'this supplier already has an item with this code' using errcode = '23505', hint = 'CATALOG_SUPPLIER_ITEM_TAKEN';
+  end;
+  return jsonb_build_object('id', v_id, 'code', v_code);
+end;
+$$;
+revoke execute on function "better_supabase"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
+
+-- Deletes a supplier item. The variant it was promoted to stays.
+create or replace function "better_supabase"."delete_supplier_item"(item uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."supplier_items" x where x."id" = delete_supplier_item.item;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."supplier_items" x where x."id" = delete_supplier_item.item;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_supplier_item"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_supplier_item"(uuid) to authenticated, service_role;
+
+-- Searches supplier items by words in the code, the description and the
+-- keywords, and by the start of a code. The caller's read access limits the
+-- rows; the best matches come first.
+create or replace function "better_supabase"."search_supplier_items"(tenant uuid, query text, supplier uuid default null, row_limit integer default 25)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(r.item order by r.rank desc, r.code), '[]'::jsonb)
+  from (
+    select x."code" as code,
+      ts_rank(x."keywords", websearch_to_tsquery('simple', $2)) + case when x."code" ilike replace(replace($2, '%', ''), '_', '') || '%' then 1 else 0 end as rank,
+      jsonb_build_object('id', x."id", 'supplierId', x."supplier_id", 'code', x."code", 'description', x."description", 'price', x."price", 'currency', x."currency", 'unit', x."unit", 'variantId', x."variant_id") as item
+    from "better_supabase"."supplier_items" x
+    where x."tenant_id" = $1 and ($3 is null or x."supplier_id" = $3)
+      and (x."keywords" @@ websearch_to_tsquery('simple', $2) or x."code" ilike replace(replace($2, '%', ''), '_', '') || '%')
+    order by 2 desc, 1
+    limit least(greatest(coalesce($4, 25), 1), 200)
+  ) r
+$$;
+revoke execute on function "better_supabase"."search_supplier_items"(uuid, text, uuid, integer) from public, anon;
+grant execute on function "better_supabase"."search_supplier_items"(uuid, text, uuid, integer) to authenticated, service_role;
+
+-- Makes a supplier item a catalog product on first use: a product and a variant
+-- (sku defaults to the supplier's code), the supplier's code as an identifier,
+-- and the link back on the item. A second call returns the same variant with
+-- created false.
+create or replace function "better_supabase"."promote_supplier_item"(item uuid, sku text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_item "better_supabase"."supplier_items";
+  v_sku text;
+  v_slug text;
+  v_product uuid;
+  v_variant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_item from "better_supabase"."supplier_items" x where x."id" = promote_supplier_item.item for update;
+  if not found then
+    raise exception 'supplier item not found' using errcode = 'P0002', hint = 'CATALOG_SUPPLIER_ITEM_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_item."tenant_id", 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_item."variant_id" is not null then
+    select y."product_id" into v_product from "better_supabase"."product_variants" y where y."id" = v_item."variant_id";
+    return jsonb_build_object('productId', v_product, 'variantId', v_item."variant_id", 'created', false);
+  end if;
+  v_sku := btrim(coalesce(nullif(promote_supplier_item.sku, ''), v_item."code"));
+  if length(v_sku) not between 1 and 100 then
+    raise exception 'the SKU must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_SKU_INVALID';
+  end if;
+  v_slug := trim(both '-' from regexp_replace(lower(v_sku), '[^a-z0-9]+', '-', 'g'));
+  if v_slug = '' then
+    v_slug := 'item';
+  end if;
+  if exists (select 1 from "better_supabase"."products" x where x."tenant_id" = v_item."tenant_id" and x."slug" = v_slug) then
+    v_slug := v_slug || '-' || substr(v_item."id"::text, 1, 8);
+  end if;
+  begin
+    insert into "better_supabase"."products" as x ("tenant_id", "title", "slug", "description")
+    values (v_item."tenant_id", left(coalesce(nullif(v_item."description", ''), v_item."code"), 500), v_slug, v_item."description")
+    returning x."id" into v_product;
+    insert into "better_supabase"."product_variants" as y ("tenant_id", "product_id", "sku")
+    values (v_item."tenant_id", v_product, v_sku)
+    returning y."id" into v_variant;
+  exception when unique_violation then
+    raise exception 'another variant has this SKU' using errcode = '23505', hint = 'CATALOG_SKU_TAKEN';
+  end;
+  update "better_supabase"."supplier_items" x set "variant_id" = v_variant, "updated_at" = now() where x."id" = v_item."id";
+  insert into "better_supabase"."product_identifiers" ("tenant_id", "variant_id", "type", "value", "party_id")
+  values (v_item."tenant_id", v_variant, 'supplier', v_item."code", v_item."supplier_id")
+  on conflict do nothing;
+  null;
+  null;
+  return jsonb_build_object('productId', v_product, 'variantId', v_variant, 'created', true);
+end;
+$$;
+revoke execute on function "better_supabase"."promote_supplier_item"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."promote_supplier_item"(uuid, text) to authenticated, service_role;
+
+-- Sets a variant's Combined Nomenclature code (4 to 10 digits; spaces are
+-- dropped), or clears it with null.
+create or replace function "better_supabase"."set_variant_trade_code"(variant uuid, trade_code text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_code text := nullif(replace(btrim(set_variant_trade_code.trade_code), ' ', ''), '');
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_variants" x where x."id" = set_variant_trade_code.variant;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_code is not null and v_code !~ '^[0-9]{4,10}$' then
+    raise exception 'a trade code has 4 to 10 digits' using errcode = '22023', hint = 'CATALOG_TRADE_CODE_INVALID';
+  end if;
+  update "better_supabase"."product_variants" x set "trade_code" = v_code, "updated_at" = now() where x."id" = set_variant_trade_code.variant;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_variant_trade_code"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_variant_trade_code"(uuid, text) to authenticated, service_role;
+
+-- The import target of the supplier_item entity (ADR 0141): item.data is {
+-- supplierId, row?, code?, description?, price?, currency?, unit?, keywords? }.
+-- A row goes through the supplier's column mapping; the fields named next to
+-- it win. price is in minor units. A key that is new but names a code the
+-- supplier already has takes over that row.
+create or replace function "better_supabase"."import_supplier_item"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_supplier_item.item ->> 'tenant')::uuid;
+  v_data jsonb := import_supplier_item.item -> 'data';
+  v_supplier uuid;
+  v_merged jsonb;
+  v_code text;
+  v_price text;
+  v_id uuid;
+  v_updated timestamptz;
+begin
+  begin
+    v_supplier := nullif(v_data ->> 'supplierId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'supplierId must be a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if v_supplier is null then
+    raise exception 'a supplier item needs a supplierId' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_merged := (case when jsonb_typeof(v_data -> 'row') = 'object' then "better_supabase"."supplier_item_from_row"(v_tenant, v_supplier, v_data -> 'row') else '{}'::jsonb end) || (v_data - 'row' - 'supplierId');
+  v_code := nullif(btrim(v_merged ->> 'code'), '');
+  v_price := v_merged ->> 'price';
+  if v_code is null or length(v_code) > 100 then
+    raise exception 'a supplier item needs a code of up to 100 characters' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_price is not null and v_price !~ '^[0-9]{1,18}$' then
+    raise exception 'price is a whole number of minor units' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_merged ->> 'currency' is not null and "better_supabase"."currency_minor_units"(upper(v_merged ->> 'currency')) is null then
+    raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if import_supplier_item.subject_id is null then
+    insert into "better_supabase"."supplier_items" as x ("tenant_id", "supplier_id", "code", "description", "price", "currency", "unit", "keywords_text")
+    values (v_tenant, v_supplier, v_code, v_merged ->> 'description', v_price::bigint, upper(v_merged ->> 'currency'), v_merged ->> 'unit', v_merged ->> 'keywords')
+    on conflict ("tenant_id", "supplier_id", "code") do update set "description" = excluded."description", "price" = excluded."price",
+      "currency" = excluded."currency", "unit" = excluded."unit", "keywords_text" = excluded."keywords_text", "updated_at" = now()
+    returning x."id", x."updated_at" into v_id, v_updated;
+  else
+    update "better_supabase"."supplier_items" x set "supplier_id" = v_supplier, "code" = v_code, "description" = v_merged ->> 'description', "price" = v_price::bigint,
+      "currency" = upper(v_merged ->> 'currency'), "unit" = v_merged ->> 'unit', "keywords_text" = v_merged ->> 'keywords', "updated_at" = now()
+    where x."id" = import_supplier_item.subject_id::uuid and x."tenant_id" = v_tenant
+    returning x."id", x."updated_at" into v_id, v_updated;
+    if not found then
+      raise exception 'the supplier item no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+  end if;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_supplier_item"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_supplier_item"(uuid, jsonb, text) to service_role;
+
+-- When a supplier item last changed, for the conflict check of imports.
+create or replace function "better_supabase"."supplier_item_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."supplier_items" x where x."id" = $1::uuid
+$$;
+revoke execute on function "better_supabase"."supplier_item_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."supplier_item_updated_at"(text) to service_role;
+
+-- The import target of the product_identifier entity: item.data is { sku or
+-- variantId, type, value, partyId? }. A key that is new but names a code the
+-- variant already has takes over that row.
+create or replace function "better_supabase"."import_product_identifier"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_product_identifier.item ->> 'tenant')::uuid;
+  v_data jsonb := import_product_identifier.item -> 'data';
+  v_variant uuid;
+  v_type text := v_data ->> 'type';
+  v_value text := btrim(v_data ->> 'value');
+  v_party uuid;
+  v_id uuid;
+  v_updated timestamptz;
+begin
+  begin
+    v_variant := nullif(v_data ->> 'variantId', '')::uuid;
+    v_party := nullif(v_data ->> 'partyId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'variantId and partyId must be uuids' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if v_variant is null and nullif(v_data ->> 'sku', '') is not null then
+    select y."id" into v_variant from "better_supabase"."product_variants" y where y."tenant_id" = v_tenant and y."sku" = v_data ->> 'sku';
+  end if;
+  if v_variant is null or not exists (select 1 from "better_supabase"."product_variants" y where y."id" = v_variant and y."tenant_id" = v_tenant) then
+    raise exception 'the variant isn''t in this organization; name it with sku or variantId' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_type is null or v_type not in ('ean', 'supplier', 'manufacturer', 'other') then
+    raise exception 'the type must be one of ean, supplier, manufacturer, other' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_TYPE_INVALID';
+  end if;
+  if v_value is null or length(v_value) not between 1 and 100 then
+    raise exception 'the value must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
+  end if;
+  if v_type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
+    raise exception 'an EAN has 8, 12, 13 or 14 digits' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
+  end if;
+  if import_product_identifier.subject_id is null then
+    insert into "better_supabase"."product_identifiers" as x ("tenant_id", "variant_id", "type", "value", "party_id")
+    values (v_tenant, v_variant, v_type, v_value, v_party)
+    on conflict ("variant_id", "type", "value", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid)) do update set "updated_at" = now()
+    returning x."id", x."updated_at" into v_id, v_updated;
+  else
+    update "better_supabase"."product_identifiers" x set "variant_id" = v_variant, "type" = v_type, "value" = v_value, "party_id" = v_party, "updated_at" = now()
+    where x."id" = import_product_identifier.subject_id::uuid and x."tenant_id" = v_tenant
+    returning x."id", x."updated_at" into v_id, v_updated;
+    if not found then
+      raise exception 'the identifier no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+  end if;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_product_identifier"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_product_identifier"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."product_identifier_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."product_identifiers" x where x."id" = $1::uuid
+$$;
+revoke execute on function "better_supabase"."product_identifier_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."product_identifier_updated_at"(text) to service_role;
+
 drop policy if exists products_storefront on "better_supabase"."products";
 drop policy if exists product_options_storefront on "better_supabase"."product_options";
 drop policy if exists product_option_values_storefront on "better_supabase"."product_option_values";
@@ -2487,6 +3344,90 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_vari
 create policy bsb_tenant_scope_delete on "better_supabase"."product_variant_translations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_identifiers";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_identifiers";
+create policy bsb_tenant_scope_select on "better_supabase"."product_identifiers" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_identifiers";
+create policy bsb_tenant_scope_insert on "better_supabase"."product_identifiers" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_identifiers";
+create policy bsb_tenant_scope_update on "better_supabase"."product_identifiers" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_identifiers";
+create policy bsb_tenant_scope_delete on "better_supabase"."product_identifiers" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_relations";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_relations";
+create policy bsb_tenant_scope_select on "better_supabase"."product_relations" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_relations";
+create policy bsb_tenant_scope_insert on "better_supabase"."product_relations" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_relations";
+create policy bsb_tenant_scope_update on "better_supabase"."product_relations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_relations";
+create policy bsb_tenant_scope_delete on "better_supabase"."product_relations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."supplier_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."supplier_items";
+create policy bsb_tenant_scope_select on "better_supabase"."supplier_items" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."supplier_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."supplier_items" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."supplier_items";
+create policy bsb_tenant_scope_update on "better_supabase"."supplier_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."supplier_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."supplier_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."supplier_item_mappings";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."supplier_item_mappings";
+create policy bsb_tenant_scope_select on "better_supabase"."supplier_item_mappings" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."supplier_item_mappings";
+create policy bsb_tenant_scope_insert on "better_supabase"."supplier_item_mappings" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."supplier_item_mappings";
+create policy bsb_tenant_scope_update on "better_supabase"."supplier_item_mappings" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."supplier_item_mappings";
+create policy bsb_tenant_scope_delete on "better_supabase"."supplier_item_mappings" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2504,13 +3445,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block-data catalog
--- @bsb-hash sha256:e477c42a170c52cfbba724f680a05fcecf3b05c1cbf6458d3141a3c70599d9ee
+-- @bsb-hash sha256:f1b2b4ddf75f743b52b4e2090b59663b897cde55903fcfa589ff6dc45f0bb9b9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('catalog', 4, 'managed')
+values ('catalog', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

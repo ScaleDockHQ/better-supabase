@@ -395,6 +395,189 @@ valid and the base price otherwise. A channel without a currency returns
 `null`. Deleting a channel removes its listings, and deleting a price list
 clears it on the channels that used it.
 
+## Identifiers and relations
+
+A variant carries the codes other parties know it by: its EAN, a supplier's
+code, a manufacturer's code. `saveProductIdentifier` stores one on a variant
+(the variant's `barcode` column stays as it is), and `findVariantsByIdentifier`
+looks a code up:
+
+```ts
+await catalog
+  .saveProductIdentifier(organizationId, {
+    variantId,
+    type: "ean",
+    value: "4006381333931",
+  })
+  .orThrow();
+
+await catalog
+  .saveProductIdentifier(organizationId, {
+    variantId,
+    type: "supplier",
+    value: "GV-100",
+    partyId: supplierId,
+  })
+  .orThrow();
+
+const matches = await catalog
+  .findVariantsByIdentifier(organizationId, "GV-100", { type: "supplier" })
+  .orThrow();
+// [{ identifierId, variantId, productId, sku, type, value, partyId }]
+```
+
+`type` is `ean`, `supplier`, `manufacturer` or `other`
+(`CATALOG_IDENTIFIER_TYPE_INVALID`). An EAN has 8, 12, 13 or 14 digits, and
+every value is 1 to 100 characters (`CATALOG_IDENTIFIER_INVALID`). A variant
+stores a code once per type and party, so a repeated call returns
+`created: false`. `partyId` is the supplier or manufacturer the code belongs
+to; it isn't a foreign key, so the contacts block stays optional.
+
+`saveProductRelation` links two variants. The relation points from the variant
+that has the alternative or accessory, or that is superseded, to the other
+one:
+
+```ts
+await catalog
+  .saveProductRelation(organizationId, {
+    fromVariantId: oldValve,
+    toVariantId: newValve,
+    kind: "superseded_by",
+  })
+  .orThrow();
+
+await catalog.variantRelations(oldValve).orThrow();
+// [{ kind: "superseded_by", direction: "outgoing", variantId, sku }]
+await catalog.variantRelations(newValve).orThrow();
+// [{ kind: "superseded_by", direction: "incoming", variantId, sku }]
+
+const current = await catalog.replacementVariant(oldValve).orThrow();
+```
+
+`kind` is `alternative`, `superseded_by` or `accessory`
+(`CATALOG_RELATION_KIND_INVALID`). Each relation is stored once in the
+direction you save it, and `variantRelations` reports it as `outgoing` for the
+`from` variant and `incoming` for the `to` variant, so an alternative shows on
+both sides. A variant can't relate to itself (`CATALOG_RELATION_INVALID`), and
+a `superseded_by` link that would close a loop is refused with
+`CATALOG_RELATION_CYCLE`. `replacementVariant` follows the `superseded_by`
+chain to its end and returns the variant itself when nothing replaces it.
+Variants of another organization fail with `CATALOG_VARIANT_NOT_FOUND`.
+
+## Supplier items
+
+A supplier item is what a supplier sells under its own code. It lives next to
+the catalog until the first time you use it, so you can load a whole price
+list without creating a product for every row:
+
+```ts
+const item = await catalog
+  .saveSupplierItem(organizationId, {
+    supplierId,
+    code: "GV-100",
+    description: "Gate valve, brass",
+    price: 123450n, // minor units of the currency
+    currency: "EUR",
+    unit: "pcs",
+    keywords: "acme valves",
+  })
+  .orThrow();
+
+const found = await catalog
+  .searchSupplierItems(organizationId, "brass gate", { supplierId })
+  .orThrow();
+
+const promoted = await catalog
+  .promoteSupplierItem(item.id, { sku: "VALVE-100" })
+  .orThrow();
+// { productId, variantId, created: true }
+```
+
+A supplier has each code once (`CATALOG_SUPPLIER_ITEM_TAKEN`). `price` is a
+whole number of minor units and `currency` an ISO 4217 code
+(`CATALOG_CURRENCY_INVALID`). The description, the code and the keywords feed
+a full-text index: `searchSupplierItems` matches words in them and the start
+of a code, best matches first, 25 by default and 200 at most.
+
+`promoteSupplierItem` creates a product and a variant from the item on first
+use. The title is the description (or the code), the SKU is the one you pass
+or the supplier's code, and the supplier's code is stored as a `supplier`
+identifier of the new variant. The item keeps a link to the variant, so a
+second call returns the same ids with `created: false`. A SKU another variant
+already has fails with `CATALOG_SKU_TAKEN`; the call never links an item to
+an existing variant silently. It emits `product.created` and
+`product_variant.created`, and it needs the `catalog.manage` permission.
+
+### Column mappings per supplier
+
+Every supplier names its price list columns differently.
+`setSupplierItemMapping` stores which source column fills which field, and
+`mapSupplierRow` turns one source row into supplier item fields:
+
+```ts
+await catalog
+  .setSupplierItemMapping(organizationId, supplierId, {
+    columns: {
+      code: "Artikel",
+      description: "Omschrijving",
+      price: "Prijs",
+      keywords: ["Merk", "Groep"],
+    },
+    defaults: { currency: "EUR", unit: "pcs" },
+  })
+  .orThrow();
+
+const fields = await catalog
+  .mapSupplierRow(organizationId, supplierId, {
+    Artikel: "GV-100",
+    Omschrijving: "Gate valve",
+    Prijs: "1.234,50",
+    Merk: "Acme",
+    Groep: "valves",
+  })
+  .orThrow();
+// { code: "GV-100", description: "Gate valve", price: 123450n,
+//   currency: "EUR", unit: "pcs", keywords: "Acme valves" }
+```
+
+A mapping needs a `code` column and fills only `code`, `description`, `price`,
+`currency`, `unit` and `keywords` (`CATALOG_SUPPLIER_MAPPING_INVALID`).
+`keywords` can list several columns. `defaults` holds the currency and unit
+for rows that carry none. The source price is a decimal number in major units.
+When it has both separators, the last one is the decimal separator; a lone
+comma is a decimal separator too. It is converted to minor units with the
+currency's decimals (`CATALOG_SUPPLIER_PRICE_INVALID` for a value that is not
+a number). A supplier without a mapping fails with
+`CATALOG_SUPPLIER_MAPPING_NOT_FOUND`.
+
+### Importing price lists and codes
+
+The catalog contributes two [import targets](/docs/blocks/imports#import-targets),
+so a price list or a list of codes loads through `defineImport` by external key:
+
+| Entity               | `data`                                                                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `supplier_item`      | `supplierId`, then `row` (mapped through the supplier's mapping) or the fields `code`, `description`, `price`, `currency`, `unit`, `keywords` |
+| `product_identifier` | `sku` or `variantId`, `type`, `value`, `partyId`                                                                                              |
+
+Fields named next to a `row` win over the mapped ones, and `price` is in minor
+units. A new key for a code the supplier already has updates that supplier
+item instead of failing, so a re-import with new keys is safe. The target
+doesn't resolve external keys itself: resolve the supplier or variant ids
+first with `imports.resolve`.
+
+## Trade code
+
+`setVariantTradeCode` sets the variant's Combined Nomenclature (CN) code, the
+4 to 10 digit number customs and Intrastat reporting use. Spaces are dropped,
+so `8481 80 99` is stored as `84818099`, and `null` clears it
+(`CATALOG_TRADE_CODE_INVALID`). The weight stays in the existing
+`weightGrams` of `saveVariant`.
+
+```ts
+await catalog.setVariantTradeCode(variantId, "8481 80 99").orThrow();
+```
+
 ## Locales and translations
 
 The `locales` option lists the languages the catalog is written in, as
@@ -527,8 +710,11 @@ left out. Columns such as `description`, `barcode`, `compareAt` or
 `validFrom` can also be `null`.
 
 The tables added in version 3 (`channels`, `channelProducts`,
-`productTranslations`, `variantTranslations` and `media`) run over a table of
-yours only when `tables` maps them. Unmapped, the module creates its own, so
+`productTranslations`, `variantTranslations` and `media`) and in version 5
+(`identifiers`, `relations`, `supplierItems` and `supplierItemMappings`) run
+over a table of yours only when `tables` maps them. The `tradeCode` column of
+`variants` is optional: map it to `null` and `setVariantTradeCode` is left
+out. Unmapped, the module creates its own, so
 a table of yours under one of those default names is an error until you map
 it.
 

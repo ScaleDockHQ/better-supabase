@@ -1,6 +1,6 @@
 -- better-supabase module: inventory
--- @bsb-block inventory@3 managed
--- @bsb-hash sha256:fca7e544c46e59a0e482bae2216c789bf5e07ae3182b760d10e986dfa1744c8e
+-- @bsb-block inventory@4 managed
+-- @bsb-hash sha256:c339cf10285b59a13965751968f547e957ad876475b7ac6d277017871e3a0fe4
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1475,6 +1475,12 @@ $$;
 revoke execute on function "better_supabase"."list_allocations"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."list_allocations"(uuid, text, text) to authenticated, service_role;
 
+-- Where the location is: line1, line2, postalCode, city, region and country
+-- (a two-letter ISO 3166 code).
+alter table "better_supabase"."inventory_locations" add column if not exists "address" jsonb;
+alter table "better_supabase"."inventory_locations" drop constraint if exists inventory_locations_address_check;
+alter table "better_supabase"."inventory_locations" add constraint inventory_locations_address_check check ("address" is null or jsonb_typeof("address") = 'object');
+
 -- Creates a location (location null) or updates one, with the extra columns
 -- in fields by name. Returns its id, code and active flag.
 drop function if exists "better_supabase"."save_location"(uuid, uuid, text, text, text);
@@ -1585,6 +1591,48 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_location"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_location"(uuid) to authenticated, service_role;
+
+-- Sets a location's address, or clears it with null. The keys are
+-- line1, line2, postalCode, city, region, country; each value is text, and country is a
+-- two-letter code.
+create or replace function "better_supabase"."set_location_address"(location uuid, address jsonb)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_address jsonb := set_location_address.address;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."inventory_locations" x where x."id" = set_location_address.location;
+  if v_tenant is null then
+    raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_address is not null and jsonb_typeof(v_address) = 'null' then
+    v_address := null;
+  end if;
+  if v_address is not null then
+    if jsonb_typeof(v_address) <> 'object'
+      or exists (select 1 from jsonb_each(v_address) e where e.key <> all (array['line1', 'line2', 'postalCode', 'city', 'region', 'country']) or jsonb_typeof(e.value) <> 'string') then
+      raise exception 'an address is an object of text values with the keys line1, line2, postalCode, city, region, country' using errcode = '22023', hint = 'INVENTORY_ADDRESS_INVALID';
+    end if;
+    if v_address ? 'country' and (v_address ->> 'country') !~ '^[A-Z]{2}$' then
+      raise exception 'country is a two-letter ISO 3166 code in capitals' using errcode = '22023', hint = 'INVENTORY_ADDRESS_INVALID';
+    end if;
+  end if;
+  update "better_supabase"."inventory_locations" x set "address" = v_address, "updated_at" = now() where x."id" = set_location_address.location;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_location_address"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."set_location_address"(uuid, jsonb) to authenticated, service_role;
 
 -- Adds or removes stock at a location through the ledger. detail names the
 -- bin, lot, serial numbers or unit cost, as for move_stock. Returns the
@@ -3188,6 +3236,15 @@ set search_path = ''
 as $$ select "better_supabase"."delete_location"($1) $$;
 revoke execute on function "api"."delete_location"(uuid) from public, anon;
 grant execute on function "api"."delete_location"(uuid) to authenticated, service_role;
+
+create or replace function "api"."set_location_address"(location uuid, address jsonb)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_location_address"($1, $2) $$;
+revoke execute on function "api"."set_location_address"(uuid, jsonb) from public, anon;
+grant execute on function "api"."set_location_address"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."adjust_stock"(variant uuid, location uuid, quantity numeric, reason text, note text, detail jsonb default null)
 returns jsonb

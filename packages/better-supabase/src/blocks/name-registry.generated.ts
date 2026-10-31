@@ -419,7 +419,7 @@ export interface BlockNameRegistry {
       readonly "products": "id" | "tenant" | "slug" | "title" | "description" | "kind" | "status" | "createdAt" | "updatedAt" | "price" | "currency" | "trackInventory";
       readonly "options": "id" | "tenant" | "product" | "name" | "rank";
       readonly "optionValues": "id" | "tenant" | "option" | "value" | "rank";
-      readonly "variants": "id" | "tenant" | "product" | "sku" | "title" | "barcode" | "weight" | "trackInventory" | "allowBackorder" | "rank" | "createdAt" | "updatedAt" | "price" | "status";
+      readonly "variants": "id" | "tenant" | "product" | "sku" | "title" | "barcode" | "weight" | "tradeCode" | "trackInventory" | "allowBackorder" | "rank" | "createdAt" | "updatedAt" | "price" | "status";
       readonly "variantValues": "tenant" | "variant" | "value";
       readonly "priceLists": "id" | "tenant" | "name" | "customerGroup" | "createdAt";
       readonly "prices": "id" | "tenant" | "variant" | "priceList" | "currency" | "amount" | "compareAt" | "validFrom" | "validUntil" | "createdAt" | "updatedAt";
@@ -433,13 +433,17 @@ export interface BlockNameRegistry {
       readonly "productTranslations": "tenant" | "product" | "locale" | "title" | "description" | "updatedAt";
       readonly "variantTranslations": "tenant" | "variant" | "locale" | "title" | "updatedAt";
       readonly "media": "id" | "tenant" | "product" | "variant" | "attachment" | "position" | "alt" | "createdAt";
+      readonly "identifiers": "id" | "tenant" | "variant" | "type" | "value" | "party" | "createdAt" | "updatedAt";
+      readonly "relations": "tenant" | "from" | "to" | "kind" | "createdAt";
+      readonly "supplierItems": "id" | "tenant" | "supplier" | "code" | "description" | "price" | "currency" | "unit" | "keywordsText" | "keywords" | "variant" | "createdAt" | "updatedAt";
+      readonly "supplierItemMappings": "tenant" | "supplier" | "columns" | "defaults" | "updatedAt";
     };
-    readonly functions: "add_to_collection" | "channel_price" | "channel_products" | "currency_minor_units" | "delete_catalog_channel" | "delete_category" | "delete_collection" | "delete_price" | "delete_price_list" | "delete_product" | "delete_product_option" | "delete_variant" | "move_category" | "product_text" | "publish_storefront" | "rank_variant" | "remove_from_collection" | "reorder_product_options" | "save_catalog_channel" | "save_category" | "save_collection" | "save_price_list" | "save_product" | "save_product_option" | "save_variant" | "set_channel_listing" | "set_price" | "set_product_categories" | "set_product_options" | "set_product_status" | "set_product_translation" | "set_variant_status" | "set_variant_translation" | "storefront_products" | "storefront_tenants" | "variant_price";
+    readonly functions: "add_to_collection" | "channel_price" | "channel_products" | "currency_minor_units" | "delete_catalog_channel" | "delete_category" | "delete_collection" | "delete_price" | "delete_price_list" | "delete_product" | "delete_product_identifier" | "delete_product_option" | "delete_product_relation" | "delete_supplier_item" | "delete_supplier_item_mapping" | "delete_variant" | "find_variants_by_identifier" | "import_product_identifier" | "import_supplier_item" | "move_category" | "product_identifier_updated_at" | "product_text" | "promote_supplier_item" | "publish_storefront" | "rank_variant" | "remove_from_collection" | "reorder_product_options" | "replacement_variant" | "save_catalog_channel" | "save_category" | "save_collection" | "save_price_list" | "save_product" | "save_product_identifier" | "save_product_option" | "save_product_relation" | "save_supplier_item" | "save_variant" | "search_supplier_items" | "set_channel_listing" | "set_price" | "set_product_categories" | "set_product_options" | "set_product_status" | "set_product_translation" | "set_supplier_item_mapping" | "set_variant_status" | "set_variant_trade_code" | "set_variant_translation" | "storefront_products" | "storefront_tenants" | "supplier_item_from_row" | "supplier_item_mapping" | "supplier_item_updated_at" | "variant_identifiers" | "variant_price" | "variant_relations";
     readonly actions: "manage" | "read" | "create" | "update" | "delete" | "categoryCreate" | "categoryUpdate" | "categoryDelete";
     readonly hooks: "before_product_save" | "after_product_save" | "before_variant_save" | "after_variant_save" | "before_price_set" | "after_price_set";
     readonly entities: {
       readonly "product": "id" | "tenant_id" | "slug" | "title" | "description" | "kind" | "status" | "created_at" | "updated_at" | "price" | "currency" | "track_inventory";
-      readonly "product_variant": "id" | "tenant_id" | "product_id" | "sku" | "title" | "barcode" | "weight_grams" | "track_inventory" | "allow_backorder" | "rank" | "created_at" | "updated_at" | "price" | "status";
+      readonly "product_variant": "id" | "tenant_id" | "product_id" | "sku" | "title" | "barcode" | "weight_grams" | "trade_code" | "track_inventory" | "allow_backorder" | "rank" | "created_at" | "updated_at" | "price" | "status";
     };
     readonly primary: "product";
     readonly formerKeys: never;
@@ -1084,7 +1088,7 @@ export interface BlockNameRegistry {
   };
   readonly "inventory": {
     readonly tables: {
-      readonly "locations": "id" | "tenant" | "code" | "name" | "kind" | "active" | "createdAt" | "updatedAt";
+      readonly "locations": "id" | "tenant" | "code" | "name" | "kind" | "active" | "address" | "createdAt" | "updatedAt";
       readonly "levels": "tenant" | "variant" | "location" | "onHand" | "reserved" | "held" | "incoming" | "available" | "reorderPoint" | "updatedAt";
       readonly "reservations": "id" | "tenant" | "variant" | "location" | "quantity" | "status" | "referenceType" | "referenceId" | "expiresAt" | "createdAt" | "updatedAt";
       readonly "transfers": "id" | "tenant" | "from" | "to" | "status" | "note" | "createdAt" | "shippedAt" | "receivedAt";
@@ -1102,11 +1106,11 @@ export interface BlockNameRegistry {
       readonly "buckets": "id" | "tenant" | "variant" | "location" | "bin" | "lot" | "onHand" | "updatedAt";
       readonly "allocations": "id" | "tenant" | "variant" | "location" | "documentType" | "documentId" | "line" | "quantity" | "allocated" | "fulfilled" | "backordered" | "status" | "createdAt" | "updatedAt";
     };
-    readonly functions: "adjust_stock" | "allocate_stock" | "cancel_purchase_order" | "cancel_transfer" | "commit_reservation" | "count_stock" | "create_transfer" | "decide_purchase_requisition" | "delete_location" | "expire_lots" | "expire_reservations" | "expiring_lots" | "fill_backorders" | "fulfill_allocation" | "get_purchase_requisition" | "list_allocations" | "move_stock" | "place_purchase_order" | "purchase_order_from_requisitions" | "purchase_requisition_decided" | "receive_purchase_order" | "receive_transfer" | "release_allocations" | "release_reservation" | "request_purchase" | "reserve_stock" | "restore_allocation" | "save_bin" | "save_location" | "save_lot" | "save_purchase_order" | "set_location_active" | "set_reorder_point" | "set_stock_item" | "ship_transfer" | "stock_detail" | "stock_lot_for" | "stock_valuation" | "take_allocation";
+    readonly functions: "adjust_stock" | "allocate_stock" | "cancel_purchase_order" | "cancel_transfer" | "commit_reservation" | "count_stock" | "create_transfer" | "decide_purchase_requisition" | "delete_location" | "expire_lots" | "expire_reservations" | "expiring_lots" | "fill_backorders" | "fulfill_allocation" | "get_purchase_requisition" | "list_allocations" | "move_stock" | "place_purchase_order" | "purchase_order_from_requisitions" | "purchase_requisition_decided" | "receive_purchase_order" | "receive_transfer" | "release_allocations" | "release_reservation" | "request_purchase" | "reserve_stock" | "restore_allocation" | "save_bin" | "save_location" | "save_lot" | "save_purchase_order" | "set_location_active" | "set_location_address" | "set_reorder_point" | "set_stock_item" | "ship_transfer" | "stock_detail" | "stock_lot_for" | "stock_valuation" | "take_allocation";
     readonly actions: "manage" | "read" | "reserve" | "purchase";
     readonly hooks: "before_stock_adjust" | "after_stock_adjust" | "before_stock_reserve" | "after_stock_reserve";
     readonly entities: {
-      readonly "inventory_location": "id" | "tenant_id" | "code" | "name" | "kind" | "active" | "created_at" | "updated_at";
+      readonly "inventory_location": "id" | "tenant_id" | "code" | "name" | "kind" | "active" | "address" | "created_at" | "updated_at";
       readonly "purchase_order": "id" | "tenant_id" | "location_id" | "supplier_type" | "supplier_id" | "status" | "currency" | "expected_at" | "note" | "created_at" | "updated_at" | "placed_at" | "ship_to" | "origin_type" | "origin_id";
       readonly "purchase_requisition": "id" | "tenant_id" | "location_id" | "supplier_type" | "supplier_id" | "currency" | "status" | "reason" | "requested_by" | "decided_by" | "decided_at" | "approval_id" | "purchase_order_id" | "created_at" | "updated_at";
       readonly "inventory_receipt": "id" | "tenant_id" | "purchase_order_id" | "location_id" | "inspection_id" | "received_by" | "received_at";
