@@ -161,6 +161,7 @@ import { vectorSearchBlock } from "./vector-search/manifest.ts";
 import { vercelMarketplaceBlock } from "./vercel-marketplace/manifest.ts";
 import { versionsBlock } from "./versions/manifest.ts";
 import { waitlistBlock } from "./waitlist/manifest.ts";
+import { warehouseBlock } from "./warehouse/manifest.ts";
 import { incomingWebhooksBlock, webhooksBlock } from "./webhooks/manifest.ts";
 import { workflowEditorBlock } from "./workflow-editor/manifest.ts";
 import { workflowSdkBlock } from "./workflow-sdk/manifest.ts";
@@ -234,6 +235,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   damBlock,
   limsBlock,
   appraisalsBlock,
+  warehouseBlock,
   manufacturingBlock,
   bankingBlock,
   legalEntitiesBlock,

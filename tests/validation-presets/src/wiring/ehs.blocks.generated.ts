@@ -9,6 +9,8 @@ import type { ApprovalsEvents } from "better-supabase/blocks/approvals";
 import type { AttachmentsEvents } from "better-supabase/blocks/attachments";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
+import type { CatalogEvents } from "better-supabase/blocks/catalog";
+import type { LedgerEvents } from "better-supabase/blocks/ledger";
 import type { AssetsEvents } from "better-supabase/blocks/assets";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { DispatchEvents } from "better-supabase/blocks/dispatch";
@@ -22,10 +24,12 @@ import type { InspectionsEvents } from "better-supabase/blocks/inspections";
 import type { MeetingsEvents } from "better-supabase/blocks/meetings";
 import type { MaintenanceEvents } from "better-supabase/blocks/maintenance";
 import type { AppraisalsEvents } from "better-supabase/blocks/appraisals";
+import type { WarehouseEvents } from "better-supabase/blocks/warehouse";
 import type { DriveEvents } from "better-supabase/blocks/drive";
 import type { EmployeesEvents } from "better-supabase/blocks/employees";
 import type { FormsEvents } from "better-supabase/blocks/forms";
 import type { SignaturesEvents } from "better-supabase/blocks/signatures";
+import type { InventoryEvents } from "better-supabase/blocks/inventory";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { NumberingEvents } from "better-supabase/blocks/numbering";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
@@ -44,6 +48,8 @@ import { approvalsBlock as approvalsBlockInstance } from "better-supabase/blocks
 import { attachmentsBlock as attachmentsBlockInstance } from "better-supabase/blocks/attachments";
 import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
 import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
+import { catalogBlock as catalogBlockInstance } from "better-supabase/blocks/catalog";
+import { ledgerBlock as ledgerBlockInstance } from "better-supabase/blocks/ledger";
 import { assetsBlock as assetsBlockInstance } from "better-supabase/blocks/assets";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { dispatchBlock as dispatchBlockInstance } from "better-supabase/blocks/dispatch";
@@ -57,11 +63,13 @@ import { inspectionsBlock as inspectionsBlockInstance } from "better-supabase/bl
 import { meetingsBlock as meetingsBlockInstance } from "better-supabase/blocks/meetings";
 import { maintenanceBlock as maintenanceBlockInstance } from "better-supabase/blocks/maintenance";
 import { appraisalsBlock as appraisalsBlockInstance } from "better-supabase/blocks/appraisals";
+import { warehouseBlock as warehouseBlockInstance } from "better-supabase/blocks/warehouse";
 import { driveBlock as driveBlockInstance } from "better-supabase/blocks/drive";
 import { employeesBlock as employeesBlockInstance } from "better-supabase/blocks/employees";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
 import { formsBlock as formsBlockInstance } from "better-supabase/blocks/forms";
 import { signaturesBlock as signaturesBlockInstance } from "better-supabase/blocks/signatures";
+import { inventoryBlock as inventoryBlockInstance } from "better-supabase/blocks/inventory";
 import { metricsBlock as metricsBlockInstance } from "better-supabase/blocks/metrics";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
 import { numberingBlock as numberingBlockInstance } from "better-supabase/blocks/numbering";
@@ -109,6 +117,16 @@ export const blockConfig = {
     options: {},
   },
   billing: {
+    schema: "better_supabase",
+    options: {},
+  },
+  catalog: {
+    schema: "better_supabase",
+    options: {
+      rankType: "text",
+    },
+  },
+  ledger: {
     schema: "better_supabase",
     options: {},
   },
@@ -166,6 +184,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  warehouse: {
+    schema: "better_supabase",
+    options: {},
+  },
   drive: {
     schema: "better_supabase",
     options: {},
@@ -183,6 +205,10 @@ export const blockConfig = {
     options: {},
   },
   signatures: {
+    schema: "better_supabase",
+    options: {},
+  },
+  inventory: {
     schema: "better_supabase",
     options: {},
   },
@@ -279,6 +305,8 @@ export const blocks = {
   attachments: attachmentsBlockInstance,
   audit: auditBlockInstance,
   billing: billingBlockInstance,
+  catalog: catalogBlockInstance,
+  ledger: ledgerBlockInstance,
   assets: assetsBlockInstance,
   enrollments: enrollmentsBlockInstance,
   dispatch: dispatchBlockInstance,
@@ -292,11 +320,13 @@ export const blocks = {
   meetings: meetingsBlockInstance,
   maintenance: maintenanceBlockInstance,
   appraisals: appraisalsBlockInstance,
+  warehouse: warehouseBlockInstance,
   drive: driveBlockInstance,
   employees: employeesBlockInstance,
   entitlements: entitlementsBlockInstance,
   forms: formsBlockInstance,
   signatures: signaturesBlockInstance,
+  inventory: inventoryBlockInstance,
   metrics: metricsBlockInstance,
   notifications: notificationsBlockInstance,
   numbering: numberingBlockInstance,
@@ -378,6 +408,10 @@ export const permissions = {
     write: "cases.write",
     close: "cases.close",
     manage: "cases.manage",
+  },
+  catalog: {
+    manage: "catalog.manage",
+    read: "catalog.read",
   },
   company: {
     read: "contacts.read",
@@ -462,10 +496,25 @@ export const permissions = {
     write: "inspections.write",
     manage: "inspections.manage",
   },
+  inventory: {
+    manage: "inventory.manage",
+    read: "inventory.read",
+    reserve: "inventory.reserve",
+    purchase: "inventory.purchase",
+  },
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",
     view: "members.invite",
+  },
+  ledger: {
+    read: "ledger.read",
+    manage: "ledger.manage",
+    post: "ledger.post",
+  },
+  ledger_account: {
+    read: "ledger.read",
+    write: "ledger.manage",
   },
   maintenance: {
     read: "maintenance.read",
@@ -520,6 +569,14 @@ export const permissions = {
   pipelines: {
     read: "pipelines.read",
     manage: "pipelines.manage",
+  },
+  product: {
+    read: "catalog.read",
+    write: "catalog.manage",
+  },
+  product_variant: {
+    read: "catalog.read",
+    write: "catalog.manage",
   },
   qualification_type: {
     read: "qualifications.read",
@@ -576,6 +633,11 @@ export const permissions = {
     restore: "versions.restore",
     manage: "versions.manage",
   },
+  warehouse: {
+    read: "warehouse.read",
+    pick: "warehouse.pick",
+    manage: "warehouse.manage",
+  },
   work_order: {
     read: "dispatch.read",
     write: "dispatch.manage",
@@ -587,13 +649,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "appraisals.manage" | "appraisals.read" | "appraisals.review" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "compliance.collect" | "compliance.manage" | "compliance.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "maintenance.manage" | "maintenance.read" | "maintenance.record" | "meetings.manage" | "meetings.read" | "meetings.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "relations.manage" | "relations.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "appraisals.manage" | "appraisals.read" | "appraisals.review" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "catalog.manage" | "catalog.read" | "compliance.collect" | "compliance.manage" | "compliance.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "ledger.manage" | "ledger.post" | "ledger.read" | "maintenance.manage" | "maintenance.read" | "maintenance.record" | "meetings.manage" | "meetings.read" | "meetings.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "relations.manage" | "relations.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "warehouse.manage" | "warehouse.pick" | "warehouse.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & AssetsEvents & EnrollmentsEvents & DispatchEvents & ComplianceEvents & AcknowledgementsEvents & CoursesEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & AppraisalsEvents & DriveEvents & EmployeesEvents & FormsEvents & SignaturesEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & RelationsEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & VersionsEvents & TasksEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & CatalogEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & DispatchEvents & ComplianceEvents & AcknowledgementsEvents & CoursesEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & AppraisalsEvents & WarehouseEvents & DriveEvents & EmployeesEvents & FormsEvents & SignaturesEvents & InventoryEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & RelationsEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & VersionsEvents & TasksEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -606,6 +668,9 @@ export const blockEvents: Events<BlockEvents> = {
     "acknowledgement.reminded",
     "acknowledgement_assignment.created",
     "acknowledgement_assignment.deleted",
+    "allocation.created",
+    "allocation.filled",
+    "allocation.released",
     "api_key.created",
     "api_key.revoked",
     "api_key.rotated",
@@ -661,6 +726,7 @@ export const blockEvents: Events<BlockEvents> = {
     "case_kind.archived",
     "case_kind.created",
     "case_kind.updated",
+    "catalog.price_changed",
     "company.archived",
     "company.created",
     "company.merged",
@@ -672,6 +738,8 @@ export const blockEvents: Events<BlockEvents> = {
     "control.created",
     "control.evidence_added",
     "control.updated",
+    "count_plan.created",
+    "count_plan.executed",
     "course.completed",
     "course.created",
     "course.deleted",
@@ -743,12 +811,20 @@ export const blockEvents: Events<BlockEvents> = {
     "inspection_program.closed",
     "inspection_program.created",
     "inspection_program.updated",
+    "inventory_receipt.created",
     "invitation.accepted",
     "invitation.created",
     "invitation.declined",
     "invitation.resent",
     "invitation.revoked",
     "invitation.updated",
+    "ledger_account.closed",
+    "ledger_account.opened",
+    "ledger_hold.captured",
+    "ledger_hold.placed",
+    "ledger_hold.released",
+    "ledger_transaction.posted",
+    "ledger_transaction.reversed",
     "maintenance_calibration.recorded",
     "maintenance_meter_reading.recorded",
     "maintenance_plan.completed",
@@ -795,6 +871,11 @@ export const blockEvents: Events<BlockEvents> = {
     "person.merged",
     "person.supplier_status_changed",
     "person.updated",
+    "pick_list.created",
+    "pick_list.picked",
+    "pick_wave.completed",
+    "pick_wave.created",
+    "pick_wave.released",
     "pipeline.archived",
     "pipeline.created",
     "pipeline.stage_changed",
@@ -804,6 +885,18 @@ export const blockEvents: Events<BlockEvents> = {
     "pipeline_stage.updated",
     "platform_setting.reset",
     "platform_setting.updated",
+    "product.created",
+    "product.deleted",
+    "product.status_changed",
+    "product.updated",
+    "product_variant.created",
+    "product_variant.deleted",
+    "product_variant.updated",
+    "purchase_order.cancelled",
+    "purchase_order.placed",
+    "purchase_order.received",
+    "purchase_requisition.approved",
+    "purchase_requisition.created",
     "qualification.expired",
     "qualification.expiry_warned",
     "qualification.granted",
@@ -811,6 +904,9 @@ export const blockEvents: Events<BlockEvents> = {
     "qualification_type.archived",
     "qualification_type.created",
     "qualification_type.updated",
+    "reservation.committed",
+    "reservation.created",
+    "reservation.released",
     "risk.assessed",
     "risk.closed",
     "risk.created",
@@ -829,6 +925,10 @@ export const blockEvents: Events<BlockEvents> = {
     "status.flagged",
     "status.paused",
     "status.resumed",
+    "stock.adjusted",
+    "stock.reorder_point_reached",
+    "storefront.published",
+    "storefront.unpublished",
     "subject.accessed",
     "subject.linked",
     "subject.unlinked",
@@ -848,6 +948,9 @@ export const blockEvents: Events<BlockEvents> = {
     "team.updated",
     "team_member.added",
     "team_member.removed",
+    "transfer.cancelled",
+    "transfer.received",
+    "transfer.shipped",
     "version.created",
     "version.deleted",
     "version.restored",
@@ -869,6 +972,9 @@ export const blockEventSchemas = {
   "acknowledgement.reminded": true,
   "acknowledgement_assignment.created": true,
   "acknowledgement_assignment.deleted": true,
+  "allocation.created": true,
+  "allocation.filled": true,
+  "allocation.released": true,
   "api_key.created": true,
   "api_key.revoked": true,
   "api_key.rotated": true,
@@ -924,6 +1030,7 @@ export const blockEventSchemas = {
   "case_kind.archived": true,
   "case_kind.created": true,
   "case_kind.updated": true,
+  "catalog.price_changed": true,
   "company.archived": true,
   "company.created": true,
   "company.merged": true,
@@ -935,6 +1042,8 @@ export const blockEventSchemas = {
   "control.created": true,
   "control.evidence_added": true,
   "control.updated": true,
+  "count_plan.created": true,
+  "count_plan.executed": true,
   "course.completed": true,
   "course.created": true,
   "course.deleted": true,
@@ -1006,12 +1115,20 @@ export const blockEventSchemas = {
   "inspection_program.closed": true,
   "inspection_program.created": true,
   "inspection_program.updated": true,
+  "inventory_receipt.created": true,
   "invitation.accepted": true,
   "invitation.created": true,
   "invitation.declined": true,
   "invitation.resent": true,
   "invitation.revoked": true,
   "invitation.updated": true,
+  "ledger_account.closed": true,
+  "ledger_account.opened": true,
+  "ledger_hold.captured": true,
+  "ledger_hold.placed": true,
+  "ledger_hold.released": true,
+  "ledger_transaction.posted": true,
+  "ledger_transaction.reversed": true,
   "maintenance_calibration.recorded": true,
   "maintenance_meter_reading.recorded": true,
   "maintenance_plan.completed": true,
@@ -1058,6 +1175,11 @@ export const blockEventSchemas = {
   "person.merged": true,
   "person.supplier_status_changed": true,
   "person.updated": true,
+  "pick_list.created": true,
+  "pick_list.picked": true,
+  "pick_wave.completed": true,
+  "pick_wave.created": true,
+  "pick_wave.released": true,
   "pipeline.archived": true,
   "pipeline.created": true,
   "pipeline.stage_changed": true,
@@ -1067,6 +1189,18 @@ export const blockEventSchemas = {
   "pipeline_stage.updated": true,
   "platform_setting.reset": true,
   "platform_setting.updated": true,
+  "product.created": true,
+  "product.deleted": true,
+  "product.status_changed": true,
+  "product.updated": true,
+  "product_variant.created": true,
+  "product_variant.deleted": true,
+  "product_variant.updated": true,
+  "purchase_order.cancelled": true,
+  "purchase_order.placed": true,
+  "purchase_order.received": true,
+  "purchase_requisition.approved": true,
+  "purchase_requisition.created": true,
   "qualification.expired": true,
   "qualification.expiry_warned": true,
   "qualification.granted": true,
@@ -1074,6 +1208,9 @@ export const blockEventSchemas = {
   "qualification_type.archived": true,
   "qualification_type.created": true,
   "qualification_type.updated": true,
+  "reservation.committed": true,
+  "reservation.created": true,
+  "reservation.released": true,
   "risk.assessed": true,
   "risk.closed": true,
   "risk.created": true,
@@ -1092,6 +1229,10 @@ export const blockEventSchemas = {
   "status.flagged": true,
   "status.paused": true,
   "status.resumed": true,
+  "stock.adjusted": true,
+  "stock.reorder_point_reached": true,
+  "storefront.published": true,
+  "storefront.unpublished": true,
   "subject.accessed": true,
   "subject.linked": true,
   "subject.unlinked": true,
@@ -1111,6 +1252,9 @@ export const blockEventSchemas = {
   "team.updated": true,
   "team_member.added": true,
   "team_member.removed": true,
+  "transfer.cancelled": true,
+  "transfer.received": true,
+  "transfer.shipped": true,
   "version.created": true,
   "version.deleted": true,
   "version.restored": true,
@@ -1120,6 +1264,15 @@ export const blockEventSchemas = {
   "work_order.status_changed": true,
   "work_order.unscheduled": true,
   "work_order.updated": true,
+} as const;
+
+/**
+ * The path of each subject type with a `url`: block entities, `records`
+ * and `tables` subjects.
+ * @public
+ */
+export const urls = {
+  product: (v: { readonly slug: string | number }) => `/products/${String(v.slug)}`,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

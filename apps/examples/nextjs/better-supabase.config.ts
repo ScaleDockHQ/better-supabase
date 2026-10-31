@@ -474,6 +474,9 @@ export default defineConfig({
     // Review cycles with self, peer and manager reviews, calibration sessions
     // and sign-off through approvals.
     appraisals: {},
+    // Pick waves and pick lists made from inventory allocations, with cycle
+    // count plans that hold large variances for review.
+    warehouse: {},
     // Vital signs on a customer's record, with the seeded vitals definitions;
     // a critical value alerts the record's leads.
     observations: { options: { defaults: "vitals" } },

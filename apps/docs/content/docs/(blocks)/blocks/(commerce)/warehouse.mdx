@@ -1,0 +1,120 @@
+---
+title: Warehouse
+description: Pick waves and pick lists made from stock allocations, picking tasks, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
+---
+
+`warehouse` turns the stock allocated to a document into work for pickers. A
+pick list holds one line per allocation with the bin and lot to take it from, a
+wave groups lists that are picked together, and a count plan opens stock counts
+on a schedule and holds a count with large variances until someone approves it.
+
+```bash
+better-supabase add warehouse
+```
+
+```ts
+import { createWarehouse } from "better-supabase/blocks/warehouse";
+```
+
+The module requires `memberships`, `permissions` and [inventory](/docs/blocks/inventory),
+and uses inventory's allocations, bins, lots and stock counts. With
+[tasks](/docs/blocks/tasks) each pick list gets a work item for the picker, and
+with `relations` the task is linked to the pick list. With `outbox` it records
+the events, and with `audit` every change is audited.
+
+## Tables
+
+| Table         | Holds                                                                         |
+| ------------- | ----------------------------------------------------------------------------- |
+| `pick_waves`  | A wave of one location with its status                                        |
+| `pick_lists`  | One document's stock to pick, with the assignee and the work item             |
+| `pick_lines`  | One allocation to pick, with bin, lot, serial numbers and the quantity picked |
+| `count_plans` | A cycle count schedule with the variants, the interval and the variance limit |
+
+Writes go through the functions below.
+
+| Permission         | Allows                                                    | Default roles        |
+| ------------------ | --------------------------------------------------------- | -------------------- |
+| `warehouse.read`   | reading every wave, pick list and count plan              | owner, admin         |
+| `warehouse.pick`   | picking from lists assigned to you or to nobody           | owner, admin, member |
+| `warehouse.manage` | managing waves, lists and plans, and posting cycle counts | owner, admin         |
+
+A member without `warehouse.read` reads only the pick lists assigned to them.
+
+## Pick lists
+
+`createPickList` takes the open allocations of a document at a location and
+makes one line for each that still holds stock and is on no other open list.
+Each line starts with the bin and lot that hold the most of the variant. It
+fails when nothing is left to pick. A list without a wave gets its work item
+at once.
+
+```ts
+const list = await db.warehouse
+  .createPickList({
+    locationId,
+    documentType: "sales_order",
+    documentId: order.id,
+    assigneeId: pickerId,
+  })
+  .orThrow();
+```
+
+`recordPick` adds the quantity a picker found to a line and replaces the bin,
+lot and serial numbers when they differ from the suggestion. The stock does not
+move: the document's shipment still takes it through inventory, which reads the
+confirmed bin and lot. `completePickList` turns the lines with less picked than
+asked for into `short` lines, so nothing stays half open.
+
+```ts
+await db.warehouse.recordPick(list.lines[0].id, { quantity: 2 }).orThrow();
+await db.warehouse.completePickList(list.id).orThrow();
+```
+
+## Waves
+
+`createPickWave` makes a draft wave for a location, and `createPickList` with
+a `waveId` adds a list to it. `releasePickWave` makes the work items and lets
+the pickers record picks. The wave completes when its last open list is
+completed. `cancelPickWave` cancels a draft or released wave with its open
+lists. `listPickWaves` shows each wave with how many lists are still open.
+
+## Cycle counts
+
+`createCountPlan` schedules a count of a location every `everyDays` days, of
+all its stock or of `variantIds` only. `runDueCountPlans` opens the count of
+each plan that is due, through inventory's `open_stock_count`, and moves the
+next run on; run it from a daily job. A plan whose last count is still open
+waits. `runCountPlan` opens one now. Opening a count needs `inventory.manage`
+as well.
+
+`cycleCountVariance` shows each counted line's variance as a percent of what the
+books held, against the plan's `varianceLimitPct` (5 without a plan).
+`postCycleCount` posts the count through inventory, which books the movements.
+A count with a line over the limit posts only with `approve: true`, so a person
+has seen the numbers first.
+
+```ts
+const variance = await db.warehouse.cycleCountVariance(countId).orThrow();
+
+await db.warehouse
+  .postCycleCount(countId, { approve: variance.overLimit })
+  .orThrow();
+```
+
+## Events
+
+| Event                                                            | Data                                                                                   |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `pick_wave.created`, `pick_wave.released`, `pick_wave.completed` | `organizationId`, `id`, `name`, `locationId`, `status`                                 |
+| `pick_list.created`                                              | `organizationId`, `id`, `waveId`, `locationId`, `documentType`, `documentId`, `status` |
+| `pick_list.picked`                                               | the list data and `short`, how many lines were picked short                            |
+| `count_plan.created`, `count_plan.executed`                      | `organizationId`, `id`, `name`, `locationId`, and `countId` on a run                   |
+
+The hooks are `before_pick_list_create` and `after_pick_list_create`.
+
+## Not covered
+
+Putaway, slotting and route optimization inside the warehouse are not part of
+the block. A picking task is a plain work item; the app moves it through its own
+states.

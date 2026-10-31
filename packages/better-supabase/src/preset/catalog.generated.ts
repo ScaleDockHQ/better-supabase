@@ -9897,6 +9897,120 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "warehouse",
+      "title": "Warehouse",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions",
+        "inventory"
+      ],
+      "integrates": [
+        "tasks",
+        "relations",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "warehouse",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "pick_list": {
+            "table": "lists",
+            "singular": "pick_list",
+            "primary": true
+          },
+          "pick_wave": {
+            "table": "waves",
+            "singular": "pick_wave"
+          },
+          "pick_line": {
+            "table": "lines",
+            "singular": "pick_line"
+          },
+          "count_plan": {
+            "table": "plans",
+            "singular": "count_plan"
+          }
+        },
+        "tables": {
+          "lists": {
+            "name": "pick_lists",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "wave": "wave_id",
+              "location": "location_id",
+              "documentType": "document_type",
+              "documentId": "document_id",
+              "status": "status",
+              "assignee": "assignee_id",
+              "task": "task_id",
+              "pickedAt": "picked_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          },
+          "waves": {
+            "name": "pick_waves",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "location": "location_id",
+              "status": "status",
+              "releasedAt": "released_at",
+              "completedAt": "completed_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          },
+          "lines": {
+            "name": "pick_lines",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "list": "pick_list_id",
+              "allocation": "allocation_id",
+              "variant": "variant_id",
+              "bin": "bin_id",
+              "lot": "lot_id",
+              "serials": "serials",
+              "quantity": "quantity",
+              "picked": "picked",
+              "status": "status",
+              "pickedAt": "picked_at",
+              "pickedBy": "picked_by"
+            }
+          },
+          "plans": {
+            "name": "count_plans",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "location": "location_id",
+              "everyDays": "every_days",
+              "variants": "variant_ids",
+              "varianceLimit": "variance_limit_pct",
+              "nextRunOn": "next_run_on",
+              "lastRunAt": "last_run_at",
+              "lastCount": "last_count_id",
+              "active": "active",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "warehouse.read",
+          "pick": "warehouse.pick",
+          "manage": "warehouse.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -21059,6 +21173,310 @@ export const PRESET_CATALOG: PresetCatalog = {
           "appraisal.calibrated",
           "appraisal.finalized",
           "appraisal_review.submitted"
+        ]
+      }
+    },
+    {
+      "name": "warehouse",
+      "sql": [
+        "warehouse"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "warehouseBlock",
+        "subpath": "better-supabase/blocks/warehouse"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "CountPlan"
+        },
+        {
+          "name": "CountPlanEventData"
+        },
+        {
+          "name": "CountPlanExecutedEventData"
+        },
+        {
+          "name": "CountPlanInput"
+        },
+        {
+          "name": "PickLine"
+        },
+        {
+          "name": "PickLineStatus"
+        },
+        {
+          "name": "PickList"
+        },
+        {
+          "name": "PickListEventData"
+        },
+        {
+          "name": "PickListInput"
+        },
+        {
+          "name": "PickListOptions"
+        },
+        {
+          "name": "PickListPickedEventData"
+        },
+        {
+          "name": "PickListStatus"
+        },
+        {
+          "name": "PickWave"
+        },
+        {
+          "name": "PickWaveEventData"
+        },
+        {
+          "name": "PickWaveInput"
+        },
+        {
+          "name": "PickWaveStatus"
+        }
+      ],
+      "entitySchemas": {
+        "pick_wave": {
+          "input": {
+            "title": "PickWaveInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "locationId": {
+                "kind": "uuid"
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PickWaveInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "name",
+                "locationId"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "pick_list": {
+          "input": {
+            "title": "PickListInput",
+            "fields": {
+              "locationId": {
+                "kind": "uuid"
+              },
+              "documentType": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63
+              },
+              "documentId": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "waveId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "assigneeId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PickListInput",
+              "type": "object",
+              "properties": {
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "documentType": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "documentId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "waveId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "assigneeId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "locationId",
+                "documentType",
+                "documentId"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "pick_line": {
+          "input": {
+            "title": "PickRecord",
+            "fields": {
+              "quantity": {
+                "kind": "number",
+                "description": "More than zero."
+              },
+              "binId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "lotId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "serials": {
+                "kind": "string",
+                "array": true,
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PickRecord",
+              "type": "object",
+              "properties": {
+                "quantity": {
+                  "type": "number",
+                  "description": "More than zero."
+                },
+                "binId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "lotId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "serials": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "quantity"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "count_plan": {
+          "input": {
+            "title": "CountPlanInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "locationId": {
+                "kind": "uuid"
+              },
+              "everyDays": {
+                "kind": "integer",
+                "minimum": 1,
+                "maximum": 3660
+              },
+              "variantIds": {
+                "kind": "uuid",
+                "array": true,
+                "optional": true
+              },
+              "varianceLimitPct": {
+                "kind": "number",
+                "optional": true,
+                "minimum": 0
+              },
+              "startsOn": {
+                "kind": "string",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CountPlanInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "everyDays": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 3660
+                },
+                "variantIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "varianceLimitPct": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "startsOn": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "locationId",
+                "everyDays"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "WarehouseEvents",
+        "types": [
+          "pick_wave.created",
+          "pick_wave.released",
+          "pick_wave.completed",
+          "pick_list.created",
+          "pick_list.picked",
+          "count_plan.created",
+          "count_plan.executed"
         ]
       }
     },

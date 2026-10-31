@@ -1125,6 +1125,11 @@
       "types": "./dist/blocks/appraisals/index.d.ts",
       "default": "./dist/blocks/appraisals/index.js"
     },
+    "./blocks/warehouse": {
+      "@better-supabase/source": "./src/blocks/warehouse/index.ts",
+      "types": "./dist/blocks/warehouse/index.d.ts",
+      "default": "./dist/blocks/warehouse/index.js"
+    },
     "./blocks/manufacturing": {
       "@better-supabase/source": "./src/blocks/manufacturing/index.ts",
       "types": "./dist/blocks/manufacturing/index.d.ts",
@@ -2089,6 +2094,10 @@
       "./blocks/appraisals": {
         "types": "./dist/blocks/appraisals/index.d.ts",
         "default": "./dist/blocks/appraisals/index.js"
+      },
+      "./blocks/warehouse": {
+        "types": "./dist/blocks/warehouse/index.d.ts",
+        "default": "./dist/blocks/warehouse/index.js"
       },
       "./blocks/manufacturing": {
         "types": "./dist/blocks/manufacturing/index.d.ts",
