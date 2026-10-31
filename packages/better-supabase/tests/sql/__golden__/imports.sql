@@ -815,7 +815,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:5136c4ae51771b9957e69b2e67dbfd31a71429de74ba7140b1e1f961f0095538
+-- @bsb-hash sha256:6cb52a94c48e994c8a8cd122baf3baa1bcd5a233ea62af78f2c9254d1610cbb8
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1190,7 +1190,7 @@ declare
   v_hint text;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'discount_group', 'discount_rule', 'stock_count', 'order', 'payment_term', 'document_delivery_preference', 'quote', 'invoice', 'credit_note', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'document_template', 'document_text_block']::text[]) then
+  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'discount_group', 'discount_rule', 'stock_count', 'order', 'payment_term', 'document_delivery_preference', 'quote', 'invoice', 'credit_note', 'open_item', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'document_template', 'document_text_block']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -1274,6 +1274,8 @@ begin
           v_current := "better_supabase"."invoice_updated_at"(v_rec."subject_id");
         when 'credit_note' then
           v_current := "better_supabase"."invoice_updated_at"(v_rec."subject_id");
+        when 'open_item' then
+          v_current := "better_supabase"."invoice_updated_at"(v_rec."subject_id");
         when 'tax_code' then
           v_current := "better_supabase"."tax_code_updated_at"(v_rec."subject_id");
         when 'document_template' then
@@ -1336,6 +1338,9 @@ begin
       when 'credit_note' then
         v_subject_type := 'invoice';
         v_out := "better_supabase"."import_credit_note"(v_run_id, v_call, v_subject_id);
+      when 'open_item' then
+        v_subject_type := 'invoice';
+        v_out := "better_supabase"."import_open_item"(v_run_id, v_call, v_subject_id);
       when 'accounting_account' then
         v_subject_type := 'accounting_account';
         v_out := "better_supabase"."import_accounting_account"(v_run_id, v_call, v_subject_id);

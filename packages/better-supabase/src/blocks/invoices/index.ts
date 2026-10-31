@@ -52,6 +52,22 @@ export type {
   PartyPaymentInput,
 } from "./collections.ts";
 
+export type {
+  InvoiceAllocation,
+  InvoiceApproval,
+  InvoiceApprovalLevel,
+  InvoiceApprovalLevelInput,
+  InvoiceApprovalStatus,
+  InvoiceOpenItems,
+  OpenItem,
+  OpenItemAgeing,
+  OpenItemBucket,
+  OpenItemSide,
+  PaymentAllocation,
+  PaymentAllocationInput,
+  PaymentAllocationLine,
+} from "./open-items.ts";
+
 export { invoicesBlock } from "./manifest.ts";
 
 export { invoicesEvents } from "./events.ts";

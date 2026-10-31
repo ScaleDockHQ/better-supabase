@@ -1,3 +1,4 @@
+import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
@@ -494,6 +495,181 @@ describe("createBanking", () => {
       // SAFETY: a feed written for a later API, which the check exists to catch.
       bankFeedOf({ apiVersion: 2, name: "next" } as unknown as BankFeed),
     ).toThrow("targets bank feed API 2");
+  });
+});
+
+const BATCH = {
+  id: "b1",
+  organizationId: "org-1",
+  accountId: "a1",
+  reference: "Run 31 Oct",
+  messageId: "BATCH-1",
+  dueBy: "2026-11-05",
+  executionOn: "2026-11-02",
+  currency: "EUR",
+  total: "9800",
+  itemCount: 1,
+  status: "draft",
+  createdAt: AT,
+  items: [
+    {
+      id: "bi1",
+      invoiceId: "i1",
+      partyId: "c1",
+      creditorName: "Bakker",
+      creditorIban: "NL02ABNA0123456789",
+      amount: "9800",
+      discount: "200",
+      endToEndId: "BILL-1",
+      status: "open",
+    },
+  ],
+};
+
+describe("payment batches", () => {
+  it("creates a batch and exports it as a SEPA file", async () => {
+    const t = fieldsTransport({
+      create_payment_batch: () => BATCH,
+      get_payment_batch: () => BATCH,
+      list_bank_accounts: () => [ACCOUNT],
+    });
+
+    const banking = createBanking({ transport: t, tenant: "org-1" });
+
+    const batch = await banking
+      .createPaymentBatch({
+        accountId: "a1",
+        dueBy: Temporal.PlainDate.from("2026-11-05"),
+        creditors: { c1: { name: "Bakker", iban: "NL02ABNA0123456789" } },
+      })
+      .orThrow();
+
+    expect(batch.total).toEqual(money(9800n, "EUR"));
+    expect(batch.items[0]?.discount).toEqual(money(200n, "EUR"));
+
+    const xml = await banking.exportSepaCreditTransfer("b1").orThrow();
+
+    expect(xml).toContain("<MsgId>BATCH-1</MsgId>");
+    expect(xml).toContain('<InstdAmt Ccy="EUR">98.00</InstdAmt>');
+  });
+
+  it("lists, posts and cancels batches and passes every option", async () => {
+    const t = fieldsTransport({
+      create_payment_batch: () => BATCH,
+      list_payment_batches: () => [BATCH],
+      post_payment_batch: () => ({ ...BATCH, status: "posted" }),
+      cancel_payment_batch: () => ({ ...BATCH, status: "cancelled" }),
+    });
+
+    const banking = createBanking({ transport: t, tenant: "org-1" });
+
+    await banking
+      .createPaymentBatch({
+        accountId: "a1",
+        dueBy: Temporal.PlainDate.from("2026-11-05"),
+        executionOn: Temporal.PlainDate.from("2026-11-02"),
+        reference: "Run",
+        invoiceIds: ["i1"],
+        creditors: { c1: { name: "Bakker", iban: "NL02ABNA0123456789" } },
+      })
+      .orThrow();
+    expect(t.calls[0]?.[1]).toMatchObject({
+      input: {
+        executionOn: "2026-11-02",
+        reference: "Run",
+        invoiceIds: ["i1"],
+      },
+    });
+    expect(await banking.paymentBatches().orThrow()).toHaveLength(1);
+    expect(
+      await banking.paymentBatches({ status: "posted", limit: 5 }).orThrow(),
+    ).toHaveLength(1);
+    expect((await banking.postPaymentBatch("b1").orThrow()).status).toBe(
+      "posted",
+    );
+    expect((await banking.cancelPaymentBatch("b1").orThrow()).status).toBe(
+      "cancelled",
+    );
+  });
+
+  it("reads every optional batch field and writes them to the file", async () => {
+    const full = {
+      ...BATCH,
+      transactionId: "t1",
+      createdBy: "u1",
+      postedAt: AT,
+      reconciledAt: AT,
+      status: "reconciled",
+      items: [
+        {
+          ...BATCH.items[0]!,
+          creditorBic: "COBADEFFXXX",
+          remittance: "Invoice 1",
+          status: "paid",
+        },
+        {
+          ...BATCH.items[0]!,
+          id: "bi2",
+          endToEndId: "BILL-2",
+          status: "cancelled",
+        },
+      ],
+    };
+
+    const t = fieldsTransport({
+      get_payment_batch: () => full,
+      list_bank_accounts: () => [{ ...ACCOUNT, bic: "ABNANL2A" }],
+    });
+
+    const banking = createBanking({ transport: t, tenant: "org-1" });
+
+    const batch = await banking.getPaymentBatch("b1").orThrow();
+
+    expect(batch.transactionId).toBe("t1");
+    expect(batch.createdBy).toBe("u1");
+    expect(batch.postedAt).toBeDefined();
+    expect(batch.reconciledAt).toBeDefined();
+    expect(batch.items[0]?.creditorBic).toBe("COBADEFFXXX");
+
+    const xml = await banking
+      .exportSepaCreditTransfer("b1", {
+        debtorName: "Acme",
+        initiatingPartyName: "Acme Treasury",
+      })
+      .orThrow();
+
+    expect(xml).toContain("<Nm>Acme Treasury</Nm>");
+    expect(xml).toContain("<BICFI>ABNANL2A</BICFI>");
+    expect(xml).toContain("<Ustrd>Invoice 1</Ustrd>");
+    expect(xml).not.toContain("BILL-2");
+  });
+
+  it("refuses an export when the bank account has no IBAN", async () => {
+    const t = fieldsTransport({
+      get_payment_batch: () => BATCH,
+      list_bank_accounts: () => [{ ...ACCOUNT, iban: null }],
+    });
+
+    const result = await createBanking({
+      transport: t,
+      tenant: "org-1",
+    }).exportSepaCreditTransfer("b1");
+
+    expect(result.ok).toBe(false);
+  });
+
+  it("returns an error, not an exception, when the file is refused", async () => {
+    const t = fieldsTransport({
+      get_payment_batch: () => ({ ...BATCH, currency: "USD" }),
+      list_bank_accounts: () => [ACCOUNT],
+    });
+
+    const result = await createBanking({
+      transport: t,
+      tenant: "org-1",
+    }).exportSepaCreditTransfer("b1");
+
+    expect(result.ok).toBe(false);
   });
 });
 

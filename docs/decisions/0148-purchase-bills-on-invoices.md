@@ -71,3 +71,12 @@ and collect both kinds of document.
   check reads the cart user's person in contacts only.
 - Banking and collections build on one payable and receivable table and the
   same payment functions.
+
+## Amendment: open items, allocation and approval
+
+`open_items_for_party` lists invoices, bills and unallocated payments with ageing buckets, and
+`allocate_payment` and `unallocate_payment` spread one payment over several documents. A payment
+within `discount_due_on` takes the early-payment discount, posted to
+`invoices:discount:<sales|purchase>:<CUR>`. Purchase bills get approval levels by amount, set per
+organization or legal entity, signed with `invoices.approve`; payment batches skip a bill until
+every level is approved.

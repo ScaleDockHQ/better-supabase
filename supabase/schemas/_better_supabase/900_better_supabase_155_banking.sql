@@ -1,6 +1,6 @@
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:d2fe49e1a94ee6a987933a68d67efae6bb54fb8953d64c3374d0474c1c5a6ae7
+-- @bsb-hash sha256:6af9a5aabca7ba2fa2ab6fdabe84a9eb0fbf841a40444c5ccb3963f43f142e28
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -81,6 +81,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bank_matches";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."bank_matches";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bank_matches";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."payment_batches";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_batches";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_batches";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_batches";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_batches";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."payment_batch_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_batch_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_batch_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_batch_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_batch_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -232,7 +248,7 @@ create table if not exists "better_supabase"."bank_matches" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "transaction_id" uuid not null,
-  "target_type" text not null check ("target_type" in ('invoice', 'accounting_entry', 'expense_report')),
+  "target_type" text not null check ("target_type" in ('invoice', 'accounting_entry', 'expense_report', 'payment_batch')),
   "target_id" uuid not null,
   -- Minor units with the transaction's sign; a transaction's matches add up to
   -- its amount.
@@ -249,6 +265,76 @@ grant select on "better_supabase"."bank_matches" to authenticated;
 grant all on "better_supabase"."bank_matches" to service_role;
 drop policy if exists bank_matches_read on "better_supabase"."bank_matches";
 create policy bank_matches_read on "better_supabase"."bank_matches"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
+
+
+create table if not exists "better_supabase"."payment_batches" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "bank_account_id" uuid not null,
+  "reference" text not null check (length("reference") between 1 and 200),
+  -- The SEPA MsgId of the file: at most 35 characters.
+  "message_id" text not null check (length("message_id") between 1 and 35),
+  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "due_by" date not null,
+  "execution_on" date not null,
+  -- Minor units paid out: the bills' balances less the discounts taken.
+  "total" bigint not null check ("total" > 0),
+  "item_count" integer not null check ("item_count" > 0),
+  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reconciled', 'cancelled')),
+  -- The bank transaction that reconciled it.
+  "bank_transaction_id" uuid,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now(),
+  "posted_at" timestamptz,
+  "reconciled_at" timestamptz,
+  unique ("tenant_id", "id"),
+  unique ("tenant_id", "reference"),
+  foreign key ("tenant_id", "bank_account_id") references "better_supabase"."bank_accounts" ("tenant_id", "id") on delete restrict,
+  foreign key ("tenant_id", "bank_transaction_id") references "better_supabase"."bank_transactions" ("tenant_id", "id") on delete set null ("bank_transaction_id")
+);
+create index if not exists "payment_batches_tenant_idx" on "better_supabase"."payment_batches" ("tenant_id", "status", "created_at");
+create index if not exists "payment_batches_account_idx" on "better_supabase"."payment_batches" ("tenant_id", "bank_account_id");
+create index if not exists "payment_batches_transaction_idx" on "better_supabase"."payment_batches" ("tenant_id", "bank_transaction_id");
+alter table "better_supabase"."payment_batches" enable row level security;
+revoke all on "better_supabase"."payment_batches" from public, anon, authenticated;
+grant select on "better_supabase"."payment_batches" to authenticated;
+grant all on "better_supabase"."payment_batches" to service_role;
+drop policy if exists payment_batches_read on "better_supabase"."payment_batches";
+create policy payment_batches_read on "better_supabase"."payment_batches"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
+
+create table if not exists "better_supabase"."payment_batch_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "batch_id" uuid not null,
+  "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete restrict,
+  "party_id" text not null,
+  "creditor_name" text not null check (length("creditor_name") between 1 and 140),
+  "creditor_iban" text not null check ("creditor_iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
+  "creditor_bic" text check ("creditor_bic" is null or "creditor_bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
+  -- Minor units paid for the bill, and the early payment discount it takes.
+  "amount" bigint not null check ("amount" > 0),
+  "discount" bigint not null default 0 check ("discount" >= 0),
+  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  -- The SEPA EndToEndId: at most 35 characters.
+  "end_to_end_id" text not null check (length("end_to_end_id") between 1 and 35),
+  "remittance" text check ("remittance" is null or length("remittance") <= 140),
+  "status" text not null default 'open' check ("status" in ('open', 'posted', 'paid', 'cancelled')),
+  foreign key ("tenant_id", "batch_id") references "better_supabase"."payment_batches" ("tenant_id", "id") on delete cascade
+);
+create index if not exists "payment_batch_items_parent_idx" on "better_supabase"."payment_batch_items" ("tenant_id", "batch_id");
+-- A bill sits in at most one live batch.
+create index if not exists "payment_batch_items_invoice_idx" on "better_supabase"."payment_batch_items" ("invoice_id");
+create unique index if not exists "payment_batch_items_invoice_key" on "better_supabase"."payment_batch_items" ("invoice_id") where "status" in ('open', 'posted');
+alter table "better_supabase"."payment_batch_items" enable row level security;
+revoke all on "better_supabase"."payment_batch_items" from public, anon, authenticated;
+grant select on "better_supabase"."payment_batch_items" to authenticated;
+grant all on "better_supabase"."payment_batch_items" to service_role;
+drop policy if exists payment_batch_items_read on "better_supabase"."payment_batch_items";
+create policy payment_batch_items_read on "better_supabase"."payment_batch_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
 
@@ -726,6 +812,224 @@ revoke execute on function "better_supabase"."bank_reconciliation_status"(uuid, 
 grant execute on function "better_supabase"."bank_reconciliation_status"(uuid, date) to authenticated, service_role;
 
 
+-- Selects the approved open supplier bills due by a date and writes them as a
+-- draft payment batch of one bank account. input: { accountId, dueBy,
+-- executionOn (default today), reference, invoiceIds (only these bills),
+-- creditors: { "<partyId>": { name, iban, bic? } } }. A bill with an early
+-- payment discount still open on the execution date is paid less the discount,
+-- and is selected when its discount date falls by dueBy even if it is due later.
+-- Bills that wait for approval are left out; naming one refuses the batch.
+create or replace function "better_supabase"."create_payment_batch"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_account "better_supabase"."bank_accounts"%rowtype;
+  v_batch "better_supabase"."payment_batches"%rowtype;
+  v_due date;
+  v_exec date;
+  v_reference text;
+  v_ids uuid[];
+  v_item record;
+  v_creditor jsonb;
+  v_iban text;
+  v_total bigint := 0;
+  v_count integer := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (create_payment_batch.tenant is not null and coalesce(better_supabase.can('tenant', create_payment_batch.tenant, 'banking.reconcile'), false))) then
+    raise exception 'not allowed to create payment batches' using errcode = '42501', hint = 'BANKING_FORBIDDEN';
+  end if;
+  if jsonb_typeof(create_payment_batch.input) is distinct from 'object'
+    or coalesce(create_payment_batch.input ->> 'accountId', '') !~ '^[0-9a-fA-F-]{36}$'
+    or coalesce(create_payment_batch.input ->> 'dueBy', '') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+    or jsonb_typeof(create_payment_batch.input -> 'creditors') is distinct from 'object' then
+    raise exception 'input needs accountId, dueBy and creditors' using errcode = '22023', hint = 'PAYMENT_BATCH_INVALID';
+  end if;
+  select * into v_account from "better_supabase"."bank_accounts" x
+  where x."id" = (create_payment_batch.input ->> 'accountId')::uuid and x."tenant_id" = create_payment_batch.tenant and x."archived_at" is null;
+  if not found then
+    raise exception 'no such bank account' using errcode = 'P0002', hint = 'BANK_ACCOUNT_NOT_FOUND';
+  end if;
+  if v_account."iban" is null then
+    raise exception 'the bank account needs an IBAN to pay from' using errcode = '22023', hint = 'PAYMENT_BATCH_INVALID';
+  end if;
+  v_due := (create_payment_batch.input ->> 'dueBy')::date;
+  v_exec := coalesce((create_payment_batch.input ->> 'executionOn')::date, current_date);
+  v_reference := coalesce(nullif(trim(create_payment_batch.input ->> 'reference'), ''), 'Batch ' || to_char(v_exec, 'YYYY-MM-DD') || ' ' || left(gen_random_uuid()::text, 8));
+  if jsonb_typeof(create_payment_batch.input -> 'invoiceIds') = 'array' then
+    select array_agg(x.value::uuid) into v_ids from jsonb_array_elements_text(create_payment_batch.input -> 'invoiceIds') x;
+  end if;
+  insert into "better_supabase"."payment_batches" ("tenant_id", "bank_account_id", "reference", "message_id", "currency", "due_by", "execution_on", "total", "item_count", "created_by")
+  values (create_payment_batch.tenant, v_account."id", v_reference, 'BSB' || replace(gen_random_uuid()::text, '-', ''), v_account."currency", v_due, v_exec, 1, 1, auth.uid())
+  returning * into v_batch;
+  for v_item in
+    select r."documentId" as invoice_id, r."partyId" as party, r.identifier, r.balance::bigint as balance,
+      r."discountDueOn" as discount_due_on, coalesce(r."discountAmount", 0)::bigint as discount_amount
+    from jsonb_to_recordset("better_supabase"."open_items_for_party"(create_payment_batch.tenant, null, current_date, 'supplier'))
+      as r("documentType" text, "documentId" uuid, "partyId" text, identifier text, currency text, "dueOn" date, balance bigint,
+        "discountDueOn" date, "discountAmount" bigint, "approvalStatus" text)
+    where r."documentType" = 'invoice' and r.currency = v_account."currency" and r.balance > 0
+      and (v_ids is null or r."documentId" = any (v_ids))
+      and (v_ids is not null or coalesce(r."approvalStatus", 'not_required') <> 'pending')
+      and (r."dueOn" <= v_due or (r."discountDueOn" is not null and r."discountDueOn" >= v_exec and r."discountDueOn" <= v_due and r."discountAmount" > 0))
+      and not exists (select 1 from "better_supabase"."payment_batch_items" y where y."invoice_id" = r."documentId" and y."status" in ('open', 'posted'))
+    order by r."partyId", r."dueOn", r."documentId"
+  loop
+    if coalesce("better_supabase"."invoice_approval_state"(v_item.invoice_id) ->> 'status', 'not_required') = 'pending' then
+      raise exception 'a bill in the batch still needs approval' using errcode = '55000', hint = 'PAYMENT_BATCH_APPROVAL_REQUIRED',
+        detail = jsonb_build_object('invoiceId', v_item.invoice_id)::text;
+    end if;
+    v_creditor := create_payment_batch.input -> 'creditors' -> v_item.party;
+    if jsonb_typeof(v_creditor) is distinct from 'object' or coalesce(trim(v_creditor ->> 'name'), '') = '' then
+      raise exception 'a creditor is missing for a supplier in the batch' using errcode = '22023', hint = 'PAYMENT_BATCH_CREDITOR_MISSING',
+        detail = jsonb_build_object('partyId', v_item.party)::text;
+    end if;
+    v_iban := upper(regexp_replace(coalesce(v_creditor ->> 'iban', ''), '\s', '', 'g'));
+    if v_iban !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' or "better_supabase"."bank_mod97"(substr(v_iban, 5) || substr(v_iban, 1, 4)) is distinct from 1 then
+      raise exception 'a creditor has an invalid IBAN' using errcode = '22023', hint = 'PAYMENT_BATCH_CREDITOR_INVALID',
+        detail = jsonb_build_object('partyId', v_item.party)::text;
+    end if;
+    insert into "better_supabase"."payment_batch_items" ("tenant_id", "batch_id", "invoice_id", "party_id", "creditor_name", "creditor_iban", "creditor_bic", "amount", "discount", "currency", "end_to_end_id", "remittance")
+    values (create_payment_batch.tenant, v_batch."id", v_item.invoice_id, v_item.party, left(trim(v_creditor ->> 'name'), 140), v_iban,
+      nullif(upper(regexp_replace(coalesce(v_creditor ->> 'bic', ''), '\s', '', 'g')), ''),
+      v_item.balance - case when v_item.discount_due_on >= v_exec then v_item.discount_amount else 0 end,
+      case when v_item.discount_due_on >= v_exec then v_item.discount_amount else 0 end,
+      v_account."currency", replace(gen_random_uuid()::text, '-', ''), left(v_item.identifier, 140));
+    v_total := v_total + v_item.balance - case when v_item.discount_due_on >= v_exec then v_item.discount_amount else 0 end;
+    v_count := v_count + 1;
+  end loop;
+  if v_count = 0 then
+    raise exception 'no approved open bill is due by that date' using errcode = '22023', hint = 'PAYMENT_BATCH_EMPTY';
+  end if;
+  update "better_supabase"."payment_batches" y set "total" = v_total, "item_count" = v_count where y."id" = v_batch."id" returning * into v_batch;
+  return jsonb_build_object('id', v_batch."id", 'organizationId', v_batch."tenant_id", 'accountId', v_batch."bank_account_id", 'reference', v_batch."reference", 'messageId', v_batch."message_id", 'currency', v_batch."currency", 'dueBy', v_batch."due_by", 'executionOn', v_batch."execution_on", 'total', v_batch."total"::text, 'itemCount', v_batch."item_count", 'status', v_batch."status", 'transactionId', v_batch."bank_transaction_id", 'createdBy', v_batch."created_by", 'createdAt', v_batch."created_at", 'postedAt', v_batch."posted_at", 'reconciledAt', v_batch."reconciled_at", 'items', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'invoiceId', y."invoice_id", 'partyId', y."party_id", 'creditorName', y."creditor_name", 'creditorIban', y."creditor_iban", 'creditorBic', y."creditor_bic", 'amount', y."amount"::text, 'discount', y."discount"::text, 'currency', y."currency", 'endToEndId', y."end_to_end_id", 'remittance', y."remittance", 'status', y."status") order by y."creditor_name", y."id") from "better_supabase"."payment_batch_items" y where y."batch_id" = v_batch."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."create_payment_batch"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_payment_batch"(uuid, jsonb) to authenticated, service_role;
+
+-- A payment batch with its items.
+create or replace function "better_supabase"."get_payment_batch"(batch_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_batch "better_supabase"."payment_batches"%rowtype;
+begin
+  select * into v_batch from "better_supabase"."payment_batches" x where x."id" = get_payment_batch.batch_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_batch."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_batch."tenant_id", 'banking.read'), false))) then
+    raise exception 'no such payment batch' using errcode = 'P0002', hint = 'PAYMENT_BATCH_NOT_FOUND';
+  end if;
+  return jsonb_build_object('id', v_batch."id", 'organizationId', v_batch."tenant_id", 'accountId', v_batch."bank_account_id", 'reference', v_batch."reference", 'messageId', v_batch."message_id", 'currency', v_batch."currency", 'dueBy', v_batch."due_by", 'executionOn', v_batch."execution_on", 'total', v_batch."total"::text, 'itemCount', v_batch."item_count", 'status', v_batch."status", 'transactionId', v_batch."bank_transaction_id", 'createdBy', v_batch."created_by", 'createdAt', v_batch."created_at", 'postedAt', v_batch."posted_at", 'reconciledAt', v_batch."reconciled_at", 'items', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'invoiceId', y."invoice_id", 'partyId', y."party_id", 'creditorName', y."creditor_name", 'creditorIban', y."creditor_iban", 'creditorBic', y."creditor_bic", 'amount', y."amount"::text, 'discount', y."discount"::text, 'currency', y."currency", 'endToEndId', y."end_to_end_id", 'remittance', y."remittance", 'status', y."status") order by y."creditor_name", y."id") from "better_supabase"."payment_batch_items" y where y."batch_id" = v_batch."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."get_payment_batch"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_payment_batch"(uuid) to authenticated, service_role;
+
+-- Payment batches of an organization, newest first, optionally of one status.
+create or replace function "better_supabase"."list_payment_batches"(tenant uuid, status text default null, page_size integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_payment_batches.tenant is not null and coalesce(better_supabase.can('tenant', list_payment_batches.tenant, 'banking.read'), false))) then
+    raise exception 'not allowed to read payment batches' using errcode = '42501', hint = 'BANKING_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', k."id", 'organizationId', k."tenant_id", 'accountId', k."bank_account_id", 'reference', k."reference", 'messageId', k."message_id", 'currency', k."currency", 'dueBy', k."due_by", 'executionOn', k."execution_on", 'total', k."total"::text, 'itemCount', k."item_count", 'status', k."status", 'transactionId', k."bank_transaction_id", 'createdBy', k."created_by", 'createdAt', k."created_at", 'postedAt', k."posted_at", 'reconciledAt', k."reconciled_at", 'items', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'invoiceId', y."invoice_id", 'partyId', y."party_id", 'creditorName', y."creditor_name", 'creditorIban', y."creditor_iban", 'creditorBic', y."creditor_bic", 'amount', y."amount"::text, 'discount', y."discount"::text, 'currency', y."currency", 'endToEndId', y."end_to_end_id", 'remittance', y."remittance", 'status', y."status") order by y."creditor_name", y."id") from "better_supabase"."payment_batch_items" y where y."batch_id" = k."id"), '[]'::jsonb)) order by k."created_at" desc, k."id")
+    from (
+      select * from "better_supabase"."payment_batches" x
+      where x."tenant_id" = list_payment_batches.tenant and (list_payment_batches.status is null or x."status" = list_payment_batches.status)
+      order by x."created_at" desc, x."id"
+      limit least(greatest(coalesce(list_payment_batches.page_size, 50), 1), 200)
+    ) k
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_payment_batches"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_payment_batches"(uuid, text, integer) to authenticated, service_role;
+
+-- Posts a draft batch: its bills count as paid, pending the bank's
+-- confirmation. Bills that still need approval refuse the post. Reconciling the
+-- bank transaction (a match of target type payment_batch) closes the items.
+create or replace function "better_supabase"."post_payment_batch"(batch_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_batch "better_supabase"."payment_batches"%rowtype;
+  v_item record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_batch from "better_supabase"."payment_batches" x where x."id" = post_payment_batch.batch_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_batch."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_batch."tenant_id", 'banking.reconcile'), false))) then
+    raise exception 'no such payment batch' using errcode = 'P0002', hint = 'PAYMENT_BATCH_NOT_FOUND';
+  end if;
+  if v_batch."status" <> 'draft' then
+    raise exception 'only a draft batch is posted' using errcode = '55000', hint = 'PAYMENT_BATCH_STATUS_INVALID',
+      detail = jsonb_build_object('status', v_batch."status")::text;
+  end if;
+  for v_item in select y."invoice_id" as invoice_id from "better_supabase"."payment_batch_items" y where y."batch_id" = v_batch."id" loop
+    if coalesce("better_supabase"."invoice_approval_state"(v_item.invoice_id) ->> 'status', 'not_required') = 'pending' then
+      raise exception 'a bill in the batch still needs approval' using errcode = '55000', hint = 'PAYMENT_BATCH_APPROVAL_REQUIRED',
+        detail = jsonb_build_object('invoiceId', v_item.invoice_id)::text;
+    end if;
+  end loop;
+  update "better_supabase"."payment_batch_items" y set "status" = 'posted' where y."batch_id" = v_batch."id" and y."status" = 'open';
+  update "better_supabase"."payment_batches" y set "status" = 'posted', "posted_at" = now() where y."id" = v_batch."id" returning * into v_batch;
+  return jsonb_build_object('id', v_batch."id", 'organizationId', v_batch."tenant_id", 'accountId', v_batch."bank_account_id", 'reference', v_batch."reference", 'messageId', v_batch."message_id", 'currency', v_batch."currency", 'dueBy', v_batch."due_by", 'executionOn', v_batch."execution_on", 'total', v_batch."total"::text, 'itemCount', v_batch."item_count", 'status', v_batch."status", 'transactionId', v_batch."bank_transaction_id", 'createdBy', v_batch."created_by", 'createdAt', v_batch."created_at", 'postedAt', v_batch."posted_at", 'reconciledAt', v_batch."reconciled_at", 'items', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'invoiceId', y."invoice_id", 'partyId', y."party_id", 'creditorName', y."creditor_name", 'creditorIban', y."creditor_iban", 'creditorBic', y."creditor_bic", 'amount', y."amount"::text, 'discount', y."discount"::text, 'currency', y."currency", 'endToEndId', y."end_to_end_id", 'remittance', y."remittance", 'status', y."status") order by y."creditor_name", y."id") from "better_supabase"."payment_batch_items" y where y."batch_id" = v_batch."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."post_payment_batch"(uuid) from public, anon;
+grant execute on function "better_supabase"."post_payment_batch"(uuid) to authenticated, service_role;
+
+-- Cancels a draft or posted batch, freeing its bills for another one. A
+-- reconciled batch is undone by unmatching its bank transaction first.
+create or replace function "better_supabase"."cancel_payment_batch"(batch_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_batch "better_supabase"."payment_batches"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_batch from "better_supabase"."payment_batches" x where x."id" = cancel_payment_batch.batch_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_batch."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_batch."tenant_id", 'banking.reconcile'), false))) then
+    raise exception 'no such payment batch' using errcode = 'P0002', hint = 'PAYMENT_BATCH_NOT_FOUND';
+  end if;
+  if v_batch."status" not in ('draft', 'posted') then
+    raise exception 'only a draft or posted batch is cancelled' using errcode = '55000', hint = 'PAYMENT_BATCH_STATUS_INVALID',
+      detail = jsonb_build_object('status', v_batch."status")::text;
+  end if;
+  update "better_supabase"."payment_batch_items" y set "status" = 'cancelled' where y."batch_id" = v_batch."id";
+  update "better_supabase"."payment_batches" y set "status" = 'cancelled' where y."id" = v_batch."id" returning * into v_batch;
+  return jsonb_build_object('id', v_batch."id", 'organizationId', v_batch."tenant_id", 'accountId', v_batch."bank_account_id", 'reference', v_batch."reference", 'messageId', v_batch."message_id", 'currency', v_batch."currency", 'dueBy', v_batch."due_by", 'executionOn', v_batch."execution_on", 'total', v_batch."total"::text, 'itemCount', v_batch."item_count", 'status', v_batch."status", 'transactionId', v_batch."bank_transaction_id", 'createdBy', v_batch."created_by", 'createdAt', v_batch."created_at", 'postedAt', v_batch."posted_at", 'reconciledAt', v_batch."reconciled_at", 'items', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'invoiceId', y."invoice_id", 'partyId', y."party_id", 'creditorName', y."creditor_name", 'creditorIban', y."creditor_iban", 'creditorBic', y."creditor_bic", 'amount', y."amount"::text, 'discount', y."discount"::text, 'currency', y."currency", 'endToEndId', y."end_to_end_id", 'remittance', y."remittance", 'status', y."status") order by y."creditor_name", y."id") from "better_supabase"."payment_batch_items" y where y."batch_id" = v_batch."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."cancel_payment_batch"(uuid) from public, anon;
+grant execute on function "better_supabase"."cancel_payment_batch"(uuid) to authenticated, service_role;
+
+
 -- Matches a bank rule's filter tree against a transaction's fields (ADR 0046).
 create or replace function "better_supabase"."bank_rule_condition"(node jsonb, payload jsonb)
 returns boolean
@@ -902,6 +1206,8 @@ declare
   v_invoice "better_supabase"."invoices"%rowtype;
   v_reimbursed timestamptz;
   v_currency text;
+  v_batch "better_supabase"."payment_batches"%rowtype;
+  v_group record;
   v_item jsonb;
   v_amount bigint;
   v_sum bigint := 0;
@@ -931,10 +1237,10 @@ begin
     end if;
   end;
   for v_item in select value from jsonb_array_elements(match_bank_transaction.matches) loop
-    if coalesce(v_item ->> 'targetType', '') not in ('invoice', 'accounting_entry', 'expense_report')
+    if coalesce(v_item ->> 'targetType', '') not in ('invoice', 'accounting_entry', 'expense_report', 'payment_batch')
       or coalesce(v_item ->> 'targetId', '') !~ '^[0-9a-fA-F-]{36}$'
       or coalesce(v_item ->> 'amount', '0') !~ '^-?[0-9]{1,18}$' then
-      raise exception 'a match has a targetType (invoice, accounting_entry, expense_report), a targetId and an integer amount' using errcode = '22023', hint = 'BANK_TRANSACTION_MATCH_INVALID';
+      raise exception 'a match has a targetType (invoice, accounting_entry, expense_report, payment_batch), a targetId and an integer amount' using errcode = '22023', hint = 'BANK_TRANSACTION_MATCH_INVALID';
     end if;
     v_amount := coalesce((v_item ->> 'amount')::bigint,
       case when jsonb_array_length(match_bank_transaction.matches) = 1 then v_row."amount" end);
@@ -972,6 +1278,27 @@ begin
         perform "better_supabase"."reimburse_expense_report"(v_match."target_id", v_row."booked_on"::timestamptz,
           'bank-match:' || v_match."id"::text);
       end if;
+    elsif v_match."target_type" = 'payment_batch' then
+      select * into v_batch from "better_supabase"."payment_batches" x
+      where x."id" = v_match."target_id" and x."tenant_id" = v_row."tenant_id" for update;
+      if not found or v_batch."status" <> 'posted'
+        or v_batch."bank_account_id" <> v_row."account_id" or v_batch."currency" <> v_row."currency"
+        or -v_match."amount" <> v_batch."total" then
+        raise exception 'the match must name a posted payment batch of the account and currency, for its total' using errcode = '22023', hint = 'BANK_TRANSACTION_MATCH_INVALID';
+      end if;
+      for v_group in
+        select y."party_id" as party, sum(y."amount")::bigint as amount,
+          jsonb_agg(jsonb_build_object('invoiceId', y."invoice_id", 'amount', y."amount"::text) order by y."id") as allocations
+        from "better_supabase"."payment_batch_items" y where y."batch_id" = v_batch."id" and y."status" = 'posted'
+        group by y."party_id" order by y."party_id"
+      loop
+        perform "better_supabase"."allocate_payment"(v_row."tenant_id", jsonb_build_object('partyId', v_group.party, 'side', 'supplier',
+          'amount', v_group.amount::text, 'currency', v_row."currency", 'receivedOn', v_row."booked_on",
+          'reference', 'payment-batch:' || v_batch."id"::text || ':' || v_group.party, 'method', 'sepa_credit_transfer',
+          'note', left(v_batch."reference", 500)), v_group.allocations, null);
+      end loop;
+      update "better_supabase"."payment_batch_items" y set "status" = 'paid' where y."batch_id" = v_batch."id" and y."status" = 'posted';
+      update "better_supabase"."payment_batches" y set "status" = 'reconciled', "bank_transaction_id" = v_row."id", "reconciled_at" = now() where y."id" = v_batch."id";
     end if;
   end loop;
   if v_sum <> v_row."amount" then
@@ -1021,6 +1348,8 @@ declare
   v_invoice "better_supabase"."invoices"%rowtype;
   v_reimbursed timestamptz;
   v_currency text;
+  v_batch "better_supabase"."payment_batches"%rowtype;
+  v_group record;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1046,6 +1375,15 @@ begin
         v_row."currency", now(), 'bank_transfer',
         'bank-unmatch:' || v_match."id"::text,
         'Bank match undone');
+    elsif v_match."target_type" = 'payment_batch' then
+      select * into v_batch from "better_supabase"."payment_batches" x where x."id" = v_match."target_id" and x."tenant_id" = v_row."tenant_id";
+      if found and v_batch."status" = 'reconciled' then
+        for v_group in select distinct y."party_id" as party from "better_supabase"."payment_batch_items" y where y."batch_id" = v_batch."id" and y."status" = 'paid' loop
+          perform "better_supabase"."unallocate_payment"(v_row."tenant_id", 'payment-batch:' || v_batch."id"::text || ':' || v_group.party, null);
+        end loop;
+        update "better_supabase"."payment_batch_items" y set "status" = 'posted' where y."batch_id" = v_batch."id" and y."status" = 'paid';
+        update "better_supabase"."payment_batches" y set "status" = 'posted', "bank_transaction_id" = null, "reconciled_at" = null where y."id" = v_batch."id";
+      end if;
     end if;
   end loop;
   if v_row."rule_id" is not null then
@@ -1467,6 +1805,48 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bank_matches
 create policy bsb_tenant_scope_delete on "better_supabase"."bank_matches" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."payment_batches";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_batches";
+create policy bsb_tenant_scope_select on "better_supabase"."payment_batches" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_batches";
+create policy bsb_tenant_scope_insert on "better_supabase"."payment_batches" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_batches";
+create policy bsb_tenant_scope_update on "better_supabase"."payment_batches" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_batches";
+create policy bsb_tenant_scope_delete on "better_supabase"."payment_batches" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."payment_batch_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_batch_items";
+create policy bsb_tenant_scope_select on "better_supabase"."payment_batch_items" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_batch_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."payment_batch_items" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_batch_items";
+create policy bsb_tenant_scope_update on "better_supabase"."payment_batch_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_batch_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."payment_batch_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.banking.api: entry points for the Data API.
 create schema if not exists "api";
@@ -1552,6 +1932,51 @@ set search_path = ''
 as $$ select "better_supabase"."bank_reconciliation_status"($1, $2) $$;
 revoke execute on function "api"."bank_reconciliation_status"(uuid, date) from public, anon;
 grant execute on function "api"."bank_reconciliation_status"(uuid, date) to authenticated, service_role;
+
+create or replace function "api"."create_payment_batch"(tenant uuid, input jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."create_payment_batch"($1, $2) $$;
+revoke execute on function "api"."create_payment_batch"(uuid, jsonb) from public, anon;
+grant execute on function "api"."create_payment_batch"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."get_payment_batch"(batch_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_payment_batch"($1) $$;
+revoke execute on function "api"."get_payment_batch"(uuid) from public, anon;
+grant execute on function "api"."get_payment_batch"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_payment_batches"(tenant uuid, status text default null, page_size integer default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_payment_batches"($1, $2, $3) $$;
+revoke execute on function "api"."list_payment_batches"(uuid, text, integer) from public, anon;
+grant execute on function "api"."list_payment_batches"(uuid, text, integer) to authenticated, service_role;
+
+create or replace function "api"."post_payment_batch"(batch_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."post_payment_batch"($1) $$;
+revoke execute on function "api"."post_payment_batch"(uuid) from public, anon;
+grant execute on function "api"."post_payment_batch"(uuid) to authenticated, service_role;
+
+create or replace function "api"."cancel_payment_batch"(batch_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."cancel_payment_batch"($1) $$;
+revoke execute on function "api"."cancel_payment_batch"(uuid) from public, anon;
+grant execute on function "api"."cancel_payment_batch"(uuid) to authenticated, service_role;
 
 create or replace function "api"."suggest_bank_matches"(transaction_id uuid)
 returns jsonb

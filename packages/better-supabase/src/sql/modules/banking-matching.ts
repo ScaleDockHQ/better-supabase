@@ -3,6 +3,7 @@ import type { BlockSqlContext } from "../context.ts";
 import { booksAccounting, unbookSource } from "../accounting-sources-sql.ts";
 import { filterTreeSql } from "../filter-tree-sql.ts";
 import { userGrant } from "../shared.ts";
+import { batchSettle, hasBatches } from "./banking-batches.ts";
 import {
   bankingSql,
   linked,
@@ -18,6 +19,7 @@ function targets(ctx: BlockSqlContext): readonly string[] {
     ...(linked(ctx, "invoices") ? ["invoice"] : []),
     ...(linked(ctx, "accounting") ? ["accounting_entry"] : []),
     ...(expenses?.hasTable("reports") ? ["expense_report"] : []),
+    ...(hasBatches(ctx) ? ["payment_batch"] : []),
   ];
 }
 
@@ -80,6 +82,10 @@ function settle(ctx: BlockSqlContext, undo: boolean): string {
       end if;`);
   }
 
+  if (hasBatches(ctx)) {
+    branches.push(batchSettle(ctx, undo));
+  }
+
   return branches.length === 0
     ? ""
     : `
@@ -113,6 +119,9 @@ export function bankingMatching(ctx: BlockSqlContext): string {
     ...(invoices ? [`v_invoice ${invoices.table("invoices")}%rowtype;`] : []),
     "v_reimbursed timestamptz;",
     "v_currency text;",
+    ...(hasBatches(ctx)
+      ? [`v_batch ${ctx.table("batches")}%rowtype;`, "v_group record;"]
+      : []),
   ]
     .join("\n  ")
     .replace("%T", q.transactions)

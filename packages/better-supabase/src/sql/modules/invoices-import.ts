@@ -247,6 +247,47 @@ as $$
 $$;
 ${serviceGrant(`${fn("import_credit_note")}(uuid, jsonb, text)`)}
 
+-- The open_item import target: an opening open-item list. item.data is
+-- { number, issuedOn, dueOn?, currency, balance, side? (customer or supplier),
+-- title?, company?, contact?, legalEntityId? } for one open invoice or bill; it
+-- imports as an issued document of one line for the open balance with its
+-- original number and dates, so ageing and allocation work on it. Importing the
+-- same row again writes nothing.
+create or replace function ${fn("import_open_item")}(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_open_item.item -> 'data';
+  v_balance bigint;
+begin
+  if jsonb_typeof(v_data) is distinct from 'object' or coalesce(v_data ->> 'balance', '') !~ '^[0-9]{1,18}$' or (v_data ->> 'balance')::bigint = 0 then
+    ${fail("IMPORT_ITEM_INVALID", "an open item has a positive integer balance in minor units", "22023")}
+  end if;
+  if coalesce(v_data ->> 'side', 'customer') not in ('customer', 'supplier') then
+    ${fail("IMPORT_ITEM_INVALID", "side is customer or supplier", "22023")}
+  end if;
+  v_balance := (v_data ->> 'balance')::bigint;
+  return ${fn("import_invoice_document")}(jsonb_set(import_open_item.item, '{data}', jsonb_strip_nulls(jsonb_build_object(
+    'number', v_data -> 'number', 'status', 'issued', 'issuedOn', v_data -> 'issuedOn', 'dueOn', v_data -> 'dueOn',
+    'currency', v_data -> 'currency', 'company', v_data -> 'company', 'contact', v_data -> 'contact',
+    'legalEntityId', v_data -> 'legalEntityId',${
+      has("direction")
+        ? `
+    'direction', case when v_data ->> 'side' = 'supplier' then 'purchase' else 'sales' end,`
+        : ""
+    }
+    'title', coalesce(nullif(v_data ->> 'title', ''), 'Opening balance ' || coalesce(v_data ->> 'number', '')),
+    'lines', jsonb_build_array(jsonb_build_object('description', 'Opening balance ' || coalesce(v_data ->> 'number', ''),
+      'quantity', 1, 'unitAmount', v_balance, 'taxRateBps', 0)),
+    'totals', jsonb_build_object('subtotal', v_balance, 'tax', 0, 'total', v_balance)))),
+    import_open_item.subject_id, false);
+end;
+$$;
+${serviceGrant(`${fn("import_open_item")}(uuid, jsonb, text)`)}
+
 -- When an invoice last changed, for the conflict check of imports.
 create or replace function ${fn("invoice_updated_at")}(subject_id text)
 returns timestamptz
@@ -276,6 +317,12 @@ export function invoiceImportTargets(
       entity: "credit_note",
       subjectType: "invoice",
       write: plain(own.fn("import_credit_note")),
+      updatedAt: plain(own.fn("invoice_updated_at")),
+    },
+    {
+      entity: "open_item",
+      subjectType: "invoice",
+      write: plain(own.fn("import_open_item")),
       updatedAt: plain(own.fn("invoice_updated_at")),
     },
   ];

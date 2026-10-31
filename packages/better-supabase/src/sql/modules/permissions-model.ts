@@ -479,6 +479,7 @@ export const OPERATIONS = {
   "invoices.purchase": "invoices.purchase",
   "invoices.overrideMatch": "invoices.override_match",
   "invoices.collect": "invoices.collect",
+  "invoices.approve": "invoices.approve",
   "sla.read": "sla.read",
   "sla.manage": "sla.manage",
   "goals.read": "goals.read",

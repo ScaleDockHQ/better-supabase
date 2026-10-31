@@ -5,7 +5,7 @@ description: Invoices an organization sends its own customers, with drafts and l
 
 `invoices` is accounts receivable: the invoices an organization sends its own customers for work, licences or goods. It is not [billing](/docs/blocks/billing), which charges your organizations for your app through Stripe. An invoice starts as a draft with lines, gets its number when you issue it, collects payments until its balance is zero, and can be credited, voided or written off. With the [quotes](/docs/blocks/quotes) module installed, an accepted quote becomes a deposit invoice and a final invoice.
 
-Reading needs `invoices.read`, creating, issuing, recording payments and credit notes needs `invoices.write`, and voiding and writing off needs `invoices.manage`; [a key per action](#a-key-per-action) splits them further. Every write on a [purchase bill](#purchase-bills) needs `invoices.purchase`, and paying a bill that doesn't match its purchase order needs `invoices.override_match`. Admins get every permission, and members get `invoices.read`.
+Reading needs `invoices.read`, creating, issuing, recording payments and credit notes needs `invoices.write`, and voiding and writing off needs `invoices.manage`; [a key per action](#a-key-per-action) splits them further. Every write on a [purchase bill](#purchase-bills) needs `invoices.purchase`, paying a bill that doesn't match its purchase order needs `invoices.override_match`, and approving a bill needs `invoices.approve`. Admins get every permission, and members get `invoices.read`.
 
 ```bash
 better-supabase add invoices
@@ -569,6 +569,46 @@ A party payment's credit books in the bank journal when it arrives: the bank
 against the party's receivable. Applying the credit to an invoice later books
 nothing, since the receivable was already credited.
 
+## Open items and allocation
+
+`openItems(organizationId, { partyId, asOf, side })` lists what a party owes
+or is owed as of a date: open invoices and bills, plus payments and credits
+that are not allocated yet as negative balances. `openItemAgeing` sums the
+same items per party, currency and bucket (`notDue`, `days1To30`, `days31To60`,
+`days61To90`, `over90`).
+
+`allocatePayment(organizationId, payment)` spreads one payment or credit over
+several documents of a party. An amount below the balance is a partial
+payment, an amount above it stays on the party as credit, and an allocation
+that arrives by the document's `discount_due_on` takes the early-payment
+discount and posts it through accounting to `invoices:discount:<sales|purchase>:<CUR>`.
+Sending the same `reference` again adds nothing. `unallocatePayment` reverses
+every allocation of a reference and the documents reopen, discount included.
+`allocations` lists them. The events are `invoice.allocated`,
+`invoice.unallocated` and `invoice.discount_applied`.
+
+```ts
+await invoices.allocatePayment(organizationId, {
+  partyId,
+  side: "supplier",
+  amount: Money.of("980.00", "EUR"),
+  currency: "EUR",
+  receivedOn,
+  reference: "pay-2",
+  allocations: [{ invoiceId, amount: Money.of("980.00", "EUR") }],
+});
+```
+
+### Purchase approval levels
+
+`setApprovalLevels(organizationId, levels, { legalEntityId })` sets the levels
+by amount: a bill from `minAmount` up needs the approval of that level's
+`approverId`, and each legal entity can have its own list. A person with
+`invoices.approve` calls `approvePurchaseInvoice(invoiceId)` to sign the levels
+they are the approver of, and `approvalStatus(invoiceId)` reports `not_required`,
+`pending` or `approved` with the levels still open. A bill that waits for
+approval is skipped by [payment batches](/docs/blocks/banking#payment-batches).
+
 ## Aging
 
 `aging(organizationId, currency, asOf?, direction?)` sums what is owed in one currency by days past due: not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90, with the total outstanding and the number of overdue invoices. `direction` is `sales` by default; `purchase` sums the open bills.
@@ -585,6 +625,9 @@ nothing, since the receivable was already credited.
 | `invoice.credit_applied`                                                                                                           | the same, with `paymentId`, `partyId`, `amount` and `balance`                                                                    |
 | `invoice.dunning_escalated`                                                                                                        | the same, with `level`, `templateKey`, `fee`, `final`, `balance` and `dueOn`                                                     |
 | `invoice.dunning_paused`                                                                                                           | the same, with `until` and `reason`                                                                                              |
+| `invoice.allocated`, `invoice.unallocated`                                                                                         | the invoice, with `reference`, `partyId`, `amount` and `balance`                                                                 |
+| `invoice.discount_applied`                                                                                                         | the invoice, with `reference`, `amount` and `balance`                                                                            |
+| `invoice.approved`                                                                                                                 | the invoice, with `level` and `approvalStatus`                                                                                   |
 | `invoice.collection_started`                                                                                                       | the invoice, with `agencyPartyId`, `balance` and `level`                                                                         |
 
 Send the customer's reminder from `invoice.dunning_escalated` with an outbox sink that renders its `templateKey`, or build your own sequence with a [workflow](/docs/blocks/workflows) that waits until the due date and checks the balance.

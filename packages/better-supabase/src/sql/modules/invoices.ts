@@ -25,6 +25,14 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { invoiceAccountingSources } from "./invoices-accounting.ts";
 import {
+  APPROVAL_EVENTS,
+  APPROVAL_LEVELS_TABLE,
+  APPROVALS_TABLE,
+  approvalContract,
+  approvalNames,
+  approvalTablesSql,
+} from "./invoices-approval.ts";
+import {
   COLLECTION_COLUMNS,
   COLLECTION_EVENTS,
   collectionColumnsSql,
@@ -52,6 +60,12 @@ import {
   invoiceImportTargets,
 } from "./invoices-import.ts";
 import { invoicePaymentsUpgrade } from "./invoices-ledger.ts";
+import {
+  ALLOCATIONS_TABLE,
+  allocationTableSql,
+  OPEN_ITEM_EVENTS,
+  openItemContract,
+} from "./invoices-open-items.ts";
 import { PURCHASE_COLUMNS, purchaseNames } from "./invoices-purchase.ts";
 import {
   HANDOVER_COLUMNS,
@@ -108,6 +122,8 @@ const EVENTS: BlockSqlEvents<InvoicesEvents> = {
     payload: [...INVOICE, "purchaseOrderId", "status"],
   },
   ...COLLECTION_EVENTS,
+  ...OPEN_ITEM_EVENTS,
+  ...APPROVAL_EVENTS,
 };
 
 const NAMES: BlockSqlNames = {
@@ -271,6 +287,9 @@ const NAMES: BlockSqlNames = {
     dunningRuns: DUNNING_RUNS_TABLE,
     dunningRunItems: DUNNING_RUN_ITEMS_TABLE,
     dunningHistory: DUNNING_HISTORY_TABLE,
+    allocations: ALLOCATIONS_TABLE,
+    approvalLevels: APPROVAL_LEVELS_TABLE,
+    approvals: APPROVALS_TABLE,
   },
 };
 
@@ -420,7 +439,7 @@ ${renderPolicy(
   }),
   { drop: true, target: t("invoices") },
 )}
-${charges}${dunningTableSql(ctx, n.read)}${dunningRunTablesSql(ctx, t("invoices"), i("id"), n.read)}
+${charges}${dunningTableSql(ctx, n.read)}${dunningRunTablesSql(ctx, t("invoices"), i("id"), n.read)}${allocationTableSql(ctx, t("invoices"), i("id"), n.read)}${approvalTablesSql(ctx, t("invoices"), i("id"), n.read)}
 `;
 }
 
@@ -608,6 +627,7 @@ function build(ctx: BlockSqlContext): string {
     quoteLineValues: quoteLineValues(ctx),
     ...purchaseNames(ctx, keys),
     ...collectionNames(ctx, keys),
+    ...approvalNames(ctx, keys),
   };
 
   return `${schemaPreamble(ctx)}
@@ -716,6 +736,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         ]
       : []),
     ...collectionContract(ctx),
+    ...openItemContract(ctx),
+    ...approvalContract(ctx),
   ];
 }
 

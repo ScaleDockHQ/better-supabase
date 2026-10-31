@@ -63,3 +63,12 @@ credit work, so banking uses the payment functions rather than changing them.
   stays open until the rest arrives.
 - Collections and dunning can read `bank_transactions` for payments that
   arrived but aren't matched yet.
+
+## Amendment: payment batches
+
+Payment batches (`payment_batches`, `payment_batch_items`) pay approved open supplier bills in one
+SEPA credit transfer (pain.001.001.09, pinned in `SPEC_PINS`). Posting marks the items pending bank
+confirmation. A match with the `payment_batch` target allocates the payment per supplier through
+`allocate_payment` under the reference `payment-batch:<batch>:<party>`, and undoing it calls
+`unallocate_payment`. Creditor bank details travel in the batch input, since the library stores no
+supplier IBANs. Direct debits (pain.008) stay out of scope.

@@ -14,6 +14,13 @@ import {
 } from "../accounting-sources-sql.ts";
 import { schemaPreamble } from "../shared.ts";
 import { bankingAccountingSources } from "./banking-accounting.ts";
+import {
+  BATCH_ITEMS_TABLE,
+  BATCHES_TABLE,
+  batchContract,
+  batchFunctions,
+  batchTablesSql,
+} from "./banking-batches.ts";
 import { bankingFunctions } from "./banking-functions.ts";
 import { bankingMatching } from "./banking-matching.ts";
 import { linked } from "./banking-sql.ts";
@@ -167,6 +174,8 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
       },
     },
+    batches: BATCHES_TABLE,
+    batchItems: BATCH_ITEMS_TABLE,
   },
 };
 
@@ -180,12 +189,14 @@ function build(ctx: BlockSqlContext): string {
 -- transactions, matches to invoices, expense reports and accounting entries,
 -- bank rules that book or set aside what they match, and reconciliation.
 ${bankingTables(ctx)}
+${batchTablesSql(ctx)}
 ${bankingFunctions(ctx)}
+${batchFunctions(ctx)}
 ${bankingMatching(ctx)}
 ${linked(ctx, "accounting") ? accountingSourcesSql(ctx, bankingAccountingSources(ctx)) : ""}`;
 }
 
-function contract(): readonly BlockSqlContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_bank_account",
@@ -230,6 +241,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["uuid", "date"],
       returns: "jsonb",
     },
+    ...batchContract(ctx),
   ];
 }
 

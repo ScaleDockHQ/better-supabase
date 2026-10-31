@@ -388,6 +388,7 @@ export const permissions = {
     purchase: "invoices.purchase",
     overrideMatch: "invoices.override_match",
     collect: "invoices.collect",
+    approve: "invoices.approve",
   },
   leave: {
     request: "leave.request",
@@ -492,7 +493,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "accounting.close" | "accounting.manage" | "accounting.post" | "accounting.read" | "accounting.write" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "banking.import" | "banking.manage" | "banking.read" | "banking.reconcile" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.write" | "leave.approve" | "leave.manage" | "leave.read" | "leave.request" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "quotes.manage" | "quotes.read" | "quotes.write" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tax.manage" | "tax.read" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
+export type PermissionKey = "accounting.close" | "accounting.manage" | "accounting.post" | "accounting.read" | "accounting.write" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "banking.import" | "banking.manage" | "banking.read" | "banking.reconcile" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.approve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.write" | "leave.approve" | "leave.manage" | "leave.read" | "leave.request" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "quotes.manage" | "quotes.read" | "quotes.write" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tax.manage" | "tax.read" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -603,6 +604,8 @@ export const blockEvents: Events<BlockEvents> = {
     "invitation.resent",
     "invitation.revoked",
     "invitation.updated",
+    "invoice.allocated",
+    "invoice.approved",
     "invoice.charge_removed",
     "invoice.charged",
     "invoice.collection_started",
@@ -610,6 +613,7 @@ export const blockEvents: Events<BlockEvents> = {
     "invoice.credit_applied",
     "invoice.credited",
     "invoice.deleted",
+    "invoice.discount_applied",
     "invoice.dunning_escalated",
     "invoice.dunning_paused",
     "invoice.issued",
@@ -617,6 +621,7 @@ export const blockEvents: Events<BlockEvents> = {
     "invoice.paid",
     "invoice.payment_recorded",
     "invoice.payment_reversed",
+    "invoice.unallocated",
     "invoice.uncollected",
     "invoice.updated",
     "invoice.voided",
@@ -835,6 +840,8 @@ export const blockEventSchemas = {
   "invitation.resent": true,
   "invitation.revoked": true,
   "invitation.updated": true,
+  "invoice.allocated": true,
+  "invoice.approved": true,
   "invoice.charge_removed": true,
   "invoice.charged": true,
   "invoice.collection_started": true,
@@ -842,6 +849,7 @@ export const blockEventSchemas = {
   "invoice.credit_applied": true,
   "invoice.credited": true,
   "invoice.deleted": true,
+  "invoice.discount_applied": true,
   "invoice.dunning_escalated": true,
   "invoice.dunning_paused": true,
   "invoice.issued": true,
@@ -849,6 +857,7 @@ export const blockEventSchemas = {
   "invoice.paid": true,
   "invoice.payment_recorded": true,
   "invoice.payment_reversed": true,
+  "invoice.unallocated": true,
   "invoice.uncollected": true,
   "invoice.updated": true,
   "invoice.voided": true,

@@ -264,6 +264,15 @@ export interface InvoiceEventData extends SubjectEventData {
   readonly final?: boolean;
   /** For `invoice.dunning_paused`: the date reminders wait until, or null. */
   readonly until?: string | null;
+  /** For `invoice.allocated` and `invoice.unallocated`: the payment reference. */
+  readonly reference?: string;
+  /**
+   * For `invoice.allocated` and `invoice.discount_applied`: the early payment
+   * discount, in minor units.
+   */
+  readonly discount?: string;
+  /** For `invoice.approved`: the status after the approval. */
+  readonly approvalStatus?: string;
 }
 
 /** Events from the sla module: a clock on a record warned, breached or was met. */

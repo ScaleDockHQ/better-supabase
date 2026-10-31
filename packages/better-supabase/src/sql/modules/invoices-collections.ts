@@ -114,16 +114,16 @@ function hasDunning(ctx: BlockSqlContext): boolean {
 }
 
 /** The party columns an invoice names its customer by. */
-const partyColumns = (ctx: BlockSqlContext): readonly string[] =>
+export const partyColumns = (ctx: BlockSqlContext): readonly string[] =>
   ["companyId", "contactId"].filter((column) => ctx.has("invoices", column));
 
 /** Whether payments can be recorded for a party: the table names one. */
-function hasPartyCredit(ctx: BlockSqlContext): boolean {
+export function hasPartyCredit(ctx: BlockSqlContext): boolean {
   return partyColumns(ctx).length > 0;
 }
 
 /** The code of a party's credit account in one currency. */
-const creditCode = (party: string, currency: string): string =>
+export const creditCode = (party: string, currency: string): string =>
   `'invoices:credit:' || ${party} || ':' || ${currency}`;
 
 /**
