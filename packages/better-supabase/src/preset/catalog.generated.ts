@@ -15026,9 +15026,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "Policy"
         },
         {
-          "name": "PolicyAcknowledgements"
-        },
-        {
           "name": "PolicyInput"
         },
         {
