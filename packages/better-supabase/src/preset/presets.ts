@@ -64,6 +64,9 @@ export type PresetName =
   | "marketplace"
   | "scheduling"
   | "people"
+  | "psa"
+  | "ats"
+  | "intranet"
   | "drive"
   | "docs"
   | "invoicing"
@@ -329,6 +332,83 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "calendar",
       "documents",
       "automations",
+    ],
+  },
+  psa: {
+    name: "psa",
+    title: "Professional services",
+    description:
+      "SaaS plus clients, tasks, time tracking priced from rate cards, a staffing roster, expenses, approvals, quotes, contracts and invoices that bill the approved time, with numbering, comments, an activity feed, attachments, tags, saved views, search and automations.",
+    group: "products",
+    blocks: [
+      ...SAAS,
+      "contacts",
+      "tasks",
+      "time-tracking",
+      "billable-time",
+      "shifts",
+      "expenses",
+      "approvals",
+      "quotes",
+      "contracts",
+      "invoices",
+      "numbering",
+      "comments",
+      "timeline",
+      "attachments",
+      "tags",
+      "saved-views",
+      "search",
+      "automations",
+    ],
+  },
+  ats: {
+    name: "ats",
+    title: "Applicant tracking",
+    description:
+      "SaaS plus hiring (candidates, stages and offers), application forms, interview scheduling on calendars and bookings, offer templates and signatures, approvals, reminders, comments, an activity feed, attachments, tags, saved views and search.",
+    group: "products",
+    blocks: [
+      ...SAAS,
+      "hiring",
+      "employees",
+      "forms",
+      "calendar",
+      "bookings",
+      "templates",
+      "signatures",
+      "approvals",
+      "reminders",
+      "comments",
+      "timeline",
+      "attachments",
+      "tags",
+      "saved-views",
+      "search",
+      "automations",
+    ],
+  },
+  intranet: {
+    name: "intranet",
+    title: "Intranet",
+    description:
+      "SaaS plus company announcements, a knowledge base, a shared drive, channels, reactions and comments, a staff directory, a company calendar, policies that people acknowledge, tags, saved views and search.",
+    group: "products",
+    blocks: [
+      ...SAAS,
+      "announcements",
+      "knowledge",
+      "drive",
+      "channels",
+      "reactions",
+      "comments",
+      "employees",
+      "calendar",
+      "acknowledgements",
+      "attachments",
+      "tags",
+      "saved-views",
+      "search",
     ],
   },
   drive: {
@@ -864,6 +944,9 @@ export const PRESET_NAMES: readonly PresetName[] = [
   "marketplace",
   "scheduling",
   "people",
+  "psa",
+  "ats",
+  "intranet",
   "drive",
   "docs",
   "invoicing",

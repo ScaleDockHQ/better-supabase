@@ -1,4 +1,4 @@
-# 0156: Route stops are ordered behind a versioned RouteOptimizer
+# 0158: Route stops are ordered behind a versioned RouteOptimizer
 
 - Status: accepted
 - Date: 2026-10-31
