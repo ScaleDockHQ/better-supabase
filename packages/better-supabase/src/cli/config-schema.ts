@@ -24,6 +24,7 @@ import { CONVENTION_FIELDS } from "../preset/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
 import * as blockSchemas from "./block-config-schema.ts";
 import { movedKeyIssues } from "./config-moved.ts";
+import { bucketSchema } from "./config-schema-bucket.ts";
 import { hooksSchema, sourceSchema } from "./config-schema-gen.ts";
 import { GEN_TASKS, INTEGRATIONS } from "./names.ts";
 import { powersyncGenSchema } from "./powersync/config-schema.ts";
@@ -127,6 +128,8 @@ const blockEntries = {
             plural: v.optional(entityName),
             url: v.optional(v.string()),
             subject: v.optional(v.literal(false)),
+            team: v.optional(v.strictObject({ actions: strings })),
+            auditReads: v.optional(v.boolean()),
           }),
         ]),
       ),
@@ -385,62 +388,19 @@ const jsonSchema = v.record(v.string(), v.unknown());
 const presetInstance = v.strictObject({
   ...instanceKeys,
   names: v.optional(stringRecord),
+  subjects: v.optional(
+    v.record(
+      v.string(),
+      v.strictObject({
+        team: v.optional(v.strictObject({ actions: strings })),
+        auditReads: v.optional(v.boolean()),
+      }),
+    ),
+  ),
   options: v.optional(jsonSchema),
 });
 
 const onDelete = v.optional(v.picklist(APP_ON_DELETE_ACTIONS));
-
-const positiveInteger = v.pipe(v.number(), v.integer(), v.minValue(1));
-
-const bucket = v.strictObject({
-  id: v.optional(v.string()),
-  public: v.optional(v.boolean()),
-  path: v.union([v.string(), v.pipe(strings, v.minLength(1))]),
-  policy: v.optional(
-    v.union([
-      v.picklist(["tenant", "owner", "public", "none"]),
-      v.strictObject({
-        access: v.strictObject({
-          read: v.string(),
-          list: v.optional(v.string()),
-          write: v.string(),
-          delete: v.optional(v.string()),
-        }),
-        scope: v.optional(v.string()),
-        segment: v.optional(positiveInteger),
-        sql: v.optional(
-          v.union([
-            v.literal("provider"),
-            v.strictObject({ idsWith: v.string(), isPlatform: v.string() }),
-          ]),
-        ),
-      }),
-    ]),
-  ),
-  fileSizeLimit: v.optional(v.string()),
-  allowedMimeTypes: v.optional(strings),
-  versioning: v.optional(v.boolean()),
-  lifecycle: v.optional(
-    v.strictObject({
-      rules: v.pipe(
-        v.array(
-          v.strictObject({
-            id: v.optional(v.string()),
-            status: v.optional(v.picklist(["Enabled", "Disabled"])),
-            noncurrentVersionExpiration: v.strictObject({
-              noncurrentDays: positiveInteger,
-              newerNoncurrentVersions: v.optional(
-                v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
-              ),
-            }),
-          }),
-        ),
-        v.minLength(1),
-        v.maxLength(1000),
-      ),
-    }),
-  ),
-});
 
 const appTableEntries = {
   columns: v.optional(
@@ -638,7 +598,7 @@ const FLAT = {
       permissions: v.optional(v.string()),
     }),
   ),
-  buckets: v.optional(v.record(v.string(), bucket)),
+  buckets: v.optional(v.record(v.string(), bucketSchema)),
   topics: v.optional(stringRecord),
   realtime: v.optional(
     v.strictObject({

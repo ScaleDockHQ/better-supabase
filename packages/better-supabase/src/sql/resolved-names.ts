@@ -47,6 +47,8 @@ export interface ResolvedEntity {
    * config sets `subject: false`.
    */
   readonly subject?: BlockSqlEntitySubject;
+  /** `blocks.<name>.entities.<entity>.team` and `.auditReads`, when set. */
+  readonly subjectSettings?: Pick<EntityConfig, "team" | "auditReads">;
 }
 
 /**
@@ -230,6 +232,24 @@ function resolveEntity(
   const columns =
     spec.table === undefined ? undefined : names.tables[spec.table]?.columns;
 
+  const subject =
+    spec.subject === undefined || config?.subject === false
+      ? undefined
+      : spec.subject;
+
+  const settings = {
+    ...(config?.team === undefined ? {} : { team: config.team }),
+    ...(config?.auditReads === undefined
+      ? {}
+      : { auditReads: config.auditReads }),
+  };
+
+  if (Object.keys(settings).length > 0 && subject === undefined) {
+    throw new TypeError(
+      `${where}.${key}: team and auditReads apply to a subject, and "${key}" ${spec.subject === undefined ? "is not one" : "sets subject: false"}`,
+    );
+  }
+
   return {
     key,
     from,
@@ -243,9 +263,10 @@ function resolveEntity(
     ...(config?.url === undefined
       ? {}
       : { url: checkUrl(`${where}.${key}.url`, config.url, columns) }),
-    ...(spec.subject === undefined || config?.subject === false
+    ...(subject === undefined ? {} : { subject }),
+    ...(Object.keys(settings).length === 0
       ? {}
-      : { subject: spec.subject }),
+      : { subjectSettings: settings }),
   };
 }
 

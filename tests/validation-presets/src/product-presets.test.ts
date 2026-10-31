@@ -183,6 +183,43 @@ describe.skipIf(!live)("product presets on the local stack", () => {
     });
   }, 120_000);
 
+  it("care logs reads of clients, opens incidents for missed doses and releases protocols through approvals", async () => {
+    await installAndRollBack(pool, installed("care"), async (client) => {
+      expect(
+        await tables(client, [
+          "people",
+          "subject_members",
+          "consents",
+          "care_plans",
+          "observations",
+          "medication_orders",
+          "medication_administrations",
+          "funding_awards",
+          "funding_claims",
+          "shifts",
+          "qualifications",
+          "cases",
+          "acknowledgements",
+        ]),
+      ).toEqual([]);
+      expect(await functionBody(client, "record_subject_read")).toContain(
+        "'person'",
+      );
+      expect(await functionBody(client, "add_subject_member")).toContain(
+        "'person'",
+      );
+      expect(
+        await functionBody(client, "mark_missed_medication_administrations"),
+      ).toContain("'incident'");
+      expect(
+        await functionBody(client, "register_funding_deliveries_from_time"),
+      ).toContain("time_entries");
+      expect(await functionBody(client, "%approval%")).toContain(
+        "drive_document_decided",
+      );
+    });
+  }, 120_000);
+
   // The fixture already holds every table, so the approval functions the
   // preset replaces are what tells the two apart.
   it("ehs keeps the drive without document control", async () => {

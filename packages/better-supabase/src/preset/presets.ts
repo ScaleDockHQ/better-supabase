@@ -2,6 +2,17 @@ import type { Preset, PresetConventions } from "./fields.ts";
 
 import { PRESET_CATALOG } from "./catalog.generated.ts";
 import { DEFAULT_CONVENTIONS } from "./fields.ts";
+import {
+  CARE,
+  CARE_SETTINGS,
+  CONTROLLED_DOCUMENTS,
+  ERP,
+  PUBLIC_MEDIA,
+  QUALITY,
+  QUOTE_TO_ORDER,
+  SAAS,
+  TICKETS,
+} from "./preset-blocks.ts";
 
 /** Where a named preset sits in the `/create` and `init` pickers. */
 export type PresetGroup =
@@ -36,117 +47,6 @@ export interface NamedPreset {
   readonly instances?: Preset["instances"];
 }
 
-/** Tasks named for support work: tickets grouped under issues. */
-const TICKETS: NonNullable<Preset["instances"]> = {
-  tasks: { names: { task: "ticket", project: "issue" } },
-};
-
-/** Attachments served by public URL, for media such as images on a site. */
-const PUBLIC_MEDIA: NonNullable<Preset["instances"]> = {
-  attachments: {
-    options: { publicBuckets: ["attachments"], requireScan: false },
-  },
-};
-
-/**
- * The quality blocks behind `qms` and `ehs`: cases, audits, risks and
- * qualifications on the work, people and document blocks they link through.
- */
-const QUALITY: readonly string[] = [
-  "drive",
-  "attachments",
-  "versions",
-  "signatures",
-  "approvals",
-  "state-machine",
-  "numbering",
-  "pipelines",
-  "tasks",
-  "forms",
-  "relations",
-  "compliance",
-  "acknowledgements",
-  "cases",
-  "inspections",
-  "meetings",
-  "risks",
-  "qualifications",
-  "courses",
-  "enrollments",
-  "employees",
-  "contacts",
-  "assets",
-  "metrics",
-];
-
-/** Controlled documents in the drive, released by one approval. */
-const CONTROLLED_DOCUMENTS: NonNullable<Preset["instances"]> = {
-  drive: {
-    options: {
-      control: {
-        types: ["manual", "policy", "procedure", "work_instruction", "form"],
-      },
-    },
-  },
-  approvals: {
-    options: {
-      policies: {
-        drive_node: {
-          release: {
-            steps: [
-              { approvers: { permission: "approvals.manage" }, required: 1 },
-            ],
-          },
-        },
-      },
-    },
-  },
-};
-
-/**
- * The ERP blocks behind `erp` and `manufacturing`: sales, purchasing, stock,
- * people and the books they post to.
- */
-const ERP: readonly string[] = [
-  "contacts",
-  "catalog",
-  "inventory",
-  "assets",
-  "quotes",
-  "orders",
-  "invoices",
-  "numbering",
-  "accounting",
-  "banking",
-  "approvals",
-  "employees",
-  "time-tracking",
-  "leave",
-  "expenses",
-  "saved-views",
-  "automations",
-];
-
-/** Accepted quotes become orders. */
-const QUOTE_TO_ORDER: NonNullable<Preset["instances"]> = {
-  automations: { options: { enable: ["quotes.quote_to_order"] } },
-};
-
-const SAAS: readonly string[] = [
-  "organizations",
-  "invitations",
-  "teams",
-  "profiles",
-  "billing",
-  "entitlements",
-  "notifications",
-  "audit",
-  "api-keys",
-  "settings",
-  "onboarding",
-  "outbox",
-];
-
 /** A named preset's name. */
 export type PresetName =
   | "minimal"
@@ -171,6 +71,7 @@ export type PresetName =
   | "property"
   | "field-service"
   | "clinic"
+  | "care"
   | "lms"
   | "events"
   | "legal"
@@ -542,6 +443,15 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "guests",
       "reminders",
     ],
+  },
+  care: {
+    name: "care",
+    title: "Care",
+    description:
+      "SaaS plus clients and their representatives as contacts with record teams and a read log, consents, progress notes, care plans, vital signs, medication rounds with double checks, funding awards and claims, shifts, qualifications and training, incidents and complaints as cases, and controlled protocols in the drive.",
+    group: "verticals",
+    blocks: [...SAAS, ...CARE],
+    instances: CARE_SETTINGS,
   },
   lms: {
     name: "lms",
@@ -961,6 +871,7 @@ export const PRESET_NAMES: readonly PresetName[] = [
   "property",
   "field-service",
   "clinic",
+  "care",
   "lms",
   "events",
   "legal",
