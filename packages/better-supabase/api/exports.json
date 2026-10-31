@@ -9503,6 +9503,41 @@
       "RpcClient"
     ]
   },
+  "./blocks/dam": {
+    "values": [
+      "createDam",
+      "damBlock",
+      "damEvents",
+      "damUsageRightInputSchema",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Dam",
+      "DamEvents",
+      "DamOptions",
+      "DamRenderInput",
+      "DamRendition",
+      "DamRenditionEventData",
+      "DamRenditionInput",
+      "DamRenditionKind",
+      "DamRenditionStatus",
+      "DamUsageCheck",
+      "DamUsageRight",
+      "DamUsageRightEventData",
+      "DamUsageRightInput",
+      "DamUsageRightListOptions",
+      "DamUsageRightStatus",
+      "RpcClient"
+    ]
+  },
   "./blocks/maintenance": {
     "values": [
       "createMaintenance",

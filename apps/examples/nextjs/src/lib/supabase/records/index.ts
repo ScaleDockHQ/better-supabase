@@ -15,6 +15,7 @@ export { contentEntryRecord } from "./content-entry.ts";
 export { controlRecord } from "./control.ts";
 export { courseRecord } from "./course.ts";
 export { customerRecord } from "./customer.ts";
+export { damUsageRightRecord } from "./dam-usage-right.ts";
 export { dealRecord } from "./deal.ts";
 export { documentRecord } from "./document.ts";
 export { driveNodeRecord } from "./drive-node.ts";

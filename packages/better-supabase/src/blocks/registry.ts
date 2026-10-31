@@ -40,6 +40,7 @@ import { coursesBlock } from "./courses/manifest.ts";
 import { createdByBlock } from "./created-by/manifest.ts";
 import { credentialsBlock } from "./credentials/manifest.ts";
 import { customFieldsBlock } from "./custom-fields/manifest.ts";
+import { damBlock } from "./dam/manifest.ts";
 import { dataLifecycleBlock } from "./data-lifecycle/manifest.ts";
 import { dealsBlock } from "./deals/manifest.ts";
 import { dispatchBlock } from "./dispatch/manifest.ts";
@@ -226,6 +227,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   inspectionsBlock,
   meetingsBlock,
   maintenanceBlock,
+  damBlock,
   manufacturingBlock,
   bankingBlock,
   legalEntitiesBlock,

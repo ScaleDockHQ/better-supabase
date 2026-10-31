@@ -263,6 +263,9 @@ may be your own enum or domain.
   - `better_supabase.field_definitions`: `id`, `tenant_id`, `entity`, `key`, `label`, `type`, `required`, `sensitive`, `permission`
   - `better_supabase.field_options`: `id`, `definition_id`, `value`, `label`
   - `better_supabase.field_values`: `id`, `tenant_id`, `value_text`, `value_number`, `value_date`, `value_bool`; typed: `type`, `subject_type`
+- `dam`
+  - `better_supabase.dam_usage_rights`: `id`, `tenant_id`, `node_id`, `licensee`, `territory`, `channel`, `starts_on`, `expires_on`, `note`, `revoked_at`, `reminded_for`, `created_by`, `created_at`
+  - `better_supabase.dam_renditions`: `id`, `tenant_id`, `node_id`, `kind`, `status`, `format`, `width`, `height`, `size_bytes`, `path`, `error`, `created_at`, `updated_at`
 - `data-lifecycle`
   - `better_supabase.data_exports`: `id`, `subject`, `user_id`, `organization_id`, `status`, `bucket`, `files`, `requested_by`, `requested_at`, `completed_at`, `expires_at`; typed: `status`, `subject`
   - `better_supabase.data_export_contents`: `export_id`, `parts`

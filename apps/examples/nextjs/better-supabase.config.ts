@@ -464,6 +464,9 @@ export default defineConfig({
     // Preventive plans by time or meter that open dispatch work orders with
     // their spare parts, plus meter readings and calibrations.
     maintenance: {},
+    // Renditions of drive files and usage rights with a territory, a channel
+    // and an expiry date.
+    dam: {},
     // Vital signs on a customer's record, with the seeded vitals definitions;
     // a critical value alerts the record's leads.
     observations: { options: { defaults: "vitals" } },

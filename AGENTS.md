@@ -277,6 +277,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0161: Attachments take per-organization document types with typed metadata, a source and external id index, and metadata-first import records.
   ||||||| parent of 50dca684f (feat(powersync): sync progress notes, observations and doses offline)
 - 0162: Care blocks sync offline: streams by organization and `read` role, upload routes that replay through block functions, clinical conflicts surface in `connector.rejected`.
+- 0163: Digital asset management is renditions made through the drive preview port and usage rights with territory, channel and expiry on drive files.
 
 ## Pre-release pins
 

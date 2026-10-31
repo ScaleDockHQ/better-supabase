@@ -47,6 +47,7 @@ export type NavId =
   | "inspections"
   | "meetings"
   | "maintenance"
+  | "dam"
   | "shifts"
   | "finance"
   | "payables"
@@ -288,6 +289,7 @@ export const navItems: readonly NavItem[] = [
     group: "workspace",
     requires: "meetings.read",
   },
+  { id: "dam", href: "/dam", group: "workspace", requires: "dam.read" },
   {
     id: "maintenance",
     href: "/maintenance",

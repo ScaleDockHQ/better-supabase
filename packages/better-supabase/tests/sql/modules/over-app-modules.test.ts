@@ -112,6 +112,7 @@ const MODULES = [
   "meetings",
   "payroll-export",
   "maintenance",
+  "dam",
   "manufacturing",
   "legal-entities",
   "funding",

@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:c8608da04cca239e71e89a18ce0d1aaa2d6996179f556ffa239fb0343ab73d32
+-- @bsb-hash sha256:f0c45856cf5aa88f917ee555713dbd114f37f09846ce291a4b3c890b852787ea
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -270,6 +270,8 @@ as $$
     when 'custom-fields.manage' then 'custom_fields.manage'
     when 'custom-fields.read' then 'custom_fields.read'
     when 'custom-fields.sensitive' then 'custom_fields.read_sensitive'
+    when 'dam.read' then 'dam.read'
+    when 'dam.write' then 'dam.write'
     when 'data-lifecycle.cancelDelete' then 'organization.delete'
     when 'data-lifecycle.delete' then 'organization.delete'
     when 'data-lifecycle.export' then 'data_lifecycle.export'

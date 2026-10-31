@@ -677,6 +677,21 @@ export interface BlockNameRegistry {
     readonly primary: "field_definition";
     readonly formerKeys: "field";
   };
+  readonly "dam": {
+    readonly tables: {
+      readonly "rights": "id" | "tenant" | "node" | "licensee" | "territory" | "channel" | "startsOn" | "expiresOn" | "note" | "revokedAt" | "remindedFor" | "createdBy" | "createdAt";
+      readonly "renditions": "id" | "tenant" | "node" | "kind" | "status" | "format" | "width" | "height" | "sizeBytes" | "path" | "error" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "check_usage" | "grant_usage_right" | "list_renditions" | "list_usage_rights" | "notify_expiring_usage_rights" | "record_rendition" | "revoke_usage_right";
+    readonly actions: "read" | "write";
+    readonly hooks: "before_dam_usage_right_create" | "after_dam_usage_right_create";
+    readonly entities: {
+      readonly "dam_usage_right": "id" | "tenant_id" | "node_id" | "licensee" | "territory" | "channel" | "starts_on" | "expires_on" | "note" | "revoked_at" | "reminded_for" | "created_by" | "created_at";
+      readonly "dam_rendition": "id" | "tenant_id" | "node_id" | "kind" | "status" | "format" | "width" | "height" | "size_bytes" | "path" | "error" | "created_at" | "updated_at";
+    };
+    readonly primary: "dam_usage_right";
+    readonly formerKeys: never;
+  };
   readonly "data-lifecycle": {
     readonly tables: {
       readonly "exports": "id" | "subject" | "user" | "tenant" | "status" | "bucket" | "files" | "error" | "requestedBy" | "requestedAt" | "completedAt" | "expiresAt" | "subjectType" | "subjectId" | "format";
