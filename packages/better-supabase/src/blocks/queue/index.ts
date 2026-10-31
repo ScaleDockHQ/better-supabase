@@ -6,7 +6,7 @@ export {
 
 export type { BlockTransport } from "../../core/block-transport.ts";
 
-export { assertCron, nextCronRun } from "./cron.ts";
+export { assertCron, nextCronRun } from "../../core/cron.ts";
 
 export {
   BLOCK_SCHEDULE_PREFIX,

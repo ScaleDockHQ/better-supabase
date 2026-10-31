@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { assertCron, nextCronRun } from "../../../src/blocks/queue/cron.ts";
+import { assertCron, nextCronRun } from "../../src/core/cron.ts";
 
 const at = (iso: string) => Temporal.Instant.from(iso);
 
