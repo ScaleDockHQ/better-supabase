@@ -566,6 +566,48 @@ drive: {
 },
 ```
 
+## Open files in an office editor (WOPI)
+
+`createWopiHost` answers the WOPI protocol for drive files, so an editor such
+as Collabora Online or Microsoft 365 for the web opens, edits and saves a
+file in place. It implements `CheckFileInfo`, `GetFile`, `PutFile`, `Lock`,
+`Unlock`, `RefreshLock`, `GetLock` and `UnlockAndRelock`. The editor's lock
+id is stored on the file's check-out lock (the `lockNote` column), so nobody
+else can rename, move or upload over the file while it is open. `PutFile`
+adds a revision through `uploadRevision` and `commit`, and answers the
+current revision in `X-WOPI-ItemVersion`.
+
+```ts
+import { createWopiHost } from "better-supabase/blocks/drive";
+
+export const wopi = createWopiHost({
+  secret: process.env.WOPI_TOKEN_SECRET!,
+  // A drive client that acts as the token's user, so grants and audit apply.
+  driveFor: ({ userId }) => driveForUser(userId),
+});
+
+// Any route that passes a Request, for example a Next.js route handler:
+// app/wopi/[...path]/route.ts
+export const GET = wopi.handle;
+export const POST = wopi.handle;
+
+// When a user opens a file, mint a token and send it to the editor as
+// `access_token` and `access_token_ttl`.
+const { accessToken, accessTokenTtl } = await wopi.token({
+  fileId,
+  userId,
+  userName,
+  canWrite: node.role !== "viewer",
+});
+```
+
+Tokens are signed with HMAC-SHA256 through WebCrypto, name one file and one
+user, and expire after ten minutes unless you pass `ttlSeconds`. The host
+imports no Node built-ins, so it runs on every WinterTC runtime. A lock
+lasts 30 minutes (`lockMinutes`), and `PutFile` refuses a body over
+`maxBytes` (100 MiB) with `413`. A file locked by a person through `lock()`
+answers `409` with an empty `X-WOPI-Lock`, so the editor opens it read-only.
+
 ## Errors
 
 | Hint                           | When                                                                                                 |

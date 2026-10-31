@@ -7320,6 +7320,7 @@
       "createDrive",
       "createDrivePreviews",
       "createDriveText",
+      "createWopiHost",
       "dbTransport",
       "DRIVE_ROOT",
       "driveBlock",
@@ -7399,7 +7400,11 @@
       "PreviewInput",
       "PreviewPage",
       "PreviewRenderer",
-      "TextExtractor"
+      "TextExtractor",
+      "WopiDrive",
+      "WopiHost",
+      "WopiHostOptions",
+      "WopiTokenClaims"
     ]
   },
   "./blocks/signatures": {
