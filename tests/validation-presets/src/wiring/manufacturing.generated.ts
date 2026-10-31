@@ -7,9 +7,11 @@ import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { accountingBlock } from "better-supabase/blocks/accounting";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
+import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
 import { catalogBlock } from "better-supabase/blocks/catalog";
+import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
 import { leaveBlock } from "better-supabase/blocks/leave";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { assetsBlock } from "better-supabase/blocks/assets";
@@ -20,12 +22,16 @@ import { casesBlock } from "better-supabase/blocks/cases";
 import { inspectionsBlock } from "better-supabase/blocks/inspections";
 import { manufacturingBlock } from "better-supabase/blocks/manufacturing";
 import { bankingBlock } from "better-supabase/blocks/banking";
+import { legalEntitiesBlock } from "better-supabase/blocks/legal-entities";
 import { taxBlock } from "better-supabase/blocks/tax";
+import { documentTemplatesBlock } from "better-supabase/blocks/document-templates";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { formsBlock } from "better-supabase/blocks/forms";
+import { importsBlock } from "better-supabase/blocks/imports";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
+import { queueBlock } from "better-supabase/blocks/queue";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { numberingBlock } from "better-supabase/blocks/numbering";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
@@ -51,9 +57,11 @@ export const blockSet = defineBlocks(blockConfig, {
   accounting: accountingBlock,
   apiKeys: apiKeysBlock,
   approvals: approvalsBlock,
+  attachments: attachmentsBlock,
   audit: auditBlock,
   billing: billingBlock,
   catalog: catalogBlock,
+  customFields: customFieldsBlock,
   leave: leaveBlock,
   ledger: ledgerBlock,
   assets: assetsBlock,
@@ -64,12 +72,16 @@ export const blockSet = defineBlocks(blockConfig, {
   inspections: inspectionsBlock,
   manufacturing: manufacturingBlock,
   banking: bankingBlock,
+  legalEntities: legalEntitiesBlock,
   tax: taxBlock,
+  documentTemplates: documentTemplatesBlock,
   employees: employeesBlock,
   entitlements: entitlementsBlock,
   forms: formsBlock,
+  imports: importsBlock,
   inventory: inventoryBlock,
   invoices: invoicesBlock,
+  queue: queueBlock,
   notifications: notificationsBlock,
   numbering: numberingBlock,
   onboarding: onboardingBlock,
