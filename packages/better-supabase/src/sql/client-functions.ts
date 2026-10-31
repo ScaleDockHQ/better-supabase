@@ -112,6 +112,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "forecast_changes forecast_snapshot forecast_snapshots take_forecast_snapshot",
   forms:
     "create_form delete_form_submission form_nps get_form get_form_submission get_form_version list_form_submissions list_forms publish_form_version review_form_submission submit_form update_form",
+  funding:
+    "approve_funding_deliveries build_funding_claim delete_funding_claim end_funding_award funding_award_usage get_funding_claim invoice_funding_claim list_funding_awards list_funding_claims list_funding_deliveries list_funding_products mark_funding_claim_sent record_funding_claim_response register_funding_deliveries_from_time register_funding_delivery save_funding_award save_funding_product",
   goals: "goal_progress save_goal",
   guests:
     "accept_guest_invite grant_guest_access guest_can invite_guest list_guest_grants list_guests my_guest_access revoke_guest revoke_guest_access",

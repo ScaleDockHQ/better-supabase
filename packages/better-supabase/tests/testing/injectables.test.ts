@@ -9,6 +9,12 @@ import type {
   AiTaskRun,
   AiTaskRunner,
 } from "../../src/blocks/ai-schedules/ai-schedules.ts";
+import type {
+  FundingClaim,
+  FundingClaimChannel,
+  FundingClaimFormat,
+  FundingClaimLine,
+} from "../../src/blocks/funding/funding.ts";
 import type { Embedder } from "../../src/blocks/knowledge/knowledge.ts";
 import type { MedicationCatalog } from "../../src/blocks/medications/medications.ts";
 import type { WorkflowGraph } from "../../src/blocks/workflow-editor/graph.ts";
@@ -18,12 +24,15 @@ import type {
   GraphCompiler,
 } from "../../src/blocks/workflow-editor/workflow-editor.ts";
 
+import { money } from "../../src/commerce/money.ts";
 import { injectableOf } from "../../src/core/block-helpers.ts";
 import {
   ConformanceError,
   testAiTaskRunner,
   testBuilderStarter,
   testEmbedder,
+  testFundingClaimChannel,
+  testFundingClaimFormat,
   testGraphCompiler,
   testMedicationCatalog,
   testNoteTaker,
@@ -288,6 +297,125 @@ describe("testMedicationCatalog", () => {
       await failures(testMedicationCatalog(empty, { query: "x" })),
     ).toEqual([
       "returns well-formed items that it can get by code",
+      "rejects once aborted",
+    ]);
+  });
+});
+
+describe("funding claim ports", () => {
+  const CLAIM: FundingClaim = {
+    id: "00000000-0000-4000-8000-000000000001",
+    organizationId: "org",
+    funderId: "00000000-0000-4000-8000-000000000002",
+    number: "1",
+    periodStart: Temporal.PlainDate.from("2026-10-01"),
+    periodEnd: Temporal.PlainDate.from("2026-10-31"),
+    format: "test-format",
+    status: "draft",
+    total: money(1500n, "EUR"),
+  };
+
+  const LINE: FundingClaimLine = {
+    id: "00000000-0000-4000-8000-000000000003",
+    claimId: CLAIM.id,
+    awardId: "00000000-0000-4000-8000-000000000004",
+    productId: "00000000-0000-4000-8000-000000000005",
+    units: 2,
+    amount: money(1500n, "EUR"),
+    status: "pending",
+    award: { subject: { type: "client", id: "c1" }, period: "month" },
+    product: {
+      code: "H126",
+      title: "Personal care",
+      unit: "hour",
+      rate: money(750n, "EUR"),
+    },
+    deliveries: [],
+  };
+
+  const format: FundingClaimFormat = {
+    apiVersion: 1,
+    key: "test-format",
+    render: (claim, lines) => ({
+      body: `${claim.number}:${lines.map((line) => line.id).join(",")}`,
+      filename: "claim.txt",
+      contentType: "text/plain",
+    }),
+    parseResponse: (body) => ({
+      lines: [{ lineId: body, status: "accepted" }],
+    }),
+  };
+
+  const failures = (run: Promise<unknown>): Promise<string[]> =>
+    run.then(
+      () => [],
+      (error: unknown) =>
+        error instanceof ConformanceError
+          ? failed(error.report)
+          : [String(error)],
+    );
+
+  it("passes a conforming format and fails a drifting one", async () => {
+    const options = { claim: CLAIM, lines: [LINE], response: LINE.id };
+    expect(failed(await testFundingClaimFormat(format, options))).toEqual([]);
+
+    let calls = 0;
+
+    const drifting: FundingClaimFormat = {
+      key: "Bad Key",
+      render: () => {
+        calls += 1;
+
+        return { body: String(calls), filename: "", contentType: "x" };
+      },
+      parseResponse: () => ({
+        lines: [{ lineId: "other", status: "accepted" }],
+      }),
+    };
+
+    expect(await failures(testFundingClaimFormat(drifting, options))).toEqual([
+      "has apiVersion 1",
+      "has a well-formed key",
+      "renders a claim to the same body every time",
+      "reads a response to lines of the claim",
+    ]);
+  });
+
+  it("passes a conforming channel and fails one that ignores its signal", async () => {
+    const rendered = {
+      body: "x",
+      filename: "x.txt",
+      contentType: "text/plain",
+    };
+
+    const channel: FundingClaimChannel = {
+      apiVersion: 1,
+      key: "test",
+      send: (_rendered, context) =>
+        context.signal?.aborted === true
+          ? Promise.reject(new Error("aborted"))
+          : Promise.resolve({ externalRef: "ref-1" }),
+      poll: () => Promise.resolve(undefined),
+    };
+
+    expect(
+      failed(
+        await testFundingClaimChannel(channel, { claim: CLAIM, rendered }),
+      ),
+    ).toEqual([]);
+
+    const careless: FundingClaimChannel = {
+      apiVersion: 1,
+      key: "careless",
+      send: () => Promise.resolve({ externalRef: "" }),
+    };
+
+    expect(
+      await failures(
+        testFundingClaimChannel(careless, { claim: CLAIM, rendered }),
+      ),
+    ).toEqual([
+      "sends a claim and polls its reference",
       "rejects once aborted",
     ]);
   });

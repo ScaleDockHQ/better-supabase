@@ -251,6 +251,14 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_production_order_complete",
     "after_production_order_complete",
   ],
+  funding: [
+    "before_funding_award_save",
+    "after_funding_award_save",
+    "before_funding_delivery_register",
+    "after_funding_delivery_register",
+    "before_funding_claim_build",
+    "after_funding_claim_build",
+  ],
   observations: [
     "before_observation_definition_save",
     "after_observation_definition_save",

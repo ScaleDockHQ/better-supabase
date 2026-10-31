@@ -936,6 +936,27 @@ export interface BlockNameRegistry {
     readonly primary: "form";
     readonly formerKeys: never;
   };
+  readonly "funding": {
+    readonly tables: {
+      readonly "products": "id" | "tenant" | "code" | "title" | "unit" | "rate" | "currency" | "validFrom" | "validUntil" | "createdAt" | "updatedAt";
+      readonly "awards": "id" | "tenant" | "subjectType" | "subjectId" | "funder" | "product" | "units" | "period" | "startsOn" | "endsOn" | "reference" | "status" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "deliveries": "id" | "tenant" | "award" | "sourceType" | "sourceId" | "deliveredOn" | "units" | "performer" | "status" | "claimLine" | "note" | "createdAt";
+      readonly "claims": "id" | "tenant" | "funder" | "number" | "periodStart" | "periodEnd" | "format" | "status" | "externalRef" | "sentAt" | "payloadSha256" | "response" | "total" | "currency" | "invoice" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "claimLines": "id" | "tenant" | "claim" | "award" | "product" | "units" | "amount" | "status" | "rejectionCode";
+    };
+    readonly functions: "approve_funding_deliveries" | "build_funding_claim" | "delete_funding_claim" | "end_funding_award" | "funding_award_usage" | "get_funding_claim" | "list_funding_awards" | "list_funding_claims" | "list_funding_deliveries" | "list_funding_products" | "mark_funding_claim_sent" | "record_funding_claim_response" | "register_funding_delivery" | "save_funding_award" | "save_funding_product";
+    readonly actions: "read" | "write" | "register" | "approve" | "claim" | "manage";
+    readonly hooks: "before_funding_award_save" | "after_funding_award_save" | "before_funding_delivery_register" | "after_funding_delivery_register" | "before_funding_claim_build" | "after_funding_claim_build";
+    readonly entities: {
+      readonly "funding_product": "id" | "tenant_id" | "code" | "title" | "unit" | "rate" | "currency" | "valid_from" | "valid_until" | "created_at" | "updated_at";
+      readonly "funding_award": "id" | "tenant_id" | "subject_type" | "subject_id" | "funder_id" | "product_id" | "units" | "period" | "starts_on" | "ends_on" | "reference" | "status" | "created_by" | "created_at" | "updated_at";
+      readonly "funding_delivery": "id" | "tenant_id" | "award_id" | "source_type" | "source_id" | "delivered_on" | "units" | "performer_id" | "status" | "claim_line_id" | "note" | "created_at";
+      readonly "funding_claim": "id" | "tenant_id" | "funder_id" | "number" | "period_start" | "period_end" | "format" | "status" | "external_ref" | "sent_at" | "payload_sha256" | "response" | "total" | "currency" | "invoice_id" | "created_by" | "created_at" | "updated_at";
+      readonly "funding_claim_line": "id" | "tenant_id" | "claim_id" | "award_id" | "product_id" | "units" | "amount" | "status" | "rejection_code";
+    };
+    readonly primary: "funding_award";
+    readonly formerKeys: never;
+  };
   readonly "goals": {
     readonly tables: {
       readonly "targets": "id" | "tenant" | "name" | "metric" | "owner" | "team" | "periodStart" | "periodEnd" | "currency" | "goal" | "actual" | "archivedAt" | "createdAt" | "updatedAt";

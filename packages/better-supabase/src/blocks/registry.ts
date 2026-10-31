@@ -57,6 +57,7 @@ import { fieldHistoryBlock } from "./field-history/manifest.ts";
 import { flagsBlock } from "./flags/manifest.ts";
 import { forecastsBlock } from "./forecasts/manifest.ts";
 import { formsBlock } from "./forms/manifest.ts";
+import { fundingBlock } from "./funding/manifest.ts";
 import { goalsBlock } from "./goals/manifest.ts";
 import { grantsBlock } from "./grants/manifest.ts";
 import { guestsBlock } from "./guests/manifest.ts";
@@ -225,6 +226,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   manufacturingBlock,
   bankingBlock,
   legalEntitiesBlock,
+  fundingBlock,
   shiftsBlock,
   consentsBlock,
   observationsBlock,

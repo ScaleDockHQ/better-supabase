@@ -356,6 +356,16 @@ msgctxt "forms.pBbsi1"
 msgid "Build forms and read the responses."
 msgstr "Build forms and read the responses."
 
+#: src/app/[locale]/(app)/funding/page.tsx
+msgctxt "funding.fZb224"
+msgid "Funding"
+msgstr "Funding"
+
+#: src/app/[locale]/(app)/funding/page.tsx
+msgctxt "funding.aldyzy"
+msgid "The units funders award your customers and how much of each award this period used."
+msgstr "The units funders award your customers and how much of each award this period used."
+
 #: src/app/[locale]/(app)/imports/page.tsx
 msgctxt "imports.ofHC1Q"
 msgid "Imports"
@@ -7849,6 +7859,71 @@ msgctxt "forms.0HT-Ib"
 msgid "Archived"
 msgstr "Archived"
 
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.sybwM3"
+msgid "The awards didn't load"
+msgstr "The awards didn't load"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.6bVVJ8"
+msgid "No awards yet"
+msgstr "No awards yet"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.y4Dw4R"
+msgid "Add a funding product with its rate, then record the units a funder awards a customer."
+msgstr "Add a funding product with its rate, then record the units a funder awards a customer."
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.-4qGDl"
+msgid "Read the funding guide"
+msgstr "Read the funding guide"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.3z2eee"
+msgid "{units} per week"
+msgstr "{units} per week"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.9t9CtO"
+msgid "{units} per month"
+msgstr "{units} per month"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.JkALWQ"
+msgid "{units} in total"
+msgstr "{units} in total"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.FqvBgl"
+msgid "Awards"
+msgstr "Awards"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.z8n0tw"
+msgid "The units each award grants and the units used this period."
+msgstr "The units each award grants and the units used this period."
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.qDlgDs"
+msgid "{used} used, {over} over"
+msgstr "{used} used, {over} over"
+
+#: src/features/funding/components/award-usage.tsx
+msgctxt "funding.Mt4DNK"
+msgid "{used} used"
+msgstr "{used} used"
+
 #: src/features/imports/components/csv-import-wizard.tsx
 msgctxt "imports.HAlOn1"
 msgid "Name"
@@ -10024,6 +10099,11 @@ msgstr "Medications"
 msgctxt "navigation.y10hgk"
 msgid "Care plans"
 msgstr "Care plans"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.fZb224"
+msgid "Funding"
+msgstr "Funding"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"

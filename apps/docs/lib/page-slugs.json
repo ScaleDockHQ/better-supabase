@@ -99,6 +99,7 @@
   "blocks/flags",
   "blocks/forecasts",
   "blocks/forms",
+  "blocks/funding",
   "blocks/goals",
   "blocks/grants",
   "blocks/guests",

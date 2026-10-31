@@ -9,6 +9,13 @@ import type {
   AiTaskRunner,
 } from "../blocks/ai-schedules/ai-schedules.ts";
 import type { DriveTextFile, TextExtractor } from "../blocks/drive/extract.ts";
+import type {
+  FundingClaim,
+  FundingClaimChannel,
+  FundingClaimFormat,
+  FundingClaimLine,
+  FundingRenderedClaim,
+} from "../blocks/funding/funding.ts";
 import type { Embedder } from "../blocks/knowledge/knowledge.ts";
 import type {
   MedicationCatalog,
@@ -591,6 +598,137 @@ export function testMedicationCatalog(
             catalog.search(query, { signal: AbortSignal.abort() }),
           ),
           "search must reject when its signal is aborted",
+        );
+      },
+    ],
+  ]);
+}
+
+export interface TestFundingClaimFormatOptions {
+  /** A draft claim as `get_funding_claim` returns it, without its lines. */
+  readonly claim: FundingClaim;
+  /** The claim's lines. */
+  readonly lines: readonly FundingClaimLine[];
+  /**
+   * A return message from the funder for `claim`, to prove `parseResponse`
+   * answers only for the claim's lines. Skipped when left out.
+   */
+  readonly response?: string;
+}
+
+const FUNDING_FORMAT_KEY = /^[a-z0-9][a-z0-9_.-]{0,62}$/;
+
+/**
+ * Proves a `FundingClaimFormat` for the funding block has a key
+ * `build_funding_claim` accepts, renders `options.claim` to the same non-empty
+ * body twice, and reads `options.response` to lines of the claim.
+ */
+export function testFundingClaimFormat(
+  format: FundingClaimFormat,
+  options: TestFundingClaimFormatOptions,
+): Promise<ConformanceReport> {
+  const { claim, lines } = options;
+  const context = { organizationId: claim.organizationId };
+
+  const checks: Check[] = [
+    hasApiVersion(format),
+    [
+      "has a well-formed key",
+      () => {
+        expect(
+          FUNDING_FORMAT_KEY.test(format.key),
+          `key ${format.key} must match ${FUNDING_FORMAT_KEY.source}`,
+        );
+      },
+    ],
+    [
+      "renders a claim to the same body every time",
+      async () => {
+        const first = await format.render(claim, lines, context);
+        expect(first.body !== "", "the body must not be empty");
+        expect(first.filename.trim() !== "", "a filename is required");
+        expect(first.contentType.trim() !== "", "a content type is required");
+        const again = await format.render(claim, lines, context);
+        expect(again.body === first.body, "a second render changed the body");
+      },
+    ],
+  ];
+
+  const { response } = options;
+
+  if (response !== undefined) {
+    checks.push([
+      "reads a response to lines of the claim",
+      async () => {
+        const parsed = await format.parseResponse(response);
+        const ids = new Set(lines.map((line) => line.id));
+
+        for (const line of parsed.lines) {
+          const status: unknown = line.status;
+
+          expect(
+            ids.has(line.lineId),
+            `line ${line.lineId} isn't on the claim`,
+          );
+          expect(
+            status === "accepted" || status === "rejected",
+            `line ${line.lineId} has status ${String(status)}`,
+          );
+        }
+      },
+    ]);
+  }
+
+  return conform(`FundingClaimFormat "${format.key}"`, checks);
+}
+
+export interface TestFundingClaimChannelOptions {
+  /** The claim the rendered body belongs to. */
+  readonly claim: FundingClaim;
+  /** A rendered test claim the channel's test environment accepts. */
+  readonly rendered: FundingRenderedClaim;
+}
+
+/**
+ * Proves a `FundingClaimChannel` sends a rendered claim and returns a
+ * reference, polls that reference to a body or `undefined`, and rejects once
+ * its signal is aborted. It sends for real: point it at a test environment.
+ */
+export function testFundingClaimChannel(
+  channel: FundingClaimChannel,
+  options: TestFundingClaimChannelOptions,
+): Promise<ConformanceReport> {
+  const { claim, rendered } = options;
+  const context = { organizationId: claim.organizationId, claim };
+
+  return conform(`FundingClaimChannel "${channel.key}"`, [
+    hasApiVersion(channel),
+    [
+      "sends a claim and polls its reference",
+      async () => {
+        const sent = await channel.send(rendered, context);
+        expect(
+          typeof sent.externalRef === "string" && sent.externalRef !== "",
+          "send must return a non-empty externalRef",
+        );
+
+        if (channel.poll !== undefined) {
+          const body = await channel.poll(sent.externalRef, context);
+          expect(
+            body === undefined || typeof body === "string",
+            "poll must return a body or undefined",
+          );
+        }
+      },
+    ],
+    [
+      "rejects once aborted",
+      async () => {
+        expect(
+          await rejects(() =>
+            channel.send(rendered, { ...context, signal: AbortSignal.abort() }),
+          ),
+          "send must reject when its signal is aborted",
         );
       },
     ],

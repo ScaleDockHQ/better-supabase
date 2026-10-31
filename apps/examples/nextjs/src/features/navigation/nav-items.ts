@@ -51,6 +51,7 @@ export type NavId =
   | "observations"
   | "medications"
   | "carePlans"
+  | "funding"
   | "notifications"
   | "workflows"
   | "workflowBuilder"
@@ -308,6 +309,12 @@ export const navItems: readonly NavItem[] = [
     href: "/care-plans",
     group: "workspace",
     requires: "care_plans.read",
+  },
+  {
+    id: "funding",
+    href: "/funding",
+    group: "workspace",
+    requires: "funding.read",
   },
   { id: "notifications", href: "/notifications", group: "workspace" },
   {
