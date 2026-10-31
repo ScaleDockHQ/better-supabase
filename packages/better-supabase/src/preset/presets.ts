@@ -102,6 +102,35 @@ const CONTROLLED_DOCUMENTS: NonNullable<Preset["instances"]> = {
   },
 };
 
+/**
+ * The ERP blocks behind `erp` and `manufacturing`: sales, purchasing, stock,
+ * people and the books they post to.
+ */
+const ERP: readonly string[] = [
+  "contacts",
+  "catalog",
+  "inventory",
+  "assets",
+  "quotes",
+  "orders",
+  "invoices",
+  "numbering",
+  "accounting",
+  "banking",
+  "approvals",
+  "employees",
+  "time-tracking",
+  "leave",
+  "expenses",
+  "saved-views",
+  "automations",
+];
+
+/** Accepted quotes become orders. */
+const QUOTE_TO_ORDER: NonNullable<Preset["instances"]> = {
+  automations: { options: { enable: ["quotes.quote_to_order"] } },
+};
+
 const SAAS: readonly string[] = [
   "organizations",
   "invitations",
@@ -129,6 +158,7 @@ export type PresetName =
   | "commerce"
   | "cms"
   | "erp"
+  | "manufacturing"
   | "pim"
   | "marketplace"
   | "scheduling"
@@ -314,27 +344,29 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "erp",
     title: "ERP",
     description:
-      "SaaS plus parties, a product catalog, stock by location, quotes priced from the catalog that become orders when accepted, orders that invoice when paid, employees with time and leave, expenses and saved views.",
+      "SaaS plus parties, a product catalog, stock by location, quotes priced from the catalog that become orders when accepted, orders that invoice when paid, purchase bills matched to purchase orders and receipts, the books every document posts to, bank statements reconciled against them, approvals for purchase requisitions, employees with time and leave, expenses and saved views.",
+    group: "products",
+    blocks: [...SAAS, ...ERP],
+    instances: QUOTE_TO_ORDER,
+  },
+  manufacturing: {
+    name: "manufacturing",
+    title: "Manufacturing",
+    description:
+      "ERP plus bills of materials and production orders, material requirements that raise purchase requisitions, incoming and in-process inspections, cases for nonconformities and qualifications for the people and equipment on the floor.",
     group: "products",
     blocks: [
       ...SAAS,
-      "contacts",
-      "catalog",
-      "inventory",
-      "assets",
-      "quotes",
-      "orders",
-      "invoices",
-      "numbering",
-      "employees",
-      "time-tracking",
-      "leave",
-      "expenses",
-      "saved-views",
-      "automations",
+      ...ERP,
+      "manufacturing",
+      "inspections",
+      "cases",
+      "qualifications",
     ],
     instances: {
-      automations: { options: { enable: ["quotes.quote_to_order"] } },
+      ...QUOTE_TO_ORDER,
+      manufacturing: { options: { purchaseSuggestions: "requisition" } },
+      inventory: { options: { receiptInspection: "inspection" } },
     },
   },
   pim: {
@@ -916,6 +948,7 @@ export const PRESET_NAMES: readonly PresetName[] = [
   "commerce",
   "cms",
   "erp",
+  "manufacturing",
   "pim",
   "marketplace",
   "scheduling",

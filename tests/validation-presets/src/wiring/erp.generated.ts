@@ -4,6 +4,7 @@ import {
   rpcTransport,
 } from "better-supabase/blocks";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
+import { accountingBlock } from "better-supabase/blocks/accounting";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
 import { auditBlock } from "better-supabase/blocks/audit";
@@ -14,6 +15,7 @@ import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { assetsBlock } from "better-supabase/blocks/assets";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { expensesBlock } from "better-supabase/blocks/expenses";
+import { bankingBlock } from "better-supabase/blocks/banking";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
@@ -39,6 +41,7 @@ import { blockConfig } from "./erp.blocks.generated.ts";
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
   permissions: permissionsBlock,
+  accounting: accountingBlock,
   apiKeys: apiKeysBlock,
   approvals: approvalsBlock,
   audit: auditBlock,
@@ -49,6 +52,7 @@ export const blockSet = defineBlocks(blockConfig, {
   assets: assetsBlock,
   enrollments: enrollmentsBlock,
   expenses: expensesBlock,
+  banking: bankingBlock,
   employees: employeesBlock,
   entitlements: entitlementsBlock,
   inventory: inventoryBlock,

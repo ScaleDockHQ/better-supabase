@@ -106,6 +106,48 @@ describe.skipIf(!live)("product presets on the local stack", () => {
     });
   }, 120_000);
 
+  it("erp books invoices, pays them from bank lines and decides requisitions through approvals", async () => {
+    await installAndRollBack(pool, installed("erp"), async (client) => {
+      expect(await functionBody(client, "issue_invoice")).toContain(
+        "accounting_post_source",
+      );
+      expect(await functionBody(client, "match_bank_transaction")).toContain(
+        "record_invoice_payment",
+      );
+      expect(await functionBody(client, "%approval%")).toContain(
+        "purchase_requisition_decided",
+      );
+      expect(
+        await functionBody(client, "receive_purchase_order"),
+      ).not.toContain("schedule_inspection");
+    });
+  }, 120_000);
+
+  it("manufacturing inspects receipts and turns purchase suggestions into requisitions", async () => {
+    await installAndRollBack(
+      pool,
+      installed("manufacturing"),
+      async (client) => {
+        expect(
+          await tables(client, [
+            "production_orders",
+            "inventory_receipts",
+            "purchase_requisitions",
+            "inspections",
+            "cases",
+            "qualifications",
+          ]),
+        ).toEqual([]);
+        expect(await functionBody(client, "receive_purchase_order")).toContain(
+          "schedule_inspection",
+        );
+        expect(
+          await functionBody(client, "create_from_requirements"),
+        ).toContain("request_purchase");
+      },
+    );
+  }, 120_000);
+
   it("pim keeps channels, translations and public product media", async () => {
     await installAndRollBack(pool, installed("pim"), async (client) => {
       expect(
