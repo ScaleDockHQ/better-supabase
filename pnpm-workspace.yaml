@@ -411,6 +411,9 @@ overrides:
   # systeminformation <5.33.16 has a Windows command injection (high); it
   # arrives through shadcn > @dotenvx/dotenvx.
   systeminformation: ">=5.33.16"
+  # node-forge <=1.4.0 has five high advisories (GHSA-7wch-p9px-956x and four more),
+  # fixed in 1.4.1; it reaches the tree through @expo/cli (dev tooling).
+  node-forge: ">=1.4.2"
   # @modelcontextprotocol/sdk <1.31.0 can send OAuth credentials to an
   # authorization server the MCP server picks (high); it arrives through shadcn.
   "shadcn>@modelcontextprotocol/sdk": ">=1.31.0"
