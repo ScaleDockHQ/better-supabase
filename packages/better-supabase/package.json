@@ -1115,6 +1115,11 @@
       "types": "./dist/blocks/rfqs/index.d.ts",
       "default": "./dist/blocks/rfqs/index.js"
     },
+    "./blocks/tills": {
+      "@better-supabase/source": "./src/blocks/tills/index.ts",
+      "types": "./dist/blocks/tills/index.d.ts",
+      "default": "./dist/blocks/tills/index.js"
+    },
     "./blocks/lims": {
       "@better-supabase/source": "./src/blocks/lims/index.ts",
       "types": "./dist/blocks/lims/index.d.ts",
@@ -2091,6 +2096,10 @@
       "./blocks/rfqs": {
         "types": "./dist/blocks/rfqs/index.d.ts",
         "default": "./dist/blocks/rfqs/index.js"
+      },
+      "./blocks/tills": {
+        "types": "./dist/blocks/tills/index.d.ts",
+        "default": "./dist/blocks/tills/index.js"
       },
       "./blocks/lims": {
         "types": "./dist/blocks/lims/index.d.ts",

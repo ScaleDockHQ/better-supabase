@@ -3382,7 +3382,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:70ae6c2578f26aa2a60fc32c0405cf916fb7525dfabcf3f38940fc293e353613
+-- @bsb-hash sha256:630ea5c64aa35ab62fd58910838e4b84dbe3a055a745fa5119b24d5590207f1c
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5071,7 +5071,7 @@ declare
   v_descriptions text[] := '{}';
 begin
   if accounting_post_source.source_type is null or accounting_post_source.source_id is null
-    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'invoice_charge', 'invoice_discount', 'invoice_write_off', 'invoice_party_payment', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift', 'production_order', 'bank_transaction') then
+    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'invoice_charge', 'invoice_discount', 'invoice_write_off', 'invoice_party_payment', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift', 'production_order', 'bank_transaction', 'till_count', 'till_deposit') then
     raise exception 'no installed block books this source type' using errcode = '22023', hint = 'ACCOUNTING_SOURCE_INVALID';
   end if;
   v_doc := case accounting_post_source.source_type
@@ -5091,6 +5091,8 @@ begin
     when 'gift' then "better_supabase"."accounting_gift_lines"(accounting_post_source.source_id)
     when 'production_order' then "better_supabase"."accounting_production_order_lines"(accounting_post_source.source_id)
     when 'bank_transaction' then "better_supabase"."accounting_bank_transaction_lines"(accounting_post_source.source_id)
+    when 'till_count' then "better_supabase"."accounting_till_count_lines"(accounting_post_source.source_id)
+    when 'till_deposit' then "better_supabase"."accounting_till_deposit_lines"(accounting_post_source.source_id)
   end;
   v_kind := case accounting_post_source.source_type
     when 'stock_movement' then 'general'
@@ -5109,6 +5111,8 @@ begin
     when 'gift' then 'bank'
     when 'production_order' then 'general'
     when 'bank_transaction' then 'bank'
+    when 'till_count' then 'cash'
+    when 'till_deposit' then 'bank'
   end;
   if v_doc is null or jsonb_typeof(v_doc -> 'lines') is distinct from 'array' then
     return null;

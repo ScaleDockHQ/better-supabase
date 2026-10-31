@@ -302,6 +302,7 @@ export const MODULE_PERMISSION_SCOPES: {
   dam: { read: "tenant", write: "tenant" },
   lims: { read: "tenant", write: "tenant", manage: "tenant" },
   rfqs: { read: "tenant", write: "tenant", manage: "tenant" },
+  tills: { read: "tenant", write: "tenant", manage: "tenant" },
   maintenance: { read: "tenant", record: "tenant", manage: "tenant" },
   appraisals: { read: "tenant", review: "tenant", manage: "tenant" },
   warehouse: { read: "tenant", pick: "tenant", manage: "tenant" },

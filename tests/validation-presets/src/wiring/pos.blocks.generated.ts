@@ -11,12 +11,14 @@ import type { BookingsEvents } from "better-supabase/blocks/bookings";
 import type { CatalogEvents } from "better-supabase/blocks/catalog";
 import type { LedgerEvents } from "better-supabase/blocks/ledger";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
+import type { TillsEvents } from "better-supabase/blocks/tills";
 import type { InventoryEvents } from "better-supabase/blocks/inventory";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrdersEvents } from "better-supabase/blocks/orders";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { PromotionsEvents } from "better-supabase/blocks/promotions";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
+import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
@@ -26,6 +28,7 @@ import { bookingsBlock as bookingsBlockInstance } from "better-supabase/blocks/b
 import { catalogBlock as catalogBlockInstance } from "better-supabase/blocks/catalog";
 import { ledgerBlock as ledgerBlockInstance } from "better-supabase/blocks/ledger";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
+import { tillsBlock as tillsBlockInstance } from "better-supabase/blocks/tills";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
 import { inventoryBlock as inventoryBlockInstance } from "better-supabase/blocks/inventory";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
@@ -36,6 +39,7 @@ import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbo
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { promotionsBlock as promotionsBlockInstance } from "better-supabase/blocks/promotions";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
+import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
 /**
@@ -75,6 +79,10 @@ export const blockConfig = {
     options: {},
   },
   enrollments: {
+    schema: "better_supabase",
+    options: {},
+  },
+  tills: {
     schema: "better_supabase",
     options: {},
   },
@@ -120,6 +128,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  subjects: {
+    schema: "better_supabase",
+    options: {},
+  },
   teams: {
     schema: "better_supabase",
     options: {},
@@ -149,6 +161,7 @@ export const blocks = {
   catalog: catalogBlockInstance,
   ledger: ledgerBlockInstance,
   enrollments: enrollmentsBlockInstance,
+  tills: tillsBlockInstance,
   entitlements: entitlementsBlockInstance,
   inventory: inventoryBlockInstance,
   notifications: notificationsBlockInstance,
@@ -159,6 +172,7 @@ export const blocks = {
   profiles: profilesBlockInstance,
   promotions: promotionsBlockInstance,
   settings: settingsBlockInstance,
+  subjects: subjectsBlockInstance,
   teams: teamsBlockInstance,
 } as const;
 
@@ -264,9 +278,21 @@ export const permissions = {
     update: "settings.update",
     platform: "settings.manage",
   },
+  subjects: {
+    manage: "subjects.manage",
+  },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
+  },
+  till: {
+    read: "tills.read",
+    write: "tills.write",
+  },
+  tills: {
+    read: "tills.read",
+    write: "tills.write",
+    manage: "tills.manage",
   },
 } as const;
 
@@ -275,13 +301,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "catalog.manage" | "catalog.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "promotions.manage" | "promotions.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "catalog.manage" | "catalog.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "promotions.manage" | "promotions.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read" | "tills.manage" | "tills.read" | "tills.write";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & BookingsEvents & CatalogEvents & LedgerEvents & EnrollmentsEvents & InventoryEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PromotionsEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & BookingsEvents & CatalogEvents & LedgerEvents & EnrollmentsEvents & TillsEvents & InventoryEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PromotionsEvents & SettingsEvents & SubjectsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -390,6 +416,9 @@ export const blockEvents: Events<BlockEvents> = {
     "stock.reorder_point_reached",
     "storefront.published",
     "storefront.unpublished",
+    "subject.accessed",
+    "subject_member.added",
+    "subject_member.ended",
     "team.archived",
     "team.created",
     "team.deleted",
@@ -397,6 +426,13 @@ export const blockEvents: Events<BlockEvents> = {
     "team.updated",
     "team_member.added",
     "team_member.removed",
+    "till.created",
+    "till.updated",
+    "till_deposit.reconciled",
+    "till_deposit.recorded",
+    "till_movement.recorded",
+    "till_session.closed",
+    "till_session.opened",
     "transfer.cancelled",
     "transfer.received",
     "transfer.shipped",
@@ -508,6 +544,9 @@ export const blockEventSchemas = {
   "stock.reorder_point_reached": true,
   "storefront.published": true,
   "storefront.unpublished": true,
+  "subject.accessed": true,
+  "subject_member.added": true,
+  "subject_member.ended": true,
   "team.archived": true,
   "team.created": true,
   "team.deleted": true,
@@ -515,6 +554,13 @@ export const blockEventSchemas = {
   "team.updated": true,
   "team_member.added": true,
   "team_member.removed": true,
+  "till.created": true,
+  "till.updated": true,
+  "till_deposit.reconciled": true,
+  "till_deposit.recorded": true,
+  "till_movement.recorded": true,
+  "till_session.closed": true,
+  "till_session.opened": true,
   "transfer.cancelled": true,
   "transfer.received": true,
   "transfer.shipped": true,

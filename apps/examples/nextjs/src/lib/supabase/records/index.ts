@@ -44,4 +44,5 @@ export { rfqRecord } from "./rfq.ts";
 export { riskRecord } from "./risk.ts";
 export { taskRecord } from "./task.ts";
 export { taxCodeRecord } from "./tax-code.ts";
+export { tillRecord } from "./till.ts";
 export { workCenterRecord } from "./work-center.ts";

@@ -161,6 +161,7 @@ import { WORK_ITEMS } from "./modules/tasks.ts";
 import { TAX } from "./modules/tax.ts";
 import { TEAMS } from "./modules/teams.ts";
 import { TEMPLATES } from "./modules/templates.ts";
+import { TILLS } from "./modules/tills.ts";
 import { TIME_TRACKING } from "./modules/time-tracking.ts";
 import { ACTIVITY } from "./modules/timeline.ts";
 import { TRASH } from "./modules/trash.ts";
@@ -430,6 +431,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(APPRAISALS),
       built(WAREHOUSE),
       built(RFQS),
+      built(TILLS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

@@ -1774,6 +1774,7 @@
               "tax",
               "teams",
               "templates",
+              "tills",
               "time-tracking",
               "timeline",
               "trash",
@@ -1954,6 +1955,7 @@
                   "tax",
                   "teams",
                   "templates",
+                  "tills",
                   "time-tracking",
                   "timeline",
                   "trash",
@@ -2430,6 +2432,9 @@
             },
             "templates": {
               "$ref": "#/$defs/blocks/templates"
+            },
+            "tills": {
+              "$ref": "#/$defs/blocks/tills"
             },
             "time-tracking": {
               "$ref": "#/$defs/blocks/time-tracking"
@@ -7645,6 +7650,17 @@
                 }
               }
             }
+          }
+        }
+      },
+      "tills": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

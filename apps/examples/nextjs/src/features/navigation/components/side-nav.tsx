@@ -58,6 +58,7 @@ import {
   MessagesSquareIcon,
   BotIcon,
   ChartColumnIcon,
+  CoinsIcon,
   KeyRoundIcon,
   LibraryIcon,
   LayoutDashboardIcon,
@@ -144,6 +145,7 @@ const ICONS = {
   appraisals: AwardIcon,
   warehouse: ClipboardListIcon,
   rfqs: FileQuestionMarkIcon,
+  tills: CoinsIcon,
   shifts: CalendarDaysIcon,
   finance: LandmarkIcon,
   payables: ReceiptTextIcon,
@@ -360,6 +362,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "rfqs": {
         return t("Requests for quotation");
+      }
+
+      case "tills": {
+        return t("Tills");
       }
 
       case "maintenance": {

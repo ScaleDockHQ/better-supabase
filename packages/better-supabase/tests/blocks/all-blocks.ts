@@ -151,6 +151,7 @@ import type { tasksBlock } from "../../src/blocks/tasks/manifest.ts";
 import type { taxBlock } from "../../src/blocks/tax/manifest.ts";
 import type { teamsBlock } from "../../src/blocks/teams/manifest.ts";
 import type { templatesBlock } from "../../src/blocks/templates/manifest.ts";
+import type { tillsBlock } from "../../src/blocks/tills/manifest.ts";
 import type { timeTrackingBlock } from "../../src/blocks/time-tracking/manifest.ts";
 import type { timelineBlock } from "../../src/blocks/timeline/manifest.ts";
 import type { trashBlock } from "../../src/blocks/trash/manifest.ts";
@@ -251,6 +252,7 @@ export type AllBlocks = {
   readonly appraisals: typeof appraisalsBlock;
   readonly warehouse: typeof warehouseBlock;
   readonly rfqs: typeof rfqsBlock;
+  readonly tills: typeof tillsBlock;
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
   readonly tax: typeof taxBlock;

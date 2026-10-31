@@ -39,6 +39,7 @@ import {
   ContactIcon,
   CpuIcon,
   CreditCardIcon,
+  CoinsIcon,
   DatabaseZapIcon,
   DoorOpenIcon,
   EyeIcon,
@@ -345,6 +346,7 @@ export const BLOCK_ICONS = {
   appraisals: AwardIcon,
   warehouse: ClipboardListIcon,
   rfqs: FileQuestionMarkIcon,
+  tills: CoinsIcon,
   "care-plans": ClipboardPlusIcon,
   // Database primitives
   "updated-at": ClockIcon,

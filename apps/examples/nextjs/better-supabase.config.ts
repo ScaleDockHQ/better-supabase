@@ -425,6 +425,8 @@ export default defineConfig({
     inventory: {},
     // Requests for quotation to suppliers; an award creates the purchase order.
     rfqs: {},
+    // Till sessions, cash drawers and end-of-day counts that post to accounting.
+    tills: {},
     // The kitchen display and order board under /shop/kitchen.
     orders: { options: { kitchen: true } },
     promotions: {},

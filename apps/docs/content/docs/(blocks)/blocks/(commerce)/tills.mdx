@@ -1,0 +1,130 @@
+---
+title: Tills
+description: Till sessions, cash drawers, cash in and out, and end-of-day counts that post to accounting and reconcile in banking.
+---
+
+`tills` records a cash drawer from the float a shift starts with to the bank
+deposit that cash becomes. The count at the end of the day books its difference
+in accounting, and a deposit is matched to the bank transaction that shows it.
+
+```bash
+better-supabase add tills
+```
+
+```ts
+import { createTills } from "better-supabase/blocks/tills";
+```
+
+The module requires `memberships`, `permissions` and `subjects`. With
+[accounting](/docs/blocks/accounting) a till with a cash account books count
+variances and deposits. With [banking](/docs/blocks/banking) a deposit can be
+reconciled to a bank transaction. `outbox` records the events and `audit` audits
+every change. The `pos` preset installs the block.
+
+## Tables
+
+| Table            | Holds                                                                                          |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
+| `tills`          | A drawer with a name, a currency, an optional accounting cash account and an archive timestamp |
+| `till_sessions`  | One shift with an opening float, a status (`open` or `closed`) and who opened and closed it    |
+| `till_movements` | Cash that moved: `cash_sale`, `cash_refund`, `cash_in` or `cash_out`, in minor units           |
+| `till_counts`    | The end-of-day count with its denominations, the expected cash and the variance                |
+| `till_deposits`  | Counted cash taken to the bank, `pending` until reconciled                                     |
+
+| Permission     | Allows                                         | Default roles |
+| -------------- | ---------------------------------------------- | ------------- |
+| `tills.read`   | reading tills, sessions, counts and deposits   | owner, admin  |
+| `tills.write`  | opening sessions, recording movements, closing | owner, admin  |
+| `tills.manage` | creating tills, depositing and reconciling     | owner, admin  |
+
+## A shift
+
+`createTill` takes a name, a currency that never changes and, for bookkeeping,
+the `accountId` of the accounting account that holds the till's cash. A till has
+one open session at a time. The expected cash is the float plus sales and cash in
+minus refunds and cash out, and a refund or cash out cannot take more than the
+drawer holds.
+
+```ts
+const tills = createTills({ transport, tenant: organizationId });
+
+const till = await tills
+  .createTill({
+    name: "Front counter",
+    currency: "EUR",
+    accountId: cashAccount,
+  })
+  .orThrow();
+
+const session = await tills
+  .openSession(till.id, { openingFloat: money(10_000n, "EUR") })
+  .orThrow();
+
+await tills
+  .recordMovement(session.id, "cash_sale", money(25_000n, "EUR"))
+  .orThrow();
+```
+
+## Closing and the count
+
+`closeSession` counts the drawer from `denominations`, a map of a note or coin
+value in minor units to how many there are, or from a total `amount`. It stores
+the expected cash, the counted cash and the variance, and closes the session.
+A non-zero variance is booked in accounting: an overage debits the till account
+and a shortage credits it, against the suspense account role. A till without a
+cash account keeps the count and books nothing.
+
+```ts
+const closed = await tills
+  .closeSession(session.id, { denominations: { "5000": 6, "1000": 2 } })
+  .orThrow();
+
+closed.count?.variance; // money(-1000n, "EUR")
+```
+
+## Deposits and reconciliation
+
+`deposit` takes counted cash to the bank from a closed session. The deposits of a
+session never add up to more than its count. With accounting the deposit books
+the bank account role against the till account. `reconcileDeposit` passes a bank
+transaction to banking's matching with the deposit's accounting entry, then marks
+the deposit `reconciled`. The transaction's amount must equal the deposit's.
+
+```ts
+const deposit = await tills
+  .deposit(session.id, { amount: money(32_000n, "EUR"), reference: "Bag 1" })
+  .orThrow();
+
+await tills.reconcileDeposit(deposit.id, bankTransactionId).orThrow();
+```
+
+## Errors
+
+| Hint code                | Meaning                                                          |
+| ------------------------ | ---------------------------------------------------------------- |
+| `TILL_INVALID`           | A value is out of bounds, or the drawer cannot take the movement |
+| `TILL_FORBIDDEN`         | The caller lacks `tills.read`, `tills.write` or `tills.manage`   |
+| `TILL_STATUS`            | The session or deposit is not in a status that allows the change |
+| `TILL_NOT_FOUND`         | No such till in a tenant the caller can read                     |
+| `TILL_SESSION_NOT_FOUND` | No such session in a tenant the caller can read                  |
+| `TILL_DEPOSIT_NOT_FOUND` | No such deposit in a tenant the caller can read                  |
+
+## Events
+
+| Event                                              | Data                                                                         |
+| -------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `till.created`, `till.updated`                     | `organizationId`, `id`, `name`, `currency`                                   |
+| `till_session.opened`, `till_session.closed`       | `organizationId`, `id`, `tillId`, `status`                                   |
+| `till_movement.recorded`                           | `organizationId`, `id`, `sessionId`, `kind`, `amount`                        |
+| `till_deposit.recorded`, `till_deposit.reconciled` | `organizationId`, `id`, `sessionId`, `amount`, `status`, `bankTransactionId` |
+
+The hooks are `before_till_session_open`, `after_till_session_open`,
+`before_till_session_close`, `after_till_session_close`, `before_till_deposit`
+and `after_till_deposit`.
+
+## Without the client
+
+`create_till`, `update_till`, `list_tills`, `open_till_session`,
+`get_till_session`, `list_till_sessions`, `record_till_movement`,
+`close_till_session`, `deposit_till_cash` and `reconcile_till_deposit` are plain
+SQL functions. In custom mode you implement them over your own tables.

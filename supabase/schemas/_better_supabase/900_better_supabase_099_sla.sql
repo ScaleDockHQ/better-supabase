@@ -1,6 +1,6 @@
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:5eb6505c6d8fb99adbed2ef8f72e1a7f36004c2ca4f56a5df8755b8f51b5979e
+-- @bsb-hash sha256:11d5561812c9b5df3934ddfc6488184186bbdf294d009b2693045fde4bfcb40f
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -256,6 +256,7 @@ declare
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (start_sla_clocks.subject_id)::uuid)
+      when 'till' then (select s."tenant_id"::text from "better_supabase"."tills" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (start_sla_clocks.subject_id)::uuid)
@@ -326,6 +327,7 @@ begin
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'till' then exists (select 1 from "better_supabase"."tills" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
@@ -430,6 +432,7 @@ declare
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (record_sla_event.subject_id)::uuid)
+      when 'till' then (select s."tenant_id"::text from "better_supabase"."tills" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (record_sla_event.subject_id)::uuid)
@@ -500,6 +503,7 @@ begin
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'till' then exists (select 1 from "better_supabase"."tills" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)

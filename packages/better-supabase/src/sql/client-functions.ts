@@ -137,6 +137,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   inspections:
     "add_inspection_finding approve_inspection_program cancel_inspection close_inspection close_inspection_program complete_inspection delete_inspection_finding get_inspection list_inspection_programs list_inspections notify_overdue_inspections raise_inspection_finding_case save_inspection_checklist save_inspection_program schedule_inspection set_inspection_members start_inspection update_inspection update_inspection_finding",
   rfqs: "award_rfq cancel_rfq close_rfq compare_rfq create_rfq decline_rfq_supplier get_rfq invite_rfq_supplier list_rfqs open_rfq record_rfq_quote update_rfq withdraw_rfq_quote",
+  tills:
+    "close_till_session create_till deposit_till_cash get_till_session list_till_sessions list_tills open_till_session reconcile_till_deposit record_till_movement update_till",
   lims: "archive_lims_method complete_sample get_sample instrument_status list_lims_methods list_samples record_lims_result register_sample reject_sample release_sample save_lims_method",
   dam: "check_usage grant_usage_right list_renditions list_usage_rights notify_expiring_usage_rights record_rendition revoke_usage_right",
   appraisals:

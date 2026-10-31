@@ -636,7 +636,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "pos",
     title: "Restaurants and POS",
     description:
-      "SaaS plus a menu in the catalog, orders with a kitchen board, inventory, table bookings, promotions and loyalty points on the ledger.",
+      "SaaS plus a menu in the catalog, orders with a kitchen board, inventory, table bookings, promotions, loyalty points on the ledger, and till sessions with cash counts.",
     group: "verticals",
     blocks: [
       ...SAAS,
@@ -646,6 +646,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "bookings",
       "promotions",
       "ledger",
+      "tills",
     ],
   },
   fitness: {

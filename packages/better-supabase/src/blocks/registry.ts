@@ -152,6 +152,7 @@ import { tasksBlock } from "./tasks/manifest.ts";
 import { taxBlock } from "./tax/manifest.ts";
 import { teamsBlock } from "./teams/manifest.ts";
 import { templatesBlock } from "./templates/manifest.ts";
+import { tillsBlock } from "./tills/manifest.ts";
 import { timeTrackingBlock } from "./time-tracking/manifest.ts";
 import { timelineBlock } from "./timeline/manifest.ts";
 import { trashBlock } from "./trash/manifest.ts";
@@ -238,6 +239,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   appraisalsBlock,
   warehouseBlock,
   rfqsBlock,
+  tillsBlock,
   manufacturingBlock,
   bankingBlock,
   legalEntitiesBlock,

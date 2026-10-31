@@ -10149,6 +10149,141 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "tills",
+      "title": "Tills",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "accounting",
+        "banking",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "tills",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "till": {
+            "table": "tills",
+            "singular": "till",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          },
+          "till_session": {
+            "table": "sessions",
+            "singular": "till_session"
+          },
+          "till_movement": {
+            "table": "movements",
+            "singular": "till_movement"
+          },
+          "till_count": {
+            "table": "counts",
+            "singular": "till_count"
+          },
+          "till_deposit": {
+            "table": "deposits",
+            "singular": "till_deposit"
+          }
+        },
+        "tables": {
+          "tills": {
+            "name": "tills",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "currency": "currency",
+              "account": "account_id",
+              "location": "location",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "sessions": {
+            "name": "till_sessions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "till": "till_id",
+              "status": "status",
+              "openingFloat": "opening_float",
+              "openedBy": "opened_by",
+              "openedAt": "opened_at",
+              "closedBy": "closed_by",
+              "closedAt": "closed_at",
+              "notes": "notes"
+            }
+          },
+          "movements": {
+            "name": "till_movements",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "session": "session_id",
+              "kind": "kind",
+              "amount": "amount",
+              "reason": "reason",
+              "reference": "reference",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          },
+          "counts": {
+            "name": "till_counts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "session": "session_id",
+              "denominations": "denominations",
+              "expected": "expected_amount",
+              "counted": "counted_amount",
+              "variance": "variance_amount",
+              "countedBy": "counted_by",
+              "countedAt": "counted_at",
+              "entry": "entry_id",
+              "notes": "notes"
+            }
+          },
+          "deposits": {
+            "name": "till_deposits",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "session": "session_id",
+              "amount": "amount",
+              "depositedOn": "deposited_on",
+              "reference": "reference",
+              "status": "status",
+              "entry": "entry_id",
+              "bankTransaction": "bank_transaction_id",
+              "reconciledAt": "reconciled_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "tills.read",
+          "write": "tills.write",
+          "manage": "tills.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -21780,6 +21915,165 @@ export const PRESET_CATALOG: PresetCatalog = {
           "rfq.cancelled",
           "rfq_quote.submitted",
           "rfq_quote.withdrawn"
+        ]
+      }
+    },
+    {
+      "name": "tills",
+      "sql": [
+        "tills"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "tillsBlock",
+        "subpath": "better-supabase/blocks/tills"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "CloseTillSessionInput"
+        },
+        {
+          "name": "DepositTillCashInput"
+        },
+        {
+          "name": "Till"
+        },
+        {
+          "name": "TillCount"
+        },
+        {
+          "name": "TillDeposit"
+        },
+        {
+          "name": "TillDepositEventData"
+        },
+        {
+          "name": "TillDepositStatus"
+        },
+        {
+          "name": "TillEventData"
+        },
+        {
+          "name": "TillInput"
+        },
+        {
+          "name": "TillMovement"
+        },
+        {
+          "name": "TillMovementEventData"
+        },
+        {
+          "name": "TillMovementKind"
+        },
+        {
+          "name": "Tills"
+        },
+        {
+          "name": "TillSession"
+        },
+        {
+          "name": "TillSessionDetail"
+        },
+        {
+          "name": "TillSessionEventData"
+        },
+        {
+          "name": "TillSessionListOptions"
+        },
+        {
+          "name": "TillSessionStatus"
+        },
+        {
+          "name": "TillsEvents"
+        },
+        {
+          "name": "TillsOptions"
+        },
+        {
+          "name": "TillUpdate"
+        }
+      ],
+      "entitySchemas": {
+        "till": {
+          "input": {
+            "title": "TillInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "currency": {
+                "kind": "string",
+                "minLength": 3,
+                "maxLength": 3,
+                "description": "An ISO 4217 code such as EUR."
+              },
+              "accountId": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "description": "The accounting account that holds the till's cash."
+              },
+              "location": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 200
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "TillInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "currency": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 3,
+                  "description": "An ISO 4217 code such as EUR."
+                },
+                "accountId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The accounting account that holds the till's cash."
+                },
+                "location": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "name",
+                "currency"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "TillsEvents",
+        "types": [
+          "till.created",
+          "till.updated",
+          "till_session.opened",
+          "till_session.closed",
+          "till_movement.recorded",
+          "till_deposit.recorded",
+          "till_deposit.reconciled"
         ]
       }
     },

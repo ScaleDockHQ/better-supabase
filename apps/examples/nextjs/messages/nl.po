@@ -662,6 +662,16 @@ msgctxt "qualifications.gfuJNy"
 msgid "The certificates and licences members hold, and the required ones that are missing or about to expire."
 msgstr "De certificaten en vergunningen die leden hebben, en de verplichte die ontbreken of bijna verlopen."
 
+#: src/app/[locale]/(app)/rfqs/page.tsx
+msgctxt "rfqs.nkj_Ln"
+msgid "Requests for quotation"
+msgstr "Offerteaanvragen"
+
+#: src/app/[locale]/(app)/rfqs/page.tsx
+msgctxt "rfqs.yaZl1M"
+msgid "Requests sent to suppliers, their quotes and the award."
+msgstr "Aanvragen bij leveranciers, hun offertes en de toewijzing."
+
 #: src/app/[locale]/(app)/risks/page.tsx
 msgctxt "risks._s79W_"
 msgid "Risks"
@@ -794,6 +804,16 @@ msgstr "Sjablonen"
 msgctxt "templates.6cprLR"
 msgid "Start new customers from a saved setup."
 msgstr "Begin nieuwe klanten vanuit een opgeslagen opzet."
+
+#: src/app/[locale]/(app)/tills/page.tsx
+msgctxt "tills.CKpmLI"
+msgid "Tills"
+msgstr "Kassa's"
+
+#: src/app/[locale]/(app)/tills/page.tsx
+msgctxt "tills.PyPB5S"
+msgid "Cash drawer shifts with their expected cash and status."
+msgstr "Diensten per kassalade met het verwachte geld en de status."
 
 #: src/app/[locale]/(app)/trash/page.tsx
 msgctxt "trash.j_I5tV"
@@ -10719,6 +10739,16 @@ msgid "Laboratory"
 msgstr "Laboratorium"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.nkj_Ln"
+msgid "Requests for quotation"
+msgstr "Offerteaanvragen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.CKpmLI"
+msgid "Tills"
+msgstr "Kassa's"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.dudqv_"
 msgid "Maintenance"
 msgstr "Onderhoud"
@@ -12903,6 +12933,101 @@ msgstr "Status"
 msgctxt "qualifications.xhQMeQ"
 msgid "Expires"
 msgstr "Verloopt"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.Fv1ZSz"
+msgid "Closed"
+msgstr "Gesloten"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.hY7lUE"
+msgid "Awarded"
+msgstr "Toegewezen"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.3wsVWF"
+msgid "Cancelled"
+msgstr "Geannuleerd"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.kFkPWB"
+msgid "Number"
+msgstr "Nummer"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.p1P-hQ"
+msgid "Request"
+msgstr "Aanvraag"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.Oe2XGA"
+msgid "Quotes due"
+msgstr "Offertes uiterlijk"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.bkM1H6"
+msgid "New request"
+msgstr "Nieuwe aanvraag"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.MNFqIW"
+msgid "Requests"
+msgstr "Aanvragen"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.3L29w5"
+msgid "Suppliers quote the same lines, and an award turns one quote into a purchase order."
+msgstr "Leveranciers offreren dezelfde regels en een toewijzing maakt van één offerte een inkooporder."
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.j3JiWt"
+msgid "The requests didn't load"
+msgstr "De aanvragen zijn niet geladen"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.W0cwWp"
+msgid "No requests yet"
+msgstr "Nog geen aanvragen"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.XT6hMf"
+msgid "Create a request, invite suppliers, then compare their quotes and award one."
+msgstr "Maak een aanvraag, nodig leveranciers uit, vergelijk hun offertes en wijs er één toe."
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.4_J8tL"
+msgid "Create a request"
+msgstr "Maak een aanvraag"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.o9xrOU"
+msgid "Read the requests guide"
+msgstr "Lees de gids over aanvragen"
 
 #: src/features/risks/components/risk-heatmap.tsx
 msgctxt "risks.4_EFCP"
@@ -15832,6 +15957,86 @@ msgctxt "templates.ninItd"
 msgid "Create customer"
 msgstr "Klant aanmaken"
 
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.Fv1ZSz"
+msgid "Closed"
+msgstr "Gesloten"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.KGYKYA"
+msgid "Till"
+msgstr "Kassa"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.ADKsID"
+msgid "Opened"
+msgstr "Geopend"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.nhfX6m"
+msgid "Expected cash"
+msgstr "Verwacht contant geld"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.H3Pj5d"
+msgid "Front counter"
+msgstr "Balie"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.Z3EDd9"
+msgid "Sessions"
+msgstr "Diensten"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.q3LKq4"
+msgid "Each shift starts with a float, and the closing count books any difference."
+msgstr "Elke dienst begint met wisselgeld en de telling bij sluiting boekt een verschil."
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.vuBPCO"
+msgid "The sessions didn't load"
+msgstr "De diensten zijn niet geladen"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.KqE7GJ"
+msgid "No sessions yet"
+msgstr "Nog geen diensten"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.xRZutt"
+msgid "Add a till, open a session with its float, then count the drawer at the end of the day."
+msgstr "Voeg een kassa toe, open een dienst met wisselgeld en tel aan het eind van de dag de lade."
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.9ZCo57"
+msgid "Add a till"
+msgstr "Voeg een kassa toe"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.Hjofpw"
+msgid "Read the tills guide"
+msgstr "Lees de gids over kassa's"
+
 #: src/features/trash/components/trash-bin.tsx
 msgctxt "trash.hkENym"
 msgid "Customer"
@@ -17498,113 +17703,3 @@ msgstr "Te veel verzoeken. Wacht even en probeer het opnieuw."
 msgctxt "errors.L-85Jk"
 msgid "Your plan's limit is reached. Upgrade to continue."
 msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."
-
-#: src/app/[locale]/(app)/rfqs/page.tsx
-msgctxt "rfqs.nkj_Ln"
-msgid "Requests for quotation"
-msgstr "Offerteaanvragen"
-
-#: src/app/[locale]/(app)/rfqs/page.tsx
-msgctxt "rfqs.yaZl1M"
-msgid "Requests sent to suppliers, their quotes and the award."
-msgstr "Aanvragen bij leveranciers, hun offertes en de toewijzing."
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.W6nwjo"
-msgid "Draft"
-msgstr "Concept"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.JfG49w"
-msgid "Open"
-msgstr "Open"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.Fv1ZSz"
-msgid "Closed"
-msgstr "Gesloten"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.hY7lUE"
-msgid "Awarded"
-msgstr "Toegewezen"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.3wsVWF"
-msgid "Cancelled"
-msgstr "Geannuleerd"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.kFkPWB"
-msgid "Number"
-msgstr "Nummer"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.p1P-hQ"
-msgid "Request"
-msgstr "Aanvraag"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.Oe2XGA"
-msgid "Quotes due"
-msgstr "Offertes uiterlijk"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.tzMNF3"
-msgid "Status"
-msgstr "Status"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.bkM1H6"
-msgid "New request"
-msgstr "Nieuwe aanvraag"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.MNFqIW"
-msgid "Requests"
-msgstr "Aanvragen"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.3L29w5"
-msgid "Suppliers quote the same lines, and an award turns one quote into a purchase order."
-msgstr "Leveranciers offreren dezelfde regels en een toewijzing maakt van één offerte een inkooporder."
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.j3JiWt"
-msgid "The requests didn't load"
-msgstr "De aanvragen zijn niet geladen"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het zo opnieuw."
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.W0cwWp"
-msgid "No requests yet"
-msgstr "Nog geen aanvragen"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.XT6hMf"
-msgid "Create a request, invite suppliers, then compare their quotes and award one."
-msgstr "Maak een aanvraag, nodig leveranciers uit, vergelijk hun offertes en wijs er één toe."
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.4_J8tL"
-msgid "Create a request"
-msgstr "Maak een aanvraag"
-
-#: src/features/rfqs/components/rfqs.tsx
-msgctxt "rfqs.o9xrOU"
-msgid "Read the requests guide"
-msgstr "Lees de gids over aanvragen"
-
-#: src/features/navigation/components/side-nav.tsx
-msgctxt "navigation.nkj_Ln"
-msgid "Requests for quotation"
-msgstr "Offerteaanvragen"
