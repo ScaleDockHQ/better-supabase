@@ -255,4 +255,133 @@ describe("createWopiHost", () => {
 
     expect((await request(missing, "n1")).status).toBe(404);
   });
+
+  it("rejects bad paths, methods, overrides and lock ids", async () => {
+    const { host } = setup();
+
+    const post = (path: string, headers: Record<string, string>, claims = {}) =>
+      request(host, path, { method: "POST", headers, claims });
+
+    const outside = await host.handle(new Request("https://x/other/files/n1"));
+
+    const deep = await host.handle(
+      new Request("https://x/wopi/files/n1/contents/x?access_token=a"),
+    );
+
+    const wrongTail = await host.handle(
+      new Request("https://x/wopi/files/n1/other?access_token=a"),
+    );
+
+    expect([outside.status, deep.status, wrongTail.status]).toEqual([
+      404, 404, 404,
+    ]);
+    expect((await request(host, "n1", { method: "DELETE" })).status).toBe(405);
+    expect(
+      (await request(host, "n1/contents", { method: "DELETE" })).status,
+    ).toBe(405);
+    expect((await request(host, "n1", { method: "POST" })).status).toBe(501);
+    expect(
+      (
+        await post("n1", {
+          "x-wopi-override": "PUT_RELATIVE",
+          "x-wopi-lock": "L",
+        })
+      ).status,
+    ).toBe(501);
+    expect((await post("n1", { "x-wopi-override": "LOCK" })).status).toBe(400);
+    expect(
+      (
+        await post("n1", {
+          "x-wopi-override": "LOCK",
+          "x-wopi-lock": "x".repeat(600),
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await post(
+          "n1",
+          { "x-wopi-override": "LOCK", "x-wopi-lock": "L" },
+          { canWrite: false },
+        )
+      ).status,
+    ).toBe(401);
+    expect(
+      (await post("n1", { "x-wopi-override": "UNLOCK", "x-wopi-lock": "L" }))
+        .status,
+    ).toBe(409);
+    expect(
+      (
+        await post("n1", {
+          "x-wopi-override": "REFRESH_LOCK",
+          "x-wopi-lock": "L",
+        })
+      ).status,
+    ).toBe(409);
+  });
+
+  it("refuses an oversized PutFile and reports storage failures", async () => {
+    const lock = {
+      lockedBy: "u1",
+      lockedUntil: Temporal.Instant.fromEpochMilliseconds(NOW + 60_000),
+      lockNote: "wopi:L1",
+    };
+
+    const put = (host: ReturnType<typeof setup>["host"]) =>
+      request(host, "n1/contents", {
+        method: "POST",
+        headers: { "x-wopi-lock": "L1" },
+        body: "hello!",
+      });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("no", { status: 500 })),
+    );
+    expect((await put(setup(lock).host)).status).toBe(500);
+
+    const small = setup(lock);
+
+    const tiny = createWopiHost({
+      secret: "s3cret",
+      now: () => NOW,
+      maxBytes: 2,
+      driveFor: () =>
+        ({ get: async () => ok(node(lock)) }) as unknown as WopiDrive,
+    });
+
+    expect((await put(tiny)).status).toBe(413);
+    expect(small.calls).toEqual([]);
+  });
+
+  it("maps a locked error and a missing download source", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 404 })),
+    );
+
+    const { host } = setup();
+
+    expect((await request(host, "n1/contents")).status).toBe(404);
+
+    const locked = createWopiHost({
+      secret: "s3cret",
+      now: () => NOW,
+      driveFor: () =>
+        ({
+          get: async () => ok(node()),
+          lock: async () =>
+            err(dbError("raised", "checked out", { hint: "DRIVE_LOCKED" })),
+          download: async () => err(dbError("forbidden", "no")),
+        }) as unknown as WopiDrive,
+    });
+
+    const res = await request(locked, "n1", {
+      method: "POST",
+      headers: { "x-wopi-override": "LOCK", "x-wopi-lock": "L" },
+    });
+
+    expect(res.status).toBe(409);
+    expect((await request(locked, "n1/contents")).status).toBe(401);
+  });
 });
