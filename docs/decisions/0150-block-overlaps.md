@@ -57,6 +57,10 @@ Follow-up PR `refactor/shared-cron-helper`: one SQL helper that parses a cron
 expression in a time zone and returns the next run, used by `ai-schedules`,
 `queue` and `workflows`, with the same golden tests. No table is merged.
 
+Done: the three engines already computed the next run in TypeScript, so the
+helper (`nextCronRun`, `assertCron`) moved from the `queue` block into
+`src/core/cron.ts`, with its tests. `better-supabase/queue` still exports both.
+
 ### The workflow family
 
 The blocks form a stack and each layer has one job:

@@ -17,11 +17,11 @@ import {
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { assertCron, nextCronRun } from "../../core/cron.ts";
 import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { runStateOf } from "../../core/run-state.ts";
 import { nowInstant } from "../../core/temporal.ts";
-import { assertCron, nextCronRun } from "../queue/cron.ts";
 import {
   applyTemporal,
   blockCall,

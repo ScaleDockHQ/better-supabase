@@ -1,4 +1,4 @@
-import { temporal } from "../../core/temporal-required.ts";
+import { temporal } from "./temporal-required.ts";
 
 interface CronFields {
   readonly minutes: readonly number[];

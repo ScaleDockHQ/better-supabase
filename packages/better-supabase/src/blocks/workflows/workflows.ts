@@ -7,9 +7,9 @@ import type { RunState } from "../../core/run-state.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { assertCron, nextCronRun } from "../../core/cron.ts";
 import { err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { assertCron, nextCronRun } from "../queue/cron.ts";
 import {
   applyTemporal,
   blockCall,
