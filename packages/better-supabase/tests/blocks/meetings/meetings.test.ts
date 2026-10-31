@@ -189,6 +189,48 @@ describe("createMeetings", () => {
     ]);
   });
 
+  it("passes the optional arguments through", async () => {
+    const t = fieldsTransport({
+      update_meeting: () => MEETING,
+      cancel_meeting: () => ({ ...MEETING, status: "cancelled" }),
+      set_meeting_attendee: () => ({
+        userId: "u1",
+        role: "guest",
+        attendance: "absent",
+      }),
+      decide_meeting_decision: () => ({ ...DECISION, status: "rejected" }),
+      add_meeting_action_item: () => ({ id: "t2", title: "Call" }),
+    });
+
+    const meetings = createMeetings({ transport: t, tenant: "org-1" });
+
+    await meetings
+      .update("m1", {
+        title: "Moved",
+        endsAt: temporal().Instant.from(AT),
+        location: null,
+      })
+      .orThrow();
+    await meetings.cancel("m1", "No quorum").orThrow();
+    await meetings
+      .setAttendee("m1", "u1", { role: "guest", attendance: "absent" })
+      .orThrow();
+    await meetings.decide("d1", "rejected").orThrow();
+    await meetings
+      .addActionItem("m1", { task: { title: "Call" }, agendaItemId: "a1" })
+      .orThrow();
+
+    expect(t.calls.map(([name]) => name)).toEqual([
+      "update_meeting",
+      "cancel_meeting",
+      "set_meeting_attendee",
+      "decide_meeting_decision",
+      "add_meeting_action_item",
+    ]);
+    expect(t.calls[1]?.[1]).toEqual({ meeting_id: "m1", reason: "No quorum" });
+    expect(t.calls[3]?.[1]).toEqual({ decision_id: "d1", status: "rejected" });
+  });
+
   it("returns an error result for an unknown status", async () => {
     const t = fieldsTransport({
       start_meeting: () => ({ ...MEETING, status: "adjourned" }),
