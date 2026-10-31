@@ -77,3 +77,37 @@ there.
   `accounting_journal_listing` are new.
 - **Import entities:** `accounting_account`, `accounting_journal`,
   `accounting_entry`, `accounting_opening_balance`.
+
+## As built: audit files (PR 13)
+
+- **No XML dependency.** The decision above named the `fast-xml-parser` peer.
+  Both formats are plain element trees with a known set of records, so
+  `better-supabase/audit-files` ships a small pull tokenizer (`src/audit-files/xml.ts`)
+  instead. It reads chunks, keeps only the unread tail and holds one record
+  element in memory at a time, so a file of any size parses in bounded memory.
+  It refuses a DOCTYPE with an internal subset and any entity beyond the five
+  XML ones and numeric references, and it has limits for depth, text length and
+  record elements. No optional peer, and nothing to add to
+  `tests/optional-peers.test.ts`.
+- **The interface streams records.** `AuditFileAdapter.parse(source)` returns an
+  `AsyncIterable<AuditRecord>` (header, account, party, tax code, journal,
+  opening balance, entry, warning) and `export(books)` returns strings. It
+  replaces the `import(xml)` shape named above. `defineAuditFileAdapter` checks
+  `apiVersion: 1`.
+- **Import order and idempotency.** `importAuditFile` buffers per entity and
+  writes accounts, tax codes, parties, journals, opening balances and then
+  entries through `import_upsert_batch`. Keys are the account code, the journal
+  code and `journal/entry id`, so a repeat reports every row as unchanged.
+- **Nothing is dropped silently.** Unmapped elements, a control total mismatch,
+  assumed account types, and every link the ledger cannot store come back as
+  warnings: customers and suppliers (the accounting block has no party entity,
+  so they import only when the app passes `entities.party`), party and tax
+  code links on entry lines, and opening balances kept per party, which are
+  added up per account because the target holds one row per account.
+- **XAF has no asset or liability distinction.** Its `B`, `P` and `M` types map
+  to an assumed type with a warning, unless the app passes `accountType`.
+- **Export reads the accounting client.** `exportAuditFile(adapter, accounting,
+  { organizationId, company, currency, selection })` uses `accounts`,
+  `journalListing` and `openingBalances`. Opening balances that are already
+  posted are in the journals and are not repeated.
+- **Open items** are not part of PR 13; they follow with the receivables work.

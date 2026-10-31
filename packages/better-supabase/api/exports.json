@@ -4588,6 +4588,55 @@
       "YjsLike"
     ]
   },
+  "./audit-files": {
+    "values": [
+      "AuditFileError",
+      "booksFromLedger",
+      "DEFAULT_AUDIT_ENTITIES",
+      "defineAuditFileAdapter",
+      "exportAuditFile",
+      "importAuditFile",
+      "SAFT_NAMESPACE",
+      "saftAdapter",
+      "XAF_NAMESPACE",
+      "xafAdapter"
+    ],
+    "types": [
+      "AuditAccount",
+      "AuditAccountType",
+      "AuditBooks",
+      "AuditEntityCounts",
+      "AuditEntry",
+      "AuditFileAdapter",
+      "AuditFileErrorCode",
+      "AuditFileSource",
+      "AuditHeader",
+      "AuditImportEntities",
+      "AuditImportError",
+      "AuditImportItem",
+      "AuditImportPort",
+      "AuditImportProgress",
+      "AuditImportResult",
+      "AuditJournal",
+      "AuditJournalType",
+      "AuditLedgerSource",
+      "AuditLine",
+      "AuditOpeningBalance",
+      "AuditParseLimits",
+      "AuditParseOptions",
+      "AuditParty",
+      "AuditRecord",
+      "AuditSelection",
+      "AuditTaxCode",
+      "AuditUpsertReply",
+      "AuditWarning",
+      "ExportAuditFileOptions",
+      "ExportAuditFileResult",
+      "ImportAuditFileOptions",
+      "SaftOptions",
+      "XafOptions"
+    ]
+  },
   "./e-invoicing": {
     "values": [
       "eInvoiceChannelOf",

@@ -485,6 +485,11 @@
       "types": "./dist/yjs/index.d.ts",
       "default": "./dist/yjs/index.js"
     },
+    "./audit-files": {
+      "@better-supabase/source": "./src/audit-files/index.ts",
+      "types": "./dist/audit-files/index.d.ts",
+      "default": "./dist/audit-files/index.js"
+    },
     "./e-invoicing": {
       "@better-supabase/source": "./src/e-invoicing/index.ts",
       "types": "./dist/e-invoicing/index.d.ts",
@@ -1561,6 +1566,10 @@
       "./yjs": {
         "types": "./dist/yjs/index.d.ts",
         "default": "./dist/yjs/index.js"
+      },
+      "./audit-files": {
+        "types": "./dist/audit-files/index.d.ts",
+        "default": "./dist/audit-files/index.js"
       },
       "./e-invoicing": {
         "types": "./dist/e-invoicing/index.d.ts",

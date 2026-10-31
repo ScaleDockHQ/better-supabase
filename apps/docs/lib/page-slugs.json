@@ -233,6 +233,7 @@
   "cli/spec",
   "cli/table",
   "concepts",
+  "concepts/audit-files",
   "concepts/better-result",
   "concepts/caching",
   "concepts/casing",
