@@ -84,6 +84,7 @@
   "blocks/data-lifecycle",
   "blocks/deals",
   "blocks/dispatch",
+  "blocks/document-templates",
   "blocks/documents",
   "blocks/domains",
   "blocks/donations",

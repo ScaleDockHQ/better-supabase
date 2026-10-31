@@ -1,0 +1,234 @@
+---
+title: Document templates
+description: Templates per legal entity and language for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements, reusable text blocks, a typed variable contract, a safe HTML renderer and a snapshot that keeps an issued document stable.
+---
+
+`document-templates` separates what a document says from how it looks. The
+database builds one typed payload per document (the variables), picks the
+template that fits the legal entity and the buyer's language, and returns both.
+You render the result to HTML, then to PDF with whatever tool you use. An
+issued invoice keeps the template and texts it had when it was issued, so
+editing a template never changes a document that already went out.
+
+```bash
+better-supabase add document-templates
+```
+
+```ts
+import { createDocumentTemplates } from "better-supabase/blocks/document-templates";
+```
+
+The module requires `tenant`, `permissions` and
+[legal entities](/docs/blocks/legal-entities). It reads the tables of
+[invoices](/docs/blocks/invoices), [quotes](/docs/blocks/quotes),
+[orders](/docs/blocks/orders), [shipments](/docs/blocks/shipments) and
+[contacts](/docs/blocks/contacts) when they are installed, and a document type
+whose block is missing fails with the hint `DOCUMENT_TYPE_UNAVAILABLE`. With
+`outbox` it records the events, and with `audit` every change is audited.
+
+## Tables
+
+| Table                  | Holds                                                                                               |
+| ---------------------- | --------------------------------------------------------------------------------------------------- |
+| `document_templates`   | One template per document type, name, legal entity and language, with a body, a version and a flag  |
+| `document_text_blocks` | One text per key, legal entity and language, referenced from a template as `{{texts.<key>}}`        |
+| `rendered_documents`   | The frozen render of one document: its variables, template, blocks and the template version it used |
+
+| Permission                  | Allows                                               | Default roles        |
+| --------------------------- | ---------------------------------------------------- | -------------------- |
+| `document_templates.read`   | reading templates, text blocks and rendering         | owner, admin, member |
+| `document_templates.manage` | saving templates and text blocks, freezing documents | owner, admin         |
+
+A frozen render shows to someone who can read the source document. A statement
+has no row of its own, so its render shows to template managers.
+
+## Saving templates
+
+A template body is HTML you write with placeholders. The slot is the document
+type, the name (default `default`), the legal entity (null for the
+organization) and the language (null for any language). Saving a changed body
+raises the version by one.
+
+```ts
+const db = betterSupabase.server(...).forContext(ctx);
+
+await db.documentTemplates
+  .saveTemplate({
+    documentType: "invoice",
+    legalEntityId: bv.id,
+    language: "nl",
+    body: `
+      <h1>Factuur {{document.number}}</h1>
+      <p>{{buyer.name}}</p>
+      <table>
+        {{#each lines as line}}
+        <tr><td>{{line.description}}</td><td>{{line.amount | money}}</td></tr>
+        {{/each}}
+      </table>
+      <p>Totaal {{totals.total | money}}, te betalen voor {{document.dueOn | date}}</p>
+      {{texts.footer}}
+    `,
+  })
+  .orThrow();
+```
+
+| Placeholder                           | Does                                                         |
+| ------------------------------------- | ------------------------------------------------------------ |
+| `{{path.to.value}}`                   | prints a variable, escaped for HTML                          |
+| `{{path \| money}}`                   | formats an amount in minor units for the document's language |
+| `{{path \| date}}`                    | formats an ISO date for the document's language              |
+| `{{#each list as alias}}...{{/each}}` | repeats a list, such as `lines` or `tax_lines`               |
+| `{{#if path}}...{{else}}...{{/if}}`   | prints a branch when the value is set                        |
+| `{{texts.key}}`                       | prints the text block with that key                          |
+
+A template that names an unknown variable, filter or block fails with a hint
+code and is not saved:
+
+| Hint                                 | Raised when                                                  |
+| ------------------------------------ | ------------------------------------------------------------ |
+| `DOCUMENT_TEMPLATE_UNKNOWN_VARIABLE` | a path is not in the contract of the document type           |
+| `DOCUMENT_TEMPLATE_UNKNOWN_FILTER`   | a filter is not `money` or `date`                            |
+| `DOCUMENT_TEMPLATE_SYNTAX`           | a block is not closed, `else` has no `if`, or a tag is empty |
+
+`validate` runs the same check in the database and returns the issues without
+saving, for an editor.
+
+## Text blocks
+
+A text block is a reusable text. It follows the same lookup as a template and
+can read the variables of any document type, so one footer works on invoices
+and quotes.
+
+```ts
+await db.documentTemplates
+  .saveTextBlock({
+    key: "footer",
+    language: "nl",
+    body: "Betaling binnen 30 dagen.",
+  })
+  .orThrow();
+```
+
+## Which template a document gets
+
+`resolveTemplate` and `render` pick the first template that exists, in this
+order:
+
+1. The legal entity, in the language.
+2. The legal entity, for any language.
+3. The organization, in the language.
+4. The organization, for any language.
+
+A regional language such as `nl-NL` matches `nl`. A null legal entity means the
+default entity. Text blocks use the same order for each key. When nothing
+matches in the requested language, a template in another language still beats
+no template, and `source` says so (`entity_other_language`,
+`organization_other_language`). An inactive template leaves the chain.
+
+## Rendering
+
+`render` returns the variables of a document with the template and text blocks
+chosen for it. The language is the one you pass, else the buyer's language.
+
+```ts
+const rendered = await db.documentTemplates
+  .render({ documentType: "invoice", documentId: invoice.id })
+  .orThrow();
+
+rendered.template?.source; // "entity_language"
+rendered.variables.totals.total; // "121000", minor units as text
+rendered.blocks.footer; // the text block the template reads
+```
+
+`renderHtml` renders the chosen template to HTML. Every value is escaped, so a
+buyer called `<script>` prints as text, and only the markup in your template is
+HTML. A template the database accepted always renders. It runs in pure
+TypeScript on every runtime and adds no dependency.
+
+```ts
+const html = await db.documentTemplates
+  .renderHtml({ documentType: "invoice", documentId: invoice.id })
+  .orThrow();
+```
+
+`renderDocumentHtml` is the same renderer without the database, for a
+document you already hold. Amounts are formatted with `Intl` from digits, so
+no amount passes through a float.
+
+## Frozen documents
+
+Issuing an invoice or credit note freezes its render when the transaction
+commits: the variables, the template body and version, and the text blocks are
+copied into `rendered_documents`. From then on `render` returns that copy, so
+editing a template, a text block or the party's address does not change the
+document. Pass `fresh: true` to render with today's templates, for a preview.
+
+Quotes, orders, delivery notes, dunning letters and statements are not frozen
+automatically. Call `freeze` when you send one:
+
+```ts
+await db.documentTemplates
+  .freeze({ documentType: "quote", documentId: quote.id })
+  .orThrow();
+```
+
+A frozen render cannot be updated or deleted (`DOCUMENT_SNAPSHOT_IMMUTABLE`),
+and freezing twice returns the first copy. A bulk import does not freeze.
+
+## The variable contract
+
+The contract is versioned (`DOCUMENT_CONTRACT_VERSION`, now 1). Every document
+type has these keys, and most add more:
+
+| Key             | Holds                                                                |
+| --------------- | -------------------------------------------------------------------- |
+| `document`      | the number, title, status, date, currency, language, note, reference |
+| `entity`        | the legal entity that issues it: name, address, VAT, chamber, IBAN   |
+| `buyer`         | the company or person: name, language, address, VAT number           |
+| `lines`         | position, description, quantity, unit amount, amount, tax rate       |
+| `tax_lines`     | the tax per code: net, tax, gross                                    |
+| `totals`        | list total, discount, subtotal, tax and total                        |
+| `payment_terms` | the terms, due date and deposit                                      |
+| `shipping`      | orders and delivery notes: carrier, tracking, address                |
+
+Dunning letters add `document.level` and `document.textKey`, and statements add
+the open invoices as lines. A key the source does not have is null. Amounts
+are minor units as text, so a `bigint` never loses precision.
+
+`contract(type)` reads the variable paths and types from the database, and
+`documentContract(type)` and `DOCUMENT_VARIABLES` give the same list in
+TypeScript, with a description of each variable. New variables arrive as new
+optional keys. Removing or retyping one needs a new contract version.
+
+## Importing templates
+
+The block registers two import targets, `document_template` and
+`document_text_block`. An item names the legal entity by its code or id:
+
+```ts
+{ documentType: "invoice", language: "nl", legalEntity: "NL01", body: "<h1>...</h1>" }
+{ key: "footer", language: "nl", body: "Betaling binnen 30 dagen." }
+```
+
+Importing a slot again changes its body and raises the version, so the import
+is safe to repeat.
+
+## Events
+
+| Event                                                        | Data                                                                                           |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `document_template.created`, `document_template.updated`     | `organizationId`, `templateId`, `documentType`, `legalEntityId`, `language`, `name`, `version` |
+| `document_text_block.created`, `document_text_block.updated` | `organizationId`, `textBlockId`, `key`, `legalEntityId`, `language`, `version`                 |
+| `document_snapshot.created`                                  | `organizationId`, `snapshotId`, `documentType`, `documentId`, `templateVersion`                |
+
+The hooks `before_document_template_save`, `after_document_template_save`,
+`before_document_text_block_save` and `after_document_text_block_save` run
+around the saves.
+
+## Functions
+
+The client calls these `better_supabase` functions: `save_document_template`,
+`set_document_template_active`, `get_document_template`,
+`list_document_templates`, `save_document_text_block`,
+`list_document_text_blocks`, `resolve_document_template`, `render_document`,
+`freeze_document`, `document_template_contract` and `validate_document_template`.

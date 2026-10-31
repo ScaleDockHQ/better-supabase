@@ -115,6 +115,7 @@ const MODULES = [
   "dam",
   "manufacturing",
   "legal-entities",
+  "document-templates",
   "funding",
 ] as const;
 

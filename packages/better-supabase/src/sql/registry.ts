@@ -55,6 +55,7 @@ import { DAM } from "./modules/dam.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { DEALS } from "./modules/deals.ts";
 import { DISPATCH } from "./modules/dispatch.ts";
+import { DOCUMENT_TEMPLATES } from "./modules/document-templates.ts";
 import { DOCUMENTS } from "./modules/documents.ts";
 import { DOMAINS } from "./modules/domains.ts";
 import { DONATIONS } from "./modules/donations.ts";
@@ -420,6 +421,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(MAINTENANCE),
       built(DAM),
       built(TAX),
+      built(DOCUMENT_TEMPLATES),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

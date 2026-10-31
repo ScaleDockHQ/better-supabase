@@ -127,3 +127,4 @@ payroll-export
 maintenance
 dam
 tax
+document-templates

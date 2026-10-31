@@ -1667,6 +1667,7 @@
               "data-lifecycle",
               "deals",
               "dispatch",
+              "document-templates",
               "documents",
               "domains",
               "donations",
@@ -1842,6 +1843,7 @@
                   "data-lifecycle",
                   "deals",
                   "dispatch",
+                  "document-templates",
                   "documents",
                   "domains",
                   "donations",
@@ -2099,6 +2101,9 @@
             },
             "dispatch": {
               "$ref": "#/$defs/blocks/dispatch"
+            },
+            "document-templates": {
+              "$ref": "#/$defs/blocks/document-templates"
             },
             "documents": {
               "$ref": "#/$defs/blocks/documents"
@@ -5037,6 +5042,17 @@
                 "default": "1 hour"
               }
             }
+          }
+        }
+      },
+      "document-templates": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

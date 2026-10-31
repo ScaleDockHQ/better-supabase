@@ -496,6 +496,10 @@ export default defineConfig({
         ],
       },
     },
+    // Templates per legal entity and language for invoices, quotes and other
+    // documents, reusable text blocks and a render call that freezes issued
+    // invoices.
+    "document-templates": {},
     // Funded care: products a funder pays per unit, awards per customer,
     // deliveries from approved time and claims the funder answers per line.
     funding: {},

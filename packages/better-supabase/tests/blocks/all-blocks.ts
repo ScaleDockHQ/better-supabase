@@ -43,6 +43,7 @@ import type { damBlock } from "../../src/blocks/dam/manifest.ts";
 import type { dataLifecycleBlock } from "../../src/blocks/data-lifecycle/manifest.ts";
 import type { dealsBlock } from "../../src/blocks/deals/manifest.ts";
 import type { dispatchBlock } from "../../src/blocks/dispatch/manifest.ts";
+import type { documentTemplatesBlock } from "../../src/blocks/document-templates/manifest.ts";
 import type { documentsBlock } from "../../src/blocks/documents/manifest.ts";
 import type { domainsBlock } from "../../src/blocks/domains/manifest.ts";
 import type { donationsBlock } from "../../src/blocks/donations/manifest.ts";
@@ -245,6 +246,7 @@ export type AllBlocks = {
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
   readonly tax: typeof taxBlock;
+  readonly "document-templates": typeof documentTemplatesBlock;
   readonly funding: typeof fundingBlock;
   readonly "payroll-export": typeof payrollExportBlock;
   readonly courses: typeof coursesBlock;

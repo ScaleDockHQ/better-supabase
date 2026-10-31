@@ -9549,6 +9549,105 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "document-templates",
+      "title": "Document templates",
+      "category": "tenancy",
+      "requires": [
+        "memberships",
+        "permissions",
+        "legal-entities"
+      ],
+      "integrates": [
+        "invoices",
+        "quotes",
+        "orders",
+        "shipments",
+        "contacts",
+        "tax",
+        "imports",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "document-templates",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "document_template": {
+            "table": "templates",
+            "singular": "document_template",
+            "primary": true
+          },
+          "document_text_block": {
+            "table": "textBlocks",
+            "singular": "document_text_block"
+          },
+          "document_snapshot": {
+            "table": "snapshots",
+            "singular": "document_snapshot"
+          }
+        },
+        "tables": {
+          "templates": {
+            "name": "document_templates",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "legalEntity": "legal_entity_id",
+              "documentType": "document_type",
+              "language": "language",
+              "name": "name",
+              "body": "body",
+              "version": "version",
+              "active": "active",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "textBlocks": {
+            "name": "document_text_blocks",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "legalEntity": "legal_entity_id",
+              "key": "key",
+              "language": "language",
+              "body": "body",
+              "version": "version",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "snapshots": {
+            "name": "rendered_documents",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "documentType": "document_type",
+              "documentId": "document_id",
+              "language": "language",
+              "legalEntity": "legal_entity_id",
+              "contractVersion": "contract_version",
+              "templateId": "template_id",
+              "templateVersion": "template_version",
+              "template": "template",
+              "blocks": "blocks",
+              "variables": "variables",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "document_templates.read",
+          "manage": "document_templates.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -21617,6 +21716,70 @@ export const PRESET_CATALOG: PresetCatalog = {
           "tax_code.created",
           "tax_code.updated",
           "tax_return.prepared"
+        ]
+      }
+    },
+    {
+      "name": "document-templates",
+      "sql": [
+        "document-templates"
+      ],
+      "category": "tenancy",
+      "client": {
+        "export": "documentTemplatesBlock",
+        "subpath": "better-supabase/blocks/document-templates"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "DocumentSnapshotEventData"
+        },
+        {
+          "name": "DocumentTemplate"
+        },
+        {
+          "name": "DocumentTemplateEventData"
+        },
+        {
+          "name": "DocumentTemplateIssue"
+        },
+        {
+          "name": "DocumentTemplates"
+        },
+        {
+          "name": "DocumentTemplatesEvents"
+        },
+        {
+          "name": "DocumentTemplatesOptions"
+        },
+        {
+          "name": "DocumentTemplateSource"
+        },
+        {
+          "name": "DocumentTextBlock"
+        },
+        {
+          "name": "DocumentTextBlockEventData"
+        },
+        {
+          "name": "ResolvedDocumentTemplate"
+        },
+        {
+          "name": "SaveDocumentTemplateInput"
+        },
+        {
+          "name": "SaveDocumentTextBlockInput"
+        }
+      ],
+      "events": {
+        "type": "DocumentTemplatesEvents",
+        "types": [
+          "document_template.created",
+          "document_template.updated",
+          "document_text_block.created",
+          "document_text_block.updated",
+          "document_snapshot.created"
         ]
       }
     },

@@ -117,6 +117,7 @@ const entries = [
   "blocks/banking/index",
   "blocks/tax/index",
   "blocks/legal-entities/index",
+  "blocks/document-templates/index",
   "blocks/funding/index",
   "blocks/payroll-export/index",
   "blocks/shifts/index",

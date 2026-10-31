@@ -44,6 +44,7 @@ import { damBlock } from "./dam/manifest.ts";
 import { dataLifecycleBlock } from "./data-lifecycle/manifest.ts";
 import { dealsBlock } from "./deals/manifest.ts";
 import { dispatchBlock } from "./dispatch/manifest.ts";
+import { documentTemplatesBlock } from "./document-templates/manifest.ts";
 import { documentsBlock } from "./documents/manifest.ts";
 import { domainsBlock } from "./domains/manifest.ts";
 import { donationsBlock } from "./donations/manifest.ts";
@@ -235,6 +236,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   fundingBlock,
   payrollExportBlock,
   taxBlock,
+  documentTemplatesBlock,
   shiftsBlock,
   consentsBlock,
   observationsBlock,

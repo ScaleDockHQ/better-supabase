@@ -316,6 +316,7 @@ export interface BlockOptionsRegistry {
   readonly automations: AutomationsSqlOptions;
   readonly banking: BankingSqlOptions;
   readonly tax: Record<never, never>;
+  readonly "document-templates": None;
   readonly "payroll-export": PayrollExportSqlOptions;
   readonly "billable-time": None;
   readonly billing: BillingSqlOptions;
@@ -490,6 +491,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   automations: automationsSqlOptions,
   banking: bankingSqlOptions,
   tax: NO_OPTIONS,
+  "document-templates": NO_OPTIONS,
   "payroll-export": payrollExportSqlOptions,
   "billable-time": NO_OPTIONS,
   billing: billingSqlOptions,

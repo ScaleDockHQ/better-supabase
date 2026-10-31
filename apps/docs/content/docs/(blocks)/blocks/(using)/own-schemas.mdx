@@ -284,6 +284,10 @@ may be your own enum or domain.
   - `better_supabase.dispatch_routes`: `id`, `tenant_id`, `technician_id`, `route_date`, `updated_at`
   - `better_supabase.dispatch_route_stops`: `id`, `tenant_id`, `route_id`, `work_order_id`, `position`
   - `better_supabase.work_order_parts`: `id`, `tenant_id`, `work_order_id`, `name`, `quantity`, `asset_id`, `variant_id`, `location_id`, `recorded_by`, `created_at`
+- `document-templates`
+  - `better_supabase.document_templates`: `id`, `tenant_id`, `legal_entity_id`, `document_type`, `language`, `name`, `body`, `version`, `active`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.document_text_blocks`: `id`, `tenant_id`, `legal_entity_id`, `key`, `language`, `body`, `version`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.rendered_documents`: `id`, `tenant_id`, `document_type`, `document_id`, `language`, `legal_entity_id`, `contract_version`, `template_id`, `template_version`, `template`, `blocks`, `variables`, `created_by`, `created_at`
 - `documents`
   - `better_supabase.documents`: `id`, `tenant_id`, `subject_type`, `subject_id`, `name`, `created_at`
   - `better_supabase.document_updates`: `seq`, `document_id`, `tenant_id`, `payload`
