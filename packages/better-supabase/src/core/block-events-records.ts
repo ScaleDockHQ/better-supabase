@@ -248,6 +248,18 @@ export interface InvoiceEventData extends SubjectEventData {
    * `quantity_variance` or `not_received`.
    */
   readonly status?: string;
+  /** For `invoice.credit_applied`: the party whose credit paid it. */
+  readonly partyId?: string;
+  /** For `invoice.dunning_escalated`: the reminder level reached. */
+  readonly level?: number;
+  /** For `invoice.dunning_escalated`: the level's reminder template. */
+  readonly templateKey?: string;
+  /** For `invoice.dunning_escalated`: the fee added, in minor units. */
+  readonly fee?: string;
+  /** For `invoice.dunning_escalated`: whether this is the last reminder. */
+  readonly final?: boolean;
+  /** For `invoice.dunning_paused`: the date reminders wait until, or null. */
+  readonly until?: string | null;
 }
 
 /** Events from the sla module: a clock on a record warned, breached or was met. */

@@ -110,7 +110,12 @@ describe("blocks.<name>.entities in the SQL", () => {
       "'productionOrders'",
       "'purchaseOrders'",
     ],
-    invoices: ["'invoices:cash:", "'invoiceId'"],
+    invoices: [
+      "'invoices:cash:",
+      "'invoices:credit:",
+      "'invoice_party'",
+      "'invoiceId'",
+    ],
     medications: ["'medication'", "'medicationId'"],
     memory: ["'/memories'", "'/memories{}'"],
     orders: ["'cartId'", "'orderId'"],

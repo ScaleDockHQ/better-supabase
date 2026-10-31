@@ -31,6 +31,7 @@ const INTEGRATIONS = [
   "flags",
   "stripe",
   "yjs",
+  "fast-xml-parser",
   "redis",
   "jsonpath-rfc9535",
   "temporal-polyfill",

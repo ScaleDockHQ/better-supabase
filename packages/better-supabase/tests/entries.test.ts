@@ -177,6 +177,7 @@ const PURE_BARRELS = [
   "chat-sdk",
   "eve",
   "flags-sdk",
+  "e-invoicing",
 ];
 
 describe("subpath entries", () => {

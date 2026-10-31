@@ -228,6 +228,7 @@
   "concepts/caching",
   "concepts/casing",
   "concepts/commerce",
+  "concepts/e-invoicing",
   "concepts/fhir",
   "concepts/naming",
   "concepts/nested-tenancy",

@@ -2,6 +2,7 @@ import type { AccountingSource } from "../accounting-sources-sql.ts";
 import type { BlockSqlContext } from "../context.ts";
 
 import { countedLine, lineAmount, lineColumn } from "../line-items-sql.ts";
+import { partyPaymentSource } from "./invoices-collections.ts";
 import { invoiceParty } from "./invoices-functions.ts";
 import { invoiceCashCode } from "./invoices-ledger.ts";
 
@@ -203,5 +204,6 @@ export function invoiceAccountingSources(
   cross join lateral (select inv.${i("total")} + ${charged} - inv.${i("creditedTotal")} - inv.${i("paidTotal")} as balance) b
   where inv.${i("id")}::text = source_id and b.balance > 0 and not (${direction("inv")})`,
     },
+    ...partyPaymentSource(ctx),
   ];
 }

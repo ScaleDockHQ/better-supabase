@@ -169,6 +169,7 @@ catalog:
   redis: 6.3.0
   rxjs: 7.8.2
   yjs: 13.6.33
+  fast-xml-parser: 5.11.2
   react-dom: 19.3.1
   # The versions in expo@57 bundledNativeModules.json; Expo SDK 57 supports
   # React Native 0.86 only.
@@ -325,6 +326,8 @@ catalogs:
     workflow: ">=5.1 <6"
     # 13.6 has the mergeUpdates and diffUpdate the document compaction uses.
     yjs: ">=13.6 <14"
+    # 5 is the ESM release fromUbl loads; removeNSPrefix reads the cac and cbc elements.
+    fast-xml-parser: ">=5 <6"
     # The Supabase World speaks the 5.0 world protocol; world-postgres moves with it.
     "@workflow/world": ">=5.0.2 <5.1"
     "@workflow/world-postgres": ">=5.0.2 <5.1"

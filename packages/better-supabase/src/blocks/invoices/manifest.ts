@@ -19,4 +19,13 @@ export const invoicesBlock: BlockOf<
   create: createInvoices,
   category: "commerce",
   recipes: ["invoices-table"],
+  schedules: [
+    {
+      name: "dunning",
+      cron: "0 6 * * *",
+      runs: "runDunning()",
+      description:
+        "Raises overdue invoices to the reminder level they reached and adds the level's fee.",
+    },
+  ],
 });

@@ -367,6 +367,140 @@ compares the sum with the party's `credit_limit`. Over the limit, `issue`
 fails with `INVOICE_CREDIT_LIMIT_EXCEEDED` unless the caller holds
 `orders.override_credit`. The limit counts only in its own `credit_currency`.
 
+## Party payments and credit
+
+`recordPartyPayment(organizationId, payment)` records one payment from a
+customer over several of its open sales invoices, such as a bank transfer
+that settles three invoices at once. The party is the company or contact id
+the invoices name. Each allocation is recorded as a payment of that invoice,
+with the reference `<reference>/<invoiceId>`. What the allocations leave over
+becomes the party's credit, kept on the ledger account
+`invoices:credit:<party>:<currency>`.
+
+```ts
+const result = await db.invoices
+  .recordPartyPayment(organizationId, {
+    partyId: company.id,
+    amount: money(150_000n, "EUR"),
+    allocations: [
+      { invoiceId: first.id, amount: money(100_000n, "EUR") },
+      { invoiceId: second.id, amount: money(30_000n, "EUR") },
+    ],
+    reference: "bank-2026-10-31-0042",
+  })
+  .orThrow();
+
+result.credited; // 200.00 EUR, kept as credit
+```
+
+The reference is required and unique per organization, so recording the same
+payment again adds nothing. An allocation can't be more than the invoice's
+balance (`INVOICE_ALLOCATION_TOO_LARGE`); keep the rest as credit instead.
+`applyPartyCredit(partyId, invoiceId, amount)` pays an open invoice from the
+party's credit in the invoice's currency, and `partyCredits(organizationId,
+partyId)` reads what is left per currency. A credit payment shows in the
+invoice's payments with method `credit`, and reversing it moves the amount
+back to the credit. Both need the payment permission.
+
+## Dunning
+
+Dunning levels set when an overdue invoice gets each reminder. A level has the
+days past the due date it is reached, the [template](/docs/blocks/templates)
+key the reminder is rendered from, a fee in minor units of the invoice's
+currency, and whether it is the final reminder.
+
+```ts
+await db.invoices
+  .setDunningLevels(organizationId, [
+    { daysAfterDue: 7, templateKey: "invoice-reminder" },
+    { daysAfterDue: 21, templateKey: "invoice-second-reminder", fee: 1_500n },
+    {
+      daysAfterDue: 35,
+      templateKey: "invoice-final-notice",
+      fee: 4_000n,
+      final: true,
+    },
+  ])
+  .orThrow();
+```
+
+`setDunningLevels` replaces the organization's levels and needs
+`invoices.manage`. The days rise from level to level and only the last level
+can be final (`INVOICE_DUNNING_LEVELS_INVALID`). A fee needs the charges table
+(`INVOICE_DUNNING_FEE_UNSUPPORTED`).
+
+`runDunning()` runs as the service role. The manifest's `dunning` schedule
+calls it every morning. It raises each open, overdue sales invoice to the
+highest level it has reached, adds the level's fee as a [charge](#charges),
+notifies the invoice's creator when the
+[notifications](/docs/blocks/notifications) block is installed, and records
+`invoice.dunning_escalated`. An invoice skips the levels it passed while
+paused, so it never gets two reminders in one run. Notifications reach
+members only; send the reminder to the customer from an outbox sink on
+`invoice.dunning_escalated`, which carries the level's `templateKey`.
+
+`pauseDunning(invoiceId, until, reason?)` holds the reminders until a date,
+such as during a dispute, and `pauseDunning(invoiceId, null)` resumes them. It
+needs `invoices.collect` and records `invoice.dunning_paused`. Every invoice
+read returns `dunning: { level, at, pausedUntil }`.
+
+## Recurring invoices
+
+A recurring invoice is a [template schedule](/docs/blocks/templates#schedules):
+a template type whose `apply` creates and issues the invoice, applied at each
+occurrence of a recurrence rule.
+
+```ts title="lib/templates.ts"
+import { defineTemplateType } from "better-supabase/blocks/templates";
+
+export const invoice = defineTemplateType<
+  { readonly companyId: string; readonly termsDays: number },
+  { readonly title: string; readonly lines: readonly LineInput[] }
+>({
+  settings: InvoiceSettings,
+  body: InvoiceBody,
+  async apply({ settings, body, organizationId, key }) {
+    const created = await adminInvoices
+      .create(
+        organizationId,
+        {
+          title: body.title,
+          company: { type: "company", id: settings.companyId },
+          termsDays: settings.termsDays,
+          fields: { scheduleKey: key },
+        },
+        body.lines,
+      )
+      .orThrow();
+    await adminInvoices.issue(created.id).orThrow();
+
+    return { subject: { type: "invoices", id: created.id } };
+  },
+});
+```
+
+Keep the `key` in an extra column with a unique index, so a second worker that
+claims the same occurrence fails on the insert instead of creating a second
+invoice. The schedule then needs only the rule:
+
+```ts
+await templates.recurring
+  .upsert({
+    template: monthlyRetainer.id,
+    organizationId,
+    dtstart: Temporal.Instant.from("2026-11-01T08:00:00Z"),
+    tzid: "Europe/Amsterdam",
+    rrule: "FREQ=MONTHLY;BYMONTHDAY=1",
+  })
+  .orThrow();
+```
+
+## E-invoices
+
+[`better-supabase/e-invoicing`](/docs/concepts/e-invoicing) writes an issued
+invoice or credit note as a UBL 2.1 document for Peppol and reads a received
+one into a purchase bill.
+
 ## In the books
 
 With the [accounting](/docs/blocks/accounting#postings-from-other-blocks)
@@ -383,6 +517,10 @@ order debits the payable the stock receipt already booked instead of an
 expense, so received stock isn't counted twice. Paying a bill credits the bank
 and debits the payable.
 
+A party payment's credit books in the bank journal when it arrives: the bank
+against the party's receivable. Applying the credit to an invoice later books
+nothing, since the receivable was already credited.
+
 ## Aging
 
 `aging(organizationId, currency, asOf?, direction?)` sums what is owed in one currency by days past due: not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90, with the total outstanding and the number of overdue invoices. `direction` is `sales` by default; `purchase` sums the open bills.
@@ -396,8 +534,11 @@ and debits the payable.
 | `invoice.credited`                                                                                                                 | the same, with `creditNoteId` and `amount`                                                                                       |
 | `invoice.payment_reversed`                                                                                                         | the same, with `paymentId`, `reversalId`, `amount`, `balance` and `reason`                                                       |
 | `invoice.charged`, `invoice.charge_removed`                                                                                        | the same, with `chargeId`, `amount` and `balance`                                                                                |
+| `invoice.credit_applied`                                                                                                           | the same, with `paymentId`, `partyId`, `amount` and `balance`                                                                    |
+| `invoice.dunning_escalated`                                                                                                        | the same, with `level`, `templateKey`, `fee`, `final`, `balance` and `dueOn`                                                     |
+| `invoice.dunning_paused`                                                                                                           | the same, with `until` and `reason`                                                                                              |
 
-Send dunning reminders from `invoice.issued` with a [workflow](/docs/blocks/workflows) that waits until the due date and checks the balance.
+Send the customer's reminder from `invoice.dunning_escalated` with an outbox sink that renders its `templateKey`, or build your own sequence with a [workflow](/docs/blocks/workflows) that waits until the due date and checks the balance.
 
 ## Hooks
 
@@ -405,43 +546,53 @@ The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invo
 
 ## Errors
 
-| Hint                               | Cause                                                                                                 |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `INVOICE_FORBIDDEN`                | the caller lacks `invoices.write`                                                                     |
-| `INVOICE_ATTRS_INVALID`            | a missing title or a field with a bad value                                                           |
-| `INVOICE_NOT_FOUND`                | no invoice the caller can edit (or manage, for void)                                                  |
-| `INVOICE_NOT_DRAFT`                | the invoice was already issued, so it no longer changes and isn't deleted                             |
-| `INVOICE_EMPTY`                    | an invoice without lines can't be issued                                                              |
-| `INVOICE_NOT_PAYABLE`              | only an issued invoice takes payments, or a written-off one with `paymentsAfterWriteOff`              |
-| `INVOICE_PAYMENT_INVALID`          | a payment needs an amount                                                                             |
-| `INVOICE_CURRENCY_MISMATCH`        | a payment isn't in the invoice's currency                                                             |
-| `INVOICE_REFUND_TOO_LARGE`         | a refund is more than was paid                                                                        |
-| `INVOICE_NOT_CREDITABLE`           | only an issued invoice is credited                                                                    |
-| `INVOICE_CREDIT_TOO_LARGE`         | the credit is more than the total less earlier credits                                                |
-| `INVOICE_DUE_INVALID`              | the due date is before the issue date                                                                 |
-| `INVOICE_PAYMENT_NOT_FOUND`        | no such payment on an invoice the caller can manage                                                   |
-| `INVOICE_PAYMENT_PROVIDER`         | the payment came from a payment provider and is refunded there                                        |
-| `INVOICE_PAYMENT_REVERSED`         | the payment is a reversal or is already reversed                                                      |
-| `INVOICE_CHARGE_NOT_FOUND`         | no such charge on an invoice the caller can edit                                                      |
-| `INVOICE_NOT_VOIDABLE`             | an invoice with payments or credits is credited instead                                               |
-| `INVOICE_NOT_OPEN`                 | only an open invoice is written off                                                                   |
-| `INVOICE_QUOTE_NOT_ACCEPTED`       | the quote isn't accepted                                                                              |
-| `INVOICE_DEPOSIT_INVALID`          | a deposit is between 0 and 100 percent, or an amount up to the quote's total, not both                |
-| `INVOICE_DEPOSIT_UNSUPPORTED`      | the invoices table has no column for that deposit                                                     |
-| `INVOICE_DISCOUNT_UNSUPPORTED`     | the invoices table has no column for a header discount                                                |
-| `INVOICE_ORIGIN_NOT_FOUND`         | no quote the caller can invoice                                                                       |
-| `INVOICE_NOT_CHARGEABLE`           | only an issued invoice takes charges                                                                  |
-| `INVOICE_CHARGE_INVALID`           | a charge has a positive amount                                                                        |
-| `INVOICE_COMPANY_UNSUPPORTED`      | the invoices table takes only the fixed company type                                                  |
-| `INVOICE_MATCH_FAILED`             | a payment on a purchase bill that doesn't match its purchase order, without `invoices.override_match` |
-| `INVOICE_NOT_PURCHASE_BILL`        | only a purchase bill is matched                                                                       |
-| `INVOICE_PURCHASE_ORDER_NOT_FOUND` | no such purchase order in the bill's organization                                                     |
-| `INVOICE_PURCHASE_ORDER_INVALID`   | only a purchase bill refers to a purchase order                                                       |
-| `INVOICE_DIRECTION_UNSUPPORTED`    | the invoices table has no `direction` column for purchase bills                                       |
-| `INVOICE_CREDIT_LIMIT_EXCEEDED`    | issuing the sales invoice takes the customer over their credit limit                                  |
-| `CURRENCY_MISMATCH`                | a line, credit or payment isn't in the record's currency; returned before any database call           |
-| `CURRENCY_INVALID`                 | the currency isn't an ISO 4217 code                                                                   |
-| `LINES_CURRENCY`                   | a line sent straight to SQL isn't in the record's currency                                            |
+| Hint                                 | Cause                                                                                                 |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `INVOICE_FORBIDDEN`                  | the caller lacks `invoices.write`                                                                     |
+| `INVOICE_ATTRS_INVALID`              | a missing title or a field with a bad value                                                           |
+| `INVOICE_NOT_FOUND`                  | no invoice the caller can edit (or manage, for void)                                                  |
+| `INVOICE_NOT_DRAFT`                  | the invoice was already issued, so it no longer changes and isn't deleted                             |
+| `INVOICE_EMPTY`                      | an invoice without lines can't be issued                                                              |
+| `INVOICE_NOT_PAYABLE`                | only an issued invoice takes payments, or a written-off one with `paymentsAfterWriteOff`              |
+| `INVOICE_PAYMENT_INVALID`            | a payment needs an amount                                                                             |
+| `INVOICE_CURRENCY_MISMATCH`          | a payment isn't in the invoice's currency                                                             |
+| `INVOICE_REFUND_TOO_LARGE`           | a refund is more than was paid                                                                        |
+| `INVOICE_NOT_CREDITABLE`             | only an issued invoice is credited                                                                    |
+| `INVOICE_CREDIT_TOO_LARGE`           | the credit is more than the total less earlier credits, or applied credit is more than the balance    |
+| `INVOICE_DUE_INVALID`                | the due date is before the issue date                                                                 |
+| `INVOICE_PAYMENT_NOT_FOUND`          | no such payment on an invoice the caller can manage                                                   |
+| `INVOICE_PAYMENT_PROVIDER`           | the payment came from a payment provider and is refunded there                                        |
+| `INVOICE_PAYMENT_REVERSED`           | the payment is a reversal or is already reversed                                                      |
+| `INVOICE_CHARGE_NOT_FOUND`           | no such charge on an invoice the caller can edit                                                      |
+| `INVOICE_NOT_VOIDABLE`               | an invoice with payments or credits is credited instead                                               |
+| `INVOICE_NOT_OPEN`                   | only an open invoice is written off                                                                   |
+| `INVOICE_QUOTE_NOT_ACCEPTED`         | the quote isn't accepted                                                                              |
+| `INVOICE_DEPOSIT_INVALID`            | a deposit is between 0 and 100 percent, or an amount up to the quote's total, not both                |
+| `INVOICE_DEPOSIT_UNSUPPORTED`        | the invoices table has no column for that deposit                                                     |
+| `INVOICE_DISCOUNT_UNSUPPORTED`       | the invoices table has no column for a header discount                                                |
+| `INVOICE_ORIGIN_NOT_FOUND`           | no quote the caller can invoice                                                                       |
+| `INVOICE_NOT_CHARGEABLE`             | only an issued invoice takes charges                                                                  |
+| `INVOICE_CHARGE_INVALID`             | a charge has a positive amount                                                                        |
+| `INVOICE_COMPANY_UNSUPPORTED`        | the invoices table takes only the fixed company type                                                  |
+| `INVOICE_MATCH_FAILED`               | a payment on a purchase bill that doesn't match its purchase order, without `invoices.override_match` |
+| `INVOICE_NOT_PURCHASE_BILL`          | only a purchase bill is matched                                                                       |
+| `INVOICE_PURCHASE_ORDER_NOT_FOUND`   | no such purchase order in the bill's organization                                                     |
+| `INVOICE_PURCHASE_ORDER_INVALID`     | only a purchase bill refers to a purchase order                                                       |
+| `INVOICE_DIRECTION_UNSUPPORTED`      | the invoices table has no `direction` column for purchase bills                                       |
+| `INVOICE_CREDIT_LIMIT_EXCEEDED`      | issuing the sales invoice takes the customer over their credit limit                                  |
+| `INVOICE_PARTY_INVALID`              | a party id is required and at most 150 characters                                                     |
+| `INVOICE_PAYMENT_REFERENCE_REQUIRED` | a party payment needs a reference, such as the bank transaction id                                    |
+| `INVOICE_ALLOCATIONS_INVALID`        | allocations are `{ invoiceId, amount }` with a positive amount, one per invoice                       |
+| `INVOICE_ALLOCATIONS_TOO_LARGE`      | the allocations add up to more than the payment                                                       |
+| `INVOICE_ALLOCATION_TOO_LARGE`       | an allocation is more than the invoice's balance                                                      |
+| `INVOICE_PARTY_MISMATCH`             | the invoice isn't this party's                                                                        |
+| `INVOICE_CREDIT_INSUFFICIENT`        | the party has less credit in the invoice's currency                                                   |
+| `INVOICE_DUNNING_LEVELS_INVALID`     | at most 20 levels, with rising days and only the last one final                                       |
+| `INVOICE_DUNNING_FEE_UNSUPPORTED`    | a level has a fee and the module has no charges table                                                 |
+| `INVOICE_DUNNING_PAUSE_INVALID`      | a pause ends today or later, and its reason is at most 2000 characters                                |
+| `CURRENCY_MISMATCH`                  | a line, credit or payment isn't in the record's currency; returned before any database call           |
+| `CURRENCY_INVALID`                   | the currency isn't an ISO 4217 code                                                                   |
+| `LINES_CURRENCY`                     | a line sent straight to SQL isn't in the record's currency                                            |
 
 ## Without the client
 

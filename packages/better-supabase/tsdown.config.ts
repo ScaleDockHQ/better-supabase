@@ -189,6 +189,7 @@ const entries = [
   "vercel-sandbox/index",
   "stripe/index",
   "yjs/index",
+  "e-invoicing/index",
   "better-result/index",
   "fhir/index",
   "blocks/inbox/index",
