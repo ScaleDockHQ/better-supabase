@@ -118,6 +118,8 @@ create table if not exists ${t("countLines")} (
 );
 create unique index if not exists ${ctx.naming.rename("stock_count_lines_key")} on ${t("countLines")} (${n("count")}, ${n("variant")}, coalesce(${n("bin")}, ${NO_ID}), coalesce(${n("lot")}, ${NO_ID}), coalesce(${n("serial")}, ''));
 create index if not exists ${ctx.naming.rename("stock_count_lines_variant_idx")} on ${t("countLines")} (${n("variant")});
+create index if not exists ${ctx.naming.rename("stock_count_lines_bin_idx")} on ${t("countLines")} (${n("bin")}) where ${n("bin")} is not null;
+create index if not exists ${ctx.naming.rename("stock_count_lines_lot_idx")} on ${t("countLines")} (${n("lot")}) where ${n("lot")} is not null;
 ${lock("countLines")}
 ${read("countLines")}
 `;

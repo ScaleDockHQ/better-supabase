@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:7e809580c0fc2fb9ff3aa774c7b7f14bba97245513fcb4406e0bb7575c2c9059
+-- @bsb-hash sha256:79d06b637a8844ac3858e60a3f450c5fc2c68254cc33bd0b02d9aa5f8fb073f8
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -724,7 +724,8 @@ create table if not exists "better_supabase"."discount_rules" (
   check (("fixed_price" is null) = ("currency" is null))
 );
 create unique index if not exists discount_rules_key on "better_supabase"."discount_rules" ("tenant_id", coalesce("customer_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("product_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("valid_from", date '0001-01-01'), "min_quantity");
-create index if not exists discount_rules_groups_idx on "better_supabase"."discount_rules" ("tenant_id", "customer_group_id", "product_group_id");
+create index if not exists discount_rules_customer_group_idx on "better_supabase"."discount_rules" ("customer_group_id") where "customer_group_id" is not null;
+create index if not exists discount_rules_product_group_idx on "better_supabase"."discount_rules" ("product_group_id") where "product_group_id" is not null;
 alter table "better_supabase"."discount_rules" enable row level security;
 revoke all on "better_supabase"."discount_rules" from public, anon, authenticated;
 grant select on "better_supabase"."discount_rules" to authenticated;

@@ -759,7 +759,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@3 managed
--- @bsb-hash sha256:cdc1a2888ce882265bbf6b44886ab66dbc81fb724c7a64a646c97aeec2fc0c6f
+-- @bsb-hash sha256:f8899dabced807ff28f9b61baa0f0d50c3ba4a7dd37911557129338e53fc096e
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1027,6 +1027,7 @@ create table if not exists "better_supabase"."intrastat_lines" (
   "updated_at" timestamptz not null default now()
 );
 create index if not exists "intrastat_lines_period_idx" on "better_supabase"."intrastat_lines" ("tenant_id", "period");
+create index if not exists "intrastat_lines_variant_idx" on "better_supabase"."intrastat_lines" ("variant_id") where "variant_id" is not null;
 alter table "better_supabase"."intrastat_lines" enable row level security;
 revoke all on "better_supabase"."intrastat_lines" from public, anon, authenticated;
 grant select on "better_supabase"."intrastat_lines" to authenticated;

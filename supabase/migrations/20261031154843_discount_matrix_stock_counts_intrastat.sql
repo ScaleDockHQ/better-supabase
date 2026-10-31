@@ -2244,21 +2244,34 @@ ALTER TABLE "better_supabase"."stock_count_lines"
 
 CREATE INDEX discount_group_parties_group_idx ON better_supabase.discount_group_parties USING btree (group_id);
 
-CREATE INDEX discount_rules_groups_idx ON better_supabase.discount_rules USING btree (tenant_id, customer_group_id, product_group_id);
+CREATE INDEX discount_rules_customer_group_idx ON better_supabase.discount_rules USING btree (customer_group_id)
+  WHERE (customer_group_id IS NOT NULL);
 
 CREATE UNIQUE INDEX discount_rules_key ON better_supabase.discount_rules
   USING btree
   (tenant_id, COALESCE(customer_group_id, '00000000-0000-4000-8000-000000000000'::uuid), COALESCE(product_group_id, '00000000-0000-4000-8000-000000000000'::uuid),
   COALESCE(valid_from, '0001-01-01'::date), min_quantity);
 
+CREATE INDEX discount_rules_product_group_idx ON better_supabase.discount_rules USING btree (product_group_id)
+  WHERE (product_group_id IS NOT NULL);
+
 CREATE INDEX intrastat_lines_period_idx ON better_supabase.intrastat_lines USING btree (tenant_id, period);
+
+CREATE INDEX intrastat_lines_variant_idx ON better_supabase.intrastat_lines USING btree (variant_id)
+  WHERE (variant_id IS NOT NULL);
 
 CREATE INDEX product_variants_discount_group_idx ON better_supabase.product_variants USING btree (discount_group_id)
   WHERE (discount_group_id IS NOT NULL);
 
+CREATE INDEX stock_count_lines_bin_idx ON better_supabase.stock_count_lines USING btree (bin_id)
+  WHERE (bin_id IS NOT NULL);
+
 CREATE UNIQUE INDEX stock_count_lines_key ON better_supabase.stock_count_lines
   USING btree
   (count_id, variant_id, COALESCE(bin_id, '00000000-0000-4000-8000-000000000000'::uuid), COALESCE(lot_id, '00000000-0000-4000-8000-000000000000'::uuid), COALESCE(serial, ''::text));
+
+CREATE INDEX stock_count_lines_lot_idx ON better_supabase.stock_count_lines USING btree (lot_id)
+  WHERE (lot_id IS NOT NULL);
 
 CREATE INDEX stock_count_lines_variant_idx ON better_supabase.stock_count_lines USING btree (variant_id);
 

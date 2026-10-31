@@ -174,7 +174,8 @@ create table if not exists ${t("discountRules")} (
   check ((${r("fixedPrice")} is null) = (${r("currency")} is null))
 );
 create unique index if not exists ${ctx.naming.rename("discount_rules_key")} on ${t("discountRules")} (${r("tenant")}, coalesce(${r("customerGroup")}, ${NO_GROUP}), coalesce(${r("productGroup")}, ${NO_GROUP}), coalesce(${r("validFrom")}, date '0001-01-01'), ${r("minQuantity")});
-create index if not exists ${ctx.naming.rename("discount_rules_groups_idx")} on ${t("discountRules")} (${r("tenant")}, ${r("customerGroup")}, ${r("productGroup")});
+create index if not exists ${ctx.naming.rename("discount_rules_customer_group_idx")} on ${t("discountRules")} (${r("customerGroup")}) where ${r("customerGroup")} is not null;
+create index if not exists ${ctx.naming.rename("discount_rules_product_group_idx")} on ${t("discountRules")} (${r("productGroup")}) where ${r("productGroup")} is not null;
 ${lockTable(t("discountRules"), { read: true })}
 ${readPolicy(ctx, names, "discountRules")}
 `;

@@ -1,6 +1,6 @@
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:78cd6f80752394404d5db0e971d892b56f6d706679915bd6552527ae63ac9491
+-- @bsb-hash sha256:961f9b55a07dbc03691f78714905760db9a60fb61f76d48aa2496ea345044efa
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -662,6 +662,8 @@ create table if not exists "better_supabase"."stock_count_lines" (
 );
 create unique index if not exists stock_count_lines_key on "better_supabase"."stock_count_lines" ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", ''));
 create index if not exists stock_count_lines_variant_idx on "better_supabase"."stock_count_lines" ("variant_id");
+create index if not exists stock_count_lines_bin_idx on "better_supabase"."stock_count_lines" ("bin_id") where "bin_id" is not null;
+create index if not exists stock_count_lines_lot_idx on "better_supabase"."stock_count_lines" ("lot_id") where "lot_id" is not null;
 alter table "better_supabase"."stock_count_lines" enable row level security;
 revoke all on "better_supabase"."stock_count_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_count_lines" to authenticated;

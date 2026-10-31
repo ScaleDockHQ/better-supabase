@@ -1,6 +1,6 @@
 -- better-supabase module: shipments
 -- @bsb-block shipments@3 managed
--- @bsb-hash sha256:e9239ba20661554058a57b7202a6351c3f164e4127472adca59fb039a7ca0672
+-- @bsb-hash sha256:0b65a640a7de2f87d2f02290797dbb94c305ee4ebd16c66909b92dac6050cbc3
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -268,6 +268,7 @@ create table if not exists "better_supabase"."intrastat_lines" (
   "updated_at" timestamptz not null default now()
 );
 create index if not exists "intrastat_lines_period_idx" on "better_supabase"."intrastat_lines" ("tenant_id", "period");
+create index if not exists "intrastat_lines_variant_idx" on "better_supabase"."intrastat_lines" ("variant_id") where "variant_id" is not null;
 alter table "better_supabase"."intrastat_lines" enable row level security;
 revoke all on "better_supabase"."intrastat_lines" from public, anon, authenticated;
 grant select on "better_supabase"."intrastat_lines" to authenticated;

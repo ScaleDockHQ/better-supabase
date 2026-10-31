@@ -118,6 +118,7 @@ create table if not exists ${t} (
   ${i("updatedAt")} timestamptz not null default now()
 );
 create index if not exists ${sqlIdent(`${name}_period_idx`)} on ${t} (${i("tenant")}, ${i("period")});
+create index if not exists ${sqlIdent(`${name}_variant_idx`)} on ${t} (${i("variant")}) where ${i("variant")} is not null;
 ${lockModuleTable(ctx, "intrastatLines", { read: true })}
 drop policy if exists ${policyName} on ${t};
 ${renderPolicy(makePolicy({ table: t, name: policyName, command: "select", roles: ["authenticated"], using: ctx.scope.check(i("tenant"), read) }), { target: t })}

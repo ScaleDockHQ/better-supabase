@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:11e0707c8250e1ad0c574b4e42d7963fe0849b352409aabb4b038ab2323d797f
+-- @bsb-hash sha256:fb5243ff24bad86b6bf10af7373a881aa659dfd3905a990de18b373b064da7a8
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -646,6 +646,8 @@ create table if not exists "better_supabase"."stock_count_lines" (
 );
 create unique index if not exists stock_count_lines_key on "better_supabase"."stock_count_lines" ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", ''));
 create index if not exists stock_count_lines_variant_idx on "better_supabase"."stock_count_lines" ("variant_id");
+create index if not exists stock_count_lines_bin_idx on "better_supabase"."stock_count_lines" ("bin_id") where "bin_id" is not null;
+create index if not exists stock_count_lines_lot_idx on "better_supabase"."stock_count_lines" ("lot_id") where "lot_id" is not null;
 alter table "better_supabase"."stock_count_lines" enable row level security;
 revoke all on "better_supabase"."stock_count_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_count_lines" to authenticated;
@@ -3497,7 +3499,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:b36454bd6abdcb4df0a1171f2a7088cdb44ca89bc12abd5b37cc2c60b1028557
+-- @bsb-hash sha256:3c361d301ee332394c0e64fc29f2ef6002d6587cc33e695210e538d32842b158
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4159,6 +4161,8 @@ create table if not exists "better_supabase"."stock_count_lines" (
 );
 create unique index if not exists stock_count_lines_key on "better_supabase"."stock_count_lines" ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", ''));
 create index if not exists stock_count_lines_variant_idx on "better_supabase"."stock_count_lines" ("variant_id");
+create index if not exists stock_count_lines_bin_idx on "better_supabase"."stock_count_lines" ("bin_id") where "bin_id" is not null;
+create index if not exists stock_count_lines_lot_idx on "better_supabase"."stock_count_lines" ("lot_id") where "lot_id" is not null;
 alter table "better_supabase"."stock_count_lines" enable row level security;
 revoke all on "better_supabase"."stock_count_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_count_lines" to authenticated;
@@ -7068,7 +7072,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:2399649b1a5f4c35fa291918eb420ff735e71b6f109d7426501e57cae488f885
+-- @bsb-hash sha256:a334bec5eedf03b8869e44a33d8633420d1c0702be532a4489af6ef01e969124
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7718,6 +7722,8 @@ create table if not exists "app_private"."stock_count_lines" (
 );
 create unique index if not exists stock_count_lines_key on "app_private"."stock_count_lines" ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", ''));
 create index if not exists stock_count_lines_variant_idx on "app_private"."stock_count_lines" ("variant_id");
+create index if not exists stock_count_lines_bin_idx on "app_private"."stock_count_lines" ("bin_id") where "bin_id" is not null;
+create index if not exists stock_count_lines_lot_idx on "app_private"."stock_count_lines" ("lot_id") where "lot_id" is not null;
 alter table "app_private"."stock_count_lines" enable row level security;
 revoke all on "app_private"."stock_count_lines" from public, anon, authenticated;
 grant select on "app_private"."stock_count_lines" to authenticated;
@@ -10569,7 +10575,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:8cd5aaae35d79249fc2c80dced015032101658966e3c592af4d0ed194eaceb39
+-- @bsb-hash sha256:a47d55e8ab491b889e28d018b6493a8956686bf72f7349294de2f59c4fca0ace
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11214,6 +11220,8 @@ create table if not exists "better_supabase"."stock_count_lines" (
 );
 create unique index if not exists stock_count_lines_key on "better_supabase"."stock_count_lines" ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", ''));
 create index if not exists stock_count_lines_variant_idx on "better_supabase"."stock_count_lines" ("variant_id");
+create index if not exists stock_count_lines_bin_idx on "better_supabase"."stock_count_lines" ("bin_id") where "bin_id" is not null;
+create index if not exists stock_count_lines_lot_idx on "better_supabase"."stock_count_lines" ("lot_id") where "lot_id" is not null;
 alter table "better_supabase"."stock_count_lines" enable row level security;
 revoke all on "better_supabase"."stock_count_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_count_lines" to authenticated;
@@ -14462,7 +14470,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:9589a8c22efb1f47a8b1a39d574706897d6167a601cf609df7040ef905b05f0c
+-- @bsb-hash sha256:ebf1fbe345f8fd8493e446e220c41da080886ca1bc38be9265b75f0fa5f6f2d5
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15069,6 +15077,8 @@ alter table "better_supabase"."stock_count_lines" add column if not exists "move
 alter table "better_supabase"."stock_count_lines" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists stock_count_lines_key on "better_supabase"."stock_count_lines" ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", ''));
 create index if not exists stock_count_lines_variant_idx on "better_supabase"."stock_count_lines" ("variant_id");
+create index if not exists stock_count_lines_bin_idx on "better_supabase"."stock_count_lines" ("bin_id") where "bin_id" is not null;
+create index if not exists stock_count_lines_lot_idx on "better_supabase"."stock_count_lines" ("lot_id") where "lot_id" is not null;
 alter table "better_supabase"."stock_count_lines" enable row level security;
 grant select on "better_supabase"."stock_count_lines" to authenticated;
 grant all on "better_supabase"."stock_count_lines" to service_role;
@@ -17917,7 +17927,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:b160ccaef950261c7ac532a04822f96ffce4c71dd59183fb49839b20f730d7f3
+-- @bsb-hash sha256:772b9681bc83dbb40a177b6c1c105fcd9d1e148a4f34d19d3e1a214f5bd0c474
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18562,6 +18572,8 @@ create table if not exists "better_supabase"."stock_count_lines" (
 );
 create unique index if not exists stock_count_lines_key on "better_supabase"."stock_count_lines" ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", ''));
 create index if not exists stock_count_lines_variant_idx on "better_supabase"."stock_count_lines" ("variant_id");
+create index if not exists stock_count_lines_bin_idx on "better_supabase"."stock_count_lines" ("bin_id") where "bin_id" is not null;
+create index if not exists stock_count_lines_lot_idx on "better_supabase"."stock_count_lines" ("lot_id") where "lot_id" is not null;
 alter table "better_supabase"."stock_count_lines" enable row level security;
 revoke all on "better_supabase"."stock_count_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_count_lines" to authenticated;
