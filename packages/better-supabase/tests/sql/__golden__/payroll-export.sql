@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_157_payroll_export.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
 -- @bsb-hash sha256:538bfb3da6d44f7b3688bd32594e78a980af42d7b5508eb46e1e5f7c76bfb3d6
@@ -434,7 +434,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_157_payroll_export.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block-data payroll-export
 -- @bsb-hash sha256:87e29a2610aa11f95cfd1ee674f2c7ad1a9b3fd957079d4d7faa69011f00cd1c
@@ -448,7 +448,7 @@ values ('payroll-export', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_157_payroll_export.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
 -- @bsb-hash sha256:a13ff1a8191eb3b13471d22db3c8368009b40a934df9054ed572eb31e668d3e7
@@ -933,7 +933,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_157_payroll_export.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block-data payroll-export
 -- @bsb-hash sha256:87e29a2610aa11f95cfd1ee674f2c7ad1a9b3fd957079d4d7faa69011f00cd1c
@@ -947,7 +947,7 @@ values ('payroll-export', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_157_payroll_export.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
 -- @bsb-hash sha256:f6a4c998225a844ab56f121457c1e27d7f05656e68b8248d3c757ca5552a7009
@@ -1388,7 +1388,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_157_payroll_export.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block-data payroll-export
 -- @bsb-hash sha256:87e29a2610aa11f95cfd1ee674f2c7ad1a9b3fd957079d4d7faa69011f00cd1c
@@ -1402,7 +1402,7 @@ values ('payroll-export', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_157_payroll_export.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
 -- @bsb-hash sha256:65f92a78e182c4381e8b67b60390349972abd886386c9cb042fe18dfc35795a7
@@ -1914,7 +1914,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_157_payroll_export.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block-data payroll-export
 -- @bsb-hash sha256:87e29a2610aa11f95cfd1ee674f2c7ad1a9b3fd957079d4d7faa69011f00cd1c
@@ -1928,7 +1928,7 @@ values ('payroll-export', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_157_payroll_export.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
 -- @bsb-hash sha256:4af097fb6eea0fa62761dcbabccef1d66d7e30e4d4e22e708d40a9be52a7b42e
@@ -2350,7 +2350,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_157_payroll_export.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block-data payroll-export
 -- @bsb-hash sha256:87e29a2610aa11f95cfd1ee674f2c7ad1a9b3fd957079d4d7faa69011f00cd1c
@@ -2364,7 +2364,7 @@ values ('payroll-export', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_157_payroll_export.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
 -- @bsb-hash sha256:290f23abe177b4c3d420c2a9f7bcd4b2fbdf39db73353456ca34249fe5ef39a3
@@ -2800,7 +2800,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_157_payroll_export.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block-data payroll-export
 -- @bsb-hash sha256:87e29a2610aa11f95cfd1ee674f2c7ad1a9b3fd957079d4d7faa69011f00cd1c

@@ -765,6 +765,8 @@ CREATE OR REPLACE FUNCTION better_supabase.data_lifecycle_tables()
     ('organization', 'better_supabase.meeting_agenda_items', '"better_supabase"."meeting_agenda_items"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.meeting_decisions', '"better_supabase"."meeting_decisions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.meeting_action_items', '"better_supabase"."meeting_action_items"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.legal_entities', '"better_supabase"."legal_entities"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.legal_entity_settings', '"better_supabase"."legal_entity_settings"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.payroll_runs', '"better_supabase"."payroll_runs"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.payroll_lines', '"better_supabase"."payroll_lines"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
@@ -1109,6 +1111,8 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'ledger.manage' then 'ledger.manage'
     when 'ledger.post' then 'ledger.post'
     when 'ledger.read' then 'ledger.read'
+    when 'legal-entities.manage' then 'legal_entities.manage'
+    when 'legal-entities.read' then 'legal_entities.read'
     when 'mail-sync.connect' then 'mail_sync.connect'
     when 'mail-sync.manage' then 'mail_sync.manage'
     when 'mail-sync.read' then 'mail_sync.read'
