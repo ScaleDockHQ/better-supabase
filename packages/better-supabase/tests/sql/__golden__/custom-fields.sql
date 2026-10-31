@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:23fa94e434a9e3ed9bdeea6f2e1651749a0e75a594449210e6d9c48fba7f99a3
+-- @bsb-hash sha256:323745d13a5b37808617cc294a58ada6287f87eadf8545efcd2e53e7683d81bf
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -197,6 +197,7 @@ $$;
 revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
 
+drop function if exists "better_supabase"."read_field_values"(uuid, text, text, uuid);
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -223,6 +224,7 @@ $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
 
+drop function if exists "better_supabase"."set_field_value"(uuid, text, text, uuid, text, uuid);
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -537,7 +539,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:d1699554817eb2391122fd6c19e0e44715ea362e8425845dc711b9cc17f8fd76
+-- @bsb-hash sha256:c9d3df886d09df1d393a93e01f74bdf5991b2630f4e4dcee4aaa70e37018f351
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -689,7 +691,7 @@ alter table "better_supabase"."field_values" enable row level security;
 revoke all on "better_supabase"."field_values" from public, anon, authenticated;
 grant select on "better_supabase"."field_values" to authenticated;
 grant all on "better_supabase"."field_values" to service_role;
-
+create index if not exists field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
 
 create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
@@ -1201,7 +1203,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:5c5548d8311cbc198526dde7cf8951749b684d0d82c2b6eb543ed852d74596ac
+-- @bsb-hash sha256:b560e57d45cb32ee12feaa12bb234a7448961b14a8265f52e99f76ca38256f90
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1402,6 +1404,7 @@ $$;
 revoke execute on function "app_private"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
 grant execute on function "app_private"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
 
+drop function if exists "app_private"."read_field_values"(uuid, text, text, uuid);
 create or replace function "app_private"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -1428,6 +1431,7 @@ $$;
 revoke execute on function "app_private"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "app_private"."read_field_values"(uuid, text, text) to authenticated, service_role;
 
+drop function if exists "app_private"."set_field_value"(uuid, text, text, uuid, text, uuid);
 create or replace function "app_private"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -1742,7 +1746,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:60697089048f2eeacf157fb872c67988ec7dcd03daf607e723c7b04446a524b8
+-- @bsb-hash sha256:7a03ea52da4da8e22a91d5ff319629bba2831a6a506d571a462e6c2d392b22c2
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1938,6 +1942,7 @@ $$;
 revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
 
+drop function if exists "better_supabase"."read_field_values"(uuid, text, text, uuid);
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -1964,6 +1969,7 @@ $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
 
+drop function if exists "better_supabase"."set_field_value"(uuid, text, text, uuid, text, uuid);
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -2252,6 +2258,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."field_values" as res
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."read_field_values"(uuid, text, text, uuid);
+drop function if exists "api"."set_field_value"(uuid, text, text, uuid, text, uuid);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -2381,7 +2390,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:4f1353fd33a62d9ed0710c85df7a6572d966d888387a1b1bf12f8bbd63e44f85
+-- @bsb-hash sha256:f8f077be32bb8a03500eb152b34a3ec364b32a149b44c75ad73380933b47db40
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2558,6 +2567,7 @@ $$;
 revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
 
+drop function if exists "better_supabase"."read_field_values"(uuid, text, text, uuid);
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -2584,6 +2594,7 @@ $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
 
+drop function if exists "better_supabase"."set_field_value"(uuid, text, text, uuid, text, uuid);
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -2898,7 +2909,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:ffecda52a8fb301d870066771de68d44cc9888b110c266ff43117faa353a824c
+-- @bsb-hash sha256:4f6c75b8eafeaba9c3a6bd48fd1f62689ecf7b0d4f8425c42b8bb016c803b5b5
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3094,6 +3105,7 @@ $$;
 revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
 
+drop function if exists "better_supabase"."read_field_values"(uuid, text, text, uuid);
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -3120,6 +3132,7 @@ $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
 
+drop function if exists "better_supabase"."set_field_value"(uuid, text, text, uuid, text, uuid);
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql

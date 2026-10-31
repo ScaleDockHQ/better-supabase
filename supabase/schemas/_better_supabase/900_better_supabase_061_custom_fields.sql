@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:04cc232b8c85b6a4fafa968c6984cb6056617baea47794e00e06ac786e5c4f0e
+-- @bsb-hash sha256:ecc6d5f166e3c8561ebc184e504c6357e09a16dbb422701a06b4789a1df6fd45
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -152,7 +152,7 @@ alter table "better_supabase"."field_values" enable row level security;
 revoke all on "better_supabase"."field_values" from public, anon, authenticated;
 grant select on "better_supabase"."field_values" to authenticated;
 grant all on "better_supabase"."field_values" to service_role;
-
+create index if not exists field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
 
 create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb

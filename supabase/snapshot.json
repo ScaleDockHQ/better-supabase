@@ -249727,6 +249727,17 @@
             "predicate": null
           },
           {
+            "name": "field_values_definition_idx",
+            "columns": [
+              "definition_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "field_values_pkey",
             "columns": [
               "id"

@@ -1,7 +1,5 @@
 SET local check_function_bodies = off;
 
-DROP INDEX "better_supabase"."field_values_definition_idx";
-
 ALTER TABLE "better_supabase"."field_values"
   DROP CONSTRAINT "field_values_tenant_id_subject_type_subject_id_definition_i_key";
 

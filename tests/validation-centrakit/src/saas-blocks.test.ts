@@ -109,7 +109,7 @@ describe.skipIf(!live)("SaaS blocks on CentraKit tables", () => {
       const org = await organization(s);
 
       const saved = await s.value<{ id: string }>(
-        "better_supabase.save_field_definition($1::uuid, 'asset', 'serial', 'Serial', 'text', false)",
+        "better_supabase.save_field_definition($1::uuid, 'customer', 'serial', 'Serial', 'text', false)",
         [org],
       );
 

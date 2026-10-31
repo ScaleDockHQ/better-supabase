@@ -318,7 +318,7 @@ ${lockTable(definitions, { read: true })}
   ${inline || !ctx.has("values", "definition") || perEntityValues(ctx) ? "" : `, unique (${ctx.col("values", "tenant")}, ${ctx.col("values", "subjectType")}, ${ctx.col("values", "subjectId")}, ${ctx.col("values", "definition")})`}
 );
 ${lockTable(values, { read: true })}
-${inline || !ctx.has("values", "definition") || perEntityValues(ctx) ? "" : `create index if not exists ${ctx.naming.rename("field_values_definition_idx")} on ${values} (${ctx.col("values", "definition")});`}
+${inline || !ctx.has("values", "definition") ? "" : `create index if not exists ${ctx.naming.rename("field_values_definition_idx")} on ${values} (${ctx.col("values", "definition")});`}
 `
     : !inline && ctx.has("definitions", "encrypted")
       ? `alter table ${definitions} add column if not exists ${ctx.col("definitions", "encrypted")} boolean not null default false;
@@ -398,7 +398,7 @@ end;
 $$;
 ${userGrant(`${ctx.fn("save_field_definition")}(${ctx.idType}, text, text, text, text, boolean)`)}
 
-${perEntity ? `drop function if exists ${ctx.fn("read_field_values")}(${ctx.idType}, text, text);\n` : ""}create or replace function ${ctx.fn("read_field_values")}(tenant ${ctx.idType}, subject_type text, subject_id text${perEntity ? ", legal_entity uuid default null" : ""})
+drop function if exists ${ctx.fn("read_field_values")}(${ctx.idType}, text, text${perEntity ? "" : ", uuid"});\ncreate or replace function ${ctx.fn("read_field_values")}(tenant ${ctx.idType}, subject_type text, subject_id text${perEntity ? ", legal_entity uuid default null" : ""})
 returns jsonb
 language plpgsql
 ${audited ? "volatile" : ctx.readVolatility()}
@@ -464,7 +464,7 @@ end;
 $$;
 ${userGrant(`${ctx.fn("read_field_values")}(${ctx.idType}, text, text${perEntity ? ", uuid" : ""})`)}
 
-${perEntity ? `drop function if exists ${ctx.fn("set_field_value")}(${ctx.idType}, text, text, uuid, text);\n` : ""}create or replace function ${ctx.fn("set_field_value")}(tenant ${ctx.idType}, subject_type text, subject_id text, definition uuid, value text${perEntity ? ", legal_entity uuid default null" : ""})
+drop function if exists ${ctx.fn("set_field_value")}(${ctx.idType}, text, text, uuid, text${perEntity ? "" : ", uuid"});\ncreate or replace function ${ctx.fn("set_field_value")}(tenant ${ctx.idType}, subject_type text, subject_id text, definition uuid, value text${perEntity ? ", legal_entity uuid default null" : ""})
 returns jsonb
 language plpgsql
 security definer
