@@ -1,0 +1,112 @@
+---
+title: Manufacturing
+description: The manufacturing preset is erp plus bills of materials and production orders, material requirements that raise purchase requisitions, incoming and in-process inspections, cases for nonconformities and qualifications.
+---
+
+The `manufacturing` preset is for a manufacturer in the style of Odoo
+Manufacturing or Katana: plan production from bills of materials, buy the
+components through approved requisitions, inspect what arrives and what is
+made, handle nonconformities as cases, and keep track of who is qualified for
+which work. It is the [`erp`](/docs/presets/erp) preset plus production and
+quality.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "manufacturing" });
+```
+
+`npx better-supabase init --preset manufacturing` starts a new project from
+it, and `npx better-supabase add --preset manufacturing` adds it to one you
+have ([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`erp`](/docs/presets/erp) plus these blocks, and whatever they
+require:
+
+| Block                                         | Role in the app                                                 |
+| --------------------------------------------- | --------------------------------------------------------------- |
+| [manufacturing](/docs/blocks/manufacturing)   | Bills of materials, work centers, production orders and lots    |
+| [inspections](/docs/blocks/inspections)       | Incoming inspections of receipts and in-process inspections     |
+| [cases](/docs/blocks/cases)                   | Nonconformities, supplier complaints and changes                |
+| [qualifications](/docs/blocks/qualifications) | Who is trained for which work center, and equipment calibration |
+
+The preset also installs what these require, such as
+[forms](/docs/blocks/forms) for inspection checklists and
+[pipelines](/docs/blocks/pipelines) for the stages of each case kind. Each
+organization runs `db.accounting.setup(organizationId)` once, as in `erp`,
+before production books.
+
+## Options it sets
+
+The preset sets two options on top of `erp`:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  preset: "manufacturing",
+  blocks: {
+    manufacturing: { options: { purchaseSuggestions: "requisition" } },
+    inventory: { options: { receiptInspection: "inspection" } },
+  },
+});
+```
+
+`purchaseSuggestions: "requisition"` makes material requirements raise
+purchase requisitions that go through approvals instead of draft purchase
+orders ([purchasing](/docs/blocks/manufacturing#purchasing)), and
+`receiptInspection: "inspection"` schedules an inspection of the default
+`inspection` kind for every receipt of a purchase order
+([receipts](/docs/blocks/inventory#receipts)).
+
+An entry of your own replaces the preset's keys one level deep, so setting
+`blocks.inventory.options` replaces the whole `options` object of the preset.
+Repeat `receiptInspection` there when you change another inventory option, or
+leave it out to receive stock without an inspection.
+
+## How the blocks connect
+
+On top of the links in [`erp`](/docs/presets/erp#how-the-blocks-connect):
+
+| From                 | To                      | Through                                                                 |
+| -------------------- | ----------------------- | ----------------------------------------------------------------------- |
+| Material requirement | inventory, approvals    | `createFromRequirements` raises a requisition per location and supplier |
+| Requisition          | purchase order          | `purchaseOrderFromRequisitions` once approvals decides it               |
+| Receipt              | inspections             | each receipt schedules an inspection with the receipt as its auditee    |
+| Production order     | inventory               | components leave stock at average cost, the output arrives at its cost  |
+| Production order     | accounting              | labor books to work in progress against expense on completion           |
+| Operation            | inspections             | an operation with an inspection template schedules one when it starts   |
+| Work center          | assets                  | the machine an operation runs on                                        |
+| Inspection finding   | cases                   | `raiseCase` opens a case per nonconformity                              |
+| Lot                  | sales orders, shipments | `lotRecall` finds every lot, document and order a bad lot reached       |
+
+A short component shows most of them at once. `requirements(14)` suggests
+buying it, and `createFromRequirements` raises a requisition that the
+purchasing manager approves. The receipt of the purchase order schedules an
+incoming inspection; a major nonconformity found there raises a case, and
+the inspection can't close until it has one. The parts that
+passed are consumed by a production order at their average cost, and the
+order's output lot remembers the receipt's lot, so a recall of that lot finds
+what it went into.
+
+Qualifications don't block an operation. To keep unqualified operators off
+a work center, check `db.qualifications.qualifiedHolders(organizationId,
+typeKey)` for the member before `startOperation`, and use `gaps` to list who
+is missing a required qualification or let it lapse.
+
+## With ReUI
+
+Each part of the app has a recipe built from ReUI components:
+
+- [Production order board](/docs/registry/ui-recipes/production-order-board):
+  a Kanban of orders from draft to done.
+- [Inspection run](/docs/registry/ui-recipes/inspection-run) for an incoming
+  or in-process inspection with its checklist and findings.
+- [Case board](/docs/registry/ui-recipes/case-board) and
+  [case detail](/docs/registry/ui-recipes/case-detail) for nonconformities.
+- [Qualification matrix](/docs/registry/ui-recipes/qualification-matrix).
+
+The example app shows production planning under `/production`, next to
+`/manufacturing`, `/inspections` and `/cases`.

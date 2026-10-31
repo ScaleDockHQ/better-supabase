@@ -76,7 +76,8 @@ how your config differs from its preset ([CLI](/docs/cli/presets)).
 | `chat`             | Products   | `saas` plus messaging, channels, reactions, attachments                                                                                                                                                                                                                                             |
 | `commerce`         | Products   | `saas` plus catalog, inventory, orders, promotions                                                                                                                                                                                                                                                  |
 | `cms`              | Products   | `saas` plus content, versions, approvals, public attachments, tags, comments, search, jobs                                                                                                                                                                                                          |
-| `erp`              | Products   | `saas` plus parties, catalog, inventory, assets, quotes, orders, invoices, numbering, employees, time-tracking, leave, expenses, saved-views, automations with quote to order on                                                                                                                    |
+| `erp`              | Products   | `saas` plus parties, catalog, inventory, assets, quotes, orders, invoices with purchase bills, numbering, accounting, banking, approvals, employees, time-tracking, leave, expenses, saved-views, automations with quote to order on                                                                |
+| `manufacturing`    | Products   | `erp` plus manufacturing, inspections, cases, qualifications, with receipt inspections and requisitions from material requirements                                                                                                                                                                  |
 | `pim`              | Products   | `saas` plus catalog, public attachments, custom-fields, imports, bulk, tags, saved-views, search                                                                                                                                                                                                    |
 | `marketplace`      | Products   | `saas` plus parties, catalog, orders, invoices, reactions, share-links                                                                                                                                                                                                                              |
 | `scheduling`       | Products   | `saas` plus calendar, bookings, reminders                                                                                                                                                                                                                                                           |
@@ -168,10 +169,12 @@ config on the local stack and drives the flows end to end.
 | [Scheduling](/docs/presets/scheduling) | `scheduling` | `booking`  | custom-fields, share-links, state-machine                   |
 | [Commerce](/docs/presets/commerce)     | `commerce`   | `order`    | imports, numbering, search, saved-views, metrics, approvals |
 
-The [CMS](/docs/presets/cms), [ERP](/docs/presets/erp) and
-[product information](/docs/presets/pim) pages describe the `cms`, `erp` and
-`pim` presets and how their blocks connect. `tests/validation-presets`
-installs each one and checks those links on the local stack.
+The [CMS](/docs/presets/cms), [ERP](/docs/presets/erp),
+[manufacturing](/docs/presets/manufacturing) and
+[product information](/docs/presets/pim) pages describe the `cms`, `erp`,
+`manufacturing` and `pim` presets and how their blocks connect.
+`tests/validation-presets` installs each one and checks those links on the
+local stack.
 
 ## Designs and Create
 

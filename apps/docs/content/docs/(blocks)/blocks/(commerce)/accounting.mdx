@@ -149,24 +149,24 @@ When `accounting` is installed, these blocks book their documents in the same
 transaction as the write that changes them, in the journal of each type with
 the lowest code and against the account roles:
 
-| Block                                       | Source type             | When                                    | Entry                                                                          |
-| ------------------------------------------- | ----------------------- | --------------------------------------- | ------------------------------------------------------------------------------ |
-| [invoices](/docs/blocks/invoices)           | `invoice`               | an invoice or credit note is issued     | sales: receivable against revenue and tax per rate                             |
-| [invoices](/docs/blocks/invoices)           | `invoice_payment`       | a payment or refund is recorded         | bank: bank against the receivable                                              |
-| [invoices](/docs/blocks/invoices)           | `invoice_charge`        | a charge is added to an invoice         | sales: receivable against revenue, reversed when the charge is removed         |
-| [invoices](/docs/blocks/invoices)           | `invoice_write_off`     | an invoice is written off               | general: expense against the receivable for the open balance                   |
-| [expenses](/docs/blocks/expenses)           | `expense_report`        | a report is approved                    | purchase: expense against payable to the member                                |
-| [expenses](/docs/blocks/expenses)           | `expense_reimbursement` | a report is reimbursed                  | bank: payable against bank                                                     |
-| [inventory](/docs/blocks/inventory)         | `stock_movement`        | a costed movement posts                 | general: inventory against payable, cost of goods, work in progress or expense |
-| [manufacturing](/docs/blocks/manufacturing) | `production_order`      | a production order completes with labor | general: work in progress against expense                                      |
-| [banking](/docs/blocks/banking)             | `bank_transaction`      | a bank rule matches a transaction       | bank: bank against the rule's account, or the reverse                          |
-| [leases](/docs/blocks/leases)               | `lease_rent`            | a rent charge posts                     | sales: receivable against revenue                                              |
-| [leases](/docs/blocks/leases)               | `lease_payment`         | a rent payment is recorded              | bank: bank against the receivable                                              |
-| [donations](/docs/blocks/donations)         | `gift`                  | a gift posts                            | bank: bank against revenue                                                     |
+| Block                                       | Source type             | When                                    | Entry                                                                                       |
+| ------------------------------------------- | ----------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [invoices](/docs/blocks/invoices)           | `invoice`               | an invoice or credit note is issued     | sales: receivable against revenue and tax per rate                                          |
+| [invoices](/docs/blocks/invoices)           | `invoice_payment`       | a payment or refund is recorded         | bank: bank against the receivable                                                           |
+| [invoices](/docs/blocks/invoices)           | `invoice_charge`        | a charge is added to an invoice         | sales: receivable against revenue, reversed when the charge is removed                      |
+| [invoices](/docs/blocks/invoices)           | `invoice_write_off`     | an invoice is written off               | general: expense against the receivable for the open balance                                |
+| [expenses](/docs/blocks/expenses)           | `expense_report`        | a report is approved                    | purchase: expense against payable to the member                                             |
+| [expenses](/docs/blocks/expenses)           | `expense_reimbursement` | a report is reimbursed                  | bank: payable against bank                                                                  |
+| [inventory](/docs/blocks/inventory)         | `stock_movement`        | a costed movement posts                 | general: inventory against payable, cost of goods, work in progress or expense              |
+| [manufacturing](/docs/blocks/manufacturing) | `production_order`      | a production order completes with labor | general: work in progress against expense                                                   |
+| [banking](/docs/blocks/banking)             | `bank_transaction`      | a bank rule matches a transaction       | bank: bank against the rule's account, or the reverse                                       |
+| [leases](/docs/blocks/leases)               | `lease_rent`            | a rent charge posts                     | sales: receivable against revenue                                                           |
+| [leases](/docs/blocks/leases)               | `lease_payment`         | a rent payment is recorded              | bank: bank against the receivable                                                           |
+| [donations](/docs/blocks/donations)         | `gift`                  | a gift posts                            | bank: bank against revenue                                                                  |
+| [assets](/docs/blocks/assets)               | `asset_depreciation`    | a month of depreciation runs            | general: depreciation expense against accumulated depreciation                              |
+| [assets](/docs/blocks/assets)               | `asset_disposal`        | an asset is disposed of                 | general: bank and accumulated depreciation against the asset, the difference a gain or loss |
 
 A named block instance books too when its `uses` binds an accounting instance. An instance that leaves `uses` alone books nothing, so two instances never contribute the same source.
-| [assets](/docs/blocks/assets) | `asset_depreciation` | a month of depreciation runs | general: depreciation expense against accumulated depreciation |
-| [assets](/docs/blocks/assets) | `asset_disposal` | an asset is disposed of | general: bank and accumulated depreciation against the asset, the difference a gain or loss |
 
 Each document books once: voiding an invoice, or refunding a gift, reverses
 its entry. A stock movement takes its value from weighted average cost, so
