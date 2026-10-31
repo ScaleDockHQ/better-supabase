@@ -262,6 +262,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0146: Controlled document types can set a `numberFormat` and count from their own numbering entity.
 - 0148: Purchase bills are invoices with `direction = 'purchase'`; receipts are rows, requisitions run on approvals, a three-way match gates payment, contacts credit limits gate orders and sales invoices.
 - 0149: Postmortem `actionItems` and the `action_items` column go in 0.47; an `incidents` upgrade step copies them into tasks first.
+||||||| parent of ebaa6df5d (docs(blocks): decide the block overlaps and file seven blocks under the matching docs group)
+- 0150: The remaining block overlaps are decided pair by pair (all stay separate, three follow-ups) and seven blocks move to the docs group that matches their job.
 
 ## Pre-release pins
 

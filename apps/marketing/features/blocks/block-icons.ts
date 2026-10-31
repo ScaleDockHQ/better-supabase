@@ -55,6 +55,7 @@ import {
   FunnelIcon,
   FolderOpenIcon,
   GaugeIcon,
+  GitCommitHorizontalIcon,
   GlobeIcon,
   GraduationCapIcon,
   Grid3x3Icon,
@@ -272,7 +273,7 @@ export const BLOCK_ICONS = {
   courses: PresentationIcon,
   // Content & files
   imports: FileUpIcon,
-  versions: HistoryIcon,
+  versions: GitCommitHorizontalIcon,
   trash: Trash2Icon,
   documents: FileTextIcon,
   drive: HardDriveIcon,

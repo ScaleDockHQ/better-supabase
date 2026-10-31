@@ -13,5 +13,5 @@ export const leadScoringBlock: BlockOf<
   sql: ["lead-scoring"],
   options: { "lead-scoring": leadScoringSqlOptions },
   create: createLeadScoring,
-  category: "growth",
+  category: "crm",
 });

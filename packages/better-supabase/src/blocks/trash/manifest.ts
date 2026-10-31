@@ -14,7 +14,7 @@ export const trashBlock: BlockOf<"trash", typeof createTrash, TrashEvents> =
     options: { trash: trashSqlOptions },
     events: trashEvents,
     create: createTrash,
-    category: "content",
+    category: "database",
     recipes: ["undo-toast", "trash-bin"],
     extension: "trashExtension",
   });

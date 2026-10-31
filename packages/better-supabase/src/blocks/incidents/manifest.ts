@@ -31,5 +31,5 @@ export const incidentsBlock: BlockOf<
   },
   create: createIncidents,
   recipes: ["status-page"],
-  category: "developer",
+  category: "work",
 });

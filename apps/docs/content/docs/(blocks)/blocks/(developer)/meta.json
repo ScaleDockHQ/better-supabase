@@ -10,7 +10,6 @@
     "security-events",
     "oauth-server",
     "vercel-marketplace",
-    "incidents",
     "credentials"
   ]
 }

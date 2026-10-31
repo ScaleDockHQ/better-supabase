@@ -6,13 +6,13 @@
     "activities",
     "mail-sync",
     "segments",
-    "assignment",
     "enrichment",
     "sequences",
     "forecasts",
     "deals",
     "quotes",
     "goals",
-    "contracts"
+    "contracts",
+    "lead-scoring"
   ]
 }

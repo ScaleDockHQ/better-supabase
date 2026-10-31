@@ -17,5 +17,5 @@ export const assignmentBlock: BlockOf<
   events: assignmentEvents,
   schemas: { assignment_queue: { input: assignmentQueueInputSchema } },
   create: createAssignment,
-  category: "crm",
+  category: "work",
 });
