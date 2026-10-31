@@ -474,6 +474,16 @@ msgctxt "legal-entities.PNZhVW"
 msgid "The companies inside this organization, each with its own VAT number, currency and tax period."
 msgstr "De bedrijven binnen deze organisatie, elk met een eigen btw-nummer, valuta en aangifteperiode."
 
+#: src/app/[locale]/(app)/lims/page.tsx
+msgctxt "lims.U2griC"
+msgid "Laboratory"
+msgstr "Laboratorium"
+
+#: src/app/[locale]/(app)/lims/page.tsx
+msgctxt "lims.LobJz1"
+msgid "Samples, their results and whether they may be released."
+msgstr "Monsters, hun resultaten en of ze vrijgegeven mogen worden."
+
 #: src/app/[locale]/(app)/maintenance/page.tsx
 msgctxt "maintenance.dudqv_"
 msgid "Maintenance"
@@ -568,12 +578,12 @@ msgstr "Je organisatie in één oogopslag."
 #: src/app/[locale]/(app)/payroll/page.tsx
 msgctxt "payroll-export.igugQ-"
 msgid "Payroll export"
-msgstr ""
+msgstr "Loonexport"
 
 #: src/app/[locale]/(app)/payroll/page.tsx
 msgctxt "payroll-export.af223Z"
 msgid "The worked and leave hours of each period, ready to hand to the payroll provider."
-msgstr ""
+msgstr "De gewerkte uren en verlofuren per periode, klaar om aan de salarisverwerker te geven."
 
 #: src/app/[locale]/(app)/people/hiring/page.tsx
 #: src/features/people/components/hiring-board.tsx
@@ -9438,6 +9448,101 @@ msgctxt "legal-entities.0HT-Ib"
 msgid "Archived"
 msgstr "Gearchiveerd"
 
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.J964Ri"
+msgid "Registered"
+msgstr "Geregistreerd"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.um18aX"
+msgid "In testing"
+msgstr "In onderzoek"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.95stPq"
+msgid "Completed"
+msgstr "Afgerond"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.GnNfTd"
+msgid "Released"
+msgstr "Vrijgegeven"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.5qaD7s"
+msgid "Rejected"
+msgstr "Afgekeurd"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.kFkPWB"
+msgid "Number"
+msgstr "Nummer"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.qHWGQ6"
+msgid "Sample"
+msgstr "Monster"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.z_wUXE"
+msgid "Received"
+msgstr "Ontvangen"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.pnGl8c"
+msgid "New sample"
+msgstr "Nieuw monster"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.CAaXKK"
+msgid "Samples"
+msgstr "Monsters"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.QvQQYB"
+msgid "A result outside a method's limits opens a nonconformity and holds the release."
+msgstr "Een resultaat buiten de grenzen van een methode opent een afwijking en houdt de vrijgave tegen."
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.rUI-1a"
+msgid "The samples didn't load"
+msgstr "De monsters zijn niet geladen"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.9kJfO4"
+msgid "No samples yet"
+msgstr "Nog geen monsters"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.T7eP7o"
+msgid "Register a sample, then record results against a method's limits."
+msgstr "Registreer een monster en leg daarna resultaten vast tegen de grenzen van een methode."
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.oDfeJW"
+msgid "Register a sample"
+msgstr "Registreer een monster"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.pLtaHX"
+msgid "Read the laboratory guide"
+msgstr "Lees de laboratoriumgids"
+
 #: src/features/maintenance/components/maintenance-plans.tsx
 msgctxt "maintenance.ug01Mk"
 msgid "Time"
@@ -10405,7 +10510,7 @@ msgstr "Rechtspersonen"
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.igugQ-"
 msgid "Payroll export"
-msgstr ""
+msgstr "Loonexport"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.X7jl6w"
@@ -10508,6 +10613,10 @@ msgid "Assets"
 msgstr ""
 
 #: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.U2griC"
+msgid "Laboratory"
+msgstr "Laboratorium"
 msgctxt "navigation.dudqv_"
 msgid "Maintenance"
 msgstr "Onderhoud"
@@ -11148,77 +11257,77 @@ msgstr "Totaal"
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.O33vjy"
 msgid "The payroll runs didn't load"
-msgstr ""
+msgstr "De salarisruns zijn niet geladen"
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.162kF7"
 msgid "Try again in a moment."
-msgstr ""
+msgstr "Probeer het zo opnieuw."
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.62nsdy"
 msgid "Retry"
-msgstr ""
+msgstr "Opnieuw proberen"
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.0qyczJ"
 msgid "No payroll runs yet"
-msgstr ""
+msgstr "Nog geen salarisruns"
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.TkrGa_"
 msgid "Create a run for a period to add up the approved hours and leave, then export it in your payroll provider's format."
-msgstr ""
+msgstr "Maak een run voor een periode om de goedgekeurde uren en het verlof op te tellen en exporteer die daarna in het formaat van uw salarisverwerker."
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.TK7Ih-"
 msgid "Read the payroll export guide"
-msgstr ""
+msgstr "Lees de gids voor loonexport"
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.stJAkN"
 msgid "Payroll runs"
-msgstr ""
+msgstr "Salarisruns"
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.9e-m4Z"
 msgid "An exported run is locked; its checksum proves the file."
-msgstr ""
+msgstr "Een geëxporteerde run is vergrendeld; de controlesom bewijst het bestand."
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.jCNpEL"
 msgid "Period"
-msgstr ""
+msgstr "Periode"
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.753yX5"
 msgid "Label"
-msgstr ""
+msgstr "Label"
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.T2ZVQY"
 msgid "Lines"
-msgstr ""
+msgstr "Regels"
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.zQLEfz"
 msgid "Format"
-msgstr ""
+msgstr "Formaat"
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.tzMNF3"
 msgid "Status"
-msgstr ""
+msgstr "Status"
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.DPnkvq"
 msgid "Exported"
-msgstr ""
+msgstr "Geëxporteerd"
 
 #: src/features/payroll-export/components/payroll-runs.tsx
 msgctxt "payroll-export.W6nwjo"
 msgid "Draft"
-msgstr ""
+msgstr "Concept"
 
 #: src/features/people/components/add-candidate-dialog.tsx
 msgctxt "people.XrpTyF"

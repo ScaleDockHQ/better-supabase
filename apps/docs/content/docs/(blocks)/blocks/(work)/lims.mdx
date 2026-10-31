@@ -1,0 +1,128 @@
+---
+title: Laboratory samples
+description: Samples tested with methods that have specification limits, results from qualified instruments, and a nonconformity case for every result out of specification.
+---
+
+`lims` is a small laboratory information system: samples come in, methods
+measure them against limits, and a result outside the limits opens a case
+before the sample can be released.
+
+```bash
+better-supabase add lims
+```
+
+```ts
+import { createLims } from "better-supabase/blocks/lims";
+```
+
+The module requires `memberships`, `permissions` and `subjects`. With
+[forms](/docs/blocks/forms) a method can name the form that captures its
+readings. With [cases](/docs/blocks/cases) an out of specification result opens
+a nonconformity. With [assets](/docs/blocks/assets) and
+[qualifications](/docs/blocks/qualifications) an instrument is an asset that
+must hold a valid qualification on the test date. With `numbering` samples get
+the numbering block's format, `outbox` records the events and `audit` audits
+every change.
+
+## Tables
+
+| Table          | Holds                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------- |
+| `lims_methods` | A measurement with a key, a unit, an optional lower and upper limit and an optional form    |
+| `lims_samples` | A sample with a number (`SMP-1`), a title, a kind, a lot, a status and the received date    |
+| `lims_results` | One measured value of a method on a sample, its outcome, instrument, case and who tested it |
+
+| Permission    | Allows                                             | Default roles |
+| ------------- | -------------------------------------------------- | ------------- |
+| `lims.read`   | reading methods, samples and results               | owner, admin  |
+| `lims.write`  | registering samples, recording results, completing | owner, admin  |
+| `lims.manage` | saving methods, releasing and rejecting samples    | owner, admin  |
+
+A sample is a subject of type `lims_sample`.
+
+## Methods and samples
+
+`saveMethod` creates a method, or updates the one you pass as the second
+argument. The key cannot change. A result below `lowerLimit` or above
+`upperLimit` is out of specification, and a method with no limit accepts
+every value on that side.
+
+```ts
+const lims = createLims({ transport, tenant: organizationId });
+
+const ph = await lims
+  .saveMethod({ key: "ph", name: "pH", lowerLimit: 6.5, upperLimit: 7.5 })
+  .orThrow();
+
+const sample = await lims
+  .registerSample({ title: "Batch 12", lot: "L-12" })
+  .orThrow();
+```
+
+A sample is `registered`, then `in_testing` once the first result arrives,
+`completed` when testing ends, and finally `released` or `rejected`.
+
+## Results
+
+`recordResult` checks the value against the method's limits and stores the
+outcome. The first result moves the sample into testing. A sample accepts
+results while it is registered or in testing.
+
+```ts
+const result = await lims
+  .recordResult(sample.id, ph.id, { value: 8.2, instrumentId: balanceAssetId })
+  .orThrow();
+// result.outcome is "out_of_spec"; result.caseId is the nonconformity case
+```
+
+An out of specification result opens a case of the `nonconformity` kind
+(`options.nonconformityKind` renames it) with the sample, the method, the value
+and the limits in its description, and emits `lims_result.flagged`. The case
+uses the source `lims` when the cases block lists it in `options.sources`, and
+`internal` otherwise.
+
+With `options.instrumentQualification: "calibration"` a result needs an
+`instrumentId`, the instrument must be an asset of the organization, and it
+must hold that qualification on the test date. `instrumentStatus` answers the
+same question before the work starts.
+
+```ts
+const status = await lims.instrumentStatus(balanceAssetId).orThrow();
+// { instrumentId, required: true, qualified: true }
+```
+
+## Release
+
+`completeSample` ends testing. `releaseSample` needs `lims.manage` and refuses
+while the latest result of any method is out of specification. `rejectSample`
+takes a reason and works on a sample that is not released.
+
+## Errors
+
+| Hint code               | Meaning                                                              |
+| ----------------------- | -------------------------------------------------------------------- |
+| `LIMS_INVALID`          | A value is out of bounds, or the sample or instrument cannot take it |
+| `LIMS_FORBIDDEN`        | The caller lacks `lims.read`, `lims.write` or `lims.manage`          |
+| `LIMS_METHOD_NOT_FOUND` | No such method in a tenant the caller can read                       |
+| `LIMS_SAMPLE_NOT_FOUND` | No such sample in a tenant the caller can read                       |
+
+## Events
+
+| Event                                                                                             | Data                                                                         |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `lims_method.created`, `lims_method.updated`, `lims_method.archived`                              | `organizationId`, `id`, `key`                                                |
+| `lims_sample.registered`, `lims_sample.completed`, `lims_sample.released`, `lims_sample.rejected` | `organizationId`, `id`, `number`, `status`                                   |
+| `lims_result.recorded`, `lims_result.flagged`                                                     | `organizationId`, `id`, `sampleId`, `methodId`, `value`, `outcome`, `caseId` |
+
+The hooks are `before_lims_sample_register`, `after_lims_sample_register`,
+`before_lims_result_record` and `after_lims_result_record`.
+
+## Without the client
+
+`save_lims_method(tenant, input, method_id)`, `archive_lims_method(method_id)`,
+`list_lims_methods(tenant, include_archived)`, `register_sample(tenant, input)`,
+`get_sample(sample_id)`, `list_samples(tenant, filters)`,
+`record_lims_result(sample_id, method_id, input)`, `complete_sample(sample_id)`,
+`release_sample(sample_id)`, `reject_sample(sample_id, reason)` and
+`instrument_status(tenant, asset_id, on_date)` are plain SQL functions. In
+custom mode you implement them over your own tables.

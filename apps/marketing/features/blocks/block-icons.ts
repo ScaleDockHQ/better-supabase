@@ -54,6 +54,7 @@ import {
   FlagIcon,
   FlameIcon,
   FunnelIcon,
+  FlaskConicalIcon,
   FolderOpenIcon,
   GaugeIcon,
   GavelIcon,
@@ -339,6 +340,7 @@ export const BLOCK_ICONS = {
   meetings: GavelIcon,
   maintenance: WrenchIcon,
   dam: ImagesIcon,
+  lims: FlaskConicalIcon,
   "care-plans": ClipboardPlusIcon,
   // Database primitives
   "updated-at": ClockIcon,

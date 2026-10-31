@@ -467,6 +467,10 @@ export default defineConfig({
     // Renditions of drive files and usage rights with a territory, a channel
     // and an expiry date.
     dam: {},
+    // Laboratory samples tested against specification limits; an out of
+    // specification result opens a nonconformity case, and instruments are
+    // assets whose "calibration" qualification must be valid on the test date.
+    lims: { options: { instrumentQualification: "calibration" } },
     // Vital signs on a customer's record, with the seeded vitals definitions;
     // a critical value alerts the record's leads.
     observations: { options: { defaults: "vitals" } },

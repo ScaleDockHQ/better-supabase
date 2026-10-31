@@ -1110,6 +1110,11 @@
       "types": "./dist/blocks/dam/index.d.ts",
       "default": "./dist/blocks/dam/index.js"
     },
+    "./blocks/lims": {
+      "@better-supabase/source": "./src/blocks/lims/index.ts",
+      "types": "./dist/blocks/lims/index.d.ts",
+      "default": "./dist/blocks/lims/index.js"
+    },
     "./blocks/maintenance": {
       "@better-supabase/source": "./src/blocks/maintenance/index.ts",
       "types": "./dist/blocks/maintenance/index.d.ts",
@@ -2067,6 +2072,10 @@
       "./blocks/dam": {
         "types": "./dist/blocks/dam/index.d.ts",
         "default": "./dist/blocks/dam/index.js"
+      },
+      "./blocks/lims": {
+        "types": "./dist/blocks/lims/index.d.ts",
+        "default": "./dist/blocks/lims/index.js"
       },
       "./blocks/maintenance": {
         "types": "./dist/blocks/maintenance/index.d.ts",

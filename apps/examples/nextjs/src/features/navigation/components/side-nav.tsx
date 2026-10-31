@@ -138,6 +138,7 @@ const ICONS = {
   meetings: GavelIcon,
   maintenance: WrenchIcon,
   dam: ImagesIcon,
+  lims: FlaskConicalIcon,
   shifts: CalendarDaysIcon,
   finance: LandmarkIcon,
   payables: ReceiptTextIcon,
@@ -346,6 +347,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "dam": {
         return t("Assets");
+      }
+
+      case "lims": {
+        return t("Laboratory");
       }
 
       case "maintenance": {

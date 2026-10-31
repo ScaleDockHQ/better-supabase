@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:8afdfd6153c881a1da69bcde58d2805d3a6a229671aeebb59c77ff7466012ea9
+-- @bsb-hash sha256:246cede10ad8fbce887a6d4aab664fb3831175576ac41b886ecd00af250db083
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -149,7 +149,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,application,change_request,project,task}'::text[]
+  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,application,change_request,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -245,6 +245,8 @@ begin
       return (select s."title"::text from "better_supabase"."maintenance_plans" s where s."id" = (subject_title.subject_id)::uuid);
     when 'dam_usage_right' then
       return (select s."licensee"::text from "better_supabase"."dam_usage_rights" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'lims_sample' then
+      return (select s."title"::text from "better_supabase"."lims_samples" s where s."id" = (subject_title.subject_id)::uuid);
     when 'tax_code' then
       return (select s."name"::text from "better_supabase"."tax_codes" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'production_order' then
@@ -587,6 +589,12 @@ begin
       'title', s."licensee"::text, 'url', null::text))
     from "better_supabase"."dam_usage_rights" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'dam_usage_right')::uuid[])), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'lims_sample', 'id', s."id"::text,
+      'title', s."title"::text, 'url', null::text))
+    from "better_supabase"."lims_samples" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'lims_sample')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'tax_code', 'id', s."id"::text,
@@ -1104,6 +1112,16 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'dam.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'dam.write'), false)
+          else true
+        end)
+      );
+    when 'lims_sample' then
+      return exists (
+        select 1 from "better_supabase"."lims_samples" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'lims.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'lims.write'), false)
           else true
         end)
       );
@@ -1737,6 +1755,16 @@ begin
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'dam.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'dam.write'), false)
+          else false
+        end
+      );
+    when 'lims_sample' then
+      return exists (
+        select 1 from "better_supabase"."lims_samples" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'lims.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'lims.write'), false)
           else false
         end
       );

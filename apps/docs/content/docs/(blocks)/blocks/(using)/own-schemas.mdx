@@ -456,6 +456,10 @@ may be your own enum or domain.
 - `legal-entities`
   - `better_supabase.legal_entities`: `id`, `tenant_id`, `code`, `name`, `address`, `vat_number`, `coc_number`, `iban`, `bic`, `logo_attachment_id`, `default_currency`, `fiscal`, `is_default`, `archived_at`, `created_at`, `updated_at`
   - `better_supabase.legal_entity_settings`: `tenant_id`, `legal_entity_id`, `key`, `value`, `updated_by`, `updated_at`
+- `lims`
+  - `better_supabase.lims_methods`: `id`, `tenant_id`, `key`, `name`, `unit`, `lower_limit`, `upper_limit`, `form_id`, `archived_at`, `created_at`, `updated_at`
+  - `better_supabase.lims_samples`: `id`, `tenant_id`, `number`, `sequence`, `title`, `kind`, `lot`, `received_on`, `status`, `notes`, `rejection_reason`, `completed_at`, `released_at`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.lims_results`: `id`, `tenant_id`, `sample_id`, `method_id`, `value`, `outcome`, `instrument_id`, `submission_id`, `case_id`, `note`, `tested_by`, `tested_at`, `created_at`
 - `mail-sync`
   - `better_supabase.mail_accounts`: `id`, `tenant_id`, `user_id`, `provider`, `address`, `credential_ref`, `share`, `status`, `sync_cursor`, `last_synced_at`; typed: `share`, `status`
   - `better_supabase.mail_threads`: `id`, `tenant_id`, `account_id`, `external_id`, `last_message_at`

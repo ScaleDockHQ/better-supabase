@@ -9706,6 +9706,46 @@
       "RpcClient"
     ]
   },
+  "./blocks/lims": {
+    "values": [
+      "createLims",
+      "dbTransport",
+      "extendBlock",
+      "limsBlock",
+      "limsEvents",
+      "limsMethodInputSchema",
+      "limsSampleInputSchema",
+      "limsSqlOptions",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Lims",
+      "LimsEvents",
+      "LimsInstrumentStatus",
+      "LimsMethod",
+      "LimsMethodEventData",
+      "LimsMethodInput",
+      "LimsOptions",
+      "LimsResult",
+      "LimsResultEventData",
+      "LimsResultInput",
+      "LimsResultOutcome",
+      "LimsSample",
+      "LimsSampleDetail",
+      "LimsSampleEventData",
+      "LimsSampleInput",
+      "LimsSampleListOptions",
+      "LimsSampleStatus",
+      "LimsSqlOptions",
+      "RpcClient"
+    ]
+  },
   "./blocks/maintenance": {
     "values": [
       "createMaintenance",

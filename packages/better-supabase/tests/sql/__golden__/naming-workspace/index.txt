@@ -128,3 +128,4 @@ maintenance
 dam
 tax
 document-templates
+lims

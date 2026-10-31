@@ -116,6 +116,9 @@ const NO_FIELDS: readonly string[] = [
   // Legal entities are a fixed set of company details; per-entity data goes
   // in legal_entity_settings.
   "legal-entities",
+  // Samples, methods and results are the laboratory's fixed records; app data
+  // goes on the linked assets and forms.
+  "lims",
   // Mailboxes, threads and messages mirror a provider's mail; app data goes on the linked records.
   "mail-sync",
   // Plans, meters and calibrations are fixed records; app data goes on the

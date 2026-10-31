@@ -113,6 +113,7 @@ const MODULES = [
   "payroll-export",
   "maintenance",
   "dam",
+  "lims",
   "manufacturing",
   "legal-entities",
   "document-templates",

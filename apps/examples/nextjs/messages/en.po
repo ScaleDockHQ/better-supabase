@@ -474,6 +474,16 @@ msgctxt "legal-entities.PNZhVW"
 msgid "The companies inside this organization, each with its own VAT number, currency and tax period."
 msgstr "The companies inside this organization, each with its own VAT number, currency and tax period."
 
+#: src/app/[locale]/(app)/lims/page.tsx
+msgctxt "lims.U2griC"
+msgid "Laboratory"
+msgstr "Laboratory"
+
+#: src/app/[locale]/(app)/lims/page.tsx
+msgctxt "lims.LobJz1"
+msgid "Samples, their results and whether they may be released."
+msgstr "Samples, their results and whether they may be released."
+
 #: src/app/[locale]/(app)/maintenance/page.tsx
 msgctxt "maintenance.dudqv_"
 msgid "Maintenance"
@@ -9438,6 +9448,101 @@ msgctxt "legal-entities.0HT-Ib"
 msgid "Archived"
 msgstr "Archived"
 
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.J964Ri"
+msgid "Registered"
+msgstr "Registered"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.um18aX"
+msgid "In testing"
+msgstr "In testing"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.95stPq"
+msgid "Completed"
+msgstr "Completed"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.GnNfTd"
+msgid "Released"
+msgstr "Released"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.5qaD7s"
+msgid "Rejected"
+msgstr "Rejected"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.kFkPWB"
+msgid "Number"
+msgstr "Number"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.qHWGQ6"
+msgid "Sample"
+msgstr "Sample"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.z_wUXE"
+msgid "Received"
+msgstr "Received"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.pnGl8c"
+msgid "New sample"
+msgstr "New sample"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.CAaXKK"
+msgid "Samples"
+msgstr "Samples"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.QvQQYB"
+msgid "A result outside a method's limits opens a nonconformity and holds the release."
+msgstr "A result outside a method's limits opens a nonconformity and holds the release."
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.rUI-1a"
+msgid "The samples didn't load"
+msgstr "The samples didn't load"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.9kJfO4"
+msgid "No samples yet"
+msgstr "No samples yet"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.T7eP7o"
+msgid "Register a sample, then record results against a method's limits."
+msgstr "Register a sample, then record results against a method's limits."
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.oDfeJW"
+msgid "Register a sample"
+msgstr "Register a sample"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.pLtaHX"
+msgid "Read the laboratory guide"
+msgstr "Read the laboratory guide"
+
 #: src/features/maintenance/components/maintenance-plans.tsx
 msgctxt "maintenance.ug01Mk"
 msgid "Time"
@@ -10508,6 +10613,10 @@ msgid "Assets"
 msgstr "Assets"
 
 #: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.U2griC"
+msgid "Laboratory"
+msgstr "Laboratory"
 msgctxt "navigation.dudqv_"
 msgid "Maintenance"
 msgstr "Maintenance"
