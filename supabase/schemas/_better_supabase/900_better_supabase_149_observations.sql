@@ -1,6 +1,6 @@
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:3b5f97bda849b255098781d08df4440f1c590af4a2353697faca74e705d4a2cc
+-- @bsb-hash sha256:06fb24d54a8b41689d8f7d133a51dfc3e6934428b07b643932107cda47db6e57
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -696,6 +696,7 @@ begin
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (record_observation.subject_id)::uuid)
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (record_observation.subject_id)::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (record_observation.subject_id)::uuid)
+      when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (record_observation.subject_id)::uuid)
       when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (record_observation.subject_id)::uuid)
       when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (record_observation.subject_id)::uuid)
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (record_observation.subject_id)::uuid)
@@ -754,6 +755,7 @@ begin
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
+      when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
@@ -855,6 +857,7 @@ begin
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (v_item ->> 'subjectId')::uuid)
@@ -913,6 +916,7 @@ begin
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
+      when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
@@ -1026,6 +1030,7 @@ begin
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (v_item ->> 'subjectId')::uuid)
@@ -1084,6 +1089,7 @@ begin
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
+      when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
@@ -1183,6 +1189,7 @@ begin
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_old."subject_id")::uuid)
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (v_old."subject_id")::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (v_old."subject_id")::uuid)
+      when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (v_old."subject_id")::uuid)
       when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (v_old."subject_id")::uuid)
       when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (v_old."subject_id")::uuid)
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (v_old."subject_id")::uuid)
@@ -1241,6 +1248,7 @@ begin
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
+      when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
@@ -1381,6 +1389,7 @@ begin
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_row."subject_id")::uuid)
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (v_row."subject_id")::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (v_row."subject_id")::uuid)
+      when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (v_row."subject_id")::uuid)
       when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (v_row."subject_id")::uuid)
       when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (v_row."subject_id")::uuid)
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (v_row."subject_id")::uuid)
@@ -1439,6 +1448,7 @@ begin
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -1758,6 +1768,7 @@ begin
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (v_sub."subject_id"::text)::uuid)
+      when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (v_sub."subject_id"::text)::uuid)
@@ -1816,6 +1827,7 @@ begin
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
+      when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)

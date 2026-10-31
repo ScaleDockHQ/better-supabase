@@ -1,0 +1,125 @@
+---
+title: Requests for quotation
+description: Requests for quotation sent to suppliers, their quotes side by side, and an award that creates a purchase order.
+---
+
+`rfqs` asks several suppliers for a price on the same lines, puts the answers
+side by side, and turns the chosen quote into a draft purchase order.
+
+```bash
+better-supabase add rfqs
+```
+
+```ts
+import { createRfqs } from "better-supabase/blocks/rfqs";
+```
+
+The module requires `memberships`, `permissions` and `subjects`. With
+[contacts](/docs/blocks/contacts) an invited supplier must hold the `supplier`
+role (or none) and must not be blocked. With [inventory](/docs/blocks/inventory)
+an award can create a purchase order. With `numbering` requests get the
+numbering block's format, `outbox` records the events and `audit` audits every
+change.
+
+## Tables
+
+| Table             | Holds                                                                                     |
+| ----------------- | ----------------------------------------------------------------------------------------- |
+| `rfqs`            | A request with a number (`RFQ-1`), a title, a currency, a status and an optional due date |
+| `rfq_lines`       | What is requested: a description, a quantity, a unit and optionally a product variant     |
+| `rfq_suppliers`   | A supplier invited to quote, as a party type and id, with its answer status               |
+| `rfq_quotes`      | A supplier's answer with a total, a revision count and a lead time                        |
+| `rfq_quote_lines` | The unit price a quote gives for one requested line                                       |
+
+| Permission    | Allows                                   | Default roles |
+| ------------- | ---------------------------------------- | ------------- |
+| `rfqs.read`   | reading requests, quotes and comparisons | owner, admin  |
+| `rfqs.write`  | drafting, inviting, opening and quoting  | owner, admin  |
+| `rfqs.manage` | awarding and cancelling                  | owner, admin  |
+
+## From draft to award
+
+A request is `draft`, then `open`, then `closed`, and ends `awarded` or
+`cancelled`. `createRfq` takes the request and its lines. `inviteSupplier`
+names a party by type and id, and `openRfq` needs at least one line and one
+supplier.
+
+```ts
+const rfqs = createRfqs({ transport, tenant: organizationId });
+
+const rfq = await rfqs
+  .createRfq({ title: "Bolts", currency: "EUR" }, [
+    { description: "Bolt M8", quantity: 100, variantId },
+  ])
+  .orThrow();
+
+const invitation = await rfqs
+  .inviteSupplier(rfq.id, { type: "company", id: supplierId })
+  .orThrow();
+
+await rfqs.openRfq(rfq.id).orThrow();
+```
+
+## Quotes
+
+`recordQuote` records the prices of one supplier while the request is open.
+Quoting again replaces the prices and raises the revision. Only the amounts are
+sent, in the request's currency, and every `lineId` must belong to the request.
+`withdrawQuote` takes a submitted quote out of the comparison, and
+`declineInvitation` records that a supplier will not quote.
+
+```ts
+await rfqs
+  .recordQuote(rfq.id, invitation.id, [
+    { lineId: rfq.lines[0].id, unitAmount: money(120n, "EUR") },
+  ])
+  .orThrow();
+```
+
+## Comparing and awarding
+
+`compare` lists the live quotes cheapest first, with the best unit price marked
+on each line. Only a quote that prices every line can be awarded.
+
+```ts
+const comparison = await rfqs.compare(rfq.id).orThrow();
+await rfqs.closeRfq(rfq.id).orThrow();
+await rfqs.award(rfq.id, comparison.quotes[0].quoteId, { location }).orThrow();
+```
+
+`award` needs `rfqs.manage`. The chosen quote becomes `awarded` and the others
+`rejected`. With the inventory block and a `location`, a draft purchase order
+for the supplier at the quoted unit prices is created and its id is kept on the
+request; every line then needs a `variantId`. A location without the inventory
+block is refused. `cancelRfq` takes a reason and works on a request that is not
+awarded.
+
+## Errors
+
+| Hint code                | Meaning                                                        |
+| ------------------------ | -------------------------------------------------------------- |
+| `RFQ_INVALID`            | A value is out of bounds, or the request cannot take it        |
+| `RFQ_FORBIDDEN`          | The caller lacks `rfqs.read`, `rfqs.write` or `rfqs.manage`    |
+| `RFQ_STATUS`             | The request or quote is not in a status that allows the change |
+| `RFQ_NOT_FOUND`          | No such request in a tenant the caller can read                |
+| `RFQ_QUOTE_NOT_FOUND`    | No such quote in a tenant the caller can read                  |
+| `RFQ_SUPPLIER_NOT_FOUND` | No such invitation in a tenant the caller can read             |
+| `RFQ_SUPPLIER_INVALID`   | The party is not an active supplier in the contacts block      |
+
+## Events
+
+| Event                                                                                    | Data                                                                                   |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `rfq.created`, `rfq.updated`, `rfq.opened`, `rfq.closed`, `rfq.awarded`, `rfq.cancelled` | `organizationId`, `id`, `number`, `status`; `quoteId` and `purchaseOrderId` on awarded |
+| `rfq_quote.submitted`, `rfq_quote.withdrawn`                                             | `organizationId`, `id`, `rfqId`, `invitationId`, `status`                              |
+
+The hooks are `before_rfq_create`, `after_rfq_create`,
+`before_rfq_quote_record`, `after_rfq_quote_record`, `before_rfq_award` and
+`after_rfq_award`.
+
+## Without the client
+
+`create_rfq`, `update_rfq`, `get_rfq`, `list_rfqs`, `invite_rfq_supplier`,
+`decline_rfq_supplier`, `open_rfq`, `record_rfq_quote`, `withdraw_rfq_quote`,
+`close_rfq`, `compare_rfq`, `award_rfq` and `cancel_rfq` are plain SQL
+functions. In custom mode you implement them over your own tables.

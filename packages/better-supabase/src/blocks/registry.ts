@@ -124,6 +124,7 @@ import { relationsBlock } from "./relations/manifest.ts";
 import { remindersBlock } from "./reminders/manifest.ts";
 import { reservedSlugsBlock } from "./reserved-slugs/manifest.ts";
 import { reviewsBlock } from "./reviews/manifest.ts";
+import { rfqsBlock } from "./rfqs/manifest.ts";
 import { risksBlock } from "./risks/manifest.ts";
 import { rlsGuardBlock } from "./rls-guard/manifest.ts";
 import { savedViewsBlock } from "./saved-views/manifest.ts";
@@ -232,6 +233,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   maintenanceBlock,
   damBlock,
   limsBlock,
+  rfqsBlock,
   manufacturingBlock,
   bankingBlock,
   legalEntitiesBlock,

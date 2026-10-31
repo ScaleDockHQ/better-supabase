@@ -233,6 +233,14 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_inspection_finding_create",
   ],
   dam: ["before_dam_usage_right_create", "after_dam_usage_right_create"],
+  rfqs: [
+    "before_rfq_create",
+    "after_rfq_create",
+    "before_rfq_quote_record",
+    "after_rfq_quote_record",
+    "before_rfq_award",
+    "after_rfq_award",
+  ],
   lims: [
     "before_lims_sample_register",
     "after_lims_sample_register",

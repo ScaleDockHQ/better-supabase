@@ -114,6 +114,7 @@ const MODULES = [
   "maintenance",
   "dam",
   "lims",
+  "rfqs",
   "manufacturing",
   "legal-entities",
   "document-templates",

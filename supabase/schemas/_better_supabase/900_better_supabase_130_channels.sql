@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:beeaa4a8bd5c2ffb7988c419c063be4c48a2e9e906a07ea7cc961ff2fe92ec30
+-- @bsb-hash sha256:f55554f3a9b0ca0e523f87e6050573a22594fee24a813af845ec3830cf76bbef
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -142,6 +142,7 @@ begin
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
