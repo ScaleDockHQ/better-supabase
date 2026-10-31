@@ -1298,7 +1298,7 @@ ALTER TABLE "better_supabase"."payroll_lines"
 
 CREATE UNIQUE INDEX payroll_lines_person_key ON better_supabase.payroll_lines USING btree (run_id, COALESCE(user_id, employee_id), kind, COALESCE(code, ''::text));
 
-CREATE INDEX payroll_lines_run_idx ON better_supabase.payroll_lines USING btree (run_id);
+CREATE INDEX payroll_lines_run_idx ON better_supabase.payroll_lines USING btree (tenant_id, run_id);
 
 CREATE INDEX payroll_runs_tenant_idx ON better_supabase.payroll_runs USING btree (tenant_id, period_from DESC);
 

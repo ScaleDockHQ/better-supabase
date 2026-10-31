@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:538bfb3da6d44f7b3688bd32594e78a980af42d7b5508eb46e1e5f7c76bfb3d6
+-- @bsb-hash sha256:0f140ee8c1750a1e08b849b199c39f046fa8503a3644612c69f06e91d91dbfc6
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -119,7 +119,7 @@ create table if not exists "better_supabase"."payroll_lines" (
   foreign key ("tenant_id", "run_id") references "better_supabase"."payroll_runs" ("tenant_id", "id") on delete cascade
 );
 create unique index if not exists "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
-create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("run_id");
+create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("tenant_id", "run_id");
 alter table "better_supabase"."payroll_lines" enable row level security;
 revoke all on "better_supabase"."payroll_lines" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_lines" to authenticated;
@@ -451,7 +451,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:a13ff1a8191eb3b13471d22db3c8368009b40a934df9054ed572eb31e668d3e7
+-- @bsb-hash sha256:8d574a153e065e8107c367de538a8f84fd62f1085c0f82e20b8a4bf75b66278e
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -569,7 +569,7 @@ create table if not exists "better_supabase"."payroll_lines" (
   foreign key ("tenant_id", "run_id") references "better_supabase"."payroll_runs" ("tenant_id", "id") on delete cascade
 );
 create unique index if not exists "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
-create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("run_id");
+create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("tenant_id", "run_id");
 alter table "better_supabase"."payroll_lines" enable row level security;
 revoke all on "better_supabase"."payroll_lines" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_lines" to authenticated;
@@ -950,7 +950,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:f6a4c998225a844ab56f121457c1e27d7f05656e68b8248d3c757ca5552a7009
+-- @bsb-hash sha256:40f0bde65cd7d05e0b66fbc4c314851e93ae89d8c95d0311aa91bc49cf2bb35b
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1073,7 +1073,7 @@ create table if not exists "app_private"."payroll_lines" (
   foreign key ("tenant_id", "run_id") references "app_private"."payroll_runs" ("tenant_id", "id") on delete cascade
 );
 create unique index if not exists "payroll_lines_person_key" on "app_private"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
-create index if not exists "payroll_lines_run_idx" on "app_private"."payroll_lines" ("run_id");
+create index if not exists "payroll_lines_run_idx" on "app_private"."payroll_lines" ("tenant_id", "run_id");
 alter table "app_private"."payroll_lines" enable row level security;
 revoke all on "app_private"."payroll_lines" from public, anon, authenticated;
 grant select on "app_private"."payroll_lines" to authenticated;
@@ -1405,7 +1405,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:65f92a78e182c4381e8b67b60390349972abd886386c9cb042fe18dfc35795a7
+-- @bsb-hash sha256:745b8d80743b5f5543a8ae34a630f3ecac91fb5119c8fa54f013c8f24554ef87
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1523,7 +1523,7 @@ create table if not exists "better_supabase"."payroll_lines" (
   foreign key ("tenant_id", "run_id") references "better_supabase"."payroll_runs" ("tenant_id", "id") on delete cascade
 );
 create unique index if not exists "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
-create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("run_id");
+create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("tenant_id", "run_id");
 alter table "better_supabase"."payroll_lines" enable row level security;
 revoke all on "better_supabase"."payroll_lines" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_lines" to authenticated;
@@ -1931,7 +1931,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:4af097fb6eea0fa62761dcbabccef1d66d7e30e4d4e22e708d40a9be52a7b42e
+-- @bsb-hash sha256:4ace293e3705716ed561baece19e99d46dee294e313aa7dd81c9fde2d37cf16e
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2036,7 +2036,7 @@ alter table "better_supabase"."payroll_lines" add column if not exists "quantity
 alter table "better_supabase"."payroll_lines" add column if not exists "source_count" integer not null default 1 check ("source_count" >= 0);
 alter table "better_supabase"."payroll_lines" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
-create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("run_id");
+create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("tenant_id", "run_id");
 alter table "better_supabase"."payroll_lines" enable row level security;
 grant select on "better_supabase"."payroll_lines" to authenticated;
 grant all on "better_supabase"."payroll_lines" to service_role;
@@ -2367,7 +2367,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_158_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:290f23abe177b4c3d420c2a9f7bcd4b2fbdf39db73353456ca34249fe5ef39a3
+-- @bsb-hash sha256:6c1ad8606dea255784cda79712af9ae4ed81ecfc25fea46a5dfd5606621350fa
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2485,7 +2485,7 @@ create table if not exists "better_supabase"."payroll_lines" (
   foreign key ("org_id", "run_id") references "better_supabase"."payroll_runs" ("org_id", "id") on delete cascade
 );
 create unique index if not exists "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
-create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("run_id");
+create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("org_id", "run_id");
 alter table "better_supabase"."payroll_lines" enable row level security;
 revoke all on "better_supabase"."payroll_lines" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_lines" to authenticated;

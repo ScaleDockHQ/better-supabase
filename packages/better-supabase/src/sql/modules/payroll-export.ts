@@ -455,7 +455,7 @@ create table if not exists ${lines} (
   foreign key (${l("tenant")}, ${l("run")}) references ${runs} (${r("tenant")}, ${r("id")}) on delete cascade
 );
 create unique index if not exists ${name("lines", "person_key")} on ${lines} (${l("run")}, coalesce(${l("user")}, ${l("employee")}), ${l("kind")}, coalesce(${l("code")}, ''));
-create index if not exists ${name("lines", "run_idx")} on ${lines} (${l("run")});
+create index if not exists ${name("lines", "run_idx")} on ${lines} (${l("tenant")}, ${l("run")});
 ${lockTable(lines, { read: true })}
 ${readPolicy("lines", l("tenant"))}
 
