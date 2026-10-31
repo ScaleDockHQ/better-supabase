@@ -199,6 +199,7 @@ const entries = [
   "stripe/index",
   "yjs/index",
   "e-invoicing/index",
+  "audit-files/index",
   "better-result/index",
   "fhir/index",
   "blocks/inbox/index",

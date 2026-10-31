@@ -11,6 +11,7 @@
     "commerce",
     "fhir",
     "e-invoicing",
+    "audit-files",
     "nested-tenancy"
   ]
 }

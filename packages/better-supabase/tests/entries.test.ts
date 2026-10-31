@@ -187,6 +187,7 @@ const PURE_BARRELS = [
   "eve",
   "flags-sdk",
   "e-invoicing",
+  "audit-files",
 ];
 
 describe("subpath entries", () => {

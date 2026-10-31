@@ -1,0 +1,105 @@
+---
+title: Audit files
+description: Import a SAF-T or XAF audit file into the general ledger and export a fiscal year from it, with a parser that streams and reports what it could not map.
+---
+
+`better-supabase/audit-files` reads an audit file into the records of the
+[accounting block](/docs/blocks/accounting) and writes a fiscal year of the
+ledger back out. It has two adapters, `saftAdapter()` for OECD SAF-T 2.00 and
+`xafAdapter()` for the Dutch audit file 3.2, and one interface, so another
+country's format is one more adapter. It has no tables and no SQL module, and it
+runs on every WinterTC runtime. The versions are pinned in `SPEC_PINS.saftOecd`
+and `SPEC_PINS.xaf`.
+
+```ts
+import {
+  exportAuditFile,
+  importAuditFile,
+  saftAdapter,
+} from "better-supabase/audit-files";
+```
+
+## Import
+
+`importAuditFile(adapter, file, { run, imports })` takes the file as a string,
+bytes or a stream of chunks, and writes it through `import_upsert_batch`. Start
+the run with the [imports block](/docs/blocks/imports) first and pass its
+client as `imports` (`upsertBatch` runs with the service role).
+
+```ts
+const run = await db.imports.runs.start(organizationId, "saft").orThrow();
+
+const result = await importAuditFile(saftAdapter({}), file, {
+  run: run.id,
+  imports: db.imports,
+});
+
+result.counts.accounting_entry; // { inserted, updated, unchanged, conflicted }
+result.warnings; // what the file or the ledger could not take
+```
+
+It writes accounts, tax codes, journals, opening balances and then entries, so
+each batch finds what it refers to. Entries post in import mode: a closed period
+accepts them and a locked one refuses. Keys are the account code, the journal
+code and the journal with the entry id, so importing the same file again reports
+every row as `unchanged` and writes nothing.
+
+`result.ok` is false when the database refused an item. The refusals are in
+`result.errors` with the key and the database's reason.
+
+## Export
+
+`exportAuditFile(adapter, accounting, options)` reads the accounts, the journal
+listing and the opening balances of a fiscal year and returns `{ xml, warnings }`.
+The ledger holds no company details, so pass them.
+
+```ts
+const { xml, warnings } = await exportAuditFile(
+  saftAdapter({}),
+  db.accounting,
+  {
+    organizationId,
+    company: { name: "Acme B.V.", registrationNumber: "12345678" },
+    currency: "EUR",
+    selection: { year: 2026 },
+  },
+);
+```
+
+Pass `from` and `to` in `selection` for a fiscal year that is not the calendar
+year. Opening balances that are already posted sit in the journals, so the file
+does not repeat them.
+
+## Warnings
+
+Nothing is dropped without a trace. A warning has a `code`, a `message`, a
+`count` and sometimes the element `path`.
+
+| Code                           | Meaning                                                                                                     |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `AUDIT_ELEMENT_UNMAPPED`       | An element the adapter does not read, counted per path.                                                     |
+| `AUDIT_CONTROL_TOTAL_MISMATCH` | The file's debit or credit total differs from the sum of its lines.                                         |
+| `AUDIT_ACCOUNT_TYPE_ASSUMED`   | XAF does not say asset or liability; the adapter assumed one. Pass `accountType` to decide.                 |
+| `AUDIT_PARTY_NOT_IMPORTED`     | Customers and suppliers have no import entity in the accounting block. Pass `entities.party` to write them. |
+| `AUDIT_PARTY_LINK_DROPPED`     | A line named a customer or supplier that the ledger line cannot store.                                      |
+| `AUDIT_TAX_CODE_NOT_IMPORTED`  | A line named a tax code; only its tax amount is stored on the line.                                         |
+| `AUDIT_OPENING_PARTY_MERGED`   | Opening balances per customer or supplier were added up per account.                                        |
+| `AUDIT_DATABASE_WARNING`       | A warning `import_upsert_batch` returned for one item, with its key and code.                               |
+| `AUDIT_EXPORT_OMITTED`         | Something the file cannot carry was left out of an export.                                                  |
+
+## Parser
+
+The adapters share a small streaming tokenizer in place of an XML library. It
+reads chunks, keeps the unread tail and holds one record element in memory at a
+time, so a file of any size parses in bounded memory. It refuses a DOCTYPE with
+an internal subset and every entity except the five XML ones and numeric
+references, so a file cannot expand into something larger than it is. Pass
+`parse: { maxDepth, maxTextLength, maxRecordElements }` to tighten the limits;
+a breach throws an `AuditFileError` with code `AUDIT_XML_LIMIT`.
+
+## Write your own adapter
+
+An adapter has `apiVersion: 1`, a `key`, a `format`, a `version`, a `parse`
+that yields `AuditRecord` values and an `export` that yields strings. Wrap it in
+`defineAuditFileAdapter` to check the version. A change to that contract needs a
+new `apiVersion`.

@@ -75,6 +75,16 @@ export const SPEC_PINS: {
   /** The Peppol BIS Billing release in the documents' specification identifier. */
   readonly peppolBisBilling: "3.0";
   /**
+   * OECD Standard Audit File for Tax (SAF-T) schema that
+   * `better-supabase/audit-files` reads and writes.
+   */
+  readonly saftOecd: "2.00";
+  /**
+   * Dutch audit file (XAF) release that `better-supabase/audit-files` reads and
+   * writes.
+   */
+  readonly xaf: "3.2";
+  /**
    * RFC 6902 JSON Patch that the versions block's `createPatch` writes and
    * `applyPatch` applies.
    */
@@ -190,6 +200,8 @@ export const SPEC_PINS: {
   ubl: "2.1",
   en16931: "EN 16931-1:2017",
   peppolBisBilling: "3.0",
+  saftOecd: "2.00",
+  xaf: "3.2",
   rfc6902: "2013-04",
   rfc9396: "2023-05",
   rfc9864: "2025-10",
