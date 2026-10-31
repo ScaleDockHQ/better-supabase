@@ -39,6 +39,7 @@ export function orderCreditSql(ctx: BlockSqlContext): string {
     override: ctx.scope.canUser("v_cart.owner", "v_cart.tenant", override),
     hint: "ORDER_CREDIT_LIMIT_EXCEEDED",
     what: "the order",
+    warnings: "v_warnings",
   });
 }
 

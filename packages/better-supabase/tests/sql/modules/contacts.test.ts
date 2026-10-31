@@ -169,3 +169,21 @@ describe("parties module roles and suppliers", () => {
     expect(sql).toContain("in ('missing', 'expired')");
   });
 });
+
+describe("contacts payment terms and delivery", () => {
+  const sql = sqlOf();
+
+  it("renders the terms tables, the resolver and both import targets", () => {
+    expect(sql).toContain("payment_terms");
+    expect(sql).toContain("resolve_payment_terms");
+    expect(sql).toContain("import_payment_term");
+    expect(sql).toContain("import_document_delivery_preference");
+    expect(sql).toContain("DELIVERY_PREFERENCE_INVALID");
+  });
+
+  it("keeps the resolver out of reach of API roles", () => {
+    expect(sql).toMatch(
+      /revoke execute on function [^\n]*resolve_payment_terms[^\n]* from public, anon, authenticated/,
+    );
+  });
+});

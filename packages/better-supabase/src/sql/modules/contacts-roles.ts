@@ -1,7 +1,10 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { PartyNames } from "./contacts-functions.ts";
 
-import { SUPPLIER_STATUSES } from "../../blocks/contacts/roles.ts";
+import {
+  CREDIT_BLOCKS,
+  SUPPLIER_STATUSES,
+} from "../../blocks/contacts/roles.ts";
 import { sqlString } from "../../core/template.ts";
 import { fail, userGrant } from "../shared.ts";
 import { holderTypes } from "./qualifications-shared.ts";
@@ -11,20 +14,26 @@ export { PARTY_ROLES } from "../../blocks/contacts/roles.ts";
 /** The role and commercial columns companies and people share. */
 export const ROLE_COLUMNS = {
   roles: "roles",
-  paymentTermsDays: "payment_terms_days",
+  customerTermsId: "customer_terms_id",
+  supplierTermsId: "supplier_terms_id",
   creditLimit: "credit_limit",
   creditCurrency: "credit_currency",
+  creditBlock: "credit_block",
   supplierStatus: "supplier_status",
+  language: "language",
 } as const;
 
 type RoleColumn = keyof typeof ROLE_COLUMNS;
 
 export const ROLE_OPTIONAL: readonly RoleColumn[] = [
   "roles",
-  "paymentTermsDays",
+  "customerTermsId",
+  "supplierTermsId",
   "creditLimit",
   "creditCurrency",
+  "creditBlock",
   "supplierStatus",
+  "language",
 ];
 
 type PartyTable = "companies" | "people";
@@ -38,11 +47,19 @@ const statusList = SUPPLIER_STATUSES.map((status) => sqlString(status)).join(
 /** The currency comes before the limit, whose check reads it. */
 const ROLE_ORDER: readonly RoleColumn[] = [
   "roles",
-  "paymentTermsDays",
+  "customerTermsId",
+  "supplierTermsId",
   "creditCurrency",
   "creditLimit",
+  "creditBlock",
   "supplierStatus",
+  "language",
 ];
+
+const blockList = CREDIT_BLOCKS.map((block) => sqlString(block)).join(", ");
+
+/** What a language column holds: a BCP 47 tag such as `nl` or `pt-BR`. */
+const LANGUAGE_PATTERN = "'^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'";
 
 /** Each role column's type and checks, over its rendered name. */
 function definitions(
@@ -53,8 +70,12 @@ function definitions(
 
   const types: Readonly<Record<RoleColumn, () => string>> = {
     roles: () => `text[] not null default '{}'::text[]`,
-    paymentTermsDays: () =>
-      `integer check (${c("paymentTermsDays")} >= 0 and ${c("paymentTermsDays")} <= 3650)`,
+    customerTermsId: () =>
+      `uuid references ${ctx.table("terms")} (${ctx.col("terms", "id")}) on delete set null`,
+    supplierTermsId: () =>
+      `uuid references ${ctx.table("terms")} (${ctx.col("terms", "id")}) on delete set null`,
+    creditBlock: () => `text check (${c("creditBlock")} in (${blockList}))`,
+    language: () => `text check (${c("language")} ~ ${LANGUAGE_PATTERN})`,
     creditCurrency: () => `text check (${c("creditCurrency")} ~ '^[A-Z]{3}$')`,
     creditLimit: () =>
       ctx.has(table, "creditCurrency")
@@ -90,7 +111,15 @@ export function roleIndexes(ctx: BlockSqlContext, table: PartyTable): string {
     ? `\ncreate index if not exists ${ctx.naming.rename(`${name}_supplier_status_idx`)} on ${t} (${c("tenant")}, ${c("supplierStatus")}) where ${c("supplierStatus")} is not null;`
     : "";
 
-  return `${roles}${status}`;
+  const terms = (["customerTermsId", "supplierTermsId"] as const)
+    .filter((logical) => ctx.has(table, logical))
+    .map(
+      (logical) =>
+        `\ncreate index if not exists ${ctx.naming.rename(`${name}_${ROLE_COLUMNS[logical]}_idx`)} on ${t} (${c(logical)}) where ${c(logical)} is not null;`,
+    )
+    .join("");
+
+  return `${roles}${status}${terms}`;
 }
 
 /**
@@ -122,20 +151,31 @@ export function termsChecks(
   ctx: BlockSqlContext,
   table: PartyTable,
   attrs: string,
+  tenant: string,
 ): string {
   const value = (key: string): string => `${attrs} ->> ${sqlString(key)}`;
   const has = (key: string): string => `${attrs} ? ${sqlString(key)}`;
 
   const invalid = fail(
     "PARTY_TERMS_INVALID",
-    "payment terms are 0 to 3650 days; a credit limit is minor units with a currency",
+    "a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR",
     "22023",
   );
 
+  const termsOf = (key: string): string =>
+    `${value(key)} is not null and not exists (select 1 from ${ctx.table("terms")} pt where pt.${ctx.col("terms", "id")}::text = ${value(key)} and pt.${ctx.col("terms", "tenant")} = ${tenant})`;
+
   const checks = [
-    ...(ctx.has(table, "paymentTermsDays")
+    ...(ctx.has(table, "customerTermsId") ? [termsOf("customerTermsId")] : []),
+    ...(ctx.has(table, "supplierTermsId") ? [termsOf("supplierTermsId")] : []),
+    ...(ctx.has(table, "creditBlock")
       ? [
-          `${value("paymentTermsDays")} is not null and (case when ${value("paymentTermsDays")} ~ '^[0-9]{1,4}$' then (${value("paymentTermsDays")})::integer > 3650 else true end)`,
+          `${value("creditBlock")} is not null and lower(trim(${value("creditBlock")})) not in (${blockList})`,
+        ]
+      : []),
+    ...(ctx.has(table, "language")
+      ? [
+          `${value("language")} is not null and nullif(trim(${value("language")}), '') is not null and trim(${value("language")}) !~ ${LANGUAGE_PATTERN}`,
         ]
       : []),
     ...(ctx.has(table, "creditLimit")
@@ -176,7 +216,7 @@ const KINDS: readonly (readonly [Kind, PartyTable])[] = [
  * PL/pgSQL that finds the active company or person `id` names: its kind, tenant
  * and name.
  */
-function lookup(names: PartyNames, id: string): string {
+export function lookup(names: PartyNames, id: string): string {
   const { t, c } = names;
 
   return KINDS.map(

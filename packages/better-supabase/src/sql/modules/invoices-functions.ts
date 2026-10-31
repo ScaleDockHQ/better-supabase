@@ -37,6 +37,7 @@ import { invoiceCollections } from "./invoices-collections.ts";
 import { invoiceFromQuote } from "./invoices-from-quote.ts";
 import { invoiceLedger, paymentKey } from "./invoices-ledger.ts";
 import { invoicePurchase, PURCHASE_VALUES } from "./invoices-purchase.ts";
+import { createTerms, discountIssue } from "./invoices-terms.ts";
 import { sequenceEntry } from "./numbering-entities.ts";
 import { createdFromLink } from "./quotes-functions.ts";
 
@@ -161,6 +162,9 @@ export function invoiceFunctions(
   const also = (logical: string): string =>
     has(logical) ? `, ${i(logical)}` : "";
 
+  const early = discountIssue(ctx, "v_row", "v_issued_on");
+  const terms = createTerms(ctx);
+
   // value when the column exists, for valueLines().
   const present = (logical: string, value: string): string | undefined =>
     has(logical) ? value : undefined;
@@ -217,6 +221,7 @@ export function invoiceFunctions(
     ...Object.keys(TOTAL_COLUMNS),
     "depositAmount",
     "discountAmount",
+    "discountAmountEarly",
   ].filter(has);
 
   const int8 = amounts.map(i);
@@ -625,7 +630,7 @@ declare
   v_company_type text := coalesce(create_invoice.attrs -> 'company' ->> 'type', ${sqlString(n.company)});
   v_company_id text := create_invoice.attrs -> 'company' ->> 'id';
   v_contact_type text := coalesce(create_invoice.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)});
-  v_contact_id text := create_invoice.attrs -> 'contact' ->> 'id';
+  v_contact_id text := create_invoice.attrs -> 'contact' ->> 'id';${terms.declare}
 begin
   if not (${n.service} or ${ctx.scope.can("create_invoice.tenant", p.create("create_invoice.attrs"))}) then
     ${fail("INVOICE_FORBIDDEN", "not allowed to change invoices")}
@@ -639,10 +644,10 @@ begin
     ${fail("INVOICE_ORIGIN_UNSUPPORTED", "this invoices table takes only a quote as the origin", "22023")}
   end if;`
       : ""
-  }${refuse(has("depositBps"), "create_invoice.attrs ->> 'depositBps'", "DEPOSIT", "deposit column")}${refuse(has("pricesIncludeTax"), "nullif(create_invoice.attrs ->> 'pricesIncludeTax', 'false')", "PRICING", "prices_include_tax column")}${headerRefusals("create_invoice.attrs")}
+  }${refuse(has("depositBps"), "create_invoice.attrs ->> 'depositBps'", "DEPOSIT", "deposit column")}${refuse(has("pricesIncludeTax"), "nullif(create_invoice.attrs ->> 'pricesIncludeTax', 'false')", "PRICING", "prices_include_tax column")}${headerRefusals("create_invoice.attrs")}${terms.lookup}
   begin
     insert into ${t("invoices")} (${i("tenant")}, ${i("title")}${also("companyType")}${also("companyId")}${also("contactType")}${also("contactId")}, ${i("currency")},
-      ${i("termsDays")}${also("note")}${also("originType")}${also("originId")}${also("depositBps")}${also("depositAmount")}${also("discountBps")}${also("discountAmount")}${also("pricesIncludeTax")}${also("direction")}${also("supplierReference")}${also("purchaseOrder")}${also("dimensions")}${also("createdBy")}${insertExtraColumns(t("invoices"), n.extras, "create_invoice.attrs").columns})
+      ${i("termsDays")}${also("note")}${also("originType")}${also("originId")}${also("depositBps")}${also("depositAmount")}${also("discountBps")}${also("discountAmount")}${also("pricesIncludeTax")}${also("direction")}${also("supplierReference")}${also("purchaseOrder")}${also("dimensions")}${terms.column}${also("createdBy")}${insertExtraColumns(t("invoices"), n.extras, "create_invoice.attrs").columns})
     values (${valueLines(
       "      ",
       ["create_invoice.tenant", "trim(create_invoice.attrs ->> 'title')"],
@@ -662,7 +667,7 @@ begin
       ],
       [
         "upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR'))",
-        `case when create_invoice.attrs ? 'termsDays' then (create_invoice.attrs ->> 'termsDays')::integer else ${String(n.termsDays)} end`,
+        `case when create_invoice.attrs ? 'termsDays' then (create_invoice.attrs ->> 'termsDays')::integer else ${terms.days(String(n.termsDays))} end`,
       ],
       [
         present("note", "create_invoice.attrs ->> 'note'"),
@@ -694,6 +699,7 @@ begin
           "coalesce((create_invoice.attrs ->> 'pricesIncludeTax')::boolean, false)",
         ),
         ...PURCHASE_VALUES.map(([key, value]) => present(key, value)),
+        terms.value,
         present("createdBy", "auth.uid()"),
       ],
     )}${insertExtraColumns(t("invoices"), n.extras, "create_invoice.attrs").values})
@@ -756,6 +762,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_warnings jsonb;${early.declare}
 begin
   select * into v_row from ${t("invoices")} x where x.${i("id")} = issue_invoice.invoice and ${can("x", n.issue)} for update;
   if v_row.${i("id")} is null then
@@ -771,7 +778,7 @@ begin
     ${fail("INVOICE_DUE_INVALID", "an invoice falls due on or after its issue date", "22023")}
   end if;
   ${transitionActorSql("issue_invoice.actor", "INVOICE_ACTOR_INVALID")}
-  ${ctx.hook("before_invoice_issue", [["uuid", `v_row.${i("id")}`]])}${taxIssue(ctx, "v_row", "v_issued_on")}
+  ${ctx.hook("before_invoice_issue", [["uuid", `v_row.${i("id")}`]])}${taxIssue(ctx, "v_row", "v_issued_on")}${early.load}
   if ${kd(`v_row.${i("kind")}`, ["credit_note"])} then
     select * into v_original from ${t("invoices")} x where x.${i("id")} = v_row.${i("original")} for update;
     if v_row.${i("total")} > v_original.${i("total")}${charges ? ` + ${charged("v_original")}` : ""} - v_original.${i("creditedTotal")} then
@@ -783,7 +790,7 @@ begin
   end if;${p.issue("v_row")}
   update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "issued")}, ${i("number")} = v_seq, ${i("identifier")} = v_identifier,
     ${i("issuedOn")} = v_issued_on,
-    ${i("dueOn")} = coalesce(issue_invoice.due_on, v_issued_on + x.${i("termsDays")}),
+    ${i("dueOn")} = coalesce(issue_invoice.due_on, v_issued_on + x.${i("termsDays")}),${early.set}
     ${i("updatedAt")} = now()
   where x.${i("id")} = v_row.${i("id")}
   returning * into v_row;
@@ -799,7 +806,7 @@ begin
   end if;
   ${bookSource(ctx, "invoice", `v_row.${i("id")}`)}
   ${ctx.hook("after_invoice_issue", [["uuid", `v_row.${i("id")}`]])}
-  return ${row("v_row")};
+  return ${row("v_row")}|| case when v_warnings is null then '{}'::jsonb else jsonb_build_object('warnings', v_warnings) end;
 end;
 $$;
 ${userGrant(`${fn("issue_invoice")}(uuid, date, date, jsonb, text)`)}

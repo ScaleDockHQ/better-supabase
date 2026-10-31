@@ -62,6 +62,11 @@ const REVIEW_0_47: readonly ReviewHint[] = [
       "Tax codes moved to the tax block: read `tax_codes` and `tax_rates` instead of `accounting_tax_codes`, and call `tax.saveCode` and `tax.codes` instead of the accounting `saveTaxCode` and `taxCodes` (`save_tax_code` and `list_tax_codes` in SQL)",
   },
   {
+    pattern: /\bpayment_terms_days\b|\bpaymentTermsDays\b/,
+    message:
+      "Contacts keep payment terms in `payment_terms` rows: replace `payment_terms_days` and `paymentTermsDays` with `customer_terms_id` and `supplier_terms_id` (`customerTermsId` and `supplierTermsId`), and create the terms with `contacts.savePaymentTerm` (the migration guide has the SQL to convert existing days)",
+  },
+  {
     pattern: /\bactionItems\b|\baction_items\b/,
     message:
       "Postmortem `actionItems` and the `action_items` column are removed: write action items with `addPostmortemAction` (tasks block) and read the postmortem's `actions`",

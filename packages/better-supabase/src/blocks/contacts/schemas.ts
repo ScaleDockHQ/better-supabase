@@ -6,7 +6,7 @@ import type {
 } from "./contacts.ts";
 
 import { entitySchema, moneyField } from "../entity-schema.ts";
-import { SUPPLIER_STATUSES } from "./roles.ts";
+import { CREDIT_BLOCKS, SUPPLIER_STATUSES } from "./roles.ts";
 
 const NAME = {
   kind: "string",
@@ -29,13 +29,15 @@ export const companyInputSchema: EntitySchema<CompanyInput> =
       lifecycle: { kind: "string", optional: true },
       ownerId: { kind: "uuid", optional: true, nullable: true },
       address: { kind: "json", optional: true, nullable: true },
-      paymentTermsDays: {
-        kind: "integer",
+      customerTermsId: { kind: "uuid", optional: true, nullable: true },
+      supplierTermsId: { kind: "uuid", optional: true, nullable: true },
+      creditBlock: {
+        kind: "enum",
+        values: CREDIT_BLOCKS,
         optional: true,
         nullable: true,
-        minimum: 0,
-        maximum: 3650,
       },
+      language: { kind: "string", optional: true, nullable: true },
       creditLimit: { ...moneyField, optional: true, nullable: true },
       fields: {
         kind: "json",
@@ -58,13 +60,15 @@ export const personInputSchema: EntitySchema<PersonInput> =
       lifecycle: { kind: "string", optional: true },
       ownerId: { kind: "uuid", optional: true, nullable: true },
       userId: { kind: "uuid", optional: true, nullable: true },
-      paymentTermsDays: {
-        kind: "integer",
+      customerTermsId: { kind: "uuid", optional: true, nullable: true },
+      supplierTermsId: { kind: "uuid", optional: true, nullable: true },
+      creditBlock: {
+        kind: "enum",
+        values: CREDIT_BLOCKS,
         optional: true,
         nullable: true,
-        minimum: 0,
-        maximum: 3650,
       },
+      language: { kind: "string", optional: true, nullable: true },
       creditLimit: { ...moneyField, optional: true, nullable: true },
       fields: {
         kind: "json",

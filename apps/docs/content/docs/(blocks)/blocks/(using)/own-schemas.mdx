@@ -245,6 +245,8 @@ may be your own enum or domain.
   - `better_supabase.companies`: `id`, `tenant_id`, `name`, `domain`, `website`, `lifecycle`, `merged_into`, `archived_at`, `created_at`, `updated_at`; typed: `lifecycle`
   - `better_supabase.people`: `id`, `tenant_id`, `name`, `email`, `phone`, `title`, `lifecycle`, `owner_user_id`, `user_id`, `merged_into`, `archived_at`, `created_at`, `updated_at`; typed: `lifecycle`
   - `better_supabase.company_people`: `tenant_id`, `company_id`, `person_id`, `is_primary`, `created_at`
+  - `better_supabase.payment_terms`: `id`, `tenant_id`, `code`, `name`, `days`, `discount_bps`, `discount_days`, `credit_restriction_bps`, `created_at`, `updated_at`
+  - `better_supabase.document_delivery_preferences`: `id`, `tenant_id`, `party_id`, `document_type`, `channel`, `copies`, `email`, `created_at`, `updated_at`
   - `better_supabase.person_identities`: `id`, `tenant_id`, `person_id`, `channel`, `address`
 - `content`
   - `better_supabase.content_entries`: `id`, `tenant_id`, `type`, `locale`, `slug`, `title`, `body`, `status`, `publish_at`, `published_at`, `author_id`, `translation_group_id`, `created_at`, `updated_at`; typed: `type`, `locale`, `status`
@@ -414,6 +416,9 @@ may be your own enum or domain.
   - `better_supabase.invoice_lines`: `id`, `tenant_id`, `parent_id`, `description`, `quantity`, `unit_amount`, `position`; typed: `product_type`
   - `better_supabase.invoice_charges`: `id`, `tenant_id`, `invoice_id`, `amount`
   - `better_supabase.invoice_dunning_levels`: `id`, `tenant_id`, `level`, `days_after_due`, `template_key`, `fee`, `final`, `created_at`, `updated_at`
+  - `better_supabase.invoice_dunning_runs`: `id`, `tenant_id`, `as_of`, `created_at`
+  - `better_supabase.invoice_dunning_run_items`: `id`, `tenant_id`, `run_id`, `invoice_id`, `level`, `template_key`, `fee`, `balance`, `due_on`, `created_at`
+  - `better_supabase.invoice_dunning_history`: `id`, `tenant_id`, `invoice_id`, `kind`, `level`, `fee`, `balance`, `created_at`
 - `knowledge`
   - `better_supabase.knowledge_documents`: `id`, `organization_id`, `owner_id`, `scope`, `scope_id`, `title`, `status`, `updated_at`; typed: `scope`, `status`
   - `better_supabase.knowledge_collections`: `id`, `organization_id`, `name`, `description`, `visibility`, `priority`, `created_by`, `created_at`, `updated_at`; typed: `visibility`

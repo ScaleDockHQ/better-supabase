@@ -242,6 +242,16 @@ msgctxt "customers.BOCaFq"
 msgid "Everyone your organization works with."
 msgstr "Iedereen met wie je organisatie werkt."
 
+#: src/app/[locale]/(app)/dam/page.tsx
+msgctxt "dam.d1uESJ"
+msgid "Assets"
+msgstr ""
+
+#: src/app/[locale]/(app)/dam/page.tsx
+msgctxt "dam.NZSq_3"
+msgid "Who may use your files, where, and until when."
+msgstr ""
+
 #: src/app/[locale]/(app)/documents/[id]/page.tsx
 msgctxt "documents.lXxMRw"
 msgid "All documents"
@@ -6607,6 +6617,101 @@ msgctxt "customers.0HT-Ib"
 msgid "Archived"
 msgstr "Gearchiveerd"
 
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.jh-9q7"
+msgid "Everywhere"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.6XI_gj"
+msgid "Every channel"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.3a5wL8"
+msgid "Active"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.6_aEFZ"
+msgid "Upcoming"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.RahCRH"
+msgid "Expired"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.f0W26f"
+msgid "Revoked"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.2ycmtn"
+msgid "Licensee"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.50ToSt"
+msgid "Territory and channel"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.xhQMeQ"
+msgid "Expires"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.tzMNF3"
+msgid "Status"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.ILMGTJ"
+msgid "Usage rights"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.uVlJ68"
+msgid "Each right names a licensee, where it applies and when it ends."
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.AWWxQW"
+msgid "The usage rights didn't load"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.162kF7"
+msgid "Try again in a moment."
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.62nsdy"
+msgid "Retry"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.K9hKm9"
+msgid "No usage rights yet"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.qieq3I"
+msgid "Grant a right on a file with a licensee, a territory and an expiry date, and the member who granted it is reminded before it ends."
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.3hJIvX"
+msgid "Read the asset management guide"
+msgstr ""
+
+#: src/features/dam/components/usage-rights.tsx
+msgctxt "dam.FnQZ7R"
+msgid "Revoke the next active right"
+msgstr ""
+
 #: src/features/dashboard/components/customers-card.tsx
 msgctxt "dashboard.2PTEWU"
 msgid "Leads"
@@ -10396,6 +10501,11 @@ msgstr "Audits en inspecties"
 msgctxt "navigation.dMaTpi"
 msgid "Meetings"
 msgstr "Vergaderingen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.d1uESJ"
+msgid "Assets"
+msgstr ""
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.dudqv_"

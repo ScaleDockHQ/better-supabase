@@ -14,7 +14,13 @@ import type {
   RepresentativeAuthority,
   RepresentativeRole,
 } from "./representatives.ts";
-import type { SupplierStatus } from "./roles.ts";
+import type { CreditBlock, SupplierStatus } from "./roles.ts";
+import type {
+  DeliveryPreference,
+  DeliveryPreferenceInput,
+  PaymentTerm,
+  PaymentTermInput,
+} from "./terms.ts";
 
 import {
   blockFields,
@@ -42,7 +48,8 @@ import {
   REPRESENTATIVE_AUTHORITIES,
   REPRESENTATIVE_ROLES,
 } from "./representatives.ts";
-import { SUPPLIER_STATUSES } from "./roles.ts";
+import { CREDIT_BLOCKS, SUPPLIER_STATUSES } from "./roles.ts";
+import { deliveryPreferenceOf, paymentTermOf } from "./terms.ts";
 
 /** Where a page of a list stops: the last row's name and id. */
 export interface PartyCursor {
@@ -67,8 +74,19 @@ interface PartyRecord {
   readonly archived: boolean;
   /** Customer, supplier, funder, partner: `options.roles`, sorted. */
   readonly roles: readonly string[];
-  readonly paymentTermsDays?: number;
+  /** The payment terms an invoice to this customer copies. */
+  readonly customerTermsId?: string;
+  /** The payment terms a bill from this supplier copies. */
+  readonly supplierTermsId?: string;
   readonly creditLimit?: Money;
+  /**
+   * What happens when a sale takes the customer over `creditLimit`: `none`
+   * ignores the limit, `soft` returns a warning and `hard` (the default)
+   * refuses.
+   */
+  readonly creditBlock?: CreditBlock;
+  /** The language of the party's documents, such as `nl` or `pt-BR`. */
+  readonly language?: string;
   /** Where the record stands as a supplier; unset when not assessed. */
   readonly supplierStatus?: SupplierStatus;
   /** The app's extra columns (`options.extraColumns`), by column name. */
@@ -82,8 +100,14 @@ export type Party<F extends object = Record<never, never>> =
 
 /** The commercial terms a company or a person takes in a write. */
 interface TermsInput {
-  /** Days until an invoice is due, 0 to 3650. */
-  readonly paymentTermsDays?: number | null;
+  /** The payment terms an invoice to this customer copies. */
+  readonly customerTermsId?: string | null;
+  /** The payment terms a bill from this supplier copies. */
+  readonly supplierTermsId?: string | null;
+  /** `none`, `soft` or `hard`; `null` is `hard`. */
+  readonly creditBlock?: CreditBlock | null;
+  /** The language of the party's documents, such as `nl` or `pt-BR`. */
+  readonly language?: string | null;
   /** The credit the organization extends, in minor units with its currency. */
   readonly creditLimit?: Money | null;
 }
@@ -280,6 +304,28 @@ export interface Contacts<F extends object = Record<never, never>> {
   ): AsyncResult<PersonIdentity>;
   /** Removes an identity; `false` when there was none. */
   removeIdentity(identityId: string): AsyncResult<boolean>;
+  /**
+   * Creates payment terms, or changes the ones with the same code. Needs
+   * `contacts.manage`.
+   */
+  savePaymentTerm(
+    organizationId: string,
+    input: PaymentTermInput,
+  ): AsyncResult<PaymentTerm>;
+  /** An organization's payment terms, by code. */
+  paymentTerms(organizationId: string): AsyncResult<PaymentTerm[]>;
+  /** Deletes payment terms; `false` when there were none. */
+  deletePaymentTerm(termsId: string): AsyncResult<boolean>;
+  /**
+   * Replaces how a company or person gets its documents. An email entry without
+   * an address uses the party's own.
+   */
+  setDeliveryPreferences(
+    partyId: string,
+    preferences: readonly DeliveryPreferenceInput[],
+  ): AsyncResult<DeliveryPreference[]>;
+  /** How a company or person gets its documents. */
+  deliveryPreferences(partyId: string): AsyncResult<DeliveryPreference[]>;
   /** The person an address on a channel belongs to. */
   findByIdentity(
     organizationId: string,
@@ -330,8 +376,11 @@ const COMMON = [
   "owner_user_id",
   "merged_into",
   "roles",
-  "payment_terms_days",
+  "customer_terms_id",
+  "supplier_terms_id",
   "credit_limit",
+  "credit_block",
+  "language",
   "credit_currency",
   "supplier_status",
   "archived_at",
@@ -374,7 +423,10 @@ function base(
   const ownerId = optionalText(row["owner_user_id"]);
   const mergedInto = optionalText(row["merged_into"]);
   const roles = row["roles"];
-  const terms = row["payment_terms_days"];
+  const customerTermsId = optionalText(row["customer_terms_id"]);
+  const supplierTermsId = optionalText(row["supplier_terms_id"]);
+  const creditBlock = optionalText(row["credit_block"]);
+  const language = optionalText(row["language"]);
 
   const creditLimit = optionalMoneyOf(
     row["credit_limit"],
@@ -394,7 +446,14 @@ function base(
     fields: isRecord(fields) ? fields : fieldsOf(row, known),
     ...(ownerId === undefined ? {} : { ownerId }),
     ...(mergedInto === undefined ? {} : { mergedInto }),
-    ...(typeof terms === "number" ? { paymentTermsDays: terms } : {}),
+    ...(customerTermsId === undefined ? {} : { customerTermsId }),
+    ...(supplierTermsId === undefined ? {} : { supplierTermsId }),
+    ...(creditBlock === undefined
+      ? {}
+      : {
+          creditBlock: enumOrThrow(creditBlock, CREDIT_BLOCKS, "credit block"),
+        }),
+    ...(language === undefined ? {} : { language }),
     ...(creditLimit === undefined ? {} : { creditLimit }),
     ...(status === undefined
       ? {}
@@ -694,6 +753,33 @@ export function createContacts<
         "remove_person_identity",
         { identity: identityId },
         (value) => value === true,
+      ),
+    savePaymentTerm: (organizationId, input) =>
+      call(
+        "save_payment_term",
+        { tenant: organizationId, attrs: input },
+        paymentTermOf,
+      ),
+    paymentTerms: (organizationId) =>
+      call("list_payment_terms", { tenant: organizationId }, (value) =>
+        recordsOf(value, "list_payment_terms").map(paymentTermOf),
+      ),
+    deletePaymentTerm: (termsId) =>
+      call("delete_payment_term", { id: termsId }, (value) => value === true),
+    setDeliveryPreferences: (partyId, preferences) =>
+      call(
+        "set_document_delivery_preferences",
+        { party: partyId, prefs: preferences },
+        (value) =>
+          recordsOf(value, "set_document_delivery_preferences").map(
+            deliveryPreferenceOf,
+          ),
+      ),
+    deliveryPreferences: (partyId) =>
+      call("list_document_delivery_preferences", { party: partyId }, (value) =>
+        recordsOf(value, "list_document_delivery_preferences").map(
+          deliveryPreferenceOf,
+        ),
       ),
     findByIdentity: (organizationId, channel, address) =>
       call(

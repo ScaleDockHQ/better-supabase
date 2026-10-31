@@ -8,7 +8,12 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { Line, LineInput, Totals } from "../sales-lines.ts";
 import type { RecordRef } from "../sales-shared.ts";
 import type { BlockTemporalOptions, TransitionActor } from "../shared.ts";
-import type { InvoiceCollections, InvoiceDunning } from "./collections.ts";
+import type {
+  InvoiceCollections,
+  InvoiceDunning,
+  InvoiceCollection,
+  InvoicePaymentTerms,
+} from "./collections.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -35,7 +40,13 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
-import { DUNNING_KEYS, dunningOf, invoiceCollections } from "./collections.ts";
+import {
+  collectionOf,
+  DUNNING_KEYS,
+  dunningOf,
+  invoiceCollections,
+  paymentTermsOf,
+} from "./collections.ts";
 
 export type { Line, LineInput, Totals } from "../sales-lines.ts";
 
@@ -175,12 +186,29 @@ export interface Invoice<F extends object = Record<never, never>> {
   readonly pricesIncludeTax: boolean;
   /** Reminder level and pause, when the table has the dunning columns. */
   readonly dunning?: InvoiceDunning;
+  /** The payment terms copied from the party and the early-payment discount. */
+  readonly paymentTerms?: InvoicePaymentTerms;
+  /** Set when the invoice was handed over to a collection agency. */
+  readonly collection?: InvoiceCollection;
+  /**
+   * What `issue` let through: `INVOICE_CREDIT_LIMIT_EXCEEDED` when a customer
+   * with a `soft` credit block went over their limit.
+   */
+  readonly warnings?: readonly InvoiceWarning[];
   readonly lines: readonly Line[];
   readonly payments: readonly InvoicePayment[];
   readonly totals: Totals;
   /** The app's extra columns (`options.extraColumns`), by column name. */
   readonly fields: Readonly<Record<string, unknown>> & F;
   readonly createdAt: Temporal.Instant;
+}
+
+/** A condition `issue` accepted but the caller should see. */
+export interface InvoiceWarning {
+  readonly code: string;
+  readonly message: string;
+  /** The credit limit in minor units, for a credit warning. */
+  readonly limit?: bigint;
 }
 
 export interface InvoiceInput<F extends object = Record<never, never>> {
@@ -200,6 +228,11 @@ export interface InvoiceInput<F extends object = Record<never, never>> {
   readonly company?: RecordRef;
   readonly contact?: RecordRef;
   readonly termsDays?: number;
+  /**
+   * Payment terms of the organization to copy instead of the party's. Without
+   * `termsDays` their due days apply. Needs the `payment_terms_id` column.
+   */
+  readonly paymentTermsId?: string;
   readonly note?: string;
   readonly origin?: RecordRef;
   /** Unit amounts include tax. Needs the `prices_include_tax` column. */
@@ -416,6 +449,13 @@ const KNOWN = new Set([
   "supplier_reference",
   "purchase_order_id",
   "dimensions",
+  "payment_terms_id",
+  "discount_due_on",
+  "discount_amount_early",
+  "collection_status",
+  "collection_agency_id",
+  "collection_handed_at",
+  "warnings",
   "created_by",
   "created_at",
   "updated_at",
@@ -566,6 +606,9 @@ function invoiceOf(value: unknown): Invoice {
         : undefined,
     pricesIncludeTax: row["prices_include_tax"] === true,
     dunning: dunningOf(row),
+    paymentTerms: paymentTermsOf(row, currency),
+    collection: collectionOf(row),
+    warnings: warningsOf(row["warnings"]),
     lines: recordsOf(row["lines"], "invoice lines").map((line) =>
       lineOf(line, currency),
     ),
@@ -578,6 +621,23 @@ function invoiceOf(value: unknown): Invoice {
     ),
     createdAt: requiredInstant(row["created_at"], "createdAt"),
   });
+}
+
+function warningsOf(value: unknown): readonly InvoiceWarning[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  return recordsOf(value, "invoice warnings").map((warning) =>
+    compact<InvoiceWarning>({
+      code: textOf(warning["code"]),
+      message: textOf(warning["message"]),
+      limit:
+        typeof warning["limit"] === "string"
+          ? BigInt(warning["limit"])
+          : undefined,
+    }),
+  );
 }
 
 /**

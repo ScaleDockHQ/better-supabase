@@ -69,3 +69,16 @@ selling and buying as much as to the books, so they can't stay inside
   covers it.
 - Country returns beyond the box mapping and ICP stay an app or adapter
   concern. Revisit if a second country needs a different return shape.
+
+## Amended: payment terms and dunning
+
+`payment_terms` (days, early-payment discount, credit restriction) replace the
+`payment_terms_days` column on companies and people. An invoice copies the
+party's terms through an internal resolver, with no foreign key between blocks,
+and `issue` stores `discount_due_on` and `discount_amount_early`. The credit
+restriction passes to `compute_document_tax`, so tax is computed on the reduced
+amount and shows in `invoice_tax_lines` while the header `tax_total` stays as
+issued. A customer's `credit_block` is `none`, `soft` or `hard`: soft returns a
+warning in the result, and a missing value counts as hard. Each dunning pass
+records a run with its items and per-invoice history, and
+`hand_over_to_collection` stops dunning for the invoices it moves to an agency.

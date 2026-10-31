@@ -34,6 +34,12 @@ import {
   dunningTableSql,
 } from "./invoices-collections.ts";
 import {
+  DUNNING_HISTORY_TABLE,
+  DUNNING_RUN_ITEMS_TABLE,
+  DUNNING_RUNS_TABLE,
+  dunningRunTablesSql,
+} from "./invoices-dunning-runs.ts";
+import {
   chargeExtraColumns,
   invoiceFunctions,
   invoiceOptIn,
@@ -47,6 +53,11 @@ import {
 } from "./invoices-import.ts";
 import { invoicePaymentsUpgrade } from "./invoices-ledger.ts";
 import { PURCHASE_COLUMNS, purchaseNames } from "./invoices-purchase.ts";
+import {
+  HANDOVER_COLUMNS,
+  TERMS_COLUMNS,
+  termsColumnsSql,
+} from "./invoices-terms.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -151,6 +162,8 @@ const NAMES: BlockSqlNames = {
             ...PURCHASE_COLUMNS,
             ...COLLECTION_COLUMNS,
             "buyer",
+            ...TERMS_COLUMNS,
+            ...HANDOVER_COLUMNS,
           ].filter(
             (column) =>
               typeof ctx.config.columns["invoices"]?.[column] !== "string",
@@ -197,6 +210,12 @@ const NAMES: BlockSqlNames = {
         dunningAt: "dunning_at",
         dunningPausedUntil: "dunning_paused_until",
         buyer: "buyer",
+        paymentTermsId: "payment_terms_id",
+        discountDueOn: "discount_due_on",
+        discountAmountEarly: "discount_amount_early",
+        collectionStatus: "collection_status",
+        collectionAgencyId: "collection_agency_id",
+        collectionHandedAt: "collection_handed_at",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -221,6 +240,8 @@ const NAMES: BlockSqlNames = {
         ...PURCHASE_COLUMNS,
         ...COLLECTION_COLUMNS,
         "buyer",
+        ...TERMS_COLUMNS,
+        ...HANDOVER_COLUMNS,
         "createdBy",
         "listTotal",
         "discountTotal",
@@ -246,6 +267,9 @@ const NAMES: BlockSqlNames = {
       optional: ["currency", "description", "createdBy", "createdAt"],
     },
     dunningLevels: DUNNING_LEVELS_TABLE,
+    dunningRuns: DUNNING_RUNS_TABLE,
+    dunningRunItems: DUNNING_RUN_ITEMS_TABLE,
+    dunningHistory: DUNNING_HISTORY_TABLE,
   },
 };
 
@@ -355,7 +379,7 @@ create table if not exists ${t("invoices")} (
   ${i("paidTotal")} bigint not null default 0,
   ${i("creditedTotal")} bigint not null default 0,
   ${i("paidAt")} timestamptz,
-  ${i("voidedAt")} timestamptz,${column("voidReason", "text")}${column("note", "text")}${column("originType", "text")}${column("originId", "text")}${ctx.has("invoices", "depositBps") ? `\n  ${i("depositBps")} integer check (${i("depositBps")} > 0 and ${i("depositBps")} < 10000),` : ""}${column("pricesIncludeTax", "boolean not null default false")}${column("direction", (name) => `text not null default 'sales' check (${name} in ('sales', 'purchase'))`)}${column("supplierReference", (name) => `text check (length(${name}) <= 200)`)}${column("purchaseOrder", "uuid")}${column("dimensions", (name) => `jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}${collectionColumnsSql(column)}${column("buyer", "jsonb")}${column("createdBy", "uuid")}
+  ${i("voidedAt")} timestamptz,${column("voidReason", "text")}${column("note", "text")}${column("originType", "text")}${column("originId", "text")}${ctx.has("invoices", "depositBps") ? `\n  ${i("depositBps")} integer check (${i("depositBps")} > 0 and ${i("depositBps")} < 10000),` : ""}${column("pricesIncludeTax", "boolean not null default false")}${column("direction", (name) => `text not null default 'sales' check (${name} in ('sales', 'purchase'))`)}${column("supplierReference", (name) => `text check (length(${name}) <= 200)`)}${column("purchaseOrder", "uuid")}${column("dimensions", (name) => `jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}${collectionColumnsSql(column)}${column("buyer", "jsonb")}${termsColumnsSql(column)}${column("createdBy", "uuid")}
   ${i("createdAt")} timestamptz not null default now(),
   ${i("updatedAt")} timestamptz not null default now(),
   ${totalColumnsSql(ctx, "invoices")},
@@ -395,7 +419,7 @@ ${renderPolicy(
   }),
   { drop: true, target: t("invoices") },
 )}
-${charges}${dunningTableSql(ctx, n.read)}
+${charges}${dunningTableSql(ctx, n.read)}${dunningRunTablesSql(ctx, t("invoices"), i("id"), n.read)}
 `;
 }
 

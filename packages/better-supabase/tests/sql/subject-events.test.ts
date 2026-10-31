@@ -46,6 +46,7 @@ const SUBJECT_EVENTS = [
   "invoice.credit_applied",
   "invoice.dunning_escalated",
   "invoice.dunning_paused",
+  "invoice.collection_started",
   "task.created",
   "task.updated",
   "task.assigned",

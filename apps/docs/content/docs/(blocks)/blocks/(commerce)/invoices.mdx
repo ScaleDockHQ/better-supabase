@@ -368,6 +368,8 @@ invoice adds its total to what the customer already owes in that currency and
 compares the sum with the party's `credit_limit`. Over the limit, `issue`
 fails with `INVOICE_CREDIT_LIMIT_EXCEEDED` unless the caller holds
 `orders.override_credit`. The limit counts only in its own `credit_currency`.
+A customer whose `credit_block` is `soft` is let through, and the overage comes
+back as `warnings` in the result; `none` skips the check.
 
 ## Party payments and credit
 
@@ -445,6 +447,21 @@ members only; send the reminder to the customer from an outbox sink on
 such as during a dispute, and `pauseDunning(invoiceId, null)` resumes them. It
 needs `invoices.collect` and records `invoice.dunning_paused`. Every invoice
 read returns `dunning: { level, at, pausedUntil }`.
+
+### Dunning runs
+
+`runDunning()` records each pass as a run. `dunningRuns(organizationId, { limit })`
+lists them newest first, `dunningRunItems(runId)` returns the invoices a run
+picked grouped by customer, and `dunningHistory(invoiceId)` lists what happened
+to one invoice, oldest first. A level can carry a `textKey` for the reminder
+wording next to its `templateKey`.
+
+`handOverToCollection(invoiceIds, agencyPartyId, { note })` hands up to 500
+open sales invoices to a collection agency. It needs `invoices.collect`, sets
+`collection.status` to `handed_over`, stops their dunning, records
+`invoice.collection_started` and returns the ids. It fails with
+`INVOICE_HAND_OVER_INVALID`, `INVOICE_ALREADY_HANDED_OVER` or
+`INVOICE_NOT_PAYABLE`.
 
 ## Recurring invoices
 
@@ -564,6 +581,7 @@ nothing, since the receivable was already credited.
 | `invoice.credit_applied`                                                                                                           | the same, with `paymentId`, `partyId`, `amount` and `balance`                                                                    |
 | `invoice.dunning_escalated`                                                                                                        | the same, with `level`, `templateKey`, `fee`, `final`, `balance` and `dueOn`                                                     |
 | `invoice.dunning_paused`                                                                                                           | the same, with `until` and `reason`                                                                                              |
+| `invoice.collection_started`                                                                                                       | the invoice, with `agencyPartyId`, `balance` and `level`                                                                         |
 
 Send the customer's reminder from `invoice.dunning_escalated` with an outbox sink that renders its `templateKey`, or build your own sequence with a [workflow](/docs/blocks/workflows) that waits until the due date and checks the balance.
 
@@ -608,6 +626,9 @@ The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invo
 | `INVOICE_PURCHASE_ORDER_INVALID`     | only a purchase bill refers to a purchase order                                                       |
 | `INVOICE_DIRECTION_UNSUPPORTED`      | the invoices table has no `direction` column for purchase bills                                       |
 | `INVOICE_CREDIT_LIMIT_EXCEEDED`      | issuing the sales invoice takes the customer over their credit limit                                  |
+| `INVOICE_DUNNING_RUN_NOT_FOUND`      | no such dunning run                                                                                   |
+| `INVOICE_HAND_OVER_INVALID`          | no invoice ids, more than 500, or an agency that isn't a company or person                            |
+| `INVOICE_ALREADY_HANDED_OVER`        | an invoice is already with a collection agency                                                        |
 | `INVOICE_PARTY_INVALID`              | a party id is required and at most 150 characters                                                     |
 | `INVOICE_PAYMENT_REFERENCE_REQUIRED` | a party payment needs a reference, such as the bank transaction id                                    |
 | `INVOICE_ALLOCATIONS_INVALID`        | allocations are `{ invoiceId, amount }` with a positive amount, one per invoice                       |

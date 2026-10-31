@@ -181,6 +181,43 @@ describe("invoices collections", () => {
     expect(await invoices.dunningLevels("o").orThrow()).toHaveLength(2);
   });
 
+  it("carries a level's text key and hands over without options", async () => {
+    const level = {
+      level: 1,
+      daysAfterDue: 7,
+      templateKey: "reminder",
+      textKey: "friendly",
+      fee: "0",
+      final: false,
+    };
+
+    const t = transport({
+      set_invoice_dunning_levels: () => [level],
+      hand_over_to_collection: () => [{ id: "i1" }],
+      pause_invoice_dunning: () => ({ ...INVOICE, payment_terms_id: "t1" }),
+    });
+
+    const invoices = createInvoices({ transport: t });
+
+    const [saved] = await invoices
+      .setDunningLevels("o", [
+        { daysAfterDue: 7, templateKey: "reminder", textKey: "friendly" },
+      ])
+      .orThrow();
+
+    expect(saved?.textKey).toBe("friendly");
+    expect(t.calls[0]?.[1]).toMatchObject({
+      levels: [{ textKey: "friendly" }],
+    });
+
+    await invoices.handOverToCollection(["i1"], "a1").orThrow();
+    expect(t.calls.at(-1)?.[1]).toMatchObject({ note: null });
+
+    const read = await invoices.pauseDunning("i1", null).orThrow();
+
+    expect(read.paymentTerms).toEqual({ id: "t1" });
+  });
+
   it("runs and pauses dunning", async () => {
     const t = transport({
       run_invoice_dunning: () => 3,
@@ -262,5 +299,120 @@ describe("invoices collections", () => {
       .orThrow();
 
     expect(invoice.dunning).toBeUndefined();
+  });
+
+  it("reads dunning runs, history and the invoice's terms and hand-over", async () => {
+    const t = transport({
+      list_invoice_dunning_runs: () => [
+        {
+          id: "r1",
+          asOf: "2026-10-31",
+          createdAt: "2026-10-31T06:00:00Z",
+          items: 2,
+          customers: 1,
+        },
+      ],
+      list_invoice_dunning_run_items: () => [
+        {
+          partyId: "c1",
+          balance: "2000",
+          fee: "500",
+          items: [
+            {
+              invoiceId: "i1",
+              level: 2,
+              textKey: "second",
+              templateKey: "t",
+              fee: "500",
+              balance: "1000",
+              dueOn: "2026-10-01",
+            },
+          ],
+        },
+      ],
+      list_invoice_dunning_history: () => [
+        {
+          kind: "reminder",
+          level: 1,
+          fee: "0",
+          balance: "1000",
+          runId: "r1",
+          at: "2026-10-31T06:00:00Z",
+        },
+        {
+          kind: "handed_over",
+          level: 1,
+          fee: "0",
+          balance: "1000",
+          note: "Sent",
+          at: "2026-11-01T06:00:00Z",
+        },
+      ],
+      hand_over_to_collection: () => [{ id: "i1" }],
+      pause_invoice_dunning: () => ({
+        ...INVOICE,
+        payment_terms_id: "t1",
+        discount_due_on: "2026-10-11",
+        discount_amount_early: "20",
+        collection_status: "handed_over",
+        collection_agency_id: "a1",
+        collection_handed_at: "2026-11-01T06:00:00Z",
+        warnings: [
+          {
+            code: "INVOICE_CREDIT_LIMIT_EXCEEDED",
+            message: "over",
+            limit: "1000",
+          },
+        ],
+      }),
+    });
+
+    const invoices = createInvoices({ transport: t });
+    const [run] = await invoices.dunningRuns("o").orThrow();
+
+    expect(run).toMatchObject({ id: "r1", items: 2, customers: 1 });
+
+    const [customer] = await invoices.dunningRunItems("r1").orThrow();
+
+    expect(customer).toMatchObject({
+      partyId: "c1",
+      balance: 2000n,
+      fee: 500n,
+    });
+    expect(customer?.items[0]).toMatchObject({
+      invoiceId: "i1",
+      level: 2,
+      balance: 1000n,
+    });
+    expect(
+      (await invoices.dunningHistory("i1").orThrow()).map(
+        (entry) => entry.kind,
+      ),
+    ).toEqual(["reminder", "handed_over"]);
+    expect(
+      await invoices
+        .handOverToCollection(["i1"], "a1", { note: "Sent" })
+        .orThrow(),
+    ).toEqual(["i1"]);
+    expect(t.calls.at(-1)?.[1]).toEqual({
+      invoice_ids: ["i1"],
+      agency_party_id: "a1",
+      note: "Sent",
+    });
+
+    const read = await invoices.pauseDunning("i1", null).orThrow();
+
+    expect(read.paymentTerms).toEqual({
+      id: "t1",
+      discountDueOn: Temporal.PlainDate.from("2026-10-11"),
+      discountAmount: eur(20n),
+    });
+    expect(read.collection).toMatchObject({
+      status: "handed_over",
+      agencyPartyId: "a1",
+    });
+    expect(read.warnings).toEqual([
+      { code: "INVOICE_CREDIT_LIMIT_EXCEEDED", message: "over", limit: 1000n },
+    ]);
   });
 });

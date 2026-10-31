@@ -584,6 +584,42 @@ source, mapping)` keeps working, and `imports.runs.start`, `upsertBatch`,
 codemod lists code that names `import_runs`, `start_import`, `defineImport`
 or `appTableImport` so you can rename `kind` by hand.
 
+## Payment terms
+
+Companies and people no longer carry `payment_terms_days`. Payment terms are
+rows in `payment_terms` (ADR 0143), and a company or person points at one
+through `customer_terms_id` and `supplier_terms_id`. `saveCompany` and
+`savePerson` take `customerTermsId` and `supplierTermsId` instead of
+`paymentTermsDays`. A new invoice copies the party's terms into
+`payment_terms_id` and gets `discount_due_on` and `discount_amount_early` when
+it is issued. The codemod lists every `paymentTermsDays` and `payment_terms_days`
+in your code so you can change it by hand.
+
+The generated migration drops `payment_terms_days`, so keep the days by adding
+this data step after the statements that add `customer_terms_id` and
+`supplier_terms_id` and before the `DROP COLUMN` statements. Run it once per
+table (`companies` and `people`), and set `supplier_terms_id` the same way for
+suppliers:
+
+```sql
+insert into better_supabase.payment_terms (tenant_id, code, name, days)
+select distinct tenant_id, 'NET' || payment_terms_days, 'Net ' || payment_terms_days || ' days', payment_terms_days
+from companies
+where payment_terms_days is not null
+on conflict (tenant_id, code) do nothing;
+
+update companies c
+set customer_terms_id = t.id
+from better_supabase.payment_terms t
+where t.tenant_id = c.tenant_id
+  and t.code = 'NET' || c.payment_terms_days;
+```
+
+Other 0.47 additions to contacts and invoices are optional: `credit_block`
+(a missing value still blocks over the limit), `language`,
+`document_delivery_preferences`, the dunning run and history tables, and
+`handOverToCollection`. The collection event is `invoice.collection_started`.
+
 ## Custom field entities
 
 Field definitions name a registered subject type (ADR 0156), so this is a
