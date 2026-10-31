@@ -75,7 +75,6 @@ export const postmortemInputSchema: EntitySchema<PostmortemInput> =
       impact: { kind: "string", optional: true, maxLength: 10_000 },
       rootCause: { kind: "string", optional: true, maxLength: 10_000 },
       resolution: { kind: "string", optional: true, maxLength: 10_000 },
-      actionItems: { kind: "json", optional: true, array: true },
     },
   });
 

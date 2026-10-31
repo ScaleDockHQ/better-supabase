@@ -25,7 +25,7 @@ the tasks block installed, postmortem action items become tasks. Everything this
 | [Function names](#function-names)                   | Rename calls in your own SQL                        |
 | [Event types](#event-types)                         | Run `codemod 0.47`, then check `saved` types        |
 | [AI document versions](#ai-document-versions)       | Run `upgrade`; copy a renamed table by hand         |
-| [Postmortem action items](#postmortem-action-items) | With `tasks`, use `addPostmortemAction`             |
+| [Postmortem action items](#postmortem-action-items) | Use `addPostmortemAction` (needs `tasks`)           |
 | [Policy acknowledgements](#policy-acknowledgements) | Call the acknowledgements block                     |
 | [Sequence runs](#sequence-runs)                     | Rename SQL that reads `sequence_enrollments`        |
 | [Inbox contacts](#inbox-contacts)                   | Install `contacts`; call its identity methods       |
@@ -298,8 +298,8 @@ With the [tasks](/docs/blocks/tasks) block installed, postmortem action items
 are tasks. `addPostmortemAction(postmortemId, { title, assigneeId, dueAt })`
 creates one and links it in the new `incident_postmortem_actions` table,
 `removePostmortemAction(actionId)` removes the link, and a postmortem's
-`actions` lists the linked tasks. With `tasks`, `savePostmortem` refuses
-`actionItems` with `INCIDENTS_INVALID`. Without `tasks` nothing changes.
+`actions` lists the linked tasks. `savePostmortem` no longer takes
+`actionItems`, and a postmortem has no `actionItems` field.
 
 ```ts
 // 0.46
@@ -307,7 +307,7 @@ await db.incidents.savePostmortem(incidentId, {
   actionItems: [{ title: "Add a disk alert" }],
 });
 
-// 0.47, with the tasks block
+// 0.47 (needs the tasks block)
 const postmortem = (
   await db.incidents.savePostmortem(incidentId, {})
 ).orThrow();
@@ -317,10 +317,14 @@ await db.incidents.addPostmortemAction(postmortem.id, {
 });
 ```
 
-`actionItems` and the `action_items` column are deprecated. They stay readable
-until 0.48, which removes them. Existing items aren't copied into tasks: add
-the ones that are still open with `addPostmortemAction`. `codemod 0.47` lists
-the lines that use `actionItems`.
+The `action_items` column is gone. `upgrade` writes a step that copies each
+item of an existing postmortem into a task through
+`add_incident_postmortem_action`, then drops the column, before the schema diff
+runs (ADR 0149), so the diff never drops a column that holds data. Install
+`tasks` first. The step stops with an error, instead of dropping the column,
+when it holds items and the tasks block can't take them: add `tasks`, or clear
+the column, then run `upgrade` again. `codemod 0.47` lists the lines that use
+`actionItems`.
 
 ## Policy acknowledgements
 
@@ -535,10 +539,9 @@ npx better-supabase@latest db diff -f upgrade_0_46
 These keep working in 0.47 and go in 0.48. `codemod 0.47` and doctor point
 at each one.
 
-| Deprecated in 0.47                                     | Use instead                                          |
-| ------------------------------------------------------ | ---------------------------------------------------- |
-| Old keys in `blocks.<name>.entities`                   | The entity's singular                                |
-| The old subject types                                  | `task`, `activity` and `compliance_policy`           |
-| The outbox `legacyEventTypes` option                   | The new event types in every receiver                |
-| Postmortem `actionItems` and the `action_items` column | `addPostmortemAction` and the postmortem's `actions` |
-| `SequenceEnrollmentEventData`                          | `EnrollmentEventData`                                |
+| Deprecated in 0.47                   | Use instead                                |
+| ------------------------------------ | ------------------------------------------ |
+| Old keys in `blocks.<name>.entities` | The entity's singular                      |
+| The old subject types                | `task`, `activity` and `compliance_policy` |
+| The outbox `legacyEventTypes` option | The new event types in every receiver      |
+| `SequenceEnrollmentEventData`        | `EnrollmentEventData`                      |

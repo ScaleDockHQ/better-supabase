@@ -1047,7 +1047,7 @@ export interface BlockNameRegistry {
       readonly "incidents": "id" | "tenant" | "title" | "description" | "severity" | "status" | "public" | "commander" | "startedAt" | "resolvedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "updates": "id" | "tenant" | "incident" | "status" | "body" | "public" | "author" | "createdAt";
       readonly "impacts": "tenant" | "incident" | "component" | "impact";
-      readonly "postmortems": "id" | "tenant" | "incident" | "summary" | "impact" | "rootCause" | "resolution" | "actionItems" | "status" | "publishedAt" | "author" | "createdAt" | "updatedAt";
+      readonly "postmortems": "id" | "tenant" | "incident" | "summary" | "impact" | "rootCause" | "resolution" | "status" | "publishedAt" | "author" | "createdAt" | "updatedAt";
       readonly "actions": "id" | "tenant" | "postmortem" | "task" | "createdAt";
       readonly "pages": "id" | "tenant" | "slug" | "title" | "description" | "published" | "createdAt" | "updatedAt";
     };
@@ -1057,7 +1057,7 @@ export interface BlockNameRegistry {
     readonly entities: {
       readonly "incident": "id" | "tenant_id" | "title" | "description" | "severity" | "status" | "public" | "commander_id" | "started_at" | "resolved_at" | "created_by" | "created_at" | "updated_at";
       readonly "status_component": "id" | "tenant_id" | "name" | "description" | "group_name" | "public" | "status" | "position" | "created_at" | "updated_at";
-      readonly "incident_postmortem": "id" | "tenant_id" | "incident_id" | "summary" | "impact" | "root_cause" | "resolution" | "action_items" | "status" | "published_at" | "author_id" | "created_at" | "updated_at";
+      readonly "incident_postmortem": "id" | "tenant_id" | "incident_id" | "summary" | "impact" | "root_cause" | "resolution" | "status" | "published_at" | "author_id" | "created_at" | "updated_at";
       readonly "status_page": "id" | "tenant_id" | "slug" | "title" | "description" | "published" | "created_at" | "updated_at";
     };
     readonly primary: "incident";

@@ -58,7 +58,7 @@ const REVIEW_0_47: readonly ReviewHint[] = [
   {
     pattern: /\bactionItems\b|\baction_items\b/,
     message:
-      "Postmortem `actionItems` are deprecated and removed in 0.48: with the tasks block, write them with `addPostmortemAction` and read the postmortem's `actions`",
+      "Postmortem `actionItems` and the `action_items` column are removed: write action items with `addPostmortemAction` (tasks block) and read the postmortem's `actions`",
   },
   {
     pattern: /\bai_document_versions\b/,
