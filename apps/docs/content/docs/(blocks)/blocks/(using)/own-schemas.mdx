@@ -739,6 +739,11 @@ may be your own enum or domain.
   - `better_supabase.waitlist_entries`: `id`, `email`, `status`, `position`, `user_id`, `created_at`; typed: `status`
   - `better_supabase.invite_codes`: `id`, `code_hash`, `max_uses`, `uses`, `organization_id`, `role`, `revoked_at`; typed: `role`
   - `better_supabase.invite_code_redemptions`: `code_id`, `user_id`
+- `warehouse`
+  - `better_supabase.pick_waves`: `id`, `tenant_id`, `name`, `location_id`, `status`, `released_at`, `completed_at`, `created_by`, `created_at`
+  - `better_supabase.pick_lists`: `id`, `tenant_id`, `wave_id`, `location_id`, `document_type`, `document_id`, `status`, `assignee_id`, `task_id`, `picked_at`, `created_by`, `created_at`
+  - `better_supabase.pick_lines`: `id`, `tenant_id`, `pick_list_id`, `allocation_id`, `variant_id`, `bin_id`, `lot_id`, `serials`, `quantity`, `picked`, `status`, `picked_at`, `picked_by`
+  - `better_supabase.count_plans`: `id`, `tenant_id`, `name`, `location_id`, `every_days`, `variant_ids`, `variance_limit_pct`, `next_run_on`, `last_run_at`, `last_count_id`, `active`, `created_at`
 - `webhook-inbox`
   - `better_supabase.webhook_inbox`: `id`, `source`, `message_id`, `payload`, `status`, `attempts`, `available_at`, `locked_by`, `locked_until`, `received_at`
 - `webhooks-in`

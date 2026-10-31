@@ -9,6 +9,8 @@ import { approvalsBlock } from "better-supabase/blocks/approvals";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
+import { catalogBlock } from "better-supabase/blocks/catalog";
+import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { assetsBlock } from "better-supabase/blocks/assets";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { dispatchBlock } from "better-supabase/blocks/dispatch";
@@ -22,11 +24,13 @@ import { inspectionsBlock } from "better-supabase/blocks/inspections";
 import { meetingsBlock } from "better-supabase/blocks/meetings";
 import { maintenanceBlock } from "better-supabase/blocks/maintenance";
 import { appraisalsBlock } from "better-supabase/blocks/appraisals";
+import { warehouseBlock } from "better-supabase/blocks/warehouse";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { signaturesBlock } from "better-supabase/blocks/signatures";
+import { inventoryBlock } from "better-supabase/blocks/inventory";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { numberingBlock } from "better-supabase/blocks/numbering";
@@ -54,6 +58,8 @@ export const blockSet = defineBlocks(blockConfig, {
   attachments: attachmentsBlock,
   audit: auditBlock,
   billing: billingBlock,
+  catalog: catalogBlock,
+  ledger: ledgerBlock,
   assets: assetsBlock,
   enrollments: enrollmentsBlock,
   dispatch: dispatchBlock,
@@ -67,11 +73,13 @@ export const blockSet = defineBlocks(blockConfig, {
   meetings: meetingsBlock,
   maintenance: maintenanceBlock,
   appraisals: appraisalsBlock,
+  warehouse: warehouseBlock,
   drive: driveBlock,
   employees: employeesBlock,
   entitlements: entitlementsBlock,
   forms: formsBlock,
   signatures: signaturesBlock,
+  inventory: inventoryBlock,
   metrics: metricsBlock,
   notifications: notificationsBlock,
   numbering: numberingBlock,

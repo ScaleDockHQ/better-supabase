@@ -203,6 +203,7 @@
   "blocks/vercel-marketplace",
   "blocks/versions",
   "blocks/waitlist",
+  "blocks/warehouse",
   "blocks/webhooks",
   "blocks/workflow-editor",
   "blocks/workflow-sdk",

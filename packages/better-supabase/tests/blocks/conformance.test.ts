@@ -185,6 +185,9 @@ const NO_FIELDS: readonly string[] = [
   // Installations, resources and invoices mirror what Vercel sends; the app's
   // data lives on the tenant an installation links to.
   "vercel-marketplace",
+  // Waves, pick lists, lines and plans are fixed records; app data goes on
+  // the documents and variants they point at.
+  "warehouse",
   // The app writes and reads endpoints over its own Data API; the client only handles deliveries.
   "webhooks",
   // Engines write the run registry; per-run data goes in `attributes`.
