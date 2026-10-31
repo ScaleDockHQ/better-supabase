@@ -1804,7 +1804,7 @@ on conflict (name) do update
 
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:9f788d88be89da5c5521cce7b829e20d3f9703eeb47b7310bd89847031740643
+-- @bsb-hash sha256:1d33602116152b97634d65a65d0514b39e13976668420f91b0cda1a299acb4b8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1816,13 +1816,13 @@ from "better_supabase"."work_projects" x
 where exists (select 1 from "better_supabase"."accounting_settings" s where s."tenant_id" = x."tenant_id");
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 3, 'managed')
+values ('tasks', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- better-supabase module: maintenance
 -- @bsb-block-data maintenance
--- @bsb-hash sha256:d16428cad330e9198bf402d1f87b1d8e657dd746da4222358eda81e98f4d92a9
+-- @bsb-hash sha256:a0ccc1da1ce32a36eafb5c579cb76ec4ab7c8d72a3f650115a74b857f4a49eaa
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1830,7 +1830,7 @@ on conflict (name) do update
 
 alter table better_supabase.blocks add column if not exists block text;
 insert into better_supabase.blocks (name, block, version, mode)
-values ('maintenance', 'tasks', 3, 'managed')
+values ('maintenance', 'tasks', 4, 'managed')
 on conflict (name) do update
   set block = excluded.block, version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1862,7 +1862,7 @@ on conflict (name) do update
 
 -- better-supabase module: activities
 -- @bsb-block-data activities
--- @bsb-hash sha256:2865bb5c98036be268d7b575fd6457319718215c61e9fcc57631954f247abd2a
+-- @bsb-hash sha256:b38e9dd2dca2490a6692403dbcebbe691d4c78cfaac7cdb7bbf4ac924629c671
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1944,7 +1944,7 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_plans"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_plans" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('activities', 2, 'managed')
+values ('activities', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -2649,14 +2649,14 @@ on conflict (name) do update
 
 -- better-supabase module: mail-sync
 -- @bsb-block-data mail-sync
--- @bsb-hash sha256:46311682c487754840b6dda39ab820fa307ebdbc908bd9a0af515f5ba0f8ed0f
+-- @bsb-hash sha256:a455c51c4d5ee70107696c80dad74fd5dee24dfb085ce0167490dd90eb1ef9c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('mail-sync', 1, 'managed')
+values ('mail-sync', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
