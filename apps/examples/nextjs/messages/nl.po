@@ -315,6 +315,16 @@ msgctxt "accounting.d-8-KQ"
 msgid "The balance sheet totals, this year's net income and the trial balance of the posted entries."
 msgstr "De totalen van de balans, het nettoresultaat van dit jaar en de proef- en saldibalans van de geboekte posten."
 
+#: src/app/[locale]/(app)/finance/payables/page.tsx
+msgctxt "payables.Yhu2Vp"
+msgid "Payables"
+msgstr "Crediteuren"
+
+#: src/app/[locale]/(app)/finance/payables/page.tsx
+msgctxt "payables.iYP8tK"
+msgid "What you owe suppliers on issued purchase bills, by days past due."
+msgstr "Wat je leveranciers verschuldigd bent op geboekte inkoopfacturen, naar dagen over de vervaldatum."
+
 #: src/app/[locale]/(app)/forbidden.tsx
 msgctxt "app.yO2v_w"
 msgid "You don't have access"
@@ -518,6 +528,16 @@ msgstr "Tijd"
 msgctxt "people.eYLQ7a"
 msgid "Log your hours for the week and send them for approval."
 msgstr "Registreer je uren voor de week en stuur ze ter goedkeuring in."
+
+#: src/app/[locale]/(app)/production/page.tsx
+msgctxt "production.Eh10oP"
+msgid "Production planning"
+msgstr "Productieplanning"
+
+#: src/app/[locale]/(app)/production/page.tsx
+msgctxt "production.gQSc1n"
+msgid "Shortages from stock, demand and reorder points, turned into draft production orders and purchases."
+msgstr "Tekorten uit voorraad, vraag en bestelpunten, omgezet in concept-productieorders en inkopen."
 
 #: src/app/[locale]/(app)/projects/[id]/page.tsx
 msgctxt "projects.NZLQi1"
@@ -8904,6 +8924,106 @@ msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nog niets gevonden. Een nieuw document is doorzoekbaar zodra het klaar is."
 
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.eq1e8s"
+msgid "Unknown product"
+msgstr "Onbekend product"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.jDQs_e"
+msgid "Produce"
+msgstr "Produceren"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.J6Eyds"
+msgid "Purchase"
+msgstr "Inkopen"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.x_ZVlU"
+msgid "Product"
+msgstr "Product"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.QlsDcr"
+msgid "Action"
+msgstr "Actie"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.4KCoI5"
+msgid "Short by"
+msgstr "Tekort"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.PgJGHT"
+msgid "Available"
+msgstr "Beschikbaar"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.YDkqMJ"
+msgid "Incoming"
+msgstr "Onderweg"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.kp0NPF"
+msgid "Planned"
+msgstr "Gepland"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.yDWONj"
+msgid "Demand"
+msgstr "Vraag"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.kbQb-n"
+msgid "{productionOrders, number} production orders and {purchases, number} purchases created as drafts."
+msgstr "{productionOrders, number} productieorders en {purchases, number} inkopen als concept aangemaakt."
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.rrzpbi"
+msgid "Create orders"
+msgstr "Orders aanmaken"
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.QYXFkk"
+msgid "Material requirements"
+msgstr "Materiaalbehoefte"
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.bnxiVi"
+msgid "What to produce or buy over the next 30 days to bring each item back to its reorder point, after stock, incoming receipts and open production orders."
+msgstr "Wat je de komende 30 dagen moet produceren of inkopen om elk artikel terug op zijn bestelpunt te brengen, na voorraad, verwachte ontvangsten en open productieorders."
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.Ph7pxd"
+msgid "The requirements didn't load"
+msgstr "De materiaalbehoefte is niet geladen"
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.pyn2Um"
+msgid "Nothing is short"
+msgstr "Er is geen tekort"
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.HhtBMc"
+msgid "Every item with a reorder point has enough stock and incoming orders for the next 30 days."
+msgstr "Elk artikel met een bestelpunt heeft genoeg voorraad en inkomende orders voor de komende 30 dagen."
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.9MRsjL"
+msgid "Read the manufacturing guide"
+msgstr "Lees de handleiding voor productie"
+
 #: src/features/manufacturing/components/production-order-board.tsx
 msgctxt "manufacturing.W6nwjo"
 msgid "Draft"
@@ -9471,6 +9591,11 @@ msgid "Manufacturing"
 msgstr "Productie"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.Eh10oP"
+msgid "Production planning"
+msgstr "Productieplanning"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.wWUTla"
 msgid "Banking"
 msgstr "Bank"
@@ -9574,6 +9699,11 @@ msgstr "Diensten"
 msgctxt "navigation.Fm3M-y"
 msgid "Finance"
 msgstr "Financiën"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.Yhu2Vp"
+msgid "Payables"
+msgstr "Crediteuren"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.M_xDHn"
@@ -10082,6 +10212,106 @@ msgstr "Beheerder"
 msgctxt "organization.7L86Z5"
 msgid "Member"
 msgstr "Lid"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.zEOJmf"
+msgid "The payables didn't load"
+msgstr "De crediteuren zijn niet geladen"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables._CaUYP"
+msgid "No open purchase bills"
+msgstr "Geen openstaande inkoopfacturen"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.FZfqwF"
+msgid "Record a supplier's bill against its purchase order, then issue it to see what you owe here."
+msgstr "Leg de factuur van een leverancier vast bij de inkooporder en boek hem, dan zie je hier wat je verschuldigd bent."
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.xUSbIf"
+msgid "Read the invoices guide"
+msgstr "Lees de handleiding voor facturen"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.MdRxiJ"
+msgid "Not yet due"
+msgstr "Nog niet vervallen"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.zP013y"
+msgid "1 to 30 days"
+msgstr "1 tot 30 dagen"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.iffnP-"
+msgid "31 to 60 days"
+msgstr "31 tot 60 dagen"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.VYJ_7K"
+msgid "61 to 90 days"
+msgstr "61 tot 90 dagen"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.1KJXsX"
+msgid "Over 90 days"
+msgstr "Meer dan 90 dagen"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.Q1xfqF"
+msgid "Outstanding"
+msgstr "Openstaand"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.Hr9-NC"
+msgid "Overdue bills"
+msgstr "Vervallen facturen"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.dRnOeV"
+msgid "On time"
+msgstr "Op tijd"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.RDNFQM"
+msgid "Past due"
+msgstr "Vervallen"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.LppASA"
+msgid "Aging"
+msgstr "Ouderdom"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.ipIPVt"
+msgid "Open purchase bills by days past due on {date}."
+msgstr "Openstaande inkoopfacturen naar dagen over de vervaldatum op {date}."
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.g9pEhE"
+msgid "Due"
+msgstr "Vervalt"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.EomJQc"
+msgid "Owed"
+msgstr "Verschuldigd"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.MJ2jZQ"
+msgid "Total"
+msgstr "Totaal"
 
 #: src/features/people/components/add-candidate-dialog.tsx
 msgctxt "people.XrpTyF"

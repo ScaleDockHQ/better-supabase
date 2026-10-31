@@ -315,6 +315,16 @@ msgctxt "accounting.d-8-KQ"
 msgid "The balance sheet totals, this year's net income and the trial balance of the posted entries."
 msgstr "The balance sheet totals, this year's net income and the trial balance of the posted entries."
 
+#: src/app/[locale]/(app)/finance/payables/page.tsx
+msgctxt "payables.Yhu2Vp"
+msgid "Payables"
+msgstr "Payables"
+
+#: src/app/[locale]/(app)/finance/payables/page.tsx
+msgctxt "payables.iYP8tK"
+msgid "What you owe suppliers on issued purchase bills, by days past due."
+msgstr "What you owe suppliers on issued purchase bills, by days past due."
+
 #: src/app/[locale]/(app)/forbidden.tsx
 msgctxt "app.yO2v_w"
 msgid "You don't have access"
@@ -518,6 +528,16 @@ msgstr "Time"
 msgctxt "people.eYLQ7a"
 msgid "Log your hours for the week and send them for approval."
 msgstr "Log your hours for the week and send them for approval."
+
+#: src/app/[locale]/(app)/production/page.tsx
+msgctxt "production.Eh10oP"
+msgid "Production planning"
+msgstr "Production planning"
+
+#: src/app/[locale]/(app)/production/page.tsx
+msgctxt "production.gQSc1n"
+msgid "Shortages from stock, demand and reorder points, turned into draft production orders and purchases."
+msgstr "Shortages from stock, demand and reorder points, turned into draft production orders and purchases."
 
 #: src/app/[locale]/(app)/projects/[id]/page.tsx
 msgctxt "projects.NZLQi1"
@@ -8904,6 +8924,106 @@ msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nothing matches yet. A new document is searchable once it is ready."
 
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.eq1e8s"
+msgid "Unknown product"
+msgstr "Unknown product"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.jDQs_e"
+msgid "Produce"
+msgstr "Produce"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.J6Eyds"
+msgid "Purchase"
+msgstr "Purchase"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.x_ZVlU"
+msgid "Product"
+msgstr "Product"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.QlsDcr"
+msgid "Action"
+msgstr "Action"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.4KCoI5"
+msgid "Short by"
+msgstr "Short by"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.PgJGHT"
+msgid "Available"
+msgstr "Available"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.YDkqMJ"
+msgid "Incoming"
+msgstr "Incoming"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.kp0NPF"
+msgid "Planned"
+msgstr "Planned"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.yDWONj"
+msgid "Demand"
+msgstr "Demand"
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.kbQb-n"
+msgid "{productionOrders, number} production orders and {purchases, number} purchases created as drafts."
+msgstr "{productionOrders, number} production orders and {purchases, number} purchases created as drafts."
+
+#: src/features/manufacturing/components/material-requirements-grid.tsx
+msgctxt "production.rrzpbi"
+msgid "Create orders"
+msgstr "Create orders"
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.QYXFkk"
+msgid "Material requirements"
+msgstr "Material requirements"
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.bnxiVi"
+msgid "What to produce or buy over the next 30 days to bring each item back to its reorder point, after stock, incoming receipts and open production orders."
+msgstr "What to produce or buy over the next 30 days to bring each item back to its reorder point, after stock, incoming receipts and open production orders."
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.Ph7pxd"
+msgid "The requirements didn't load"
+msgstr "The requirements didn't load"
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.pyn2Um"
+msgid "Nothing is short"
+msgstr "Nothing is short"
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.HhtBMc"
+msgid "Every item with a reorder point has enough stock and incoming orders for the next 30 days."
+msgstr "Every item with a reorder point has enough stock and incoming orders for the next 30 days."
+
+#: src/features/manufacturing/components/material-requirements-section.tsx
+msgctxt "production.9MRsjL"
+msgid "Read the manufacturing guide"
+msgstr "Read the manufacturing guide"
+
 #: src/features/manufacturing/components/production-order-board.tsx
 msgctxt "manufacturing.W6nwjo"
 msgid "Draft"
@@ -9471,6 +9591,11 @@ msgid "Manufacturing"
 msgstr "Manufacturing"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.Eh10oP"
+msgid "Production planning"
+msgstr "Production planning"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.wWUTla"
 msgid "Banking"
 msgstr "Banking"
@@ -9574,6 +9699,11 @@ msgstr "Shifts"
 msgctxt "navigation.Fm3M-y"
 msgid "Finance"
 msgstr "Finance"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.Yhu2Vp"
+msgid "Payables"
+msgstr "Payables"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.M_xDHn"
@@ -10082,6 +10212,106 @@ msgstr "Admin"
 msgctxt "organization.7L86Z5"
 msgid "Member"
 msgstr "Member"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.zEOJmf"
+msgid "The payables didn't load"
+msgstr "The payables didn't load"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables._CaUYP"
+msgid "No open purchase bills"
+msgstr "No open purchase bills"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.FZfqwF"
+msgid "Record a supplier's bill against its purchase order, then issue it to see what you owe here."
+msgstr "Record a supplier's bill against its purchase order, then issue it to see what you owe here."
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.xUSbIf"
+msgid "Read the invoices guide"
+msgstr "Read the invoices guide"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.MdRxiJ"
+msgid "Not yet due"
+msgstr "Not yet due"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.zP013y"
+msgid "1 to 30 days"
+msgstr "1 to 30 days"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.iffnP-"
+msgid "31 to 60 days"
+msgstr "31 to 60 days"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.VYJ_7K"
+msgid "61 to 90 days"
+msgstr "61 to 90 days"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.1KJXsX"
+msgid "Over 90 days"
+msgstr "Over 90 days"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.Q1xfqF"
+msgid "Outstanding"
+msgstr "Outstanding"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.Hr9-NC"
+msgid "Overdue bills"
+msgstr "Overdue bills"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.dRnOeV"
+msgid "On time"
+msgstr "On time"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.RDNFQM"
+msgid "Past due"
+msgstr "Past due"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.LppASA"
+msgid "Aging"
+msgstr "Aging"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.ipIPVt"
+msgid "Open purchase bills by days past due on {date}."
+msgstr "Open purchase bills by days past due on {date}."
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.g9pEhE"
+msgid "Due"
+msgstr "Due"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.EomJQc"
+msgid "Owed"
+msgstr "Owed"
+
+#: src/features/payables/components/payables-aging.tsx
+msgctxt "payables.MJ2jZQ"
+msgid "Total"
+msgstr "Total"
 
 #: src/features/people/components/add-candidate-dialog.tsx
 msgctxt "people.XrpTyF"

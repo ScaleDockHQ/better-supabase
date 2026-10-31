@@ -4,6 +4,7 @@ import {
   type Events,
   type GeneratedBlocks,
 } from "better-supabase/blocks";
+import type { AccountingEvents } from "better-supabase/blocks/accounting";
 import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { ApprovalsEvents } from "better-supabase/blocks/approvals";
 import type { AuditEvents } from "better-supabase/blocks/audit";
@@ -14,6 +15,7 @@ import type { LedgerEvents } from "better-supabase/blocks/ledger";
 import type { AssetsEvents } from "better-supabase/blocks/assets";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { ExpensesEvents } from "better-supabase/blocks/expenses";
+import type { BankingEvents } from "better-supabase/blocks/banking";
 import type { EmployeesEvents } from "better-supabase/blocks/employees";
 import type { InventoryEvents } from "better-supabase/blocks/inventory";
 import type { InvoicesEvents } from "better-supabase/blocks/invoices";
@@ -30,6 +32,7 @@ import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { TimeTrackingEvents } from "better-supabase/blocks/time-tracking";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
+import { accountingBlock as accountingBlockInstance } from "better-supabase/blocks/accounting";
 import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
 import { approvalsBlock as approvalsBlockInstance } from "better-supabase/blocks/approvals";
 import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
@@ -40,6 +43,7 @@ import { ledgerBlock as ledgerBlockInstance } from "better-supabase/blocks/ledge
 import { assetsBlock as assetsBlockInstance } from "better-supabase/blocks/assets";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { expensesBlock as expensesBlockInstance } from "better-supabase/blocks/expenses";
+import { bankingBlock as bankingBlockInstance } from "better-supabase/blocks/banking";
 import { employeesBlock as employeesBlockInstance } from "better-supabase/blocks/employees";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
 import { inventoryBlock as inventoryBlockInstance } from "better-supabase/blocks/inventory";
@@ -67,6 +71,10 @@ import { timeTrackingBlock as timeTrackingBlockInstance } from "better-supabase/
  */
 export const blockConfig = {
   permissions: {
+    schema: "better_supabase",
+    options: {},
+  },
+  accounting: {
     schema: "better_supabase",
     options: {},
   },
@@ -109,6 +117,10 @@ export const blockConfig = {
     options: {},
   },
   expenses: {
+    schema: "better_supabase",
+    options: {},
+  },
+  banking: {
     schema: "better_supabase",
     options: {},
   },
@@ -210,6 +222,7 @@ export const blockConfig = {
  */
 export const blocks = {
   permissions: permissionsBlockInstance,
+  accounting: accountingBlockInstance,
   "api-keys": apiKeysBlockInstance,
   approvals: approvalsBlockInstance,
   audit: auditBlockInstance,
@@ -220,6 +233,7 @@ export const blocks = {
   assets: assetsBlockInstance,
   enrollments: enrollmentsBlockInstance,
   expenses: expensesBlockInstance,
+  banking: bankingBlockInstance,
   employees: employeesBlockInstance,
   entitlements: entitlementsBlockInstance,
   inventory: inventoryBlockInstance,
@@ -247,6 +261,13 @@ export const blocks = {
  * @public
  */
 export const permissions = {
+  accounting: {
+    read: "accounting.read",
+    write: "accounting.write",
+    post: "accounting.post",
+    close: "accounting.close",
+    manage: "accounting.manage",
+  },
   "api-keys": {
     manage: "api_keys.manage",
     own: "api_keys.own",
@@ -279,6 +300,16 @@ export const permissions = {
     edit: "automations.write",
     publish: "automations.publish",
     admin: "automations.manage",
+  },
+  bank_account: {
+    read: "banking.read",
+    write: "banking.manage",
+  },
+  banking: {
+    read: "banking.read",
+    import: "banking.import",
+    reconcile: "banking.reconcile",
+    manage: "banking.manage",
   },
   billing: {
     read: "billing.read",
@@ -446,13 +477,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.write" | "leave.approve" | "leave.manage" | "leave.read" | "leave.request" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "quotes.manage" | "quotes.read" | "quotes.write" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
+export type PermissionKey = "accounting.close" | "accounting.manage" | "accounting.post" | "accounting.read" | "accounting.write" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "banking.import" | "banking.manage" | "banking.read" | "banking.reconcile" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.write" | "leave.approve" | "leave.manage" | "leave.read" | "leave.request" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "quotes.manage" | "quotes.read" | "quotes.write" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & CatalogEvents & LeaveEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & ExpensesEvents & EmployeesEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & QuotesEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & SubjectsEvents & TeamsEvents & TimeTrackingEvents;
+export type BlockEvents = AccountingEvents & ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & CatalogEvents & LeaveEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & ExpensesEvents & BankingEvents & EmployeesEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & QuotesEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & SubjectsEvents & TeamsEvents & TimeTrackingEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -461,6 +492,12 @@ export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & Billin
  */
 export const blockEvents: Events<BlockEvents> = {
   types: [
+    "accounting_budget.created",
+    "accounting_budget.updated",
+    "accounting_entry.posted",
+    "accounting_entry.reversed",
+    "accounting_period.closed",
+    "accounting_period.reopened",
     "allocation.created",
     "allocation.filled",
     "allocation.released",
@@ -494,6 +531,9 @@ export const blockEvents: Events<BlockEvents> = {
     "automation.enabled",
     "automation.matched",
     "automation.updated",
+    "bank_statement.imported",
+    "bank_transaction.matched",
+    "bank_transaction.unmatched",
     "billing.account_linked",
     "billing.checkout_completed",
     "billing.customer_linked",
@@ -536,6 +576,7 @@ export const blockEvents: Events<BlockEvents> = {
     "expense_report.reimbursed",
     "expense_report.rejected",
     "expense_report.submitted",
+    "fiscal_year.closed",
     "fulfillment.delivered",
     "fulfillment.shipped",
     "inventory_receipt.created",
@@ -677,6 +718,12 @@ export const blockEvents: Events<BlockEvents> = {
  * @public
  */
 export const blockEventSchemas = {
+  "accounting_budget.created": true,
+  "accounting_budget.updated": true,
+  "accounting_entry.posted": true,
+  "accounting_entry.reversed": true,
+  "accounting_period.closed": true,
+  "accounting_period.reopened": true,
   "allocation.created": true,
   "allocation.filled": true,
   "allocation.released": true,
@@ -710,6 +757,9 @@ export const blockEventSchemas = {
   "automation.enabled": true,
   "automation.matched": true,
   "automation.updated": true,
+  "bank_statement.imported": true,
+  "bank_transaction.matched": true,
+  "bank_transaction.unmatched": true,
   "billing.account_linked": true,
   "billing.checkout_completed": true,
   "billing.customer_linked": true,
@@ -752,6 +802,7 @@ export const blockEventSchemas = {
   "expense_report.reimbursed": true,
   "expense_report.rejected": true,
   "expense_report.submitted": true,
+  "fiscal_year.closed": true,
   "fulfillment.delivered": true,
   "fulfillment.shipped": true,
   "inventory_receipt.created": true,

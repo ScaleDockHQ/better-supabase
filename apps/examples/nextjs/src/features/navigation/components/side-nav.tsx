@@ -66,6 +66,8 @@ import {
   WorkflowIcon,
   RouteIcon,
   TruckIcon,
+  PackageSearchIcon,
+  ReceiptTextIcon,
 } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -105,6 +107,7 @@ const ICONS = {
   shop: StoreIcon,
   inventory: BoxesIcon,
   manufacturing: FactoryIcon,
+  production: PackageSearchIcon,
   banking: BanknoteIcon,
   orders: ReceiptIcon,
   dispatch: CalendarRangeIcon,
@@ -126,6 +129,7 @@ const ICONS = {
   inspections: ClipboardCheckIcon,
   shifts: CalendarDaysIcon,
   finance: LandmarkIcon,
+  payables: ReceiptTextIcon,
   observations: HeartPulseIcon,
   medications: PillIcon,
   carePlans: ClipboardPlusIcon,
@@ -235,6 +239,10 @@ export function useNavLabel(): (id: NavId) => string {
         return t("Manufacturing");
       }
 
+      case "production": {
+        return t("Production planning");
+      }
+
       case "banking": {
         return t("Banking");
       }
@@ -317,6 +325,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "finance": {
         return t("Finance");
+      }
+
+      case "payables": {
+        return t("Payables");
       }
 
       case "observations": {

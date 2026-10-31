@@ -143,7 +143,7 @@
           "additionalProperties": false
         }
       ],
-      "description": "A named preset (minimal, saas, consumer, crm, projects, helpdesk, chat, commerce, cms, erp, pim, marketplace, scheduling, people, drive, docs, invoicing, forms, property, field-service, clinic, lms, events, legal, spend, contracts, customer-success, logistics, pos, fitness, nonprofit, itsm, compliance, qms, ehs, isms, construction, claims, community, feedback, ai, ai-chat, ai-agents, developer-api, automation, enterprise, admin, everything), a code from app.bettersupabase.com/create, or its URL. defineConfig expands it into blocks and its conventions, and the keys you set win."
+      "description": "A named preset (minimal, saas, consumer, crm, projects, helpdesk, chat, commerce, cms, erp, manufacturing, pim, marketplace, scheduling, people, drive, docs, invoicing, forms, property, field-service, clinic, lms, events, legal, spend, contracts, customer-success, logistics, pos, fitness, nonprofit, itsm, compliance, qms, ehs, isms, construction, claims, community, feedback, ai, ai-chat, ai-agents, developer-api, automation, enterprise, admin, everything), a code from app.bettersupabase.com/create, or its URL. defineConfig expands it into blocks and its conventions, and the keys you set win."
     },
     "database": {
       "type": "object",

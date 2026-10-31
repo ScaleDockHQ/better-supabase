@@ -1,11 +1,12 @@
 ---
 title: ERP
-description: The erp preset installs parties, a catalog, stock by location, quotes priced from the catalog that become orders when accepted, orders that invoice when paid, employees with time and leave, and expenses.
+description: The erp preset installs parties, a catalog, stock by location, quotes that become orders, sales invoices and purchase bills, the books every document posts to, bank statements reconciled against them, employees with time and leave, and expenses.
 ---
 
 The `erp` preset is for a small ERP in the style of Odoo or NetSuite: sell
-from a catalog, keep stock per location, quote and invoice customers, and
-track the people who do the work.
+from a catalog, keep stock per location, buy from suppliers, quote and
+invoice customers, keep the books and reconcile the bank, and track the
+people who do the work.
 
 ## Config
 
@@ -17,34 +18,47 @@ export default defineConfig({ preset: "erp" });
 
 `npx better-supabase init --preset erp` starts a new project from it, and
 `npx better-supabase add --preset erp` adds it to one you have
-([CLI](/docs/cli/presets)).
+([CLI](/docs/cli/presets)). To make things as well, start from the
+[`manufacturing`](/docs/presets/manufacturing) preset, which is `erp` plus
+production.
 
 ## Blocks
 
 The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
 whatever they require:
 
-| Block                                       | Role in the app                                      |
-| ------------------------------------------- | ---------------------------------------------------- |
-| [contacts](/docs/blocks/contacts)           | Customers and suppliers                              |
-| [catalog](/docs/blocks/catalog)             | Products, variants and price lists                   |
-| [inventory](/docs/blocks/inventory)         | Stock per variant and location, and purchase orders  |
-| [assets](/docs/blocks/assets)               | The warehouses and sites stock is kept at            |
-| [quotes](/docs/blocks/quotes)               | Quotes for a customer, priced from the catalog       |
-| [orders](/docs/blocks/orders)               | Orders, their payment and fulfilment                 |
-| [invoices](/docs/blocks/invoices)           | Invoices and their payments, on the ledger           |
-| [numbering](/docs/blocks/numbering)         | Gapless sequences for your own document numbers      |
-| [employees](/docs/blocks/employees)         | The org chart, with each member's employee record    |
-| [time-tracking](/docs/blocks/time-tracking) | Timesheets with weekly approval                      |
-| [leave](/docs/blocks/leave)                 | Leave requests and balances                          |
-| [expenses](/docs/blocks/expenses)           | Expense reports with receipts, policies and approval |
-| [saved-views](/docs/blocks/saved-views)     | Saved filters for each list                          |
-| [automations](/docs/blocks/automations)     | The default automations, which members can edit      |
+| Block                                       | Role in the app                                                         |
+| ------------------------------------------- | ----------------------------------------------------------------------- |
+| [contacts](/docs/blocks/contacts)           | Customers and suppliers, with payment terms and credit limits           |
+| [catalog](/docs/blocks/catalog)             | Products, variants and price lists                                      |
+| [inventory](/docs/blocks/inventory)         | Stock per location, purchase requisitions, purchase orders and receipts |
+| [assets](/docs/blocks/assets)               | The warehouses stock is kept at, and fixed assets that depreciate       |
+| [quotes](/docs/blocks/quotes)               | Quotes for a customer, priced from the catalog                          |
+| [orders](/docs/blocks/orders)               | Orders, their payment and fulfilment, and drop ship                     |
+| [invoices](/docs/blocks/invoices)           | Sales invoices and purchase bills, with their payments                  |
+| [accounting](/docs/blocks/accounting)       | The chart of accounts, journals, periods and reports                    |
+| [banking](/docs/blocks/banking)             | Bank accounts, imported statements and their reconciliation             |
+| [approvals](/docs/blocks/approvals)         | The decision on purchase requisitions and expense reports               |
+| [numbering](/docs/blocks/numbering)         | Gapless sequences for your own document numbers                         |
+| [employees](/docs/blocks/employees)         | The org chart, with each member's employee record                       |
+| [time-tracking](/docs/blocks/time-tracking) | Timesheets with weekly approval                                         |
+| [leave](/docs/blocks/leave)                 | Leave requests and balances                                             |
+| [expenses](/docs/blocks/expenses)           | Expense reports with receipts, policies and approval                    |
+| [saved-views](/docs/blocks/saved-views)     | Saved filters for each list                                             |
+| [automations](/docs/blocks/automations)     | The default automations, which members can edit                         |
+
+Each organization runs `db.accounting.setup(organizationId)` once before
+anything books: it writes the accounting settings and seeds the generic
+chart and the `SAL`, `PUR`, `BNK`, `CSH` and `GEN` journals
+([setup](/docs/blocks/accounting#setup-and-the-chart)). Until then the other
+blocks work and book nothing.
 
 ## How the blocks connect
 
 The blocks pick each other up when they are installed together, with no
-config:
+config.
+
+### Selling
 
 - A quote line that names a catalog variant takes its price and title when
   it leaves them out ([quotes](/docs/blocks/quotes)). A line with no price
@@ -58,14 +72,94 @@ config:
 - A paid order creates, issues and pays an invoice and returns its id
   ([orders](/docs/blocks/orders)). Orders paid before invoices was installed
   have no invoice.
+- Placing an order and issuing a sales invoice compare what the customer
+  already owes plus the new total with the party's credit limit, and fail
+  with `ORDER_CREDIT_LIMIT_EXCEEDED` or `INVOICE_CREDIT_LIMIT_EXCEEDED`
+  unless the caller holds `orders.override_credit`
+  ([credit limits](/docs/blocks/invoices#credit-limits)).
+
+### Buying
+
+- A purchase requisition (`requestPurchase`) opens an approval request, and
+  a holder of `inventory.purchase` decides it unless the organization's
+  policy names other approvers
+  ([requisitions](/docs/blocks/inventory#requisitions)).
+  `purchaseOrderFromRequisitions` turns approved ones into a purchase order,
+  and a blocked supplier can't get one (`PURCHASE_ORDER_SUPPLIER_BLOCKED`).
+- Receiving a purchase order writes an `inventory_receipts` row with its
+  lines and adds the stock at its cost.
+- A purchase bill is an invoice with `direction: "purchase"` and the
+  purchase order's id. `db.invoices.match(billId)` runs the three-way match
+  of the bill against the order and what arrived, and paying a bill that
+  doesn't match fails with `INVOICE_MATCH_FAILED` unless the caller holds
+  `invoices.override_match`
+  ([the three-way match](/docs/blocks/invoices#the-three-way-match)).
+- `purchaseOrderFromOrder(orderId, supplier)` buys an order's lines for drop
+  ship, with the order's shipping address as the purchase order's `ship_to`.
+
+### The books
+
+Each block books its documents in the accounting journals in the same
+transaction as the write that changes them
+([postings](/docs/blocks/accounting#postings-from-other-blocks)):
+
+| Document                | Journal  | Entry                                                                    |
+| ----------------------- | -------- | ------------------------------------------------------------------------ |
+| Sales invoice           | sales    | the receivable against revenue and tax per rate                          |
+| Invoice payment         | bank     | the bank against the receivable                                          |
+| Purchase bill           | purchase | the payable against expense and deductible tax, or the receipt's payable |
+| Stock receipt and issue | general  | inventory at average cost against payable or cost of goods               |
+| Approved expense report | purchase | the expense against the payable to the member                            |
+| Month of depreciation   | general  | depreciation expense against accumulated depreciation                    |
+
+A product line of a bill with a purchase order debits the payable the stock
+receipt already booked, so received stock isn't counted twice. Voiding a
+document reverses its entry. Entries post at once into an open period after
+the lock date, and wait as drafts for an accountant otherwise.
+
+### The bank
+
+- A bank account names the bank journal it books to. Statements import from
+  camt.053 or MT940 files, or arrive through a `BankFeed`
+  ([accounts and statements](/docs/blocks/banking#accounts-and-statements)).
+- `suggestMatches(transactionId)` lists the open invoices a line may pay, by
+  creditor reference, the invoice number in the remittance, the amount and
+  the counterparty's IBAN. Matching a line records an invoice payment, so
+  the invoice is paid and the payment books in the bank journal
+  ([matching](/docs/blocks/banking#matching)).
+- Bank rules book recurring lines such as fees against an account of their
+  own.
+- `reconciliation(accountId)` compares the latest statement's closing
+  balance with the ledger balance of the journal's account, and
+  `reconciled` is true once nothing is unmatched and the two agree
+  ([reconciliation](/docs/blocks/banking#reconciliation)). Closing a period
+  lists unreconciled bank lines among its blockers.
+
+### People
+
 - Inventory keeps its locations in the assets registry, so a warehouse is
   an asset ([inventory](/docs/blocks/inventory)).
 - Time entries and leave requests carry the `employee_id` of their member,
   which employees keeps current when a member's employee record changes
   ([employees](/docs/blocks/employees#time-and-leave)).
+- Expense reports go through approvals, and an approved report books in the
+  purchase journal; banking can match its reimbursement.
 
 ## With ReUI
 
-- Data Grid for orders and invoices, with Filters on status and customer.
-- A Badge for each invoice's status (draft, issued, paid, void).
+Each part of the app has a recipe built from ReUI components, or uses one
+directly:
+
+- [Invoices table](/docs/registry/ui-recipes/invoices-table): a Data Grid
+  with Filters on status and party. Purchase bills use the same grid with a
+  Badge for each bill's three-way match.
+- [Bank reconciliation](/docs/registry/ui-recipes/bank-reconciliation): one
+  card per account with the statement and ledger balances, and its lines
+  with the suggested invoice.
+- [Trial balance](/docs/registry/ui-recipes/trial-balance): the balance sheet
+  totals above the posted balances per account.
 - Kanban for open quotes by status.
+
+The example app shows the trial balance under `/finance`, what you owe
+suppliers by days past due under `/finance/payables`, and the reconciliation
+under `/banking`.

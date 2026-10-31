@@ -23,6 +23,7 @@ export type NavId =
   | "shop"
   | "inventory"
   | "manufacturing"
+  | "production"
   | "banking"
   | "orders"
   | "dispatch"
@@ -44,6 +45,7 @@ export type NavId =
   | "inspections"
   | "shifts"
   | "finance"
+  | "payables"
   | "observations"
   | "medications"
   | "carePlans"
@@ -178,6 +180,12 @@ export const navItems: readonly NavItem[] = [
     requires: "manufacturing.read",
   },
   {
+    id: "production",
+    href: "/production",
+    group: "workspace",
+    requires: "manufacturing.read",
+  },
+  {
     id: "banking",
     href: "/banking",
     group: "workspace",
@@ -262,6 +270,12 @@ export const navItems: readonly NavItem[] = [
     href: "/finance",
     group: "workspace",
     requires: "accounting.read",
+  },
+  {
+    id: "payables",
+    href: "/finance/payables",
+    group: "workspace",
+    requires: "invoices.read",
   },
   {
     id: "observations",
