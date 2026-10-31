@@ -94,6 +94,9 @@ These blocks contribute targets:
 | --------------- | -------------------- | ------------------------------------------------------------------------------------- |
 | `catalog`       | `supplier_item`      | A supplier's price list row, by supplier and code                                     |
 | `catalog`       | `product_identifier` | An EAN or a supplier or manufacturer code on a variant                                |
+| `catalog`       | `discount_group`     | A customer or product discount group, with the customers of a customer group          |
+| `catalog`       | `discount_rule`      | A rule of the discount matrix, by group codes                                         |
+| `inventory`     | `stock_count`        | An open stock count with its lines, by location                                       |
 | `custom-fields` | `field_value`        | A custom field value of a record the record map knows, checked against its field type |
 
 The [catalog page](/docs/blocks/catalog#importing-price-lists-and-codes) lists

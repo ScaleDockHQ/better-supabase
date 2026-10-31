@@ -34,6 +34,7 @@ import {
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { linked } from "./banking-sql.ts";
 import { invoiceCollections } from "./invoices-collections.ts";
+import { invoiceDiscountMatrix } from "./invoices-discount.ts";
 import { invoiceFromQuote } from "./invoices-from-quote.ts";
 import { invoiceLedger, paymentKey } from "./invoices-ledger.ts";
 import { invoicePurchase, PURCHASE_VALUES } from "./invoices-purchase.ts";
@@ -738,6 +739,12 @@ ${updateInvoiceSql()}${lineItemsSql(
       guard: `if not exists (select 1 from ${t("invoices")} x where x.${i("id")} = v_parent and ${can("x", n.update)}) then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
   end if;`,
+      ...invoiceDiscountMatrix(
+        ctx,
+        t("invoices"),
+        i("id"),
+        ["companyId", "contactId"].filter(has).map(i),
+      ),
     },
   )}
 -- Issues a draft: it gets the next number of its kind (gapless, so a

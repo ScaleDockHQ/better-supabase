@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
--- @bsb-block inventory@4 managed
--- @bsb-hash sha256:098d0aeaf560a068f11e8dfb72ab9dd7ddf585ef89216eae4556f09e2d5fc0e5
+-- @bsb-block inventory@5 managed
+-- @bsb-hash sha256:11e0707c8250e1ad0c574b4e42d7963fe0849b352409aabb4b038ab2323d797f
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -178,6 +178,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_allocations";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_allocations";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_allocations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_counts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_count_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -583,6 +599,59 @@ grant select on "better_supabase"."stock_allocations" to authenticated;
 grant all on "better_supabase"."stock_allocations" to service_role;
 drop policy if exists stock_allocations_read on "better_supabase"."stock_allocations";
 create policy stock_allocations_read on "better_supabase"."stock_allocations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- A stock count: the stock of one location, counted line by line. Posting it
+-- writes each line's variance to the ledger as one 'count' movement.
+create table if not exists "better_supabase"."stock_counts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "status" text not null default 'open' check ("status" in ('open', 'posted', 'cancelled')),
+  "note" text,
+  "opened_by" uuid default auth.uid(),
+  "posted_by" uuid,
+  "opened_at" timestamptz not null default now(),
+  "posted_at" timestamptz,
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists stock_counts_location_idx on "better_supabase"."stock_counts" ("location_id");
+create index if not exists stock_counts_status_idx on "better_supabase"."stock_counts" ("tenant_id", "status");
+alter table "better_supabase"."stock_counts" enable row level security;
+revoke all on "better_supabase"."stock_counts" from public, anon, authenticated;
+grant select on "better_supabase"."stock_counts" to authenticated;
+grant all on "better_supabase"."stock_counts" to service_role;
+drop policy if exists stock_counts_read on "better_supabase"."stock_counts";
+create policy stock_counts_read on "better_supabase"."stock_counts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- One counted position: a variant in a bin, a lot or neither, or one serial
+-- number. expected is the stock when the line was opened; variance is
+-- counted minus expected and stays null until the line is counted.
+create table if not exists "better_supabase"."stock_count_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "count_id" uuid not null references "better_supabase"."stock_counts" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete restrict,
+  "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
+  "serial" text check (length("serial") between 1 and 100),
+  "expected" numeric(20, 6) not null default 0 check ("expected" >= 0),
+  "counted" numeric(20, 6) check ("counted" >= 0),
+  "variance" numeric(20, 6) generated always as ("counted" - "expected") stored,
+  "movement_id" uuid,
+  "updated_at" timestamptz not null default now()
+);
+create unique index if not exists stock_count_lines_key on "better_supabase"."stock_count_lines" ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", ''));
+create index if not exists stock_count_lines_variant_idx on "better_supabase"."stock_count_lines" ("variant_id");
+alter table "better_supabase"."stock_count_lines" enable row level security;
+revoke all on "better_supabase"."stock_count_lines" from public, anon, authenticated;
+grant select on "better_supabase"."stock_count_lines" to authenticated;
+grant all on "better_supabase"."stock_count_lines" to service_role;
+drop policy if exists stock_count_lines_read on "better_supabase"."stock_count_lines";
+create policy stock_count_lines_read on "better_supabase"."stock_count_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -1767,6 +1836,371 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_reorder_point"(uuid, uuid, numeric) from public, anon;
 grant execute on function "better_supabase"."set_reorder_point"(uuid, uuid, numeric) to authenticated, service_role;
+
+-- What the books say is at a position now: a serial number counts 1 when it is
+-- in stock at the location; a bin or lot is that bucket; neither is the level's
+-- stock outside any bin or lot.
+create or replace function "better_supabase"."count_expected"(variant uuid, location uuid, bin uuid, lot uuid, serial text)
+returns numeric
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when $5 is not null then
+      (select count(*) from "better_supabase"."stock_serials" y where y."variant_id" = $1 and y."serial" = $5 and y."location_id" = $2 and y."status" = 'in_stock')::numeric
+    when $3 is null and $4 is null then
+      coalesce((select x."on_hand" from "better_supabase"."stock_levels" x where x."variant_id" = $1 and x."location_id" = $2), 0)
+        - coalesce((select sum(y."on_hand") from "better_supabase"."stock_buckets" y where y."variant_id" = $1 and y."location_id" = $2), 0)
+    else
+      coalesce((select y."on_hand" from "better_supabase"."stock_buckets" y where y."variant_id" = $1 and y."location_id" = $2
+        and y."bin_id" is not distinct from $3 and y."lot_id" is not distinct from $4), 0)
+  end
+$$;
+revoke execute on function "better_supabase"."count_expected"(uuid, uuid, uuid, uuid, text) from public, anon, authenticated;
+
+-- Opens a count of a location and snapshots its stock into lines: each bin and
+-- lot bucket, the stock outside any bin or lot, and each serial number in stock.
+-- attrs: { note?, variantIds? } counts only those variants. A line starts with
+-- no counted quantity. Returns the count's id and its number of lines.
+create or replace function "better_supabase"."open_stock_count"(tenant uuid, location uuid, attrs jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attrs jsonb := coalesce(open_stock_count.attrs, '{}'::jsonb);
+  v_variants uuid[];
+  v_id uuid;
+  v_lines integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', open_stock_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = open_stock_count.location and x."tenant_id" = open_stock_count.tenant) then
+    raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  begin
+    if jsonb_typeof(v_attrs -> 'variantIds') = 'array' then
+      v_variants := array(select jsonb_array_elements_text(v_attrs -> 'variantIds'))::uuid[];
+    end if;
+  exception when invalid_text_representation then
+    raise exception 'variantIds is a list of uuids' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end;
+  insert into "better_supabase"."stock_counts" as x ("tenant_id", "location_id", "note")
+  values (open_stock_count.tenant, open_stock_count.location, nullif(btrim(v_attrs ->> 'note'), ''))
+  returning x."id" into v_id;
+  insert into "better_supabase"."stock_count_lines" ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected")
+  select open_stock_count.tenant, v_id, p.variant, p.bin, p.lot, p.serial, p.expected
+  from (
+    select y."variant_id" as variant, y."bin_id" as bin, y."lot_id" as lot, null::text as serial, y."on_hand" as expected
+    from "better_supabase"."stock_buckets" y
+    where y."location_id" = open_stock_count.location and y."tenant_id" = open_stock_count.tenant and y."on_hand" > 0
+      and not exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = y."variant_id" and q."tracking" = 'serial')
+    union all
+    select x."variant_id", null, null, null,
+      x."on_hand" - coalesce((select sum(y."on_hand") from "better_supabase"."stock_buckets" y where y."variant_id" = x."variant_id" and y."location_id" = x."location_id"), 0)
+    from "better_supabase"."stock_levels" x
+    where x."location_id" = open_stock_count.location and x."tenant_id" = open_stock_count.tenant
+      and not exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = x."variant_id" and q."tracking" = 'serial')
+    union all
+    select z."variant_id", z."bin_id", z."lot_id", z."serial", 1
+    from "better_supabase"."stock_serials" z
+    where z."location_id" = open_stock_count.location and z."tenant_id" = open_stock_count.tenant and z."status" = 'in_stock'
+  ) p
+  where (v_variants is null or p.variant = any (v_variants)) and p.expected > 0
+  on conflict do nothing;
+  get diagnostics v_lines = row_count;
+  return jsonb_build_object('id', v_id, 'lines', v_lines);
+end;
+$$;
+revoke execute on function "better_supabase"."open_stock_count"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."open_stock_count"(uuid, uuid, jsonb) to authenticated, service_role;
+
+-- Records what was counted at a position of an open count. attrs: { variantId,
+-- binId?, lotId?, serial?, counted }. A position that isn't a line yet (stock
+-- the books don't know of) becomes one, with expected taken from the stock now.
+-- A serial number is counted 0 or 1. Returns the line's id, expected, counted
+-- and variance.
+create or replace function "better_supabase"."record_count_line"(count uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attrs jsonb := coalesce(record_count_line.attrs, '{}'::jsonb);
+  v_count record;
+  v_variant uuid;
+  v_bin uuid;
+  v_lot uuid;
+  v_serial text := nullif(btrim(v_attrs ->> 'serial'), '');
+  v_counted numeric;
+  v_row record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" as tenant, x."location_id" as location, x."status" as status into v_count
+  from "better_supabase"."stock_counts" x where x."id" = record_count_line.count for update;
+  if not found then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_count.status <> 'open' then
+    raise exception 'a posted or cancelled count takes no more lines' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  begin
+    v_variant := (v_attrs ->> 'variantId')::uuid;
+    v_bin := nullif(v_attrs ->> 'binId', '')::uuid;
+    v_lot := nullif(v_attrs ->> 'lotId', '')::uuid;
+    v_counted := (v_attrs ->> 'counted')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'variantId, binId and lotId are uuids and counted is a number' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end;
+  if v_variant is null or v_counted is null or v_counted < 0 then
+    raise exception 'a line needs a variantId and a counted quantity of zero or more' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = v_variant and cv."tenant_id" = v_count.tenant) then
+    raise exception 'variant not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
+  end if;
+  if exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = v_variant and q."tracking" = 'serial') and (v_serial is null or v_counted not in (0, 1)) then
+    raise exception 'a serial-tracked variant is counted per serial number, 0 or 1' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if v_serial is not null and (v_counted not in (0, 1) or v_bin is not null or v_lot is not null) then
+    raise exception 'a serial number is counted 0 or 1, without a bin or lot' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if v_bin is not null and not exists (select 1 from "better_supabase"."stock_bins" b where b."id" = v_bin and b."location_id" = v_count.location) then
+    raise exception 'the bin isn''t at this location' using errcode = 'P0002', hint = 'INVENTORY_BIN_NOT_FOUND';
+  end if;
+  if v_lot is not null and not exists (select 1 from "better_supabase"."stock_lots" b where b."id" = v_lot and b."variant_id" = v_variant) then
+    raise exception 'the lot isn''t a lot of this variant' using errcode = 'P0002', hint = 'INVENTORY_LOT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."stock_count_lines" as x ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected", "counted")
+  values (v_count.tenant, record_count_line.count, v_variant, v_bin, v_lot, v_serial,
+    "better_supabase"."count_expected"(v_variant, v_count.location, v_bin, v_lot, v_serial), v_counted)
+  on conflict ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", '')) do update
+    set "counted" = excluded."counted", "updated_at" = now()
+  returning x."id", x."expected", x."counted", x."variance" into v_row;
+  update "better_supabase"."stock_counts" x set "updated_at" = now() where x."id" = record_count_line.count;
+  return jsonb_build_object('id', v_row."id", 'expected', v_row."expected"::text, 'counted', v_row."counted"::text, 'variance', v_row."variance"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."record_count_line"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."record_count_line"(uuid, jsonb) to authenticated, service_role;
+
+-- Posts an open count: each counted line with a variance becomes one 'count'
+-- movement of that variance (counted minus the snapshot, so stock that moved
+-- since the snapshot stays), referenced to the count. Lines not counted post
+-- nothing. A second call changes nothing and returns posted: false. Returns the
+-- number of movements and the sum of the absolute variances.
+create or replace function "better_supabase"."post_stock_count"(count uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count record;
+  v_line record;
+  v_movement uuid;
+  v_moves integer := 0;
+  v_total numeric := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" as tenant, x."location_id" as location, x."status" as status, x."note" as note into v_count
+  from "better_supabase"."stock_counts" x where x."id" = post_stock_count.count for update;
+  if not found then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_count.status = 'posted' then
+    return jsonb_build_object('posted', false, 'movements', (select count(*) from "better_supabase"."stock_count_lines" y where y."count_id" = post_stock_count.count and y."movement_id" is not null), 'variance', null);
+  end if;
+  if v_count.status <> 'open' then
+    raise exception 'a cancelled count can''t be posted' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  for v_line in
+    select y."id" as id, y."variant_id" as variant, y."bin_id" as bin, y."lot_id" as lot, y."serial" as serial, y."variance" as variance
+    from "better_supabase"."stock_count_lines" y
+    where y."count_id" = post_stock_count.count and y."variance" is not null and y."variance" <> 0 and y."movement_id" is null
+    order by y."variant_id", y."id"
+  loop
+    insert into "better_supabase"."stock_levels" ("tenant_id", "variant_id", "location_id")
+    values (v_count.tenant, v_line.variant, v_count.location)
+    on conflict ("variant_id", "location_id") do nothing;
+    v_movement := "better_supabase"."move_stock"(v_count.tenant, v_line.variant, v_count.location, v_line.variance, 'count', 'stock_count', post_stock_count.count::text, coalesce(v_count.note, 'Stock count'), jsonb_strip_nulls(jsonb_build_object('binId', v_line.bin, 'lotId', v_line.lot, 'serials', case when v_line.serial is not null then jsonb_build_array(v_line.serial) end)));
+    update "better_supabase"."stock_count_lines" y set "movement_id" = v_movement, "updated_at" = now() where y."id" = v_line.id;
+    v_moves := v_moves + 1;
+    v_total := v_total + abs(v_line.variance);
+  end loop;
+  update "better_supabase"."stock_counts" x set "status" = 'posted', "posted_at" = now(), "posted_by" = auth.uid(), "updated_at" = now() where x."id" = post_stock_count.count;
+  return jsonb_build_object('posted', true, 'movements', v_moves, 'variance', v_total::text);
+end;
+$$;
+revoke execute on function "better_supabase"."post_stock_count"(uuid) from public, anon;
+grant execute on function "better_supabase"."post_stock_count"(uuid) to authenticated, service_role;
+
+-- Cancels an open count; its lines stay for the record and nothing is posted.
+create or replace function "better_supabase"."cancel_stock_count"(count uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_status text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."status" into v_tenant, v_status from "better_supabase"."stock_counts" x where x."id" = cancel_stock_count.count for update;
+  if v_tenant is null then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_status = 'cancelled' then
+    return false;
+  end if;
+  if v_status <> 'open' then
+    raise exception 'a posted count can''t be cancelled' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  update "better_supabase"."stock_counts" x set "status" = 'cancelled', "updated_at" = now() where x."id" = cancel_stock_count.count;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."cancel_stock_count"(uuid) from public, anon;
+grant execute on function "better_supabase"."cancel_stock_count"(uuid) to authenticated, service_role;
+
+-- The import target of the stock_count entity: item.data is { locationId or
+-- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
+-- expected takes the stock now. An imported count stays open; post it with
+-- post_stock_count, which posts once. Importing the same key again replaces the
+-- lines of an open count and refuses a posted one.
+create or replace function "better_supabase"."import_stock_count"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_stock_count.item ->> 'tenant')::uuid;
+  v_data jsonb := import_stock_count.item -> 'data';
+  v_location uuid;
+  v_id uuid;
+  v_status text;
+  v_updated timestamptz;
+  v_entry jsonb;
+  v_variant uuid;
+  v_bin uuid;
+  v_lot uuid;
+  v_serial text;
+  v_counted numeric;
+  v_expected numeric;
+begin
+  if jsonb_typeof(v_data -> 'lines') is distinct from 'array' then
+    raise exception 'a stock count needs a list of lines' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  begin
+    v_location := nullif(v_data ->> 'locationId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId is a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if v_location is null then
+    select x."id" into v_location from "better_supabase"."inventory_locations" x where x."tenant_id" = v_tenant and x."code" = v_data ->> 'location';
+  elsif not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = v_tenant) then
+    v_location := null;
+  end if;
+  if v_location is null then
+    raise exception 'the count''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if import_stock_count.subject_id is null then
+    insert into "better_supabase"."stock_counts" as x ("tenant_id", "location_id", "note")
+    values (v_tenant, v_location, nullif(btrim(v_data ->> 'note'), ''))
+    returning x."id", x."updated_at" into v_id, v_updated;
+  else
+    select x."id", x."status" into v_id, v_status from "better_supabase"."stock_counts" x
+    where x."id" = import_stock_count.subject_id::uuid and x."tenant_id" = v_tenant for update;
+    if v_id is null then
+      raise exception 'the stock count no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    if v_status <> 'open' then
+      raise exception 'a posted or cancelled count can''t be imported again' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    update "better_supabase"."stock_counts" x set "location_id" = v_location, "note" = nullif(btrim(v_data ->> 'note'), ''), "updated_at" = now()
+    where x."id" = v_id returning x."updated_at" into v_updated;
+    delete from "better_supabase"."stock_count_lines" y where y."count_id" = v_id and y."movement_id" is null;
+  end if;
+  for v_entry in select e from jsonb_array_elements(v_data -> 'lines') e loop
+    begin
+      v_variant := nullif(v_entry ->> 'variantId', '')::uuid;
+      v_bin := nullif(v_entry ->> 'binId', '')::uuid;
+      v_lot := nullif(v_entry ->> 'lotId', '')::uuid;
+      v_counted := (v_entry ->> 'counted')::numeric;
+      v_expected := (v_entry ->> 'expected')::numeric;
+    exception when invalid_text_representation or numeric_value_out_of_range then
+      raise exception 'ids are uuids and counted and expected are numbers' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+    if v_variant is null then
+      select y."id" into v_variant from "better_supabase"."product_variants" y where y."tenant_id" = v_tenant and y."sku" = v_entry ->> 'sku';
+    end if;
+    if v_variant is null or not exists (select 1 from "better_supabase"."product_variants" y where y."id" = v_variant and y."tenant_id" = v_tenant) then
+      raise exception 'a line''s variant isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    if v_bin is null and nullif(v_entry ->> 'bin', '') is not null then
+      select y."id" into v_bin from "better_supabase"."stock_bins" y where y."tenant_id" = v_tenant and y."location_id" = v_location and y."code" = v_entry ->> 'bin';
+      if v_bin is null then
+        raise exception 'a line''s bin isn''t at the location' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+      end if;
+    end if;
+    if v_lot is null and nullif(v_entry ->> 'lot', '') is not null then
+      select y."id" into v_lot from "better_supabase"."stock_lots" y where y."tenant_id" = v_tenant and y."variant_id" = v_variant and y."code" = v_entry ->> 'lot';
+      if v_lot is null then
+        raise exception 'a line''s lot isn''t a lot of its variant' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+      end if;
+    end if;
+    v_serial := nullif(btrim(v_entry ->> 'serial'), '');
+    if v_counted is null or v_counted < 0 or (v_serial is not null and (v_counted not in (0, 1) or v_bin is not null or v_lot is not null)) then
+      raise exception 'a line needs a counted quantity of zero or more, and a serial is counted 0 or 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    insert into "better_supabase"."stock_count_lines" as x ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected", "counted")
+    values (v_tenant, v_id, v_variant, v_bin, v_lot, v_serial,
+      coalesce(v_expected, "better_supabase"."count_expected"(v_variant, v_location, v_bin, v_lot, v_serial)), v_counted)
+    on conflict ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", '')) do update
+      set "counted" = excluded."counted", "expected" = excluded."expected", "updated_at" = now();
+  end loop;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_stock_count"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_stock_count"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."stock_count_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."stock_counts" x where x."id" = $1::uuid
+$$;
+revoke execute on function "better_supabase"."stock_count_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."stock_count_updated_at"(text) to service_role;
 
 -- Holds stock for a cart or an order until expires_at (15 minutes by default).
 -- Releases the level's expired reservations first. Returns the reservation id,
@@ -2990,6 +3424,48 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_alloca
 create policy bsb_tenant_scope_delete on "better_supabase"."stock_allocations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_counts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_counts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_counts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_counts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_counts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_count_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_count_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_count_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_count_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_count_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3007,21 +3483,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
--- @bsb-hash sha256:ea44e3b8b1525a301ac30a33b17c5ce2127de622ef0df73b59a9a10aa7fb8a72
+-- @bsb-hash sha256:cceceeec0ea99073af6312f71cdbe0989c2416c29906644d4e37dc5359e4cb3a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inventory', 4, 'managed')
+values ('inventory', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
--- @bsb-block inventory@4 managed
--- @bsb-hash sha256:f2811eeb6a0622d81b0aa5e67a2fd8af155f47a0082ad44835f6959cc1f38434
+-- @bsb-block inventory@5 managed
+-- @bsb-hash sha256:b36454bd6abdcb4df0a1171f2a7088cdb44ca89bc12abd5b37cc2c60b1028557
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3215,6 +3691,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_allocations";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_allocations";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_allocations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_counts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_count_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3620,6 +4112,59 @@ grant select on "better_supabase"."stock_allocations" to authenticated;
 grant all on "better_supabase"."stock_allocations" to service_role;
 drop policy if exists stock_allocations_read on "better_supabase"."stock_allocations";
 create policy stock_allocations_read on "better_supabase"."stock_allocations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- A stock count: the stock of one location, counted line by line. Posting it
+-- writes each line's variance to the ledger as one 'count' movement.
+create table if not exists "better_supabase"."stock_counts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "status" text not null default 'open' check ("status" in ('open', 'posted', 'cancelled')),
+  "note" text,
+  "opened_by" uuid default auth.uid(),
+  "posted_by" uuid,
+  "opened_at" timestamptz not null default now(),
+  "posted_at" timestamptz,
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists stock_counts_location_idx on "better_supabase"."stock_counts" ("location_id");
+create index if not exists stock_counts_status_idx on "better_supabase"."stock_counts" ("tenant_id", "status");
+alter table "better_supabase"."stock_counts" enable row level security;
+revoke all on "better_supabase"."stock_counts" from public, anon, authenticated;
+grant select on "better_supabase"."stock_counts" to authenticated;
+grant all on "better_supabase"."stock_counts" to service_role;
+drop policy if exists stock_counts_read on "better_supabase"."stock_counts";
+create policy stock_counts_read on "better_supabase"."stock_counts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- One counted position: a variant in a bin, a lot or neither, or one serial
+-- number. expected is the stock when the line was opened; variance is
+-- counted minus expected and stays null until the line is counted.
+create table if not exists "better_supabase"."stock_count_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "count_id" uuid not null references "better_supabase"."stock_counts" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete restrict,
+  "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
+  "serial" text check (length("serial") between 1 and 100),
+  "expected" numeric(20, 6) not null default 0 check ("expected" >= 0),
+  "counted" numeric(20, 6) check ("counted" >= 0),
+  "variance" numeric(20, 6) generated always as ("counted" - "expected") stored,
+  "movement_id" uuid,
+  "updated_at" timestamptz not null default now()
+);
+create unique index if not exists stock_count_lines_key on "better_supabase"."stock_count_lines" ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", ''));
+create index if not exists stock_count_lines_variant_idx on "better_supabase"."stock_count_lines" ("variant_id");
+alter table "better_supabase"."stock_count_lines" enable row level security;
+revoke all on "better_supabase"."stock_count_lines" from public, anon, authenticated;
+grant select on "better_supabase"."stock_count_lines" to authenticated;
+grant all on "better_supabase"."stock_count_lines" to service_role;
+drop policy if exists stock_count_lines_read on "better_supabase"."stock_count_lines";
+create policy stock_count_lines_read on "better_supabase"."stock_count_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -4812,6 +5357,371 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_reorder_point"(uuid, uuid, numeric) from public, anon;
 grant execute on function "better_supabase"."set_reorder_point"(uuid, uuid, numeric) to authenticated, service_role;
+
+-- What the books say is at a position now: a serial number counts 1 when it is
+-- in stock at the location; a bin or lot is that bucket; neither is the level's
+-- stock outside any bin or lot.
+create or replace function "better_supabase"."count_expected"(variant uuid, location uuid, bin uuid, lot uuid, serial text)
+returns numeric
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when $5 is not null then
+      (select count(*) from "better_supabase"."stock_serials" y where y."variant_id" = $1 and y."serial" = $5 and y."location_id" = $2 and y."status" = 'in_stock')::numeric
+    when $3 is null and $4 is null then
+      coalesce((select x."on_hand" from "better_supabase"."stock_levels" x where x."variant_id" = $1 and x."location_id" = $2), 0)
+        - coalesce((select sum(y."on_hand") from "better_supabase"."stock_buckets" y where y."variant_id" = $1 and y."location_id" = $2), 0)
+    else
+      coalesce((select y."on_hand" from "better_supabase"."stock_buckets" y where y."variant_id" = $1 and y."location_id" = $2
+        and y."bin_id" is not distinct from $3 and y."lot_id" is not distinct from $4), 0)
+  end
+$$;
+revoke execute on function "better_supabase"."count_expected"(uuid, uuid, uuid, uuid, text) from public, anon, authenticated;
+
+-- Opens a count of a location and snapshots its stock into lines: each bin and
+-- lot bucket, the stock outside any bin or lot, and each serial number in stock.
+-- attrs: { note?, variantIds? } counts only those variants. A line starts with
+-- no counted quantity. Returns the count's id and its number of lines.
+create or replace function "better_supabase"."open_stock_count"(tenant uuid, location uuid, attrs jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attrs jsonb := coalesce(open_stock_count.attrs, '{}'::jsonb);
+  v_variants uuid[];
+  v_id uuid;
+  v_lines integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', open_stock_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = open_stock_count.location and x."tenant_id" = open_stock_count.tenant) then
+    raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  begin
+    if jsonb_typeof(v_attrs -> 'variantIds') = 'array' then
+      v_variants := array(select jsonb_array_elements_text(v_attrs -> 'variantIds'))::uuid[];
+    end if;
+  exception when invalid_text_representation then
+    raise exception 'variantIds is a list of uuids' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end;
+  insert into "better_supabase"."stock_counts" as x ("tenant_id", "location_id", "note")
+  values (open_stock_count.tenant, open_stock_count.location, nullif(btrim(v_attrs ->> 'note'), ''))
+  returning x."id" into v_id;
+  insert into "better_supabase"."stock_count_lines" ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected")
+  select open_stock_count.tenant, v_id, p.variant, p.bin, p.lot, p.serial, p.expected
+  from (
+    select y."variant_id" as variant, y."bin_id" as bin, y."lot_id" as lot, null::text as serial, y."on_hand" as expected
+    from "better_supabase"."stock_buckets" y
+    where y."location_id" = open_stock_count.location and y."tenant_id" = open_stock_count.tenant and y."on_hand" > 0
+      and not exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = y."variant_id" and q."tracking" = 'serial')
+    union all
+    select x."variant_id", null, null, null,
+      x."on_hand" - coalesce((select sum(y."on_hand") from "better_supabase"."stock_buckets" y where y."variant_id" = x."variant_id" and y."location_id" = x."location_id"), 0)
+    from "better_supabase"."stock_levels" x
+    where x."location_id" = open_stock_count.location and x."tenant_id" = open_stock_count.tenant
+      and not exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = x."variant_id" and q."tracking" = 'serial')
+    union all
+    select z."variant_id", z."bin_id", z."lot_id", z."serial", 1
+    from "better_supabase"."stock_serials" z
+    where z."location_id" = open_stock_count.location and z."tenant_id" = open_stock_count.tenant and z."status" = 'in_stock'
+  ) p
+  where (v_variants is null or p.variant = any (v_variants)) and p.expected > 0
+  on conflict do nothing;
+  get diagnostics v_lines = row_count;
+  return jsonb_build_object('id', v_id, 'lines', v_lines);
+end;
+$$;
+revoke execute on function "better_supabase"."open_stock_count"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."open_stock_count"(uuid, uuid, jsonb) to authenticated, service_role;
+
+-- Records what was counted at a position of an open count. attrs: { variantId,
+-- binId?, lotId?, serial?, counted }. A position that isn't a line yet (stock
+-- the books don't know of) becomes one, with expected taken from the stock now.
+-- A serial number is counted 0 or 1. Returns the line's id, expected, counted
+-- and variance.
+create or replace function "better_supabase"."record_count_line"(count uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attrs jsonb := coalesce(record_count_line.attrs, '{}'::jsonb);
+  v_count record;
+  v_variant uuid;
+  v_bin uuid;
+  v_lot uuid;
+  v_serial text := nullif(btrim(v_attrs ->> 'serial'), '');
+  v_counted numeric;
+  v_row record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" as tenant, x."location_id" as location, x."status" as status into v_count
+  from "better_supabase"."stock_counts" x where x."id" = record_count_line.count for update;
+  if not found then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_count.status <> 'open' then
+    raise exception 'a posted or cancelled count takes no more lines' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  begin
+    v_variant := (v_attrs ->> 'variantId')::uuid;
+    v_bin := nullif(v_attrs ->> 'binId', '')::uuid;
+    v_lot := nullif(v_attrs ->> 'lotId', '')::uuid;
+    v_counted := (v_attrs ->> 'counted')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'variantId, binId and lotId are uuids and counted is a number' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end;
+  if v_variant is null or v_counted is null or v_counted < 0 then
+    raise exception 'a line needs a variantId and a counted quantity of zero or more' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = v_variant and cv."tenant_id" = v_count.tenant) then
+    raise exception 'variant not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
+  end if;
+  if exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = v_variant and q."tracking" = 'serial') and (v_serial is null or v_counted not in (0, 1)) then
+    raise exception 'a serial-tracked variant is counted per serial number, 0 or 1' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if v_serial is not null and (v_counted not in (0, 1) or v_bin is not null or v_lot is not null) then
+    raise exception 'a serial number is counted 0 or 1, without a bin or lot' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if v_bin is not null and not exists (select 1 from "better_supabase"."stock_bins" b where b."id" = v_bin and b."location_id" = v_count.location) then
+    raise exception 'the bin isn''t at this location' using errcode = 'P0002', hint = 'INVENTORY_BIN_NOT_FOUND';
+  end if;
+  if v_lot is not null and not exists (select 1 from "better_supabase"."stock_lots" b where b."id" = v_lot and b."variant_id" = v_variant) then
+    raise exception 'the lot isn''t a lot of this variant' using errcode = 'P0002', hint = 'INVENTORY_LOT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."stock_count_lines" as x ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected", "counted")
+  values (v_count.tenant, record_count_line.count, v_variant, v_bin, v_lot, v_serial,
+    "better_supabase"."count_expected"(v_variant, v_count.location, v_bin, v_lot, v_serial), v_counted)
+  on conflict ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", '')) do update
+    set "counted" = excluded."counted", "updated_at" = now()
+  returning x."id", x."expected", x."counted", x."variance" into v_row;
+  update "better_supabase"."stock_counts" x set "updated_at" = now() where x."id" = record_count_line.count;
+  return jsonb_build_object('id', v_row."id", 'expected', v_row."expected"::text, 'counted', v_row."counted"::text, 'variance', v_row."variance"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."record_count_line"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."record_count_line"(uuid, jsonb) to authenticated, service_role;
+
+-- Posts an open count: each counted line with a variance becomes one 'count'
+-- movement of that variance (counted minus the snapshot, so stock that moved
+-- since the snapshot stays), referenced to the count. Lines not counted post
+-- nothing. A second call changes nothing and returns posted: false. Returns the
+-- number of movements and the sum of the absolute variances.
+create or replace function "better_supabase"."post_stock_count"(count uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count record;
+  v_line record;
+  v_movement uuid;
+  v_moves integer := 0;
+  v_total numeric := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" as tenant, x."location_id" as location, x."status" as status, x."note" as note into v_count
+  from "better_supabase"."stock_counts" x where x."id" = post_stock_count.count for update;
+  if not found then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_count.status = 'posted' then
+    return jsonb_build_object('posted', false, 'movements', (select count(*) from "better_supabase"."stock_count_lines" y where y."count_id" = post_stock_count.count and y."movement_id" is not null), 'variance', null);
+  end if;
+  if v_count.status <> 'open' then
+    raise exception 'a cancelled count can''t be posted' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  for v_line in
+    select y."id" as id, y."variant_id" as variant, y."bin_id" as bin, y."lot_id" as lot, y."serial" as serial, y."variance" as variance
+    from "better_supabase"."stock_count_lines" y
+    where y."count_id" = post_stock_count.count and y."variance" is not null and y."variance" <> 0 and y."movement_id" is null
+    order by y."variant_id", y."id"
+  loop
+    insert into "better_supabase"."stock_levels" ("tenant_id", "variant_id", "location_id")
+    values (v_count.tenant, v_line.variant, v_count.location)
+    on conflict ("variant_id", "location_id") do nothing;
+    v_movement := "better_supabase"."move_stock"(v_count.tenant, v_line.variant, v_count.location, v_line.variance, 'count', 'stock_count', post_stock_count.count::text, coalesce(v_count.note, 'Stock count'), jsonb_strip_nulls(jsonb_build_object('binId', v_line.bin, 'lotId', v_line.lot, 'serials', case when v_line.serial is not null then jsonb_build_array(v_line.serial) end)));
+    update "better_supabase"."stock_count_lines" y set "movement_id" = v_movement, "updated_at" = now() where y."id" = v_line.id;
+    v_moves := v_moves + 1;
+    v_total := v_total + abs(v_line.variance);
+  end loop;
+  update "better_supabase"."stock_counts" x set "status" = 'posted', "posted_at" = now(), "posted_by" = auth.uid(), "updated_at" = now() where x."id" = post_stock_count.count;
+  return jsonb_build_object('posted', true, 'movements', v_moves, 'variance', v_total::text);
+end;
+$$;
+revoke execute on function "better_supabase"."post_stock_count"(uuid) from public, anon;
+grant execute on function "better_supabase"."post_stock_count"(uuid) to authenticated, service_role;
+
+-- Cancels an open count; its lines stay for the record and nothing is posted.
+create or replace function "better_supabase"."cancel_stock_count"(count uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_status text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."status" into v_tenant, v_status from "better_supabase"."stock_counts" x where x."id" = cancel_stock_count.count for update;
+  if v_tenant is null then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_status = 'cancelled' then
+    return false;
+  end if;
+  if v_status <> 'open' then
+    raise exception 'a posted count can''t be cancelled' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  update "better_supabase"."stock_counts" x set "status" = 'cancelled', "updated_at" = now() where x."id" = cancel_stock_count.count;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."cancel_stock_count"(uuid) from public, anon;
+grant execute on function "better_supabase"."cancel_stock_count"(uuid) to authenticated, service_role;
+
+-- The import target of the stock_count entity: item.data is { locationId or
+-- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
+-- expected takes the stock now. An imported count stays open; post it with
+-- post_stock_count, which posts once. Importing the same key again replaces the
+-- lines of an open count and refuses a posted one.
+create or replace function "better_supabase"."import_stock_count"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_stock_count.item ->> 'tenant')::uuid;
+  v_data jsonb := import_stock_count.item -> 'data';
+  v_location uuid;
+  v_id uuid;
+  v_status text;
+  v_updated timestamptz;
+  v_entry jsonb;
+  v_variant uuid;
+  v_bin uuid;
+  v_lot uuid;
+  v_serial text;
+  v_counted numeric;
+  v_expected numeric;
+begin
+  if jsonb_typeof(v_data -> 'lines') is distinct from 'array' then
+    raise exception 'a stock count needs a list of lines' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  begin
+    v_location := nullif(v_data ->> 'locationId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId is a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if v_location is null then
+    select x."id" into v_location from "better_supabase"."inventory_locations" x where x."tenant_id" = v_tenant and x."code" = v_data ->> 'location';
+  elsif not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = v_tenant) then
+    v_location := null;
+  end if;
+  if v_location is null then
+    raise exception 'the count''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if import_stock_count.subject_id is null then
+    insert into "better_supabase"."stock_counts" as x ("tenant_id", "location_id", "note")
+    values (v_tenant, v_location, nullif(btrim(v_data ->> 'note'), ''))
+    returning x."id", x."updated_at" into v_id, v_updated;
+  else
+    select x."id", x."status" into v_id, v_status from "better_supabase"."stock_counts" x
+    where x."id" = import_stock_count.subject_id::uuid and x."tenant_id" = v_tenant for update;
+    if v_id is null then
+      raise exception 'the stock count no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    if v_status <> 'open' then
+      raise exception 'a posted or cancelled count can''t be imported again' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    update "better_supabase"."stock_counts" x set "location_id" = v_location, "note" = nullif(btrim(v_data ->> 'note'), ''), "updated_at" = now()
+    where x."id" = v_id returning x."updated_at" into v_updated;
+    delete from "better_supabase"."stock_count_lines" y where y."count_id" = v_id and y."movement_id" is null;
+  end if;
+  for v_entry in select e from jsonb_array_elements(v_data -> 'lines') e loop
+    begin
+      v_variant := nullif(v_entry ->> 'variantId', '')::uuid;
+      v_bin := nullif(v_entry ->> 'binId', '')::uuid;
+      v_lot := nullif(v_entry ->> 'lotId', '')::uuid;
+      v_counted := (v_entry ->> 'counted')::numeric;
+      v_expected := (v_entry ->> 'expected')::numeric;
+    exception when invalid_text_representation or numeric_value_out_of_range then
+      raise exception 'ids are uuids and counted and expected are numbers' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+    if v_variant is null then
+      select y."id" into v_variant from "better_supabase"."product_variants" y where y."tenant_id" = v_tenant and y."sku" = v_entry ->> 'sku';
+    end if;
+    if v_variant is null or not exists (select 1 from "better_supabase"."product_variants" y where y."id" = v_variant and y."tenant_id" = v_tenant) then
+      raise exception 'a line''s variant isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    if v_bin is null and nullif(v_entry ->> 'bin', '') is not null then
+      select y."id" into v_bin from "better_supabase"."stock_bins" y where y."tenant_id" = v_tenant and y."location_id" = v_location and y."code" = v_entry ->> 'bin';
+      if v_bin is null then
+        raise exception 'a line''s bin isn''t at the location' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+      end if;
+    end if;
+    if v_lot is null and nullif(v_entry ->> 'lot', '') is not null then
+      select y."id" into v_lot from "better_supabase"."stock_lots" y where y."tenant_id" = v_tenant and y."variant_id" = v_variant and y."code" = v_entry ->> 'lot';
+      if v_lot is null then
+        raise exception 'a line''s lot isn''t a lot of its variant' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+      end if;
+    end if;
+    v_serial := nullif(btrim(v_entry ->> 'serial'), '');
+    if v_counted is null or v_counted < 0 or (v_serial is not null and (v_counted not in (0, 1) or v_bin is not null or v_lot is not null)) then
+      raise exception 'a line needs a counted quantity of zero or more, and a serial is counted 0 or 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    insert into "better_supabase"."stock_count_lines" as x ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected", "counted")
+    values (v_tenant, v_id, v_variant, v_bin, v_lot, v_serial,
+      coalesce(v_expected, "better_supabase"."count_expected"(v_variant, v_location, v_bin, v_lot, v_serial)), v_counted)
+    on conflict ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", '')) do update
+      set "counted" = excluded."counted", "expected" = excluded."expected", "updated_at" = now();
+  end loop;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_stock_count"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_stock_count"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."stock_count_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."stock_counts" x where x."id" = $1::uuid
+$$;
+revoke execute on function "better_supabase"."stock_count_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."stock_count_updated_at"(text) to service_role;
 
 -- Holds stock for a cart or an order until expires_at (15 minutes by default).
 -- Releases the level's expired reservations first. Returns the reservation id,
@@ -6085,6 +6995,48 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_alloca
 create policy bsb_tenant_scope_delete on "better_supabase"."stock_allocations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_counts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_counts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_counts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_counts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_counts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_count_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_count_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_count_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_count_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_count_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -6102,21 +7054,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
--- @bsb-hash sha256:ea44e3b8b1525a301ac30a33b17c5ce2127de622ef0df73b59a9a10aa7fb8a72
+-- @bsb-hash sha256:cceceeec0ea99073af6312f71cdbe0989c2416c29906644d4e37dc5359e4cb3a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inventory', 4, 'managed')
+values ('inventory', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
--- @bsb-block inventory@4 managed
--- @bsb-hash sha256:0a03b2efb878f92d2da5d02ebb68712b4bf89f40aaad2fc886bf3cfdd98aa077
+-- @bsb-block inventory@5 managed
+-- @bsb-hash sha256:2399649b1a5f4c35fa291918eb420ff735e71b6f109d7426501e57cae488f885
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6293,6 +7245,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_allocations";
     drop policy if exists bsb_tenant_scope_update on "app_private"."stock_allocations";
     drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_allocations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."stock_counts";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."stock_counts";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_counts";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."stock_counts";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_counts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_count_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -6703,6 +7671,59 @@ grant select on "app_private"."stock_allocations" to authenticated;
 grant all on "app_private"."stock_allocations" to service_role;
 drop policy if exists stock_allocations_read on "app_private"."stock_allocations";
 create policy stock_allocations_read on "app_private"."stock_allocations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- A stock count: the stock of one location, counted line by line. Posting it
+-- writes each line's variance to the ledger as one 'count' movement.
+create table if not exists "app_private"."stock_counts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "location_id" uuid not null references "app_private"."inventory_locations" ("id") on delete cascade,
+  "status" text not null default 'open' check ("status" in ('open', 'posted', 'cancelled')),
+  "note" text,
+  "opened_by" uuid default auth.uid(),
+  "posted_by" uuid,
+  "opened_at" timestamptz not null default now(),
+  "posted_at" timestamptz,
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists stock_counts_location_idx on "app_private"."stock_counts" ("location_id");
+create index if not exists stock_counts_status_idx on "app_private"."stock_counts" ("tenant_id", "status");
+alter table "app_private"."stock_counts" enable row level security;
+revoke all on "app_private"."stock_counts" from public, anon, authenticated;
+grant select on "app_private"."stock_counts" to authenticated;
+grant all on "app_private"."stock_counts" to service_role;
+drop policy if exists stock_counts_read on "app_private"."stock_counts";
+create policy stock_counts_read on "app_private"."stock_counts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- One counted position: a variant in a bin, a lot or neither, or one serial
+-- number. expected is the stock when the line was opened; variance is
+-- counted minus expected and stays null until the line is counted.
+create table if not exists "app_private"."stock_count_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "count_id" uuid not null references "app_private"."stock_counts" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "bin_id" uuid references "app_private"."stock_bins" ("id") on delete restrict,
+  "lot_id" uuid references "app_private"."stock_lots" ("id") on delete restrict,
+  "serial" text check (length("serial") between 1 and 100),
+  "expected" numeric(20, 6) not null default 0 check ("expected" >= 0),
+  "counted" numeric(20, 6) check ("counted" >= 0),
+  "variance" numeric(20, 6) generated always as ("counted" - "expected") stored,
+  "movement_id" uuid,
+  "updated_at" timestamptz not null default now()
+);
+create unique index if not exists stock_count_lines_key on "app_private"."stock_count_lines" ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", ''));
+create index if not exists stock_count_lines_variant_idx on "app_private"."stock_count_lines" ("variant_id");
+alter table "app_private"."stock_count_lines" enable row level security;
+revoke all on "app_private"."stock_count_lines" from public, anon, authenticated;
+grant select on "app_private"."stock_count_lines" to authenticated;
+grant all on "app_private"."stock_count_lines" to service_role;
+drop policy if exists stock_count_lines_read on "app_private"."stock_count_lines";
+create policy stock_count_lines_read on "app_private"."stock_count_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7887,6 +8908,371 @@ end;
 $$;
 revoke execute on function "app_private"."set_reorder_point"(uuid, uuid, numeric) from public, anon;
 grant execute on function "app_private"."set_reorder_point"(uuid, uuid, numeric) to authenticated, service_role;
+
+-- What the books say is at a position now: a serial number counts 1 when it is
+-- in stock at the location; a bin or lot is that bucket; neither is the level's
+-- stock outside any bin or lot.
+create or replace function "app_private"."count_expected"(variant uuid, location uuid, bin uuid, lot uuid, serial text)
+returns numeric
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when $5 is not null then
+      (select count(*) from "app_private"."stock_serials" y where y."variant_id" = $1 and y."serial" = $5 and y."location_id" = $2 and y."status" = 'in_stock')::numeric
+    when $3 is null and $4 is null then
+      coalesce((select x."on_hand" from "app_private"."stock_levels" x where x."variant_id" = $1 and x."location_id" = $2), 0)
+        - coalesce((select sum(y."on_hand") from "app_private"."stock_buckets" y where y."variant_id" = $1 and y."location_id" = $2), 0)
+    else
+      coalesce((select y."on_hand" from "app_private"."stock_buckets" y where y."variant_id" = $1 and y."location_id" = $2
+        and y."bin_id" is not distinct from $3 and y."lot_id" is not distinct from $4), 0)
+  end
+$$;
+revoke execute on function "app_private"."count_expected"(uuid, uuid, uuid, uuid, text) from public, anon, authenticated;
+
+-- Opens a count of a location and snapshots its stock into lines: each bin and
+-- lot bucket, the stock outside any bin or lot, and each serial number in stock.
+-- attrs: { note?, variantIds? } counts only those variants. A line starts with
+-- no counted quantity. Returns the count's id and its number of lines.
+create or replace function "app_private"."open_stock_count"(tenant uuid, location uuid, attrs jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attrs jsonb := coalesce(open_stock_count.attrs, '{}'::jsonb);
+  v_variants uuid[];
+  v_id uuid;
+  v_lines integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', open_stock_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if not exists (select 1 from "app_private"."inventory_locations" x where x."id" = open_stock_count.location and x."tenant_id" = open_stock_count.tenant) then
+    raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  begin
+    if jsonb_typeof(v_attrs -> 'variantIds') = 'array' then
+      v_variants := array(select jsonb_array_elements_text(v_attrs -> 'variantIds'))::uuid[];
+    end if;
+  exception when invalid_text_representation then
+    raise exception 'variantIds is a list of uuids' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end;
+  insert into "app_private"."stock_counts" as x ("tenant_id", "location_id", "note")
+  values (open_stock_count.tenant, open_stock_count.location, nullif(btrim(v_attrs ->> 'note'), ''))
+  returning x."id" into v_id;
+  insert into "app_private"."stock_count_lines" ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected")
+  select open_stock_count.tenant, v_id, p.variant, p.bin, p.lot, p.serial, p.expected
+  from (
+    select y."variant_id" as variant, y."bin_id" as bin, y."lot_id" as lot, null::text as serial, y."on_hand" as expected
+    from "app_private"."stock_buckets" y
+    where y."location_id" = open_stock_count.location and y."tenant_id" = open_stock_count.tenant and y."on_hand" > 0
+      and not exists (select 1 from "app_private"."stock_items" q where q."variant_id" = y."variant_id" and q."tracking" = 'serial')
+    union all
+    select x."variant_id", null, null, null,
+      x."on_hand" - coalesce((select sum(y."on_hand") from "app_private"."stock_buckets" y where y."variant_id" = x."variant_id" and y."location_id" = x."location_id"), 0)
+    from "app_private"."stock_levels" x
+    where x."location_id" = open_stock_count.location and x."tenant_id" = open_stock_count.tenant
+      and not exists (select 1 from "app_private"."stock_items" q where q."variant_id" = x."variant_id" and q."tracking" = 'serial')
+    union all
+    select z."variant_id", z."bin_id", z."lot_id", z."serial", 1
+    from "app_private"."stock_serials" z
+    where z."location_id" = open_stock_count.location and z."tenant_id" = open_stock_count.tenant and z."status" = 'in_stock'
+  ) p
+  where (v_variants is null or p.variant = any (v_variants)) and p.expected > 0
+  on conflict do nothing;
+  get diagnostics v_lines = row_count;
+  return jsonb_build_object('id', v_id, 'lines', v_lines);
+end;
+$$;
+revoke execute on function "app_private"."open_stock_count"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "app_private"."open_stock_count"(uuid, uuid, jsonb) to authenticated, service_role;
+
+-- Records what was counted at a position of an open count. attrs: { variantId,
+-- binId?, lotId?, serial?, counted }. A position that isn't a line yet (stock
+-- the books don't know of) becomes one, with expected taken from the stock now.
+-- A serial number is counted 0 or 1. Returns the line's id, expected, counted
+-- and variance.
+create or replace function "app_private"."record_count_line"(count uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attrs jsonb := coalesce(record_count_line.attrs, '{}'::jsonb);
+  v_count record;
+  v_variant uuid;
+  v_bin uuid;
+  v_lot uuid;
+  v_serial text := nullif(btrim(v_attrs ->> 'serial'), '');
+  v_counted numeric;
+  v_row record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" as tenant, x."location_id" as location, x."status" as status into v_count
+  from "app_private"."stock_counts" x where x."id" = record_count_line.count for update;
+  if not found then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_count.status <> 'open' then
+    raise exception 'a posted or cancelled count takes no more lines' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  begin
+    v_variant := (v_attrs ->> 'variantId')::uuid;
+    v_bin := nullif(v_attrs ->> 'binId', '')::uuid;
+    v_lot := nullif(v_attrs ->> 'lotId', '')::uuid;
+    v_counted := (v_attrs ->> 'counted')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'variantId, binId and lotId are uuids and counted is a number' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end;
+  if v_variant is null or v_counted is null or v_counted < 0 then
+    raise exception 'a line needs a variantId and a counted quantity of zero or more' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = v_variant and cv."tenant_id" = v_count.tenant) then
+    raise exception 'variant not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
+  end if;
+  if exists (select 1 from "app_private"."stock_items" q where q."variant_id" = v_variant and q."tracking" = 'serial') and (v_serial is null or v_counted not in (0, 1)) then
+    raise exception 'a serial-tracked variant is counted per serial number, 0 or 1' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if v_serial is not null and (v_counted not in (0, 1) or v_bin is not null or v_lot is not null) then
+    raise exception 'a serial number is counted 0 or 1, without a bin or lot' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if v_bin is not null and not exists (select 1 from "app_private"."stock_bins" b where b."id" = v_bin and b."location_id" = v_count.location) then
+    raise exception 'the bin isn''t at this location' using errcode = 'P0002', hint = 'INVENTORY_BIN_NOT_FOUND';
+  end if;
+  if v_lot is not null and not exists (select 1 from "app_private"."stock_lots" b where b."id" = v_lot and b."variant_id" = v_variant) then
+    raise exception 'the lot isn''t a lot of this variant' using errcode = 'P0002', hint = 'INVENTORY_LOT_NOT_FOUND';
+  end if;
+  insert into "app_private"."stock_count_lines" as x ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected", "counted")
+  values (v_count.tenant, record_count_line.count, v_variant, v_bin, v_lot, v_serial,
+    "app_private"."count_expected"(v_variant, v_count.location, v_bin, v_lot, v_serial), v_counted)
+  on conflict ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", '')) do update
+    set "counted" = excluded."counted", "updated_at" = now()
+  returning x."id", x."expected", x."counted", x."variance" into v_row;
+  update "app_private"."stock_counts" x set "updated_at" = now() where x."id" = record_count_line.count;
+  return jsonb_build_object('id', v_row."id", 'expected', v_row."expected"::text, 'counted', v_row."counted"::text, 'variance', v_row."variance"::text);
+end;
+$$;
+revoke execute on function "app_private"."record_count_line"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."record_count_line"(uuid, jsonb) to authenticated, service_role;
+
+-- Posts an open count: each counted line with a variance becomes one 'count'
+-- movement of that variance (counted minus the snapshot, so stock that moved
+-- since the snapshot stays), referenced to the count. Lines not counted post
+-- nothing. A second call changes nothing and returns posted: false. Returns the
+-- number of movements and the sum of the absolute variances.
+create or replace function "app_private"."post_stock_count"(count uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count record;
+  v_line record;
+  v_movement uuid;
+  v_moves integer := 0;
+  v_total numeric := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" as tenant, x."location_id" as location, x."status" as status, x."note" as note into v_count
+  from "app_private"."stock_counts" x where x."id" = post_stock_count.count for update;
+  if not found then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_count.status = 'posted' then
+    return jsonb_build_object('posted', false, 'movements', (select count(*) from "app_private"."stock_count_lines" y where y."count_id" = post_stock_count.count and y."movement_id" is not null), 'variance', null);
+  end if;
+  if v_count.status <> 'open' then
+    raise exception 'a cancelled count can''t be posted' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  for v_line in
+    select y."id" as id, y."variant_id" as variant, y."bin_id" as bin, y."lot_id" as lot, y."serial" as serial, y."variance" as variance
+    from "app_private"."stock_count_lines" y
+    where y."count_id" = post_stock_count.count and y."variance" is not null and y."variance" <> 0 and y."movement_id" is null
+    order by y."variant_id", y."id"
+  loop
+    insert into "app_private"."stock_levels" ("tenant_id", "variant_id", "location_id")
+    values (v_count.tenant, v_line.variant, v_count.location)
+    on conflict ("variant_id", "location_id") do nothing;
+    v_movement := "app_private"."move_stock"(v_count.tenant, v_line.variant, v_count.location, v_line.variance, 'count', 'stock_count', post_stock_count.count::text, coalesce(v_count.note, 'Stock count'), jsonb_strip_nulls(jsonb_build_object('binId', v_line.bin, 'lotId', v_line.lot, 'serials', case when v_line.serial is not null then jsonb_build_array(v_line.serial) end)));
+    update "app_private"."stock_count_lines" y set "movement_id" = v_movement, "updated_at" = now() where y."id" = v_line.id;
+    v_moves := v_moves + 1;
+    v_total := v_total + abs(v_line.variance);
+  end loop;
+  update "app_private"."stock_counts" x set "status" = 'posted', "posted_at" = now(), "posted_by" = auth.uid(), "updated_at" = now() where x."id" = post_stock_count.count;
+  return jsonb_build_object('posted', true, 'movements', v_moves, 'variance', v_total::text);
+end;
+$$;
+revoke execute on function "app_private"."post_stock_count"(uuid) from public, anon;
+grant execute on function "app_private"."post_stock_count"(uuid) to authenticated, service_role;
+
+-- Cancels an open count; its lines stay for the record and nothing is posted.
+create or replace function "app_private"."cancel_stock_count"(count uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_status text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."status" into v_tenant, v_status from "app_private"."stock_counts" x where x."id" = cancel_stock_count.count for update;
+  if v_tenant is null then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_status = 'cancelled' then
+    return false;
+  end if;
+  if v_status <> 'open' then
+    raise exception 'a posted count can''t be cancelled' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  update "app_private"."stock_counts" x set "status" = 'cancelled', "updated_at" = now() where x."id" = cancel_stock_count.count;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."cancel_stock_count"(uuid) from public, anon;
+grant execute on function "app_private"."cancel_stock_count"(uuid) to authenticated, service_role;
+
+-- The import target of the stock_count entity: item.data is { locationId or
+-- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
+-- expected takes the stock now. An imported count stays open; post it with
+-- post_stock_count, which posts once. Importing the same key again replaces the
+-- lines of an open count and refuses a posted one.
+create or replace function "app_private"."import_stock_count"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_stock_count.item ->> 'tenant')::uuid;
+  v_data jsonb := import_stock_count.item -> 'data';
+  v_location uuid;
+  v_id uuid;
+  v_status text;
+  v_updated timestamptz;
+  v_entry jsonb;
+  v_variant uuid;
+  v_bin uuid;
+  v_lot uuid;
+  v_serial text;
+  v_counted numeric;
+  v_expected numeric;
+begin
+  if jsonb_typeof(v_data -> 'lines') is distinct from 'array' then
+    raise exception 'a stock count needs a list of lines' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  begin
+    v_location := nullif(v_data ->> 'locationId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId is a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if v_location is null then
+    select x."id" into v_location from "app_private"."inventory_locations" x where x."tenant_id" = v_tenant and x."code" = v_data ->> 'location';
+  elsif not exists (select 1 from "app_private"."inventory_locations" x where x."id" = v_location and x."tenant_id" = v_tenant) then
+    v_location := null;
+  end if;
+  if v_location is null then
+    raise exception 'the count''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if import_stock_count.subject_id is null then
+    insert into "app_private"."stock_counts" as x ("tenant_id", "location_id", "note")
+    values (v_tenant, v_location, nullif(btrim(v_data ->> 'note'), ''))
+    returning x."id", x."updated_at" into v_id, v_updated;
+  else
+    select x."id", x."status" into v_id, v_status from "app_private"."stock_counts" x
+    where x."id" = import_stock_count.subject_id::uuid and x."tenant_id" = v_tenant for update;
+    if v_id is null then
+      raise exception 'the stock count no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    if v_status <> 'open' then
+      raise exception 'a posted or cancelled count can''t be imported again' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    update "app_private"."stock_counts" x set "location_id" = v_location, "note" = nullif(btrim(v_data ->> 'note'), ''), "updated_at" = now()
+    where x."id" = v_id returning x."updated_at" into v_updated;
+    delete from "app_private"."stock_count_lines" y where y."count_id" = v_id and y."movement_id" is null;
+  end if;
+  for v_entry in select e from jsonb_array_elements(v_data -> 'lines') e loop
+    begin
+      v_variant := nullif(v_entry ->> 'variantId', '')::uuid;
+      v_bin := nullif(v_entry ->> 'binId', '')::uuid;
+      v_lot := nullif(v_entry ->> 'lotId', '')::uuid;
+      v_counted := (v_entry ->> 'counted')::numeric;
+      v_expected := (v_entry ->> 'expected')::numeric;
+    exception when invalid_text_representation or numeric_value_out_of_range then
+      raise exception 'ids are uuids and counted and expected are numbers' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+    if v_variant is null then
+      select y."id" into v_variant from "better_supabase"."product_variants" y where y."tenant_id" = v_tenant and y."sku" = v_entry ->> 'sku';
+    end if;
+    if v_variant is null or not exists (select 1 from "better_supabase"."product_variants" y where y."id" = v_variant and y."tenant_id" = v_tenant) then
+      raise exception 'a line''s variant isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    if v_bin is null and nullif(v_entry ->> 'bin', '') is not null then
+      select y."id" into v_bin from "app_private"."stock_bins" y where y."tenant_id" = v_tenant and y."location_id" = v_location and y."code" = v_entry ->> 'bin';
+      if v_bin is null then
+        raise exception 'a line''s bin isn''t at the location' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+      end if;
+    end if;
+    if v_lot is null and nullif(v_entry ->> 'lot', '') is not null then
+      select y."id" into v_lot from "app_private"."stock_lots" y where y."tenant_id" = v_tenant and y."variant_id" = v_variant and y."code" = v_entry ->> 'lot';
+      if v_lot is null then
+        raise exception 'a line''s lot isn''t a lot of its variant' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+      end if;
+    end if;
+    v_serial := nullif(btrim(v_entry ->> 'serial'), '');
+    if v_counted is null or v_counted < 0 or (v_serial is not null and (v_counted not in (0, 1) or v_bin is not null or v_lot is not null)) then
+      raise exception 'a line needs a counted quantity of zero or more, and a serial is counted 0 or 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    insert into "app_private"."stock_count_lines" as x ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected", "counted")
+    values (v_tenant, v_id, v_variant, v_bin, v_lot, v_serial,
+      coalesce(v_expected, "app_private"."count_expected"(v_variant, v_location, v_bin, v_lot, v_serial)), v_counted)
+    on conflict ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", '')) do update
+      set "counted" = excluded."counted", "expected" = excluded."expected", "updated_at" = now();
+  end loop;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "app_private"."import_stock_count"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "app_private"."import_stock_count"(uuid, jsonb, text) to service_role;
+
+create or replace function "app_private"."stock_count_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "app_private"."stock_counts" x where x."id" = $1::uuid
+$$;
+revoke execute on function "app_private"."stock_count_updated_at"(text) from public, anon, authenticated;
+grant execute on function "app_private"."stock_count_updated_at"(text) to service_role;
 
 -- Holds stock for a cart or an order until expires_at (15 minutes by default).
 -- Releases the level's expired reservations first. Returns the reservation id,
@@ -9110,6 +10496,48 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_allocation
 create policy bsb_tenant_scope_delete on "app_private"."stock_allocations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."stock_counts";
+drop policy if exists bsb_tenant_scope_select on "app_private"."stock_counts";
+create policy bsb_tenant_scope_select on "app_private"."stock_counts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_counts";
+create policy bsb_tenant_scope_insert on "app_private"."stock_counts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."stock_counts";
+create policy bsb_tenant_scope_update on "app_private"."stock_counts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_counts";
+create policy bsb_tenant_scope_delete on "app_private"."stock_counts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."stock_count_lines";
+drop policy if exists bsb_tenant_scope_select on "app_private"."stock_count_lines";
+create policy bsb_tenant_scope_select on "app_private"."stock_count_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_count_lines";
+create policy bsb_tenant_scope_insert on "app_private"."stock_count_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."stock_count_lines";
+create policy bsb_tenant_scope_update on "app_private"."stock_count_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_count_lines";
+create policy bsb_tenant_scope_delete on "app_private"."stock_count_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -9127,21 +10555,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
--- @bsb-hash sha256:ea44e3b8b1525a301ac30a33b17c5ce2127de622ef0df73b59a9a10aa7fb8a72
+-- @bsb-hash sha256:cceceeec0ea99073af6312f71cdbe0989c2416c29906644d4e37dc5359e4cb3a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inventory', 4, 'managed')
+values ('inventory', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
--- @bsb-block inventory@4 managed
--- @bsb-hash sha256:e062a56a919bc6ce1a7dbed92ae3b1246dc6feecb151c9e9b379949f4ab16fbc
+-- @bsb-block inventory@5 managed
+-- @bsb-hash sha256:8cd5aaae35d79249fc2c80dced015032101658966e3c592af4d0ed194eaceb39
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9318,6 +10746,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_allocations";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_allocations";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_allocations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_counts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_count_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -9723,6 +11167,59 @@ grant select on "better_supabase"."stock_allocations" to authenticated;
 grant all on "better_supabase"."stock_allocations" to service_role;
 drop policy if exists stock_allocations_read on "better_supabase"."stock_allocations";
 create policy stock_allocations_read on "better_supabase"."stock_allocations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- A stock count: the stock of one location, counted line by line. Posting it
+-- writes each line's variance to the ledger as one 'count' movement.
+create table if not exists "better_supabase"."stock_counts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "status" text not null default 'open' check ("status" in ('open', 'posted', 'cancelled')),
+  "note" text,
+  "opened_by" uuid default auth.uid(),
+  "posted_by" uuid,
+  "opened_at" timestamptz not null default now(),
+  "posted_at" timestamptz,
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists stock_counts_location_idx on "better_supabase"."stock_counts" ("location_id");
+create index if not exists stock_counts_status_idx on "better_supabase"."stock_counts" ("tenant_id", "status");
+alter table "better_supabase"."stock_counts" enable row level security;
+revoke all on "better_supabase"."stock_counts" from public, anon, authenticated;
+grant select on "better_supabase"."stock_counts" to authenticated;
+grant all on "better_supabase"."stock_counts" to service_role;
+drop policy if exists stock_counts_read on "better_supabase"."stock_counts";
+create policy stock_counts_read on "better_supabase"."stock_counts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- One counted position: a variant in a bin, a lot or neither, or one serial
+-- number. expected is the stock when the line was opened; variance is
+-- counted minus expected and stays null until the line is counted.
+create table if not exists "better_supabase"."stock_count_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "count_id" uuid not null references "better_supabase"."stock_counts" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete restrict,
+  "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
+  "serial" text check (length("serial") between 1 and 100),
+  "expected" numeric(20, 6) not null default 0 check ("expected" >= 0),
+  "counted" numeric(20, 6) check ("counted" >= 0),
+  "variance" numeric(20, 6) generated always as ("counted" - "expected") stored,
+  "movement_id" uuid,
+  "updated_at" timestamptz not null default now()
+);
+create unique index if not exists stock_count_lines_key on "better_supabase"."stock_count_lines" ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", ''));
+create index if not exists stock_count_lines_variant_idx on "better_supabase"."stock_count_lines" ("variant_id");
+alter table "better_supabase"."stock_count_lines" enable row level security;
+revoke all on "better_supabase"."stock_count_lines" from public, anon, authenticated;
+grant select on "better_supabase"."stock_count_lines" to authenticated;
+grant all on "better_supabase"."stock_count_lines" to service_role;
+drop policy if exists stock_count_lines_read on "better_supabase"."stock_count_lines";
+create policy stock_count_lines_read on "better_supabase"."stock_count_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10907,6 +12404,371 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_reorder_point"(uuid, uuid, numeric) from public, anon;
 grant execute on function "better_supabase"."set_reorder_point"(uuid, uuid, numeric) to authenticated, service_role;
+
+-- What the books say is at a position now: a serial number counts 1 when it is
+-- in stock at the location; a bin or lot is that bucket; neither is the level's
+-- stock outside any bin or lot.
+create or replace function "better_supabase"."count_expected"(variant uuid, location uuid, bin uuid, lot uuid, serial text)
+returns numeric
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when $5 is not null then
+      (select count(*) from "better_supabase"."stock_serials" y where y."variant_id" = $1 and y."serial" = $5 and y."location_id" = $2 and y."status" = 'in_stock')::numeric
+    when $3 is null and $4 is null then
+      coalesce((select x."on_hand" from "better_supabase"."stock_levels" x where x."variant_id" = $1 and x."location_id" = $2), 0)
+        - coalesce((select sum(y."on_hand") from "better_supabase"."stock_buckets" y where y."variant_id" = $1 and y."location_id" = $2), 0)
+    else
+      coalesce((select y."on_hand" from "better_supabase"."stock_buckets" y where y."variant_id" = $1 and y."location_id" = $2
+        and y."bin_id" is not distinct from $3 and y."lot_id" is not distinct from $4), 0)
+  end
+$$;
+revoke execute on function "better_supabase"."count_expected"(uuid, uuid, uuid, uuid, text) from public, anon, authenticated;
+
+-- Opens a count of a location and snapshots its stock into lines: each bin and
+-- lot bucket, the stock outside any bin or lot, and each serial number in stock.
+-- attrs: { note?, variantIds? } counts only those variants. A line starts with
+-- no counted quantity. Returns the count's id and its number of lines.
+create or replace function "better_supabase"."open_stock_count"(tenant uuid, location uuid, attrs jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attrs jsonb := coalesce(open_stock_count.attrs, '{}'::jsonb);
+  v_variants uuid[];
+  v_id uuid;
+  v_lines integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', open_stock_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = open_stock_count.location and x."tenant_id" = open_stock_count.tenant) then
+    raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  begin
+    if jsonb_typeof(v_attrs -> 'variantIds') = 'array' then
+      v_variants := array(select jsonb_array_elements_text(v_attrs -> 'variantIds'))::uuid[];
+    end if;
+  exception when invalid_text_representation then
+    raise exception 'variantIds is a list of uuids' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end;
+  insert into "better_supabase"."stock_counts" as x ("tenant_id", "location_id", "note")
+  values (open_stock_count.tenant, open_stock_count.location, nullif(btrim(v_attrs ->> 'note'), ''))
+  returning x."id" into v_id;
+  insert into "better_supabase"."stock_count_lines" ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected")
+  select open_stock_count.tenant, v_id, p.variant, p.bin, p.lot, p.serial, p.expected
+  from (
+    select y."variant_id" as variant, y."bin_id" as bin, y."lot_id" as lot, null::text as serial, y."on_hand" as expected
+    from "better_supabase"."stock_buckets" y
+    where y."location_id" = open_stock_count.location and y."tenant_id" = open_stock_count.tenant and y."on_hand" > 0
+      and not exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = y."variant_id" and q."tracking" = 'serial')
+    union all
+    select x."variant_id", null, null, null,
+      x."on_hand" - coalesce((select sum(y."on_hand") from "better_supabase"."stock_buckets" y where y."variant_id" = x."variant_id" and y."location_id" = x."location_id"), 0)
+    from "better_supabase"."stock_levels" x
+    where x."location_id" = open_stock_count.location and x."tenant_id" = open_stock_count.tenant
+      and not exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = x."variant_id" and q."tracking" = 'serial')
+    union all
+    select z."variant_id", z."bin_id", z."lot_id", z."serial", 1
+    from "better_supabase"."stock_serials" z
+    where z."location_id" = open_stock_count.location and z."tenant_id" = open_stock_count.tenant and z."status" = 'in_stock'
+  ) p
+  where (v_variants is null or p.variant = any (v_variants)) and p.expected > 0
+  on conflict do nothing;
+  get diagnostics v_lines = row_count;
+  return jsonb_build_object('id', v_id, 'lines', v_lines);
+end;
+$$;
+revoke execute on function "better_supabase"."open_stock_count"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."open_stock_count"(uuid, uuid, jsonb) to authenticated, service_role;
+
+-- Records what was counted at a position of an open count. attrs: { variantId,
+-- binId?, lotId?, serial?, counted }. A position that isn't a line yet (stock
+-- the books don't know of) becomes one, with expected taken from the stock now.
+-- A serial number is counted 0 or 1. Returns the line's id, expected, counted
+-- and variance.
+create or replace function "better_supabase"."record_count_line"(count uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attrs jsonb := coalesce(record_count_line.attrs, '{}'::jsonb);
+  v_count record;
+  v_variant uuid;
+  v_bin uuid;
+  v_lot uuid;
+  v_serial text := nullif(btrim(v_attrs ->> 'serial'), '');
+  v_counted numeric;
+  v_row record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" as tenant, x."location_id" as location, x."status" as status into v_count
+  from "better_supabase"."stock_counts" x where x."id" = record_count_line.count for update;
+  if not found then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_count.status <> 'open' then
+    raise exception 'a posted or cancelled count takes no more lines' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  begin
+    v_variant := (v_attrs ->> 'variantId')::uuid;
+    v_bin := nullif(v_attrs ->> 'binId', '')::uuid;
+    v_lot := nullif(v_attrs ->> 'lotId', '')::uuid;
+    v_counted := (v_attrs ->> 'counted')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'variantId, binId and lotId are uuids and counted is a number' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end;
+  if v_variant is null or v_counted is null or v_counted < 0 then
+    raise exception 'a line needs a variantId and a counted quantity of zero or more' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = v_variant and cv."tenant_id" = v_count.tenant) then
+    raise exception 'variant not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
+  end if;
+  if exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = v_variant and q."tracking" = 'serial') and (v_serial is null or v_counted not in (0, 1)) then
+    raise exception 'a serial-tracked variant is counted per serial number, 0 or 1' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if v_serial is not null and (v_counted not in (0, 1) or v_bin is not null or v_lot is not null) then
+    raise exception 'a serial number is counted 0 or 1, without a bin or lot' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if v_bin is not null and not exists (select 1 from "better_supabase"."stock_bins" b where b."id" = v_bin and b."location_id" = v_count.location) then
+    raise exception 'the bin isn''t at this location' using errcode = 'P0002', hint = 'INVENTORY_BIN_NOT_FOUND';
+  end if;
+  if v_lot is not null and not exists (select 1 from "better_supabase"."stock_lots" b where b."id" = v_lot and b."variant_id" = v_variant) then
+    raise exception 'the lot isn''t a lot of this variant' using errcode = 'P0002', hint = 'INVENTORY_LOT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."stock_count_lines" as x ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected", "counted")
+  values (v_count.tenant, record_count_line.count, v_variant, v_bin, v_lot, v_serial,
+    "better_supabase"."count_expected"(v_variant, v_count.location, v_bin, v_lot, v_serial), v_counted)
+  on conflict ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", '')) do update
+    set "counted" = excluded."counted", "updated_at" = now()
+  returning x."id", x."expected", x."counted", x."variance" into v_row;
+  update "better_supabase"."stock_counts" x set "updated_at" = now() where x."id" = record_count_line.count;
+  return jsonb_build_object('id', v_row."id", 'expected', v_row."expected"::text, 'counted', v_row."counted"::text, 'variance', v_row."variance"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."record_count_line"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."record_count_line"(uuid, jsonb) to authenticated, service_role;
+
+-- Posts an open count: each counted line with a variance becomes one 'count'
+-- movement of that variance (counted minus the snapshot, so stock that moved
+-- since the snapshot stays), referenced to the count. Lines not counted post
+-- nothing. A second call changes nothing and returns posted: false. Returns the
+-- number of movements and the sum of the absolute variances.
+create or replace function "better_supabase"."post_stock_count"(count uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count record;
+  v_line record;
+  v_movement uuid;
+  v_moves integer := 0;
+  v_total numeric := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" as tenant, x."location_id" as location, x."status" as status, x."note" as note into v_count
+  from "better_supabase"."stock_counts" x where x."id" = post_stock_count.count for update;
+  if not found then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_count.status = 'posted' then
+    return jsonb_build_object('posted', false, 'movements', (select count(*) from "better_supabase"."stock_count_lines" y where y."count_id" = post_stock_count.count and y."movement_id" is not null), 'variance', null);
+  end if;
+  if v_count.status <> 'open' then
+    raise exception 'a cancelled count can''t be posted' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  for v_line in
+    select y."id" as id, y."variant_id" as variant, y."bin_id" as bin, y."lot_id" as lot, y."serial" as serial, y."variance" as variance
+    from "better_supabase"."stock_count_lines" y
+    where y."count_id" = post_stock_count.count and y."variance" is not null and y."variance" <> 0 and y."movement_id" is null
+    order by y."variant_id", y."id"
+  loop
+    insert into "better_supabase"."stock_levels" ("tenant_id", "variant_id", "location_id")
+    values (v_count.tenant, v_line.variant, v_count.location)
+    on conflict ("variant_id", "location_id") do nothing;
+    v_movement := "better_supabase"."move_stock"(v_count.tenant, v_line.variant, v_count.location, v_line.variance, 'count', 'stock_count', post_stock_count.count::text, coalesce(v_count.note, 'Stock count'), jsonb_strip_nulls(jsonb_build_object('binId', v_line.bin, 'lotId', v_line.lot, 'serials', case when v_line.serial is not null then jsonb_build_array(v_line.serial) end)));
+    update "better_supabase"."stock_count_lines" y set "movement_id" = v_movement, "updated_at" = now() where y."id" = v_line.id;
+    v_moves := v_moves + 1;
+    v_total := v_total + abs(v_line.variance);
+  end loop;
+  update "better_supabase"."stock_counts" x set "status" = 'posted', "posted_at" = now(), "posted_by" = auth.uid(), "updated_at" = now() where x."id" = post_stock_count.count;
+  return jsonb_build_object('posted', true, 'movements', v_moves, 'variance', v_total::text);
+end;
+$$;
+revoke execute on function "better_supabase"."post_stock_count"(uuid) from public, anon;
+grant execute on function "better_supabase"."post_stock_count"(uuid) to authenticated, service_role;
+
+-- Cancels an open count; its lines stay for the record and nothing is posted.
+create or replace function "better_supabase"."cancel_stock_count"(count uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_status text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."status" into v_tenant, v_status from "better_supabase"."stock_counts" x where x."id" = cancel_stock_count.count for update;
+  if v_tenant is null then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_status = 'cancelled' then
+    return false;
+  end if;
+  if v_status <> 'open' then
+    raise exception 'a posted count can''t be cancelled' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  update "better_supabase"."stock_counts" x set "status" = 'cancelled', "updated_at" = now() where x."id" = cancel_stock_count.count;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."cancel_stock_count"(uuid) from public, anon;
+grant execute on function "better_supabase"."cancel_stock_count"(uuid) to authenticated, service_role;
+
+-- The import target of the stock_count entity: item.data is { locationId or
+-- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
+-- expected takes the stock now. An imported count stays open; post it with
+-- post_stock_count, which posts once. Importing the same key again replaces the
+-- lines of an open count and refuses a posted one.
+create or replace function "better_supabase"."import_stock_count"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_stock_count.item ->> 'tenant')::uuid;
+  v_data jsonb := import_stock_count.item -> 'data';
+  v_location uuid;
+  v_id uuid;
+  v_status text;
+  v_updated timestamptz;
+  v_entry jsonb;
+  v_variant uuid;
+  v_bin uuid;
+  v_lot uuid;
+  v_serial text;
+  v_counted numeric;
+  v_expected numeric;
+begin
+  if jsonb_typeof(v_data -> 'lines') is distinct from 'array' then
+    raise exception 'a stock count needs a list of lines' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  begin
+    v_location := nullif(v_data ->> 'locationId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId is a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if v_location is null then
+    select x."id" into v_location from "better_supabase"."inventory_locations" x where x."tenant_id" = v_tenant and x."code" = v_data ->> 'location';
+  elsif not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = v_tenant) then
+    v_location := null;
+  end if;
+  if v_location is null then
+    raise exception 'the count''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if import_stock_count.subject_id is null then
+    insert into "better_supabase"."stock_counts" as x ("tenant_id", "location_id", "note")
+    values (v_tenant, v_location, nullif(btrim(v_data ->> 'note'), ''))
+    returning x."id", x."updated_at" into v_id, v_updated;
+  else
+    select x."id", x."status" into v_id, v_status from "better_supabase"."stock_counts" x
+    where x."id" = import_stock_count.subject_id::uuid and x."tenant_id" = v_tenant for update;
+    if v_id is null then
+      raise exception 'the stock count no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    if v_status <> 'open' then
+      raise exception 'a posted or cancelled count can''t be imported again' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    update "better_supabase"."stock_counts" x set "location_id" = v_location, "note" = nullif(btrim(v_data ->> 'note'), ''), "updated_at" = now()
+    where x."id" = v_id returning x."updated_at" into v_updated;
+    delete from "better_supabase"."stock_count_lines" y where y."count_id" = v_id and y."movement_id" is null;
+  end if;
+  for v_entry in select e from jsonb_array_elements(v_data -> 'lines') e loop
+    begin
+      v_variant := nullif(v_entry ->> 'variantId', '')::uuid;
+      v_bin := nullif(v_entry ->> 'binId', '')::uuid;
+      v_lot := nullif(v_entry ->> 'lotId', '')::uuid;
+      v_counted := (v_entry ->> 'counted')::numeric;
+      v_expected := (v_entry ->> 'expected')::numeric;
+    exception when invalid_text_representation or numeric_value_out_of_range then
+      raise exception 'ids are uuids and counted and expected are numbers' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+    if v_variant is null then
+      select y."id" into v_variant from "better_supabase"."product_variants" y where y."tenant_id" = v_tenant and y."sku" = v_entry ->> 'sku';
+    end if;
+    if v_variant is null or not exists (select 1 from "better_supabase"."product_variants" y where y."id" = v_variant and y."tenant_id" = v_tenant) then
+      raise exception 'a line''s variant isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    if v_bin is null and nullif(v_entry ->> 'bin', '') is not null then
+      select y."id" into v_bin from "better_supabase"."stock_bins" y where y."tenant_id" = v_tenant and y."location_id" = v_location and y."code" = v_entry ->> 'bin';
+      if v_bin is null then
+        raise exception 'a line''s bin isn''t at the location' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+      end if;
+    end if;
+    if v_lot is null and nullif(v_entry ->> 'lot', '') is not null then
+      select y."id" into v_lot from "better_supabase"."stock_lots" y where y."tenant_id" = v_tenant and y."variant_id" = v_variant and y."code" = v_entry ->> 'lot';
+      if v_lot is null then
+        raise exception 'a line''s lot isn''t a lot of its variant' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+      end if;
+    end if;
+    v_serial := nullif(btrim(v_entry ->> 'serial'), '');
+    if v_counted is null or v_counted < 0 or (v_serial is not null and (v_counted not in (0, 1) or v_bin is not null or v_lot is not null)) then
+      raise exception 'a line needs a counted quantity of zero or more, and a serial is counted 0 or 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    insert into "better_supabase"."stock_count_lines" as x ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected", "counted")
+    values (v_tenant, v_id, v_variant, v_bin, v_lot, v_serial,
+      coalesce(v_expected, "better_supabase"."count_expected"(v_variant, v_location, v_bin, v_lot, v_serial)), v_counted)
+    on conflict ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", '')) do update
+      set "counted" = excluded."counted", "expected" = excluded."expected", "updated_at" = now();
+  end loop;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_stock_count"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_stock_count"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."stock_count_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."stock_counts" x where x."id" = $1::uuid
+$$;
+revoke execute on function "better_supabase"."stock_count_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."stock_count_updated_at"(text) to service_role;
 
 -- Holds stock for a cart or an order until expires_at (15 minutes by default).
 -- Releases the level's expired reservations first. Returns the reservation id,
@@ -12130,6 +13992,48 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_alloca
 create policy bsb_tenant_scope_delete on "better_supabase"."stock_allocations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_counts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_counts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_counts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_counts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_counts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_count_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_count_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_count_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_count_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_count_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.inventory.api: entry points for the Data API.
 create schema if not exists "api";
@@ -12330,6 +14234,60 @@ as $$ select "better_supabase"."set_reorder_point"($1, $2, $3) $$;
 revoke execute on function "api"."set_reorder_point"(uuid, uuid, numeric) from public, anon;
 grant execute on function "api"."set_reorder_point"(uuid, uuid, numeric) to authenticated, service_role;
 
+create or replace function "api"."open_stock_count"(tenant uuid, location uuid, attrs jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."open_stock_count"($1, $2, $3) $$;
+revoke execute on function "api"."open_stock_count"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."open_stock_count"(uuid, uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."record_count_line"(count uuid, attrs jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."record_count_line"($1, $2) $$;
+revoke execute on function "api"."record_count_line"(uuid, jsonb) from public, anon;
+grant execute on function "api"."record_count_line"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."post_stock_count"(count uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."post_stock_count"($1) $$;
+revoke execute on function "api"."post_stock_count"(uuid) from public, anon;
+grant execute on function "api"."post_stock_count"(uuid) to authenticated, service_role;
+
+create or replace function "api"."cancel_stock_count"(count uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."cancel_stock_count"($1) $$;
+revoke execute on function "api"."cancel_stock_count"(uuid) from public, anon;
+grant execute on function "api"."cancel_stock_count"(uuid) to authenticated, service_role;
+
+create or replace function "api"."import_stock_count"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_stock_count"($1, $2, $3) $$;
+revoke execute on function "api"."import_stock_count"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."import_stock_count"(uuid, jsonb, text) to service_role;
+
+create or replace function "api"."stock_count_updated_at"(subject_id text)
+returns timestamptz
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."stock_count_updated_at"($1) $$;
+revoke execute on function "api"."stock_count_updated_at"(text) from public, anon, authenticated;
+grant execute on function "api"."stock_count_updated_at"(text) to service_role;
+
 create or replace function "api"."reserve_stock"(variant uuid, location uuid, quantity numeric, reference_type text, reference_id text, expires_at timestamptz)
 returns jsonb
 language sql
@@ -12490,21 +14448,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
--- @bsb-hash sha256:ea44e3b8b1525a301ac30a33b17c5ce2127de622ef0df73b59a9a10aa7fb8a72
+-- @bsb-hash sha256:cceceeec0ea99073af6312f71cdbe0989c2416c29906644d4e37dc5359e4cb3a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inventory', 4, 'managed')
+values ('inventory', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
--- @bsb-block inventory@4 managed
--- @bsb-hash sha256:1013073158985acba9a368d26a90428921e76af0aef17259790d716d44c0feda
+-- @bsb-block inventory@5 managed
+-- @bsb-hash sha256:9589a8c22efb1f47a8b1a39d574706897d6167a601cf609df7040ef905b05f0c
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12697,6 +14655,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_allocations";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_allocations";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_allocations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_counts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_count_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -13051,6 +15025,55 @@ grant select on "better_supabase"."stock_allocations" to authenticated;
 grant all on "better_supabase"."stock_allocations" to service_role;
 drop policy if exists bsb_stock_allocations_select on "better_supabase"."stock_allocations";
 create policy bsb_stock_allocations_select on "better_supabase"."stock_allocations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- A stock count: the stock of one location, counted line by line. Posting it
+-- writes each line's variance to the ledger as one 'count' movement.
+-- better_supabase.stock_counts is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."stock_counts" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."stock_counts" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."stock_counts" add column if not exists "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete cascade;
+alter table "better_supabase"."stock_counts" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'posted', 'cancelled'));
+alter table "better_supabase"."stock_counts" add column if not exists "note" text;
+alter table "better_supabase"."stock_counts" add column if not exists "opened_by" uuid default auth.uid();
+alter table "better_supabase"."stock_counts" add column if not exists "posted_by" uuid;
+alter table "better_supabase"."stock_counts" add column if not exists "opened_at" timestamptz not null default now();
+alter table "better_supabase"."stock_counts" add column if not exists "posted_at" timestamptz;
+alter table "better_supabase"."stock_counts" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists stock_counts_location_idx on "better_supabase"."stock_counts" ("location_id");
+create index if not exists stock_counts_status_idx on "better_supabase"."stock_counts" ("tenant_id", "status");
+alter table "better_supabase"."stock_counts" enable row level security;
+grant select on "better_supabase"."stock_counts" to authenticated;
+grant all on "better_supabase"."stock_counts" to service_role;
+drop policy if exists bsb_stock_counts_select on "better_supabase"."stock_counts";
+create policy bsb_stock_counts_select on "better_supabase"."stock_counts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- One counted position: a variant in a bin, a lot or neither, or one serial
+-- number. expected is the stock when the line was opened; variance is
+-- counted minus expected and stays null until the line is counted.
+-- better_supabase.stock_count_lines is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."stock_count_lines" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."stock_count_lines" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."stock_count_lines" add column if not exists "count_id" uuid references "better_supabase"."stock_counts" ("id") on delete cascade;
+alter table "better_supabase"."stock_count_lines" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
+alter table "better_supabase"."stock_count_lines" add column if not exists "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete restrict;
+alter table "better_supabase"."stock_count_lines" add column if not exists "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict;
+alter table "better_supabase"."stock_count_lines" add column if not exists "serial" text check (length("serial") between 1 and 100);
+alter table "better_supabase"."stock_count_lines" add column if not exists "expected" numeric(20, 6) not null default 0 check ("expected" >= 0);
+alter table "better_supabase"."stock_count_lines" add column if not exists "counted" numeric(20, 6) check ("counted" >= 0);
+alter table "better_supabase"."stock_count_lines" add column if not exists "variance" numeric(20, 6) generated always as ("counted" - "expected") stored;
+alter table "better_supabase"."stock_count_lines" add column if not exists "movement_id" uuid;
+alter table "better_supabase"."stock_count_lines" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists stock_count_lines_key on "better_supabase"."stock_count_lines" ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", ''));
+create index if not exists stock_count_lines_variant_idx on "better_supabase"."stock_count_lines" ("variant_id");
+alter table "better_supabase"."stock_count_lines" enable row level security;
+grant select on "better_supabase"."stock_count_lines" to authenticated;
+grant all on "better_supabase"."stock_count_lines" to service_role;
+drop policy if exists bsb_stock_count_lines_select on "better_supabase"."stock_count_lines";
+create policy bsb_stock_count_lines_select on "better_supabase"."stock_count_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -14233,6 +16256,371 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_reorder_point"(uuid, uuid, numeric) from public, anon;
 grant execute on function "better_supabase"."set_reorder_point"(uuid, uuid, numeric) to authenticated, service_role;
+
+-- What the books say is at a position now: a serial number counts 1 when it is
+-- in stock at the location; a bin or lot is that bucket; neither is the level's
+-- stock outside any bin or lot.
+create or replace function "better_supabase"."count_expected"(variant uuid, location uuid, bin uuid, lot uuid, serial text)
+returns numeric
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when $5 is not null then
+      (select count(*) from "better_supabase"."stock_serials" y where y."variant_id" = $1 and y."serial" = $5 and y."location_id" = $2 and y."status" = 'in_stock')::numeric
+    when $3 is null and $4 is null then
+      coalesce((select x."on_hand" from "better_supabase"."stock_levels" x where x."variant_id" = $1 and x."location_id" = $2), 0)
+        - coalesce((select sum(y."on_hand") from "better_supabase"."stock_buckets" y where y."variant_id" = $1 and y."location_id" = $2), 0)
+    else
+      coalesce((select y."on_hand" from "better_supabase"."stock_buckets" y where y."variant_id" = $1 and y."location_id" = $2
+        and y."bin_id" is not distinct from $3 and y."lot_id" is not distinct from $4), 0)
+  end
+$$;
+revoke execute on function "better_supabase"."count_expected"(uuid, uuid, uuid, uuid, text) from public, anon, authenticated;
+
+-- Opens a count of a location and snapshots its stock into lines: each bin and
+-- lot bucket, the stock outside any bin or lot, and each serial number in stock.
+-- attrs: { note?, variantIds? } counts only those variants. A line starts with
+-- no counted quantity. Returns the count's id and its number of lines.
+create or replace function "better_supabase"."open_stock_count"(tenant uuid, location uuid, attrs jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attrs jsonb := coalesce(open_stock_count.attrs, '{}'::jsonb);
+  v_variants uuid[];
+  v_id uuid;
+  v_lines integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', open_stock_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = open_stock_count.location and x."tenant_id" = open_stock_count.tenant) then
+    raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  begin
+    if jsonb_typeof(v_attrs -> 'variantIds') = 'array' then
+      v_variants := array(select jsonb_array_elements_text(v_attrs -> 'variantIds'))::uuid[];
+    end if;
+  exception when invalid_text_representation then
+    raise exception 'variantIds is a list of uuids' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end;
+  insert into "better_supabase"."stock_counts" as x ("tenant_id", "location_id", "note")
+  values (open_stock_count.tenant, open_stock_count.location, nullif(btrim(v_attrs ->> 'note'), ''))
+  returning x."id" into v_id;
+  insert into "better_supabase"."stock_count_lines" ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected")
+  select open_stock_count.tenant, v_id, p.variant, p.bin, p.lot, p.serial, p.expected
+  from (
+    select y."variant_id" as variant, y."bin_id" as bin, y."lot_id" as lot, null::text as serial, y."on_hand" as expected
+    from "better_supabase"."stock_buckets" y
+    where y."location_id" = open_stock_count.location and y."tenant_id" = open_stock_count.tenant and y."on_hand" > 0
+      and not exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = y."variant_id" and q."tracking" = 'serial')
+    union all
+    select x."variant_id", null, null, null,
+      x."on_hand" - coalesce((select sum(y."on_hand") from "better_supabase"."stock_buckets" y where y."variant_id" = x."variant_id" and y."location_id" = x."location_id"), 0)
+    from "better_supabase"."stock_levels" x
+    where x."location_id" = open_stock_count.location and x."tenant_id" = open_stock_count.tenant
+      and not exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = x."variant_id" and q."tracking" = 'serial')
+    union all
+    select z."variant_id", z."bin_id", z."lot_id", z."serial", 1
+    from "better_supabase"."stock_serials" z
+    where z."location_id" = open_stock_count.location and z."tenant_id" = open_stock_count.tenant and z."status" = 'in_stock'
+  ) p
+  where (v_variants is null or p.variant = any (v_variants)) and p.expected > 0
+  on conflict do nothing;
+  get diagnostics v_lines = row_count;
+  return jsonb_build_object('id', v_id, 'lines', v_lines);
+end;
+$$;
+revoke execute on function "better_supabase"."open_stock_count"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."open_stock_count"(uuid, uuid, jsonb) to authenticated, service_role;
+
+-- Records what was counted at a position of an open count. attrs: { variantId,
+-- binId?, lotId?, serial?, counted }. A position that isn't a line yet (stock
+-- the books don't know of) becomes one, with expected taken from the stock now.
+-- A serial number is counted 0 or 1. Returns the line's id, expected, counted
+-- and variance.
+create or replace function "better_supabase"."record_count_line"(count uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attrs jsonb := coalesce(record_count_line.attrs, '{}'::jsonb);
+  v_count record;
+  v_variant uuid;
+  v_bin uuid;
+  v_lot uuid;
+  v_serial text := nullif(btrim(v_attrs ->> 'serial'), '');
+  v_counted numeric;
+  v_row record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" as tenant, x."location_id" as location, x."status" as status into v_count
+  from "better_supabase"."stock_counts" x where x."id" = record_count_line.count for update;
+  if not found then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_count.status <> 'open' then
+    raise exception 'a posted or cancelled count takes no more lines' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  begin
+    v_variant := (v_attrs ->> 'variantId')::uuid;
+    v_bin := nullif(v_attrs ->> 'binId', '')::uuid;
+    v_lot := nullif(v_attrs ->> 'lotId', '')::uuid;
+    v_counted := (v_attrs ->> 'counted')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'variantId, binId and lotId are uuids and counted is a number' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end;
+  if v_variant is null or v_counted is null or v_counted < 0 then
+    raise exception 'a line needs a variantId and a counted quantity of zero or more' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = v_variant and cv."tenant_id" = v_count.tenant) then
+    raise exception 'variant not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
+  end if;
+  if exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = v_variant and q."tracking" = 'serial') and (v_serial is null or v_counted not in (0, 1)) then
+    raise exception 'a serial-tracked variant is counted per serial number, 0 or 1' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if v_serial is not null and (v_counted not in (0, 1) or v_bin is not null or v_lot is not null) then
+    raise exception 'a serial number is counted 0 or 1, without a bin or lot' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if v_bin is not null and not exists (select 1 from "better_supabase"."stock_bins" b where b."id" = v_bin and b."location_id" = v_count.location) then
+    raise exception 'the bin isn''t at this location' using errcode = 'P0002', hint = 'INVENTORY_BIN_NOT_FOUND';
+  end if;
+  if v_lot is not null and not exists (select 1 from "better_supabase"."stock_lots" b where b."id" = v_lot and b."variant_id" = v_variant) then
+    raise exception 'the lot isn''t a lot of this variant' using errcode = 'P0002', hint = 'INVENTORY_LOT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."stock_count_lines" as x ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected", "counted")
+  values (v_count.tenant, record_count_line.count, v_variant, v_bin, v_lot, v_serial,
+    "better_supabase"."count_expected"(v_variant, v_count.location, v_bin, v_lot, v_serial), v_counted)
+  on conflict ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", '')) do update
+    set "counted" = excluded."counted", "updated_at" = now()
+  returning x."id", x."expected", x."counted", x."variance" into v_row;
+  update "better_supabase"."stock_counts" x set "updated_at" = now() where x."id" = record_count_line.count;
+  return jsonb_build_object('id', v_row."id", 'expected', v_row."expected"::text, 'counted', v_row."counted"::text, 'variance', v_row."variance"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."record_count_line"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."record_count_line"(uuid, jsonb) to authenticated, service_role;
+
+-- Posts an open count: each counted line with a variance becomes one 'count'
+-- movement of that variance (counted minus the snapshot, so stock that moved
+-- since the snapshot stays), referenced to the count. Lines not counted post
+-- nothing. A second call changes nothing and returns posted: false. Returns the
+-- number of movements and the sum of the absolute variances.
+create or replace function "better_supabase"."post_stock_count"(count uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count record;
+  v_line record;
+  v_movement uuid;
+  v_moves integer := 0;
+  v_total numeric := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" as tenant, x."location_id" as location, x."status" as status, x."note" as note into v_count
+  from "better_supabase"."stock_counts" x where x."id" = post_stock_count.count for update;
+  if not found then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_count.status = 'posted' then
+    return jsonb_build_object('posted', false, 'movements', (select count(*) from "better_supabase"."stock_count_lines" y where y."count_id" = post_stock_count.count and y."movement_id" is not null), 'variance', null);
+  end if;
+  if v_count.status <> 'open' then
+    raise exception 'a cancelled count can''t be posted' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  for v_line in
+    select y."id" as id, y."variant_id" as variant, y."bin_id" as bin, y."lot_id" as lot, y."serial" as serial, y."variance" as variance
+    from "better_supabase"."stock_count_lines" y
+    where y."count_id" = post_stock_count.count and y."variance" is not null and y."variance" <> 0 and y."movement_id" is null
+    order by y."variant_id", y."id"
+  loop
+    insert into "better_supabase"."stock_levels" ("tenant_id", "variant_id", "location_id")
+    values (v_count.tenant, v_line.variant, v_count.location)
+    on conflict ("variant_id", "location_id") do nothing;
+    v_movement := "better_supabase"."move_stock"(v_count.tenant, v_line.variant, v_count.location, v_line.variance, 'count', 'stock_count', post_stock_count.count::text, coalesce(v_count.note, 'Stock count'), jsonb_strip_nulls(jsonb_build_object('binId', v_line.bin, 'lotId', v_line.lot, 'serials', case when v_line.serial is not null then jsonb_build_array(v_line.serial) end)));
+    update "better_supabase"."stock_count_lines" y set "movement_id" = v_movement, "updated_at" = now() where y."id" = v_line.id;
+    v_moves := v_moves + 1;
+    v_total := v_total + abs(v_line.variance);
+  end loop;
+  update "better_supabase"."stock_counts" x set "status" = 'posted', "posted_at" = now(), "posted_by" = auth.uid(), "updated_at" = now() where x."id" = post_stock_count.count;
+  return jsonb_build_object('posted', true, 'movements', v_moves, 'variance', v_total::text);
+end;
+$$;
+revoke execute on function "better_supabase"."post_stock_count"(uuid) from public, anon;
+grant execute on function "better_supabase"."post_stock_count"(uuid) to authenticated, service_role;
+
+-- Cancels an open count; its lines stay for the record and nothing is posted.
+create or replace function "better_supabase"."cancel_stock_count"(count uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_status text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."status" into v_tenant, v_status from "better_supabase"."stock_counts" x where x."id" = cancel_stock_count.count for update;
+  if v_tenant is null then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_status = 'cancelled' then
+    return false;
+  end if;
+  if v_status <> 'open' then
+    raise exception 'a posted count can''t be cancelled' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  update "better_supabase"."stock_counts" x set "status" = 'cancelled', "updated_at" = now() where x."id" = cancel_stock_count.count;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."cancel_stock_count"(uuid) from public, anon;
+grant execute on function "better_supabase"."cancel_stock_count"(uuid) to authenticated, service_role;
+
+-- The import target of the stock_count entity: item.data is { locationId or
+-- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
+-- expected takes the stock now. An imported count stays open; post it with
+-- post_stock_count, which posts once. Importing the same key again replaces the
+-- lines of an open count and refuses a posted one.
+create or replace function "better_supabase"."import_stock_count"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_stock_count.item ->> 'tenant')::uuid;
+  v_data jsonb := import_stock_count.item -> 'data';
+  v_location uuid;
+  v_id uuid;
+  v_status text;
+  v_updated timestamptz;
+  v_entry jsonb;
+  v_variant uuid;
+  v_bin uuid;
+  v_lot uuid;
+  v_serial text;
+  v_counted numeric;
+  v_expected numeric;
+begin
+  if jsonb_typeof(v_data -> 'lines') is distinct from 'array' then
+    raise exception 'a stock count needs a list of lines' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  begin
+    v_location := nullif(v_data ->> 'locationId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId is a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if v_location is null then
+    select x."id" into v_location from "better_supabase"."inventory_locations" x where x."tenant_id" = v_tenant and x."code" = v_data ->> 'location';
+  elsif not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = v_tenant) then
+    v_location := null;
+  end if;
+  if v_location is null then
+    raise exception 'the count''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if import_stock_count.subject_id is null then
+    insert into "better_supabase"."stock_counts" as x ("tenant_id", "location_id", "note")
+    values (v_tenant, v_location, nullif(btrim(v_data ->> 'note'), ''))
+    returning x."id", x."updated_at" into v_id, v_updated;
+  else
+    select x."id", x."status" into v_id, v_status from "better_supabase"."stock_counts" x
+    where x."id" = import_stock_count.subject_id::uuid and x."tenant_id" = v_tenant for update;
+    if v_id is null then
+      raise exception 'the stock count no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    if v_status <> 'open' then
+      raise exception 'a posted or cancelled count can''t be imported again' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    update "better_supabase"."stock_counts" x set "location_id" = v_location, "note" = nullif(btrim(v_data ->> 'note'), ''), "updated_at" = now()
+    where x."id" = v_id returning x."updated_at" into v_updated;
+    delete from "better_supabase"."stock_count_lines" y where y."count_id" = v_id and y."movement_id" is null;
+  end if;
+  for v_entry in select e from jsonb_array_elements(v_data -> 'lines') e loop
+    begin
+      v_variant := nullif(v_entry ->> 'variantId', '')::uuid;
+      v_bin := nullif(v_entry ->> 'binId', '')::uuid;
+      v_lot := nullif(v_entry ->> 'lotId', '')::uuid;
+      v_counted := (v_entry ->> 'counted')::numeric;
+      v_expected := (v_entry ->> 'expected')::numeric;
+    exception when invalid_text_representation or numeric_value_out_of_range then
+      raise exception 'ids are uuids and counted and expected are numbers' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+    if v_variant is null then
+      select y."id" into v_variant from "better_supabase"."product_variants" y where y."tenant_id" = v_tenant and y."sku" = v_entry ->> 'sku';
+    end if;
+    if v_variant is null or not exists (select 1 from "better_supabase"."product_variants" y where y."id" = v_variant and y."tenant_id" = v_tenant) then
+      raise exception 'a line''s variant isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    if v_bin is null and nullif(v_entry ->> 'bin', '') is not null then
+      select y."id" into v_bin from "better_supabase"."stock_bins" y where y."tenant_id" = v_tenant and y."location_id" = v_location and y."code" = v_entry ->> 'bin';
+      if v_bin is null then
+        raise exception 'a line''s bin isn''t at the location' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+      end if;
+    end if;
+    if v_lot is null and nullif(v_entry ->> 'lot', '') is not null then
+      select y."id" into v_lot from "better_supabase"."stock_lots" y where y."tenant_id" = v_tenant and y."variant_id" = v_variant and y."code" = v_entry ->> 'lot';
+      if v_lot is null then
+        raise exception 'a line''s lot isn''t a lot of its variant' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+      end if;
+    end if;
+    v_serial := nullif(btrim(v_entry ->> 'serial'), '');
+    if v_counted is null or v_counted < 0 or (v_serial is not null and (v_counted not in (0, 1) or v_bin is not null or v_lot is not null)) then
+      raise exception 'a line needs a counted quantity of zero or more, and a serial is counted 0 or 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    insert into "better_supabase"."stock_count_lines" as x ("tenant_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected", "counted")
+    values (v_tenant, v_id, v_variant, v_bin, v_lot, v_serial,
+      coalesce(v_expected, "better_supabase"."count_expected"(v_variant, v_location, v_bin, v_lot, v_serial)), v_counted)
+    on conflict ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", '')) do update
+      set "counted" = excluded."counted", "expected" = excluded."expected", "updated_at" = now();
+  end loop;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_stock_count"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_stock_count"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."stock_count_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."stock_counts" x where x."id" = $1::uuid
+$$;
+revoke execute on function "better_supabase"."stock_count_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."stock_count_updated_at"(text) to service_role;
 
 -- Holds stock for a cart or an order until expires_at (15 minutes by default).
 -- Releases the level's expired reservations first. Returns the reservation id,
@@ -15456,6 +17844,48 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_alloca
 create policy bsb_tenant_scope_delete on "better_supabase"."stock_allocations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_counts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_counts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_counts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_counts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_counts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_count_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_count_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_count_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_count_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_count_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -15473,21 +17903,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
--- @bsb-hash sha256:ea44e3b8b1525a301ac30a33b17c5ce2127de622ef0df73b59a9a10aa7fb8a72
+-- @bsb-hash sha256:cceceeec0ea99073af6312f71cdbe0989c2416c29906644d4e37dc5359e4cb3a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inventory', 4, 'managed')
+values ('inventory', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
--- @bsb-block inventory@4 managed
--- @bsb-hash sha256:e2a8f200c3116304afef7da2c608239cc13281c9bc12167cbb868f4591fefa29
+-- @bsb-block inventory@5 managed
+-- @bsb-hash sha256:b160ccaef950261c7ac532a04822f96ffce4c71dd59183fb49839b20f730d7f3
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15664,6 +18094,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_allocations";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_allocations";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_allocations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_counts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_counts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_count_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_count_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -16069,6 +18515,59 @@ grant select on "better_supabase"."stock_allocations" to authenticated;
 grant all on "better_supabase"."stock_allocations" to service_role;
 drop policy if exists stock_allocations_read on "better_supabase"."stock_allocations";
 create policy stock_allocations_read on "better_supabase"."stock_allocations"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- A stock count: the stock of one location, counted line by line. Posting it
+-- writes each line's variance to the ledger as one 'count' movement.
+create table if not exists "better_supabase"."stock_counts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "status" text not null default 'open' check ("status" in ('open', 'posted', 'cancelled')),
+  "note" text,
+  "opened_by" uuid default auth.uid(),
+  "posted_by" uuid,
+  "opened_at" timestamptz not null default now(),
+  "posted_at" timestamptz,
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists stock_counts_location_idx on "better_supabase"."stock_counts" ("location_id");
+create index if not exists stock_counts_status_idx on "better_supabase"."stock_counts" ("org_id", "status");
+alter table "better_supabase"."stock_counts" enable row level security;
+revoke all on "better_supabase"."stock_counts" from public, anon, authenticated;
+grant select on "better_supabase"."stock_counts" to authenticated;
+grant all on "better_supabase"."stock_counts" to service_role;
+drop policy if exists stock_counts_read on "better_supabase"."stock_counts";
+create policy stock_counts_read on "better_supabase"."stock_counts"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- One counted position: a variant in a bin, a lot or neither, or one serial
+-- number. expected is the stock when the line was opened; variance is
+-- counted minus expected and stays null until the line is counted.
+create table if not exists "better_supabase"."stock_count_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "count_id" uuid not null references "better_supabase"."stock_counts" ("id") on delete cascade,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete restrict,
+  "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
+  "serial" text check (length("serial") between 1 and 100),
+  "expected" numeric(20, 6) not null default 0 check ("expected" >= 0),
+  "counted" numeric(20, 6) check ("counted" >= 0),
+  "variance" numeric(20, 6) generated always as ("counted" - "expected") stored,
+  "movement_id" uuid,
+  "updated_at" timestamptz not null default now()
+);
+create unique index if not exists stock_count_lines_key on "better_supabase"."stock_count_lines" ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", ''));
+create index if not exists stock_count_lines_variant_idx on "better_supabase"."stock_count_lines" ("variant_id");
+alter table "better_supabase"."stock_count_lines" enable row level security;
+revoke all on "better_supabase"."stock_count_lines" from public, anon, authenticated;
+grant select on "better_supabase"."stock_count_lines" to authenticated;
+grant all on "better_supabase"."stock_count_lines" to service_role;
+drop policy if exists stock_count_lines_read on "better_supabase"."stock_count_lines";
+create policy stock_count_lines_read on "better_supabase"."stock_count_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17253,6 +19752,371 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_reorder_point"(uuid, uuid, numeric) from public, anon;
 grant execute on function "better_supabase"."set_reorder_point"(uuid, uuid, numeric) to authenticated, service_role;
+
+-- What the books say is at a position now: a serial number counts 1 when it is
+-- in stock at the location; a bin or lot is that bucket; neither is the level's
+-- stock outside any bin or lot.
+create or replace function "better_supabase"."count_expected"(variant uuid, location uuid, bin uuid, lot uuid, serial text)
+returns numeric
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when $5 is not null then
+      (select count(*) from "better_supabase"."stock_serials" y where y."variant_id" = $1 and y."serial" = $5 and y."location_id" = $2 and y."status" = 'in_stock')::numeric
+    when $3 is null and $4 is null then
+      coalesce((select x."on_hand" from "better_supabase"."stock_levels" x where x."variant_id" = $1 and x."location_id" = $2), 0)
+        - coalesce((select sum(y."on_hand") from "better_supabase"."stock_buckets" y where y."variant_id" = $1 and y."location_id" = $2), 0)
+    else
+      coalesce((select y."on_hand" from "better_supabase"."stock_buckets" y where y."variant_id" = $1 and y."location_id" = $2
+        and y."bin_id" is not distinct from $3 and y."lot_id" is not distinct from $4), 0)
+  end
+$$;
+revoke execute on function "better_supabase"."count_expected"(uuid, uuid, uuid, uuid, text) from public, anon, authenticated;
+
+-- Opens a count of a location and snapshots its stock into lines: each bin and
+-- lot bucket, the stock outside any bin or lot, and each serial number in stock.
+-- attrs: { note?, variantIds? } counts only those variants. A line starts with
+-- no counted quantity. Returns the count's id and its number of lines.
+create or replace function "better_supabase"."open_stock_count"(tenant uuid, location uuid, attrs jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attrs jsonb := coalesce(open_stock_count.attrs, '{}'::jsonb);
+  v_variants uuid[];
+  v_id uuid;
+  v_lines integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', open_stock_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = open_stock_count.location and x."org_id" = open_stock_count.tenant) then
+    raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  begin
+    if jsonb_typeof(v_attrs -> 'variantIds') = 'array' then
+      v_variants := array(select jsonb_array_elements_text(v_attrs -> 'variantIds'))::uuid[];
+    end if;
+  exception when invalid_text_representation then
+    raise exception 'variantIds is a list of uuids' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end;
+  insert into "better_supabase"."stock_counts" as x ("org_id", "location_id", "note")
+  values (open_stock_count.tenant, open_stock_count.location, nullif(btrim(v_attrs ->> 'note'), ''))
+  returning x."id" into v_id;
+  insert into "better_supabase"."stock_count_lines" ("org_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected")
+  select open_stock_count.tenant, v_id, p.variant, p.bin, p.lot, p.serial, p.expected
+  from (
+    select y."variant_id" as variant, y."bin_id" as bin, y."lot_id" as lot, null::text as serial, y."on_hand" as expected
+    from "better_supabase"."stock_buckets" y
+    where y."location_id" = open_stock_count.location and y."org_id" = open_stock_count.tenant and y."on_hand" > 0
+      and not exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = y."variant_id" and q."tracking" = 'serial')
+    union all
+    select x."variant_id", null, null, null,
+      x."on_hand" - coalesce((select sum(y."on_hand") from "better_supabase"."stock_buckets" y where y."variant_id" = x."variant_id" and y."location_id" = x."location_id"), 0)
+    from "better_supabase"."stock_levels" x
+    where x."location_id" = open_stock_count.location and x."org_id" = open_stock_count.tenant
+      and not exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = x."variant_id" and q."tracking" = 'serial')
+    union all
+    select z."variant_id", z."bin_id", z."lot_id", z."serial", 1
+    from "better_supabase"."stock_serials" z
+    where z."location_id" = open_stock_count.location and z."org_id" = open_stock_count.tenant and z."status" = 'in_stock'
+  ) p
+  where (v_variants is null or p.variant = any (v_variants)) and p.expected > 0
+  on conflict do nothing;
+  get diagnostics v_lines = row_count;
+  return jsonb_build_object('id', v_id, 'lines', v_lines);
+end;
+$$;
+revoke execute on function "better_supabase"."open_stock_count"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."open_stock_count"(uuid, uuid, jsonb) to authenticated, service_role;
+
+-- Records what was counted at a position of an open count. attrs: { variantId,
+-- binId?, lotId?, serial?, counted }. A position that isn't a line yet (stock
+-- the books don't know of) becomes one, with expected taken from the stock now.
+-- A serial number is counted 0 or 1. Returns the line's id, expected, counted
+-- and variance.
+create or replace function "better_supabase"."record_count_line"(count uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attrs jsonb := coalesce(record_count_line.attrs, '{}'::jsonb);
+  v_count record;
+  v_variant uuid;
+  v_bin uuid;
+  v_lot uuid;
+  v_serial text := nullif(btrim(v_attrs ->> 'serial'), '');
+  v_counted numeric;
+  v_row record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."org_id" as tenant, x."location_id" as location, x."status" as status into v_count
+  from "better_supabase"."stock_counts" x where x."id" = record_count_line.count for update;
+  if not found then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_count.status <> 'open' then
+    raise exception 'a posted or cancelled count takes no more lines' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  begin
+    v_variant := (v_attrs ->> 'variantId')::uuid;
+    v_bin := nullif(v_attrs ->> 'binId', '')::uuid;
+    v_lot := nullif(v_attrs ->> 'lotId', '')::uuid;
+    v_counted := (v_attrs ->> 'counted')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'variantId, binId and lotId are uuids and counted is a number' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end;
+  if v_variant is null or v_counted is null or v_counted < 0 then
+    raise exception 'a line needs a variantId and a counted quantity of zero or more' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = v_variant and cv."org_id" = v_count.tenant) then
+    raise exception 'variant not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
+  end if;
+  if exists (select 1 from "better_supabase"."stock_items" q where q."variant_id" = v_variant and q."tracking" = 'serial') and (v_serial is null or v_counted not in (0, 1)) then
+    raise exception 'a serial-tracked variant is counted per serial number, 0 or 1' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if v_serial is not null and (v_counted not in (0, 1) or v_bin is not null or v_lot is not null) then
+    raise exception 'a serial number is counted 0 or 1, without a bin or lot' using errcode = '22023', hint = 'INVENTORY_COUNT_INVALID';
+  end if;
+  if v_bin is not null and not exists (select 1 from "better_supabase"."stock_bins" b where b."id" = v_bin and b."location_id" = v_count.location) then
+    raise exception 'the bin isn''t at this location' using errcode = 'P0002', hint = 'INVENTORY_BIN_NOT_FOUND';
+  end if;
+  if v_lot is not null and not exists (select 1 from "better_supabase"."stock_lots" b where b."id" = v_lot and b."variant_id" = v_variant) then
+    raise exception 'the lot isn''t a lot of this variant' using errcode = 'P0002', hint = 'INVENTORY_LOT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."stock_count_lines" as x ("org_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected", "counted")
+  values (v_count.tenant, record_count_line.count, v_variant, v_bin, v_lot, v_serial,
+    "better_supabase"."count_expected"(v_variant, v_count.location, v_bin, v_lot, v_serial), v_counted)
+  on conflict ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", '')) do update
+    set "counted" = excluded."counted", "updated_at" = now()
+  returning x."id", x."expected", x."counted", x."variance" into v_row;
+  update "better_supabase"."stock_counts" x set "updated_at" = now() where x."id" = record_count_line.count;
+  return jsonb_build_object('id', v_row."id", 'expected', v_row."expected"::text, 'counted', v_row."counted"::text, 'variance', v_row."variance"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."record_count_line"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."record_count_line"(uuid, jsonb) to authenticated, service_role;
+
+-- Posts an open count: each counted line with a variance becomes one 'count'
+-- movement of that variance (counted minus the snapshot, so stock that moved
+-- since the snapshot stays), referenced to the count. Lines not counted post
+-- nothing. A second call changes nothing and returns posted: false. Returns the
+-- number of movements and the sum of the absolute variances.
+create or replace function "better_supabase"."post_stock_count"(count uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count record;
+  v_line record;
+  v_movement uuid;
+  v_moves integer := 0;
+  v_total numeric := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."org_id" as tenant, x."location_id" as location, x."status" as status, x."note" as note into v_count
+  from "better_supabase"."stock_counts" x where x."id" = post_stock_count.count for update;
+  if not found then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_count.tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_count.status = 'posted' then
+    return jsonb_build_object('posted', false, 'movements', (select count(*) from "better_supabase"."stock_count_lines" y where y."count_id" = post_stock_count.count and y."movement_id" is not null), 'variance', null);
+  end if;
+  if v_count.status <> 'open' then
+    raise exception 'a cancelled count can''t be posted' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  for v_line in
+    select y."id" as id, y."variant_id" as variant, y."bin_id" as bin, y."lot_id" as lot, y."serial" as serial, y."variance" as variance
+    from "better_supabase"."stock_count_lines" y
+    where y."count_id" = post_stock_count.count and y."variance" is not null and y."variance" <> 0 and y."movement_id" is null
+    order by y."variant_id", y."id"
+  loop
+    insert into "better_supabase"."stock_levels" ("org_id", "variant_id", "location_id")
+    values (v_count.tenant, v_line.variant, v_count.location)
+    on conflict ("variant_id", "location_id") do nothing;
+    v_movement := "better_supabase"."move_stock"(v_count.tenant, v_line.variant, v_count.location, v_line.variance, 'count', 'stock_count', post_stock_count.count::text, coalesce(v_count.note, 'Stock count'), jsonb_strip_nulls(jsonb_build_object('binId', v_line.bin, 'lotId', v_line.lot, 'serials', case when v_line.serial is not null then jsonb_build_array(v_line.serial) end)));
+    update "better_supabase"."stock_count_lines" y set "movement_id" = v_movement, "updated_at" = now() where y."id" = v_line.id;
+    v_moves := v_moves + 1;
+    v_total := v_total + abs(v_line.variance);
+  end loop;
+  update "better_supabase"."stock_counts" x set "status" = 'posted', "posted_at" = now(), "posted_by" = auth.uid(), "updated_at" = now() where x."id" = post_stock_count.count;
+  return jsonb_build_object('posted', true, 'movements', v_moves, 'variance', v_total::text);
+end;
+$$;
+revoke execute on function "better_supabase"."post_stock_count"(uuid) from public, anon;
+grant execute on function "better_supabase"."post_stock_count"(uuid) to authenticated, service_role;
+
+-- Cancels an open count; its lines stay for the record and nothing is posted.
+create or replace function "better_supabase"."cancel_stock_count"(count uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_status text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."org_id", x."status" into v_tenant, v_status from "better_supabase"."stock_counts" x where x."id" = cancel_stock_count.count for update;
+  if v_tenant is null then
+    raise exception 'stock count not found' using errcode = 'P0002', hint = 'INVENTORY_COUNT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_status = 'cancelled' then
+    return false;
+  end if;
+  if v_status <> 'open' then
+    raise exception 'a posted count can''t be cancelled' using errcode = '22023', hint = 'INVENTORY_COUNT_CLOSED';
+  end if;
+  update "better_supabase"."stock_counts" x set "status" = 'cancelled', "updated_at" = now() where x."id" = cancel_stock_count.count;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."cancel_stock_count"(uuid) from public, anon;
+grant execute on function "better_supabase"."cancel_stock_count"(uuid) to authenticated, service_role;
+
+-- The import target of the stock_count entity: item.data is { locationId or
+-- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
+-- expected takes the stock now. An imported count stays open; post it with
+-- post_stock_count, which posts once. Importing the same key again replaces the
+-- lines of an open count and refuses a posted one.
+create or replace function "better_supabase"."import_stock_count"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_stock_count.item ->> 'tenant')::uuid;
+  v_data jsonb := import_stock_count.item -> 'data';
+  v_location uuid;
+  v_id uuid;
+  v_status text;
+  v_updated timestamptz;
+  v_entry jsonb;
+  v_variant uuid;
+  v_bin uuid;
+  v_lot uuid;
+  v_serial text;
+  v_counted numeric;
+  v_expected numeric;
+begin
+  if jsonb_typeof(v_data -> 'lines') is distinct from 'array' then
+    raise exception 'a stock count needs a list of lines' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  begin
+    v_location := nullif(v_data ->> 'locationId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId is a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if v_location is null then
+    select x."id" into v_location from "better_supabase"."inventory_locations" x where x."org_id" = v_tenant and x."code" = v_data ->> 'location';
+  elsif not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."org_id" = v_tenant) then
+    v_location := null;
+  end if;
+  if v_location is null then
+    raise exception 'the count''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if import_stock_count.subject_id is null then
+    insert into "better_supabase"."stock_counts" as x ("org_id", "location_id", "note")
+    values (v_tenant, v_location, nullif(btrim(v_data ->> 'note'), ''))
+    returning x."id", x."updated_at" into v_id, v_updated;
+  else
+    select x."id", x."status" into v_id, v_status from "better_supabase"."stock_counts" x
+    where x."id" = import_stock_count.subject_id::uuid and x."org_id" = v_tenant for update;
+    if v_id is null then
+      raise exception 'the stock count no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    if v_status <> 'open' then
+      raise exception 'a posted or cancelled count can''t be imported again' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    update "better_supabase"."stock_counts" x set "location_id" = v_location, "note" = nullif(btrim(v_data ->> 'note'), ''), "updated_at" = now()
+    where x."id" = v_id returning x."updated_at" into v_updated;
+    delete from "better_supabase"."stock_count_lines" y where y."count_id" = v_id and y."movement_id" is null;
+  end if;
+  for v_entry in select e from jsonb_array_elements(v_data -> 'lines') e loop
+    begin
+      v_variant := nullif(v_entry ->> 'variantId', '')::uuid;
+      v_bin := nullif(v_entry ->> 'binId', '')::uuid;
+      v_lot := nullif(v_entry ->> 'lotId', '')::uuid;
+      v_counted := (v_entry ->> 'counted')::numeric;
+      v_expected := (v_entry ->> 'expected')::numeric;
+    exception when invalid_text_representation or numeric_value_out_of_range then
+      raise exception 'ids are uuids and counted and expected are numbers' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+    if v_variant is null then
+      select y."id" into v_variant from "better_supabase"."product_variants" y where y."org_id" = v_tenant and y."sku" = v_entry ->> 'sku';
+    end if;
+    if v_variant is null or not exists (select 1 from "better_supabase"."product_variants" y where y."id" = v_variant and y."org_id" = v_tenant) then
+      raise exception 'a line''s variant isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    if v_bin is null and nullif(v_entry ->> 'bin', '') is not null then
+      select y."id" into v_bin from "better_supabase"."stock_bins" y where y."org_id" = v_tenant and y."location_id" = v_location and y."code" = v_entry ->> 'bin';
+      if v_bin is null then
+        raise exception 'a line''s bin isn''t at the location' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+      end if;
+    end if;
+    if v_lot is null and nullif(v_entry ->> 'lot', '') is not null then
+      select y."id" into v_lot from "better_supabase"."stock_lots" y where y."org_id" = v_tenant and y."variant_id" = v_variant and y."code" = v_entry ->> 'lot';
+      if v_lot is null then
+        raise exception 'a line''s lot isn''t a lot of its variant' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+      end if;
+    end if;
+    v_serial := nullif(btrim(v_entry ->> 'serial'), '');
+    if v_counted is null or v_counted < 0 or (v_serial is not null and (v_counted not in (0, 1) or v_bin is not null or v_lot is not null)) then
+      raise exception 'a line needs a counted quantity of zero or more, and a serial is counted 0 or 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    insert into "better_supabase"."stock_count_lines" as x ("org_id", "count_id", "variant_id", "bin_id", "lot_id", "serial", "expected", "counted")
+    values (v_tenant, v_id, v_variant, v_bin, v_lot, v_serial,
+      coalesce(v_expected, "better_supabase"."count_expected"(v_variant, v_location, v_bin, v_lot, v_serial)), v_counted)
+    on conflict ("count_id", "variant_id", coalesce("bin_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("lot_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("serial", '')) do update
+      set "counted" = excluded."counted", "expected" = excluded."expected", "updated_at" = now();
+  end loop;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_stock_count"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_stock_count"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."stock_count_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."stock_counts" x where x."id" = $1::uuid
+$$;
+revoke execute on function "better_supabase"."stock_count_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."stock_count_updated_at"(text) to service_role;
 
 -- Holds stock for a cart or an order until expires_at (15 minutes by default).
 -- Releases the level's expired reservations first. Returns the reservation id,
@@ -18476,6 +21340,48 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_alloca
 create policy bsb_tenant_scope_delete on "better_supabase"."stock_allocations" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_counts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_counts" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_counts" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_counts" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_counts";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_counts" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_count_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_count_lines" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_count_lines" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_count_lines" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_count_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_count_lines" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -18493,13 +21399,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
--- @bsb-hash sha256:ea44e3b8b1525a301ac30a33b17c5ce2127de622ef0df73b59a9a10aa7fb8a72
+-- @bsb-hash sha256:cceceeec0ea99073af6312f71cdbe0989c2416c29906644d4e37dc5359e4cb3a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inventory', 4, 'managed')
+values ('inventory', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

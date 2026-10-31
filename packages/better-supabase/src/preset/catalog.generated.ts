@@ -2494,6 +2494,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "barcode": "barcode",
               "weight": "weight_grams",
               "tradeCode": "trade_code",
+              "discountGroup": "discount_group_id",
               "trackInventory": "track_inventory",
               "allowBackorder": "allow_backorder",
               "rank": "rank",
@@ -2526,7 +2527,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "accounting",
         "contacts",
         "approvals",
-        "inspections"
+        "inspections",
+        "imports"
       ],
       "manifest": "inventory",
       "scopes": [
@@ -3849,6 +3851,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "audit",
+        "catalog",
         "notifications",
         "numbering",
         "legal-entities",
@@ -15463,6 +15466,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "ShipmentsEvents"
+        },
+        {
+          "name": "ShipmentsIntrastat"
         },
         {
           "name": "ShipmentsOptions"

@@ -42,6 +42,17 @@ export {
 } from "./catalog.ts";
 
 export {
+  catalogDiscounts,
+  DISCOUNT_GROUP_KINDS,
+  type CatalogDiscounts,
+  type DiscountGroupInput,
+  type DiscountGroupKind,
+  type DiscountRuleInput,
+  type ResolveDiscountOptions,
+  type ResolvedDiscount,
+} from "./discounts.ts";
+
+export {
   catalogSupply,
   IDENTIFIER_TYPES,
   RELATION_KINDS,

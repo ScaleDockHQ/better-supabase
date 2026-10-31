@@ -6,6 +6,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../queue/types.ts";
 import type { BlockOptions } from "../shared.ts";
+import type { InventoryCounts } from "./counts.ts";
 import type { InventoryProcurement } from "./procurement.ts";
 import type { InventoryTracking } from "./tracking.ts";
 
@@ -25,6 +26,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { inventoryCounts } from "./counts.ts";
 import { inventoryProcurement } from "./procurement.ts";
 import { inventoryTracking } from "./tracking.ts";
 
@@ -191,7 +193,7 @@ export interface Receipt {
 
 /** `F` types the locations' extra columns, from the `fields` schema. */
 export interface Inventory<F extends object = Record<never, never>>
-  extends InventoryTracking, InventoryProcurement {
+  extends InventoryTracking, InventoryProcurement, InventoryCounts {
   saveLocation(
     organizationId: string,
     input: LocationInput<F>,
@@ -394,6 +396,7 @@ export function createInventory<
     deleteLocation: (locationId) =>
       call("delete_location", { location: locationId }, isTrue),
     ...inventoryTracking(call),
+    ...inventoryCounts(call),
     ...inventoryProcurement(call),
     adjustStock: (variantId, locationId, quantity, reason, note, detail) =>
       call(

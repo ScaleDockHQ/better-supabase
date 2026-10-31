@@ -181,6 +181,10 @@ blocks: {
 }
 ```
 
+### Discount matrix
+
+With `options.discountMatrix: true` and the [catalog](/docs/blocks/catalog) block installed, a line that names a catalog variant and has no `discountBps` takes the discount of the [discount matrix](/docs/blocks/catalog#discount-groups-and-the-matrix) for the quote's company (else its contact) and the line's quantity. A line without a `unitAmount` takes the matrix's fixed price before the catalog price. Values on the line win, and the option is off by default.
+
 ### Stock holds
 
 With `options.holds: true` and the [inventory](/docs/blocks/inventory) block installed, sending a quote holds stock for it. Each published version allocates its lines that name a tracked catalog variant through `allocate_stock`, at the location with the most stock available. The document type is `quote_version`, the document id is the version's id and the line id is the quote line's id. What isn't in stock waits on backorder, so a hold never stops a quote from going out, but the organization needs an active stock location. Optional lines the customer didn't take and lines with a zero quantity hold nothing.

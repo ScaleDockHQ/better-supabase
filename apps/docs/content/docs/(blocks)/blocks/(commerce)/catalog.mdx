@@ -578,6 +578,47 @@ so `8481 80 99` is stored as `84818099`, and `null` clears it
 await catalog.setVariantTradeCode(variantId, "8481 80 99").orThrow();
 ```
 
+## Discount groups and the matrix
+
+A customer group and a product group are the two axes of a price matrix. `saveDiscountGroup` creates a group of kind `customer` or `product` with a code that is unique per kind. `setPartyDiscountGroup` puts a customer in one customer group, and `setVariantDiscountGroup` puts a variant in one product group. Passing `null` removes the membership. A group that a rule uses can't be deleted (`CATALOG_DISCOUNT_GROUP_IN_USE`).
+
+```ts
+const dealers = await db.catalog
+  .saveDiscountGroup(orgId, {
+    kind: "customer",
+    code: "DEALER",
+    name: "Dealers",
+  })
+  .orThrow();
+const pumps = await db.catalog
+  .saveDiscountGroup(orgId, { kind: "product", code: "PUMPS", name: "Pumps" })
+  .orThrow();
+
+await db.catalog.setPartyDiscountGroup(orgId, companyId, dealers.id).orThrow();
+await db.catalog.setVariantDiscountGroup(variantId, pumps.id).orThrow();
+
+await db.catalog
+  .saveDiscountRule(orgId, {
+    customerGroupId: dealers.id,
+    productGroupId: pumps.id,
+    minQuantity: 10,
+    discountBps: 2500,
+  })
+  .orThrow();
+```
+
+A rule leaves a group out to apply to every customer or every product. It can carry a validity window (`validFrom`, `validTo`, inclusive), a `minQuantity`, a `discountBps` from 0 to 10000 and a fixed unit price with its currency (`fixedPrice` in minor units). A bad value fails with `CATALOG_DISCOUNT_RULE_INVALID`.
+
+`resolveLineDiscount(orgId, partyId, variantId, quantity, { on, currency })` returns the rule that prices a line: `{ discountBps, fixedPrice, currency, ruleId }`. Among the rules whose window holds on the date and whose `minQuantity` the quantity reaches, the most specific one wins (both groups, then the customer group alone, then the product group alone, then neither). Equally specific rules fall to the highest quantity break, then the latest `validFrom`. A fixed price in another currency than `currency` is skipped. With no match, the result is `discountBps: 0` and a null `ruleId`.
+
+### Pricing document lines with the matrix
+
+`options.discountMatrix: true` on [quotes](/docs/blocks/quotes), [orders](/docs/blocks/orders) and [invoices](/docs/blocks/invoices) prices lines that name a catalog variant through the matrix, for the document's customer (the company, else the contact, of a quote or invoice, and `attrs.customerId` of an order) on the day the lines are set. A line without a `discountBps` takes the rule's discount, and a line without a `unitAmount` takes the rule's fixed price before the catalog price. A value on the line always wins. The option is off by default, so existing documents price as before, and it needs the catalog block.
+
+### Importing groups and rules
+
+The catalog contributes `discount_group` and `discount_rule` import targets. A group takes `{ kind, code, name, parties? }`, where `parties` lists party ids to put in a customer group. A rule takes `customerGroup` and `productGroup` as group codes (or `customerGroupId` and `productGroupId`), `validFrom`, `validTo`, `minQuantity`, `discountBps`, `fixedPrice` and `currency`. Import the groups first.
+
 ## Locales and translations
 
 The `locales` option lists the languages the catalog is written in, as

@@ -103,6 +103,7 @@ const NAMES: BlockSqlNames = {
     "resend",
     "notifications",
     "holds",
+    "discountMatrix",
   ],
   tables: {
     quotes: {

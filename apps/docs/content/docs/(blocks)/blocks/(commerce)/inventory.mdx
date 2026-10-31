@@ -444,6 +444,27 @@ for an order's catalog lines with the order's shipping address as the purchase
 order's `ship_to`, so the supplier ships to the customer. See
 [orders](/docs/blocks/orders#drop-ship).
 
+## Stock counts
+
+A stock count is a document that compares what the system expects with what is on the shelf. `openStockCount(orgId, locationId, { note, variantIds })` snapshots the expected quantity of every bucket, loose remainder and serial at the location (only where something is on hand). `recordCountLine(countId, { variantId, counted, binId, lotId, serial })` records what was counted at a position and replaces an earlier line for it. A position that wasn't in the snapshot takes the stock on hand as its expected quantity. Each line stores `variance` as counted minus expected.
+
+```ts
+const count = await db.inventory
+  .openStockCount(orgId, warehouse.id, { note: "Year end" })
+  .orThrow();
+
+await db.inventory
+  .recordCountLine(count.id, { variantId, counted: "7", binId })
+  .orThrow();
+
+const posted = await db.inventory.postStockCount(count.id).orThrow();
+// { posted: true, movements: 1, variance: "-3" }
+```
+
+`postStockCount` writes one movement with reason `count` for every line with a variance, through the same stock path as `adjustStock`, so average cost and the ledger valuation follow. The movement's reference is the count (`stock_count`), and each line keeps its `movement_id`. Posting a posted count writes nothing and returns `posted: false`. `cancelStockCount` closes an open count without movements. A closed count refuses new lines with `INVENTORY_COUNT_CLOSED`, and a missing count fails with `INVENTORY_COUNT_NOT_FOUND`.
+
+The `stock_count` import target creates an open count from `{ locationId or location (a code), note, lines: [{ variantId, binId, lotId or lot, serial, counted, expected }] }`, so a count sheet can be loaded repeatedly by its external key. An imported count stays open until `postStockCount`, and a posted one refuses a second import.
+
 ## Events
 
 | Event                                                                          | When                                             |

@@ -211,6 +211,9 @@ may be your own enum or domain.
   - `better_supabase.product_relations`, once mapped: `tenant_id`, `from_variant_id`, `to_variant_id`, `kind`, `created_at`
   - `better_supabase.supplier_items`, once mapped: `id`, `tenant_id`, `supplier_id`, `code`, `description`, `price`, `currency`, `unit`, `keywords_text`, `keywords`, `variant_id`, `created_at`, `updated_at`
   - `better_supabase.supplier_item_mappings`, once mapped: `tenant_id`, `supplier_id`, `columns`, `defaults`, `updated_at`
+  - `better_supabase.discount_groups`, once mapped: `id`, `tenant_id`, `kind`, `code`, `name`, `created_at`, `updated_at`
+  - `better_supabase.discount_group_parties`, once mapped: `tenant_id`, `group_id`, `party_id`, `created_at`
+  - `better_supabase.discount_rules`, once mapped: `id`, `tenant_id`, `customer_group_id`, `product_group_id`, `valid_from`, `valid_to`, `min_quantity`, `discount_bps`, `fixed_price`, `currency`, `created_at`, `updated_at`
 - `channels`
   - `better_supabase.channels`: `id`, `tenant_id`, `name`, `visibility`, `topic`, `purpose`, `created_by`; typed: `visibility`
 - `chat-sdk-state`
@@ -412,6 +415,8 @@ may be your own enum or domain.
   - `better_supabase.stock_serials`: `id`, `tenant_id`, `variant_id`, `serial`, `lot_id`, `location_id`, `bin_id`, `status`, `movement_id`, `updated_at`
   - `better_supabase.stock_buckets`: `id`, `tenant_id`, `variant_id`, `location_id`, `bin_id`, `lot_id`, `on_hand`, `updated_at`
   - `better_supabase.stock_allocations`: `id`, `tenant_id`, `variant_id`, `location_id`, `document_type`, `document_id`, `line_id`, `quantity`, `allocated`, `fulfilled`, `backordered`, `status`, `created_at`, `updated_at`
+  - `better_supabase.stock_counts`: `id`, `tenant_id`, `location_id`, `status`, `note`, `opened_by`, `posted_by`, `opened_at`, `posted_at`, `updated_at`; typed: `status`
+  - `better_supabase.stock_count_lines`: `id`, `tenant_id`, `count_id`, `variant_id`, `bin_id`, `lot_id`, `serial`, `expected`, `counted`, `variance`, `movement_id`, `updated_at`
 - `invitations`
   - `better_supabase.invitations`: `id`, `email`, `role`, `token_hash`, `expires_at`, `accepted_at`, `organization_id`
   - `better_supabase.platform_invitations`, once mapped: `id`, `email`, `role`, `token_hash`, `expires_at`, `accepted_at`
@@ -643,6 +648,7 @@ may be your own enum or domain.
   - `better_supabase.shipment_packages`: `id`, `tenant_id`, `shipment_id`, `position`, `weight_grams`
   - `better_supabase.shipment_tracking_events`: `id`, `tenant_id`, `shipment_id`, `external_id`, `status`, `occurred_at`, `source`, `created_at`; typed: `status`
   - `better_supabase.shipment_lines`: `id`, `tenant_id`, `shipment_id`, `position`, `direction`, `variant_id`, `location_id`, `quantity`, `detail`, `disposition`, `movement_id`, `moved_at`, `created_at`
+  - `better_supabase.intrastat_lines`: `id`, `tenant_id`, `period`, `flow`, `source`, `shipment_line_id`, `variant_id`, `trade_code`, `country`, `net_mass_kg`, `quantity`, `value`, `currency`, `created_at`, `updated_at`; typed: `flow`, `source`
 - `signatures`
   - `better_supabase.signature_requests`: `id`, `tenant_id`, `subject_type`, `subject_id`, `version_id`, `content_hash`, `signers`, `sign_order`, `status`, `approval_request_id`, `message`, `requested_by`, `created_at`, `completed_at`
   - `better_supabase.signatures`: `id`, `request_id`, `tenant_id`, `signer`, `method`, `typed_name`, `image_attachment_id`, `signed_hash`, `ip`, `user_agent`, `signed_at`

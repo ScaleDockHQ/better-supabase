@@ -99,6 +99,15 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
   const { fn, t } = n;
   const k = quoteKit(ctx, n);
   const { q, l, has, also, present, assign, valueLines, refuse } = k;
+
+  // The customer the discount matrix prices for: the quote's company, else its contact.
+  const partyOf = `(select coalesce(${
+    ["companyId", "contactId"]
+      .filter((column) => has(column))
+      .map((column) => `x.${q(column)}`)
+      .join(", ") || "null"
+  }) from ${t("quotes")} x where x.${q("id")} = v_parent)`;
+
   const { editable, st, sv, open, row, record, checkParty } = k;
   const company = quoteParty(ctx, "company");
   const contact = quoteParty(ctx, "contact");
@@ -496,6 +505,9 @@ ${lineItemsSql(
   }`,
     ...(catalogPrice ? { fallback: catalogPrice } : {}),
     ...(k.workingCopy ? { restorer: "quote_lines_restore" } : {}),
+    ...(ctx.flag("discountMatrix", false)
+      ? { discountMatrix: { party: partyOf, on: "current_date" } }
+      : {}),
   },
 )}
 -- Sends a quote: it gets a public link the customer opens and a published

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
--- @bsb-block catalog@5 managed
--- @bsb-hash sha256:2da47721b9093d5433c0919177f9af5bef608dc6d496a6c6afc6161081efb608
+-- @bsb-block catalog@6 managed
+-- @bsb-hash sha256:7b967583a7a5b0a6cf1a64d1729a8749533055febc692e7493e92783fde63914
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -202,6 +202,30 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."supplier_item_mappings";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."supplier_item_mappings";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."supplier_item_mappings";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."discount_groups";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."discount_groups";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."discount_groups";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."discount_groups";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."discount_groups";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."discount_group_parties";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."discount_group_parties";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."discount_group_parties";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."discount_group_parties";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."discount_group_parties";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."discount_rules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."discount_rules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."discount_rules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."discount_rules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."discount_rules";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -615,11 +639,83 @@ drop policy if exists supplier_item_mappings_read on "better_supabase"."supplier
 create policy supplier_item_mappings_read on "better_supabase"."supplier_item_mappings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+-- Customer groups and product groups. A rule of the matrix pairs one of each.
+create table if not exists "better_supabase"."discount_groups" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "kind" text not null check ("kind" in ('customer', 'product')),
+  "code" text not null check (length("code") between 1 and 50),
+  "name" text not null check (length("name") between 1 and 200),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "kind", "code")
+);
+alter table "better_supabase"."discount_groups" enable row level security;
+revoke all on "better_supabase"."discount_groups" from public, anon, authenticated;
+grant select on "better_supabase"."discount_groups" to authenticated;
+grant all on "better_supabase"."discount_groups" to service_role;
+drop policy if exists discount_groups_read on "better_supabase"."discount_groups";
+create policy discount_groups_read on "better_supabase"."discount_groups"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- The customers of a customer group; a party is in one group.
+create table if not exists "better_supabase"."discount_group_parties" (
+  "tenant_id" uuid not null,
+  "group_id" uuid not null references "better_supabase"."discount_groups" ("id") on delete cascade,
+  "party_id" text not null check (length("party_id") between 1 and 200),
+  "created_at" timestamptz not null default now(),
+  primary key ("tenant_id", "party_id")
+);
+create index if not exists discount_group_parties_group_idx on "better_supabase"."discount_group_parties" ("group_id");
+alter table "better_supabase"."discount_group_parties" enable row level security;
+revoke all on "better_supabase"."discount_group_parties" from public, anon, authenticated;
+grant select on "better_supabase"."discount_group_parties" to authenticated;
+grant all on "better_supabase"."discount_group_parties" to service_role;
+drop policy if exists discount_group_parties_read on "better_supabase"."discount_group_parties";
+create policy discount_group_parties_read on "better_supabase"."discount_group_parties"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- The discount matrix. A rule without a customer group or without a product
+-- group applies to every customer or product; a quantity break is another rule
+-- with a higher min_quantity. A fixed price replaces the unit amount, in its
+-- currency; the discount still applies to it.
+create table if not exists "better_supabase"."discount_rules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "customer_group_id" uuid references "better_supabase"."discount_groups" ("id") on delete restrict,
+  "product_group_id" uuid references "better_supabase"."discount_groups" ("id") on delete restrict,
+  "valid_from" date,
+  "valid_to" date,
+  "min_quantity" numeric(18, 4) not null default 0 check ("min_quantity" >= 0),
+  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "fixed_price" bigint check ("fixed_price" >= 0),
+  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  check ("valid_to" is null or "valid_from" is null or "valid_to" >= "valid_from"),
+  check (("fixed_price" is null) = ("currency" is null))
+);
+create unique index if not exists discount_rules_key on "better_supabase"."discount_rules" ("tenant_id", coalesce("customer_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("product_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("valid_from", date '0001-01-01'), "min_quantity");
+create index if not exists discount_rules_groups_idx on "better_supabase"."discount_rules" ("tenant_id", "customer_group_id", "product_group_id");
+alter table "better_supabase"."discount_rules" enable row level security;
+revoke all on "better_supabase"."discount_rules" from public, anon, authenticated;
+grant select on "better_supabase"."discount_rules" to authenticated;
+grant all on "better_supabase"."discount_rules" to service_role;
+drop policy if exists discount_rules_read on "better_supabase"."discount_rules";
+create policy discount_rules_read on "better_supabase"."discount_rules"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
 
 -- The Combined Nomenclature code (4 to 10 digits) customs and Intrastat use.
 alter table "better_supabase"."product_variants" add column if not exists "trade_code" text;
 alter table "better_supabase"."product_variants" drop constraint if exists product_variants_trade_code_check;
 alter table "better_supabase"."product_variants" add constraint product_variants_trade_code_check check ("trade_code" ~ '^[0-9]{4,10}$');
+-- The product group a variant belongs to for the discount matrix.
+alter table "better_supabase"."product_variants" add column if not exists "discount_group_id" uuid references "better_supabase"."discount_groups" ("id") on delete set null;
+create index if not exists product_variants_discount_group_idx on "better_supabase"."product_variants" ("discount_group_id") where "discount_group_id" is not null;
 -- Creates a product (product null) or updates one. Returns its id, slug and
 -- status. On an update a null argument keeps the column and clear names the
 -- columns to empty; a cleared slug is derived from the title again.
@@ -2978,6 +3074,469 @@ $$;
 revoke execute on function "better_supabase"."product_identifier_updated_at"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."product_identifier_updated_at"(text) to service_role;
 
+-- Creates a discount group (group null) or renames one. kind is customer or
+-- product and can't change; the code is unique per tenant and kind. Returns
+-- its id and whether it was created.
+create or replace function "better_supabase"."save_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid;
+  v_created boolean := save_discount_group."group" is null;
+  v_code text := btrim(save_discount_group.code);
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_group.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if save_discount_group.kind is null or save_discount_group.kind not in ('customer', 'product') then
+    raise exception 'the kind is customer or product' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
+  end if;
+  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(save_discount_group.name, ''))) not between 1 and 200 then
+    raise exception 'a group needs a code of up to 50 and a name of up to 200 characters' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
+  end if;
+  begin
+    if v_created then
+      insert into "better_supabase"."discount_groups" as x ("tenant_id", "kind", "code", "name")
+      values (save_discount_group.tenant, save_discount_group.kind, v_code, btrim(save_discount_group.name))
+      returning x."id" into v_id;
+    else
+      update "better_supabase"."discount_groups" x set "code" = v_code, "name" = btrim(save_discount_group.name), "updated_at" = now()
+      where x."id" = save_discount_group."group" and x."tenant_id" = save_discount_group.tenant and x."kind" = save_discount_group.kind
+      returning x."id" into v_id;
+      if v_id is null then
+        raise exception 'discount group not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_GROUP_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'a group of this kind already has this code' using errcode = '23505', hint = 'CATALOG_DISCOUNT_GROUP_EXISTS';
+  end;
+  return jsonb_build_object('id', v_id, 'created', v_created);
+end;
+$$;
+revoke execute on function "better_supabase"."save_discount_group"(uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
+
+-- Deletes a group no rule uses. Its customers leave it and its variants lose
+-- the group.
+create or replace function "better_supabase"."delete_discount_group"("group" uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."discount_groups" x where x."id" = delete_discount_group."group";
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."discount_rules" y where y."customer_group_id" = delete_discount_group."group" or y."product_group_id" = delete_discount_group."group") then
+    raise exception 'a rule of the matrix still uses this group' using errcode = '23503', hint = 'CATALOG_DISCOUNT_GROUP_IN_USE';
+  end if;
+  delete from "better_supabase"."discount_groups" x where x."id" = delete_discount_group."group";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_discount_group"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_discount_group"(uuid) to authenticated, service_role;
+
+-- Puts a party (a company or person id) in a customer group, or takes it out
+-- with null. A party is in one group; setting another moves it.
+create or replace function "better_supabase"."set_party_discount_group"(tenant uuid, party text, "group" uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', set_party_discount_group.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if set_party_discount_group.party is null or length(btrim(set_party_discount_group.party)) not between 1 and 200 then
+    raise exception 'name the party by its id' using errcode = '22023', hint = 'CATALOG_DISCOUNT_PARTY_INVALID';
+  end if;
+  if set_party_discount_group."group" is null then
+    delete from "better_supabase"."discount_group_parties" x where x."tenant_id" = set_party_discount_group.tenant and x."party_id" = btrim(set_party_discount_group.party);
+    return true;
+  end if;
+  if not exists (select 1 from "better_supabase"."discount_groups" y where y."id" = set_party_discount_group."group" and y."tenant_id" = set_party_discount_group.tenant and y."kind" = 'customer') then
+    raise exception 'a party takes a customer group of its organization' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_GROUP_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."discount_group_parties" as x ("tenant_id", "group_id", "party_id")
+  values (set_party_discount_group.tenant, set_party_discount_group."group", btrim(set_party_discount_group.party))
+  on conflict ("tenant_id", "party_id") do update set "group_id" = excluded."group_id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_party_discount_group"(uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."set_party_discount_group"(uuid, text, uuid) to authenticated, service_role;
+
+-- Puts a variant in a product group, or takes it out with null.
+create or replace function "better_supabase"."set_variant_discount_group"(variant uuid, "group" uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_variants" x where x."id" = set_variant_discount_group.variant;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if set_variant_discount_group."group" is not null and not exists (
+    select 1 from "better_supabase"."discount_groups" y where y."id" = set_variant_discount_group."group" and y."tenant_id" = v_tenant and y."kind" = 'product') then
+    raise exception 'a variant takes a product group of its organization' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_GROUP_NOT_FOUND';
+  end if;
+  update "better_supabase"."product_variants" x set "discount_group_id" = set_variant_discount_group."group", "updated_at" = now() where x."id" = set_variant_discount_group.variant;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_variant_discount_group"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."set_variant_discount_group"(uuid, uuid) to authenticated, service_role;
+
+-- The checks of a rule's attributes, shared by the function and the import.
+create or replace function "better_supabase"."discount_rule_check"(tenant uuid, attrs jsonb)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_customer uuid;
+  v_product uuid;
+begin
+  begin
+    v_customer := nullif(discount_rule_check.attrs ->> 'customerGroupId', '')::uuid;
+    v_product := nullif(discount_rule_check.attrs ->> 'productGroupId', '')::uuid;
+    perform (discount_rule_check.attrs ->> 'validFrom')::date, (discount_rule_check.attrs ->> 'validTo')::date;
+  exception when invalid_text_representation or invalid_datetime_format or datetime_field_overflow then
+    raise exception 'group ids are uuids and dates are YYYY-MM-DD' using errcode = '22023', hint = 'CATALOG_DISCOUNT_RULE_INVALID';
+  end;
+  if v_customer is not null and not exists (select 1 from "better_supabase"."discount_groups" y where y."id" = v_customer and y."tenant_id" = discount_rule_check.tenant and y."kind" = 'customer') then
+    raise exception 'customerGroupId isn''t a customer group of this organization' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_GROUP_NOT_FOUND';
+  end if;
+  if v_product is not null and not exists (select 1 from "better_supabase"."discount_groups" y where y."id" = v_product and y."tenant_id" = discount_rule_check.tenant and y."kind" = 'product') then
+    raise exception 'productGroupId isn''t a product group of this organization' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_GROUP_NOT_FOUND';
+  end if;
+  if coalesce(discount_rule_check.attrs ->> 'discountBps', '0') !~ '^[0-9]{1,5}$' or coalesce(discount_rule_check.attrs ->> 'discountBps', '0')::integer > 10000 then
+    raise exception 'discountBps is a whole number from 0 to 10000' using errcode = '22023', hint = 'CATALOG_DISCOUNT_RULE_INVALID';
+  end if;
+  if coalesce(discount_rule_check.attrs ->> 'minQuantity', '0') !~ '^[0-9]{1,14}([.][0-9]{1,4})?$' then
+    raise exception 'minQuantity is zero or more' using errcode = '22023', hint = 'CATALOG_DISCOUNT_RULE_INVALID';
+  end if;
+  if (discount_rule_check.attrs ->> 'fixedPrice') is not null and discount_rule_check.attrs ->> 'fixedPrice' !~ '^[0-9]{1,18}$' then
+    raise exception 'fixedPrice is a whole number of minor units' using errcode = '22023', hint = 'CATALOG_DISCOUNT_RULE_INVALID';
+  end if;
+  if ((discount_rule_check.attrs ->> 'fixedPrice') is null) <> ((discount_rule_check.attrs ->> 'currency') is null)
+    or ((discount_rule_check.attrs ->> 'currency') is not null and (discount_rule_check.attrs ->> 'currency') !~ '^[A-Z]{3}$') then
+    raise exception 'a fixed price comes with its ISO 4217 currency, and neither without the other' using errcode = '22023', hint = 'CATALOG_DISCOUNT_RULE_INVALID';
+  end if;
+  if (discount_rule_check.attrs ->> 'validFrom') is not null and (discount_rule_check.attrs ->> 'validTo') is not null
+    and (discount_rule_check.attrs ->> 'validTo')::date < (discount_rule_check.attrs ->> 'validFrom')::date then
+    raise exception 'validTo is on or after validFrom' using errcode = '22023', hint = 'CATALOG_DISCOUNT_RULE_INVALID';
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."discount_rule_check"(uuid, jsonb) from public, anon, authenticated;
+
+-- Creates a rule of the discount matrix (rule null) or replaces one. attrs: {
+-- customerGroupId?, productGroupId?, validFrom?, validTo?, minQuantity?,
+-- discountBps?, fixedPrice? (minor units as text), currency? }. A rule with the
+-- same groups, start date and minimum quantity is one rule: the call updates
+-- it. Returns its id and whether it was created.
+create or replace function "better_supabase"."save_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attrs jsonb := coalesce(save_discount_rule.attrs, '{}'::jsonb);
+  v_id uuid;
+  v_created boolean := true;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_rule.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  perform "better_supabase"."discount_rule_check"(save_discount_rule.tenant, v_attrs);
+  if save_discount_rule.rule is not null then
+    update "better_supabase"."discount_rules" x set
+      "customer_group_id" = nullif(v_attrs ->> 'customerGroupId', '')::uuid, "product_group_id" = nullif(v_attrs ->> 'productGroupId', '')::uuid,
+      "valid_from" = (v_attrs ->> 'validFrom')::date, "valid_to" = (v_attrs ->> 'validTo')::date,
+      "min_quantity" = coalesce((v_attrs ->> 'minQuantity')::numeric, 0), "discount_bps" = coalesce((v_attrs ->> 'discountBps')::integer, 0),
+      "fixed_price" = (v_attrs ->> 'fixedPrice')::bigint, "currency" = v_attrs ->> 'currency', "updated_at" = now()
+    where x."id" = save_discount_rule.rule and x."tenant_id" = save_discount_rule.tenant
+    returning x."id" into v_id;
+    if v_id is null then
+      raise exception 'discount rule not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_RULE_NOT_FOUND';
+    end if;
+    return jsonb_build_object('id', v_id, 'created', false);
+  end if;
+  insert into "better_supabase"."discount_rules" as x ("tenant_id", "customer_group_id", "product_group_id", "valid_from", "valid_to", "min_quantity", "discount_bps", "fixed_price", "currency")
+  values (save_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
+    (v_attrs ->> 'validFrom')::date, (v_attrs ->> 'validTo')::date, coalesce((v_attrs ->> 'minQuantity')::numeric, 0),
+    coalesce((v_attrs ->> 'discountBps')::integer, 0), (v_attrs ->> 'fixedPrice')::bigint, v_attrs ->> 'currency')
+  on conflict ("tenant_id", coalesce("customer_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("product_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("valid_from", date '0001-01-01'), "min_quantity") do update set
+    "valid_to" = excluded."valid_to", "discount_bps" = excluded."discount_bps", "fixed_price" = excluded."fixed_price",
+    "currency" = excluded."currency", "updated_at" = now()
+  returning x."id", (xmax = 0) into v_id, v_created;
+  return jsonb_build_object('id', v_id, 'created', v_created);
+end;
+$$;
+revoke execute on function "better_supabase"."save_discount_rule"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a rule of the matrix.
+create or replace function "better_supabase"."delete_discount_rule"(rule uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."discount_rules" x where x."id" = delete_discount_rule.rule;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."discount_rules" x where x."id" = delete_discount_rule.rule;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_discount_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_discount_rule"(uuid) to authenticated, service_role;
+
+-- The discount a line gets: { discountBps, fixedPrice, currency, ruleId }.
+-- party is the customer's id, product a catalog variant, quantity the line's
+-- and on the date the document prices at. A rule applies when its customer
+-- group is the party's (or it has none), its product group is the variant's
+-- (or it has none), the date is inside its window and quantity reaches its
+-- minimum. The most specific rule wins: both groups, then the customer group,
+-- then the product group, then neither. Among rules equally specific the
+-- highest quantity break wins, then the latest start date. With a currency, a
+-- rule whose fixed price is in another currency is skipped. No rule gives a
+-- discountBps of 0 and a null ruleId. It reads as the caller.
+create or replace function "better_supabase"."resolve_line_discount"(tenant uuid, party text, product uuid, quantity numeric, "on" date, currency text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with scope as (
+    select (select x."group_id" from "better_supabase"."discount_group_parties" x where x."tenant_id" = $1 and x."party_id" = $2) as customer_group,
+      (select y."discount_group_id" from "better_supabase"."product_variants" y where y."id" = $3 and y."tenant_id" = $1) as item_group
+  ),
+  matched as (
+    select r."id" as id, r."discount_bps" as discount_bps, r."fixed_price" as fixed_price, r."currency" as currency
+    from "better_supabase"."discount_rules" r cross join scope s
+    where r."tenant_id" = $1
+      and (r."customer_group_id" is null or r."customer_group_id" = s.customer_group)
+      and (r."product_group_id" is null or r."product_group_id" = s.item_group)
+      and (r."valid_from" is null or r."valid_from" <= coalesce($5, current_date))
+      and (r."valid_to" is null or r."valid_to" >= coalesce($5, current_date))
+      and r."min_quantity" <= coalesce($4, 1)
+      and (r."fixed_price" is null or $6 is null or r."currency" = upper($6))
+    order by (case when r."customer_group_id" is not null then 2 else 0 end) + (case when r."product_group_id" is not null then 1 else 0 end) desc,
+      r."min_quantity" desc, r."valid_from" desc nulls last, r."created_at", r."id"
+    limit 1
+  )
+  select coalesce((select jsonb_build_object('discountBps', m.discount_bps, 'fixedPrice', m.fixed_price::text, 'currency', m.currency, 'ruleId', m.id) from matched m),
+    jsonb_build_object('discountBps', 0, 'fixedPrice', null, 'currency', null, 'ruleId', null))
+$$;
+revoke execute on function "better_supabase"."resolve_line_discount"(uuid, text, uuid, numeric, date, text) from public, anon;
+grant execute on function "better_supabase"."resolve_line_discount"(uuid, text, uuid, numeric, date, text) to authenticated, service_role;
+
+-- The import target of the discount_group entity: item.data is { kind, code,
+-- name, parties? } where parties lists the ids of a customer group's members
+-- and replaces them. A new key with a code the tenant already has for that kind
+-- takes over that group.
+create or replace function "better_supabase"."import_discount_group"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_discount_group.item ->> 'tenant')::uuid;
+  v_data jsonb := import_discount_group.item -> 'data';
+  v_kind text := v_data ->> 'kind';
+  v_code text := btrim(v_data ->> 'code');
+  v_name text := btrim(coalesce(v_data ->> 'name', v_data ->> 'code'));
+  v_id uuid;
+  v_updated timestamptz;
+begin
+  if v_kind is null or v_kind not in ('customer', 'product') or v_code is null or length(v_code) not between 1 and 50 or length(v_name) not between 1 and 200 then
+    raise exception 'a discount group needs a kind (customer or product), a code and a name' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ? 'parties' and (v_kind <> 'customer' or jsonb_typeof(v_data -> 'parties') <> 'array') then
+    raise exception 'parties is a list on a customer group' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if import_discount_group.subject_id is null then
+    insert into "better_supabase"."discount_groups" as x ("tenant_id", "kind", "code", "name")
+    values (v_tenant, v_kind, v_code, v_name)
+    on conflict ("tenant_id", "kind", "code") do update set "name" = excluded."name", "updated_at" = now()
+    returning x."id", x."updated_at" into v_id, v_updated;
+  else
+    begin
+      update "better_supabase"."discount_groups" x set "kind" = v_kind, "code" = v_code, "name" = v_name, "updated_at" = now()
+      where x."id" = import_discount_group.subject_id::uuid and x."tenant_id" = v_tenant
+      returning x."id", x."updated_at" into v_id, v_updated;
+    exception when unique_violation then
+      raise exception 'another group of this kind has this code' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+    if v_id is null then
+      raise exception 'the discount group no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+  end if;
+  if v_data ? 'parties' then
+    delete from "better_supabase"."discount_group_parties" x where x."group_id" = v_id and x."party_id" not in (select jsonb_array_elements_text(v_data -> 'parties'));
+    insert into "better_supabase"."discount_group_parties" as x ("tenant_id", "group_id", "party_id")
+    select v_tenant, v_id, btrim(p) from jsonb_array_elements_text(v_data -> 'parties') p where length(btrim(p)) between 1 and 200
+    on conflict ("tenant_id", "party_id") do update set "group_id" = excluded."group_id";
+  end if;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_discount_group"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_discount_group"(uuid, jsonb, text) to service_role;
+
+-- When a discount group last changed, for the conflict check of imports.
+create or replace function "better_supabase"."discount_group_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."discount_groups" x where x."id" = $1::uuid
+$$;
+revoke execute on function "better_supabase"."discount_group_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."discount_group_updated_at"(text) to service_role;
+
+-- The import target of the discount_rule entity: item.data is {
+-- customerGroup?, productGroup? (group codes) or customerGroupId?,
+-- productGroupId?, validFrom?, validTo?, minQuantity?, discountBps?,
+-- fixedPrice?, currency? }. Import groups first.
+create or replace function "better_supabase"."import_discount_rule"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_discount_rule.item ->> 'tenant')::uuid;
+  v_data jsonb := import_discount_rule.item -> 'data';
+  v_customer_id uuid;
+  v_product_id uuid;
+  v_customer_code text := nullif(btrim(v_data ->> 'customerGroup'), '');
+  v_product_code text := nullif(btrim(v_data ->> 'productGroup'), '');
+  v_customer uuid;
+  v_product uuid;
+  v_attrs jsonb;
+  v_id uuid;
+  v_updated timestamptz;
+begin
+  begin
+    v_customer_id := nullif(v_data ->> 'customerGroupId', '')::uuid;
+    v_product_id := nullif(v_data ->> 'productGroupId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'group ids are uuids' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  v_customer := (select y."id" from "better_supabase"."discount_groups" y
+      where y."tenant_id" = v_tenant and y."kind" = 'customer'
+        and ((v_customer_id is not null and y."id" = v_customer_id) or (v_customer_id is null and v_customer_code is not null and y."code" = v_customer_code)));
+  v_product := (select y."id" from "better_supabase"."discount_groups" y
+      where y."tenant_id" = v_tenant and y."kind" = 'product'
+        and ((v_product_id is not null and y."id" = v_product_id) or (v_product_id is null and v_product_code is not null and y."code" = v_product_code)));
+  if (v_customer_id is not null or v_customer_code is not null) and v_customer is null then
+    raise exception 'the customer group isn''t in this organization; import the groups first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if (v_product_id is not null or v_product_code is not null) and v_product is null then
+    raise exception 'the product group isn''t in this organization; import the groups first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_attrs := jsonb_strip_nulls(jsonb_build_object('customerGroupId', v_customer, 'productGroupId', v_product, 'validFrom', v_data -> 'validFrom', 'validTo', v_data -> 'validTo',
+    'minQuantity', v_data -> 'minQuantity', 'discountBps', v_data -> 'discountBps', 'fixedPrice', v_data -> 'fixedPrice', 'currency', v_data -> 'currency'));
+  begin
+    perform "better_supabase"."discount_rule_check"(v_tenant, v_attrs);
+  exception when sqlstate '22023' or sqlstate 'P0002' then
+    raise exception 'the rule isn''t valid: check the groups, dates, discountBps, minQuantity and fixed price' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if import_discount_rule.subject_id is null then
+    insert into "better_supabase"."discount_rules" as x ("tenant_id", "customer_group_id", "product_group_id", "valid_from", "valid_to", "min_quantity", "discount_bps", "fixed_price", "currency")
+    values (v_tenant, v_customer, v_product, (v_attrs ->> 'validFrom')::date, (v_attrs ->> 'validTo')::date, coalesce((v_attrs ->> 'minQuantity')::numeric, 0),
+      coalesce((v_attrs ->> 'discountBps')::integer, 0), (v_attrs ->> 'fixedPrice')::bigint, v_attrs ->> 'currency')
+    on conflict ("tenant_id", coalesce("customer_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("product_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("valid_from", date '0001-01-01'), "min_quantity") do update set
+      "valid_to" = excluded."valid_to", "discount_bps" = excluded."discount_bps", "fixed_price" = excluded."fixed_price",
+      "currency" = excluded."currency", "updated_at" = now()
+    returning x."id", x."updated_at" into v_id, v_updated;
+  else
+    begin
+      update "better_supabase"."discount_rules" x set "customer_group_id" = v_customer, "product_group_id" = v_product, "valid_from" = (v_attrs ->> 'validFrom')::date, "valid_to" = (v_attrs ->> 'validTo')::date,
+        "min_quantity" = coalesce((v_attrs ->> 'minQuantity')::numeric, 0), "discount_bps" = coalesce((v_attrs ->> 'discountBps')::integer, 0),
+        "fixed_price" = (v_attrs ->> 'fixedPrice')::bigint, "currency" = v_attrs ->> 'currency', "updated_at" = now()
+      where x."id" = import_discount_rule.subject_id::uuid and x."tenant_id" = v_tenant
+      returning x."id", x."updated_at" into v_id, v_updated;
+    exception when unique_violation then
+      raise exception 'another rule has the same groups, start date and minimum quantity' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+    if v_id is null then
+      raise exception 'the discount rule no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+  end if;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_discount_rule"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_discount_rule"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."discount_rule_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."discount_rules" x where x."id" = $1::uuid
+$$;
+revoke execute on function "better_supabase"."discount_rule_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."discount_rule_updated_at"(text) to service_role;
+
 drop policy if exists products_storefront on "better_supabase"."products";
 drop policy if exists product_options_storefront on "better_supabase"."product_options";
 drop policy if exists product_option_values_storefront on "better_supabase"."product_option_values";
@@ -3428,6 +3987,69 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."supplier_ite
 create policy bsb_tenant_scope_delete on "better_supabase"."supplier_item_mappings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."discount_groups";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."discount_groups";
+create policy bsb_tenant_scope_select on "better_supabase"."discount_groups" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."discount_groups";
+create policy bsb_tenant_scope_insert on "better_supabase"."discount_groups" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."discount_groups";
+create policy bsb_tenant_scope_update on "better_supabase"."discount_groups" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."discount_groups";
+create policy bsb_tenant_scope_delete on "better_supabase"."discount_groups" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."discount_group_parties";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."discount_group_parties";
+create policy bsb_tenant_scope_select on "better_supabase"."discount_group_parties" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."discount_group_parties";
+create policy bsb_tenant_scope_insert on "better_supabase"."discount_group_parties" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."discount_group_parties";
+create policy bsb_tenant_scope_update on "better_supabase"."discount_group_parties" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."discount_group_parties";
+create policy bsb_tenant_scope_delete on "better_supabase"."discount_group_parties" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."discount_rules";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."discount_rules";
+create policy bsb_tenant_scope_select on "better_supabase"."discount_rules" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."discount_rules";
+create policy bsb_tenant_scope_insert on "better_supabase"."discount_rules" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."discount_rules";
+create policy bsb_tenant_scope_update on "better_supabase"."discount_rules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."discount_rules";
+create policy bsb_tenant_scope_delete on "better_supabase"."discount_rules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3445,13 +4067,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block-data catalog
--- @bsb-hash sha256:f1b2b4ddf75f743b52b4e2090b59663b897cde55903fcfa589ff6dc45f0bb9b9
+-- @bsb-hash sha256:2033a9a55f3f1254315d7e49a0457c27bea8dd7841443521168e86d6f1d378c9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('catalog', 5, 'managed')
+values ('catalog', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -109,7 +109,12 @@ const NAMES: BlockSqlNames = {
     "before_refund_create",
     "after_refund_create",
   ],
-  options: ["paymentWindowMinutes", "extraColumns", "kitchen"],
+  options: [
+    "paymentWindowMinutes",
+    "extraColumns",
+    "kitchen",
+    "discountMatrix",
+  ],
   tables: {
     carts: {
       name: "carts",

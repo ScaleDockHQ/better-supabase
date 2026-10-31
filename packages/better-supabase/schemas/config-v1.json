@@ -5842,7 +5842,11 @@
                 "type": "string",
                 "default": "BCN-"
               },
-              "matchTolerance": {}
+              "matchTolerance": {},
+              "discountMatrix": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         }
@@ -6415,6 +6419,10 @@
               "kitchen": {
                 "type": "boolean",
                 "default": false
+              },
+              "discountMatrix": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -6871,6 +6879,10 @@
                 "default": true
               },
               "holds": {
+                "type": "boolean",
+                "default": false
+              },
+              "discountMatrix": {
                 "type": "boolean",
                 "default": false
               }

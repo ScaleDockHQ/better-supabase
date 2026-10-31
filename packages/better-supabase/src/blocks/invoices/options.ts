@@ -64,6 +64,13 @@ export type InvoicesSqlOptions = {
    * bps: 100, amount: 500 }`.
    */
   readonly matchTolerance?: { readonly bps?: number; readonly amount?: number };
+  /**
+   * Catalog variant lines without a `discountBps` or `unitAmount` take the
+   * discount matrix's rule for the customer and quantity: its discount and its
+   * fixed price (catalog `resolve_line_discount`). Needs the catalog block.
+   * Default `false`, so lines price as before.
+   */
+  readonly discountMatrix?: boolean;
 };
 
 export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
@@ -91,4 +98,5 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
     purchaseCreditPrefix: option.string({ default: "BCN-" }),
     matchTolerance:
       option.unknown<NonNullable<InvoicesSqlOptions["matchTolerance"]>>(),
+    discountMatrix: option.boolean({ default: false }),
   });

@@ -6,6 +6,7 @@ import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { FilterQuery } from "../../list/filter-query.ts";
 import type { BlockOptions, CursorPageOptions } from "../shared.ts";
+import type { CatalogDiscounts } from "./discounts.ts";
 import type { CatalogRank } from "./rank.ts";
 import type { CatalogSupply } from "./supply.ts";
 
@@ -37,6 +38,7 @@ import {
   stringsOf,
   textOf,
 } from "../shared.ts";
+import { catalogDiscounts } from "./discounts.ts";
 import { catalogRankKey } from "./rank.ts";
 import { catalogSupply } from "./supply.ts";
 
@@ -351,9 +353,8 @@ export interface ProductMedia {
 }
 
 /** `F` is the extra product fields `options.fields` describes. */
-export interface Catalog<
-  F extends object = Record<never, never>,
-> extends CatalogSupply {
+export interface Catalog<F extends object = Record<never, never>>
+  extends CatalogSupply, CatalogDiscounts {
   /** Keys besides the input's own are the product's extra columns. */
   createProduct(
     organizationId: string,
@@ -785,6 +786,7 @@ export function createCatalog<
 
   const catalog: Catalog<F> = {
     ...catalogSupply(call),
+    ...catalogDiscounts(call),
     createProduct: (organizationId, input) =>
       saveProduct(organizationId, null, input),
     updateProduct: (organizationId, productId, input) =>

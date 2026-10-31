@@ -377,6 +377,14 @@ export function lineItemsSql(
      * the frozen check, for the module's own functions only.
      */
     readonly restorer?: string;
+    /**
+     * Prices catalog variant lines through the discount matrix: a line without
+     * `discountBps` takes the matching rule's, and one without `unitAmount` its
+     * fixed price. `party` is SQL text for the customer's id and `on` SQL for
+     * the pricing date, both over the record `v_parent` and the tenant
+     * `v_tenant`. Needs the catalog with its discount tables.
+     */
+    readonly discountMatrix?: { readonly party: string; readonly on: string };
   },
 ): string {
   const t = ctx.table(items.lines);
@@ -417,6 +425,13 @@ export function lineItemsSql(
   const replaces = ctx.owns(items.lines);
   const positionKey = items.positionKey ?? true;
 
+  const matrix = discountMatrixSql(ctx, options.discountMatrix);
+
+  const unitFallback = [
+    ...(matrix === undefined ? [] : [matrix.fixedPrice]),
+    ...(options.fallback ? [options.fallback.unitAmount] : []),
+  ];
+
   const written = (
     [
       ["tenant", "v_tenant"],
@@ -432,11 +447,14 @@ export function lineItemsSql(
       ["quantity", "coalesce((x.value ->> 'quantity')::numeric, 1)"],
       [
         "unitAmount",
-        options.fallback
-          ? `coalesce((x.value ->> 'unitAmount')::bigint, ${options.fallback.unitAmount})`
+        unitFallback.length > 0
+          ? `coalesce((x.value ->> 'unitAmount')::bigint, ${unitFallback.join(", ")})`
           : "(x.value ->> 'unitAmount')::bigint",
       ],
-      ["discountBps", "coalesce((x.value ->> 'discountBps')::integer, 0)"],
+      [
+        "discountBps",
+        `coalesce((x.value ->> 'discountBps')::integer, ${matrix === undefined ? "" : `${matrix.discountBps}, `}0)`,
+      ],
       ["taxRateBps", "coalesce((x.value ->> 'taxRateBps')::integer, 0)"],
       ["taxCode", "x.value ->> 'taxCode'"],
       ["taxCodeId", "nullif(x.value ->> 'taxCodeId', '')::uuid"],
@@ -706,6 +724,37 @@ ${setterSql(
   `revoke execute on function ${ctx.fn(options.restorer)}(uuid, jsonb) from public, anon, authenticated;`,
 )}`
   }`;
+}
+
+/**
+ * The SQL of the discount matrix for a line `x.value` that names a catalog
+ * variant: its fixed price and its discount in basis points, null for other
+ * lines and when no rule matches. Undefined when the catalog has no matrix.
+ */
+function discountMatrixSql(
+  ctx: BlockSqlContext,
+  matrix: { readonly party: string; readonly on: string } | undefined,
+): { readonly fixedPrice: string; readonly discountBps: string } | undefined {
+  if (
+    matrix === undefined ||
+    !ctx.installed("catalog") ||
+    !ctx.of("catalog").hasTable("discountRules")
+  ) {
+    return undefined;
+  }
+
+  const catalog = ctx.of("catalog");
+  const type = sqlString(catalog.naming.rename("product_variant"));
+
+  const call = `${catalog.fn("resolve_line_discount")}(v_tenant, ${matrix.party}, (x.value -> 'product' ->> 'id')::uuid, coalesce((x.value ->> 'quantity')::numeric, 1), ${matrix.on}, v_currency)`;
+
+  const rule = (key: string, cast: string): string =>
+    `case when x.value -> 'product' ->> 'type' = ${type} then (${call} ->> '${key}')::${cast} end`;
+
+  return {
+    fixedPrice: rule("fixedPrice", "bigint"),
+    discountBps: rule("discountBps", "integer"),
+  };
 }
 
 /**
