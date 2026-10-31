@@ -1916,6 +1916,17 @@ outside the app can keep the old names until the next minor with the outbox
 [0.46 to 0.47 guide](/docs/migration/0.46-to-0.47#event-types) has the full
 table.
 
+### BS425
+
+**Warning: an adopted table holds sequence runs.** Sequence runs moved onto
+the enrollments block in 0.47. The upgrade copies the default
+`sequence_enrollments` table and drops it, but a `members` table adopted
+through `blocks.sequences.tables` keeps its rows where they are, so no run
+continues. Doctor reports the key. Copy the rows onto `enrollments` (program
+`sequence:<id>`) and `enrollment_steps`, then remove the key. The
+[0.46 to 0.47 guide](/docs/migration/0.46-to-0.47#sequence-runs) shows the
+copy.
+
 ## Env files
 
 ### BS501

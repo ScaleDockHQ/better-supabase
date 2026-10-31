@@ -137,6 +137,19 @@ select b.engagement_id from my_view b;
     ]);
   });
 
+  it("lists a members table adopted for sequence runs", () => {
+    const source = `blocks: { sequences: { tables: { members: "my_runs" } } },
+blocks: { tasks: { tables: { members: "people" } } },
+`;
+
+    const result = applyCodemod(v047, source, "better-supabase.config.ts");
+
+    expect(result.text).toBe(source);
+    expect(result.review).toEqual([
+      { line: 1, message: expect.stringContaining("BS425") },
+    ]);
+  });
+
   it("lists the inbox contact calls that moved to the contacts block", () => {
     const source = `const person = await db.contacts.personForInboxContact(contactId);
 const total = 1;

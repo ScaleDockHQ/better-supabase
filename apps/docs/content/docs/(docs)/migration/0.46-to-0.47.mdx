@@ -384,7 +384,9 @@ exited run is `cancelled` with the reason in `cancel_reason`. `upgrade`
 renders a data step that copies each `sequence_enrollments` row onto its
 enrollment and its next step, then drops the table. A `members` table you
 adopted for sequences in 0.46 isn't moved; copy its rows the same way before
-you drop it. Doctor reports `sequence_enrollments` in your code.
+you drop it. Doctor reports `sequence_enrollments` in your code (BS424) and an
+adopted `members` table in `blocks.sequences.tables` (BS425), and the codemod
+lists the same key for review.
 
 The run events move too: a run writes the enrollment events with `program`
 set to `sequence:<sequence id>`.
@@ -400,7 +402,9 @@ events, so the codemod lists these types for review instead of renaming
 them: subscribe to the new type and check `data.program`. The data step
 renames the stored types and adds the new ones to the type lists of outbox
 consumers and webhook endpoints, which then also receive the other programs'
-events. Until 0.48, `legacyEventTypes` relays a run event under its old name,
+events. A subscription is a list of type patterns with no payload filter, so it
+can't keep only the `sequence:` programs: check `data.program` in the receiver.
+Until 0.48, `legacyEventTypes` relays a run event under its old name,
 and `legacyEventType(type, data)` returns it for a payload whose `program`
 starts with `sequence:`. `SequenceEnrollmentEventData` is a deprecated alias
 of `EnrollmentEventData` until then. `PROGRAM_EVENT_MOVES` (`better-supabase`)
