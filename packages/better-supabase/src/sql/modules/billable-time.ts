@@ -20,7 +20,11 @@ import { subjectInTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { subjectsOption } from "../subjects.ts";
-import { costsProjects, projectCostsSql } from "./billable-time-costing.ts";
+import {
+  costsProjects,
+  projectCostsSql,
+  wipValuationSql,
+} from "./billable-time-costing.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import {
@@ -652,7 +656,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Billable time: a rate card for time entries and invoices drafted from
 -- unbilled time, in bigint minor units.
-${tables(ctx)}${functions(ctx)}${rateMerges(ctx)}${projectCostsSql(ctx, weekZone(ctx))}`;
+${tables(ctx)}${functions(ctx)}${rateMerges(ctx)}${projectCostsSql(ctx, weekZone(ctx))}${wipValuationSql(ctx, weekZone(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -696,6 +700,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "list_invoiced_time", args: ["uuid", "integer"], returns: "jsonb" },
+    { name: "wip_valuation", args: ["{id}", "date"], returns: "jsonb" },
   ];
 }
 

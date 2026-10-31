@@ -35,11 +35,11 @@ export function accountingJson(ctx: BlockSqlContext): AccountingJson {
     settings: (row) =>
       `jsonb_build_object('organizationId', ${row}.${s("tenant")}, 'functionalCurrency', ${row}.${s("functionalCurrency")}, 'fiscalYearStartMonth', ${row}.${s("fiscalYearStartMonth")}, 'lockDate', ${row}.${s("lockDate")}, 'createdAt', ${row}.${s("createdAt")}, 'updatedAt', ${row}.${s("updatedAt")})`,
     account: (row) =>
-      `jsonb_build_object('id', ${row}.${a("id")}, 'organizationId', ${row}.${a("tenant")}, 'code', ${row}.${a("code")}, 'name', ${row}.${a("name")}, 'type', ${row}.${a("type")}, 'subtype', ${row}.${a("subtype")}, 'parentId', ${row}.${a("parent")}, 'currency', ${row}.${a("currency")}, 'reconcilable', ${row}.${a("reconcilable")}, 'roles', coalesce((select jsonb_agg(ar.${r("role")} order by ar.${r("role")}) from ${ctx.table("roles")} ar where ar.${r("account")} = ${row}.${a("id")}), '[]'::jsonb), 'archivedAt', ${row}.${a("archivedAt")}, 'createdAt', ${row}.${a("createdAt")}, 'updatedAt', ${row}.${a("updatedAt")})`,
+      `jsonb_build_object('id', ${row}.${a("id")}, 'organizationId', ${row}.${a("tenant")}, 'code', ${row}.${a("code")}, 'name', ${row}.${a("name")}, 'type', ${row}.${a("type")}, 'subtype', ${row}.${a("subtype")}, 'parentId', ${row}.${a("parent")}, 'currency', ${row}.${a("currency")}, 'reconcilable', ${row}.${a("reconcilable")}, 'normalSide', ${row}.${a("normalSide")}, 'level', ${row}.${a("level")}, 'defaultTaxCodeId', ${row}.${a("defaultTaxCode")}, 'active', ${row}.${a("active")}, 'roles', coalesce((select jsonb_agg(ar.${r("role")} order by ar.${r("role")}) from ${ctx.table("roles")} ar where ar.${r("account")} = ${row}.${a("id")}), '[]'::jsonb), 'archivedAt', ${row}.${a("archivedAt")}, 'createdAt', ${row}.${a("createdAt")}, 'updatedAt', ${row}.${a("updatedAt")})`,
     journal: (row) =>
-      `jsonb_build_object('id', ${row}.${j("id")}, 'organizationId', ${row}.${j("tenant")}, 'code', ${row}.${j("code")}, 'name', ${row}.${j("name")}, 'type', ${row}.${j("type")}, 'defaultAccountId', ${row}.${j("defaultAccount")}, 'currency', ${row}.${j("currency")}, 'createdAt', ${row}.${j("createdAt")}, 'updatedAt', ${row}.${j("updatedAt")})`,
+      `jsonb_build_object('id', ${row}.${j("id")}, 'organizationId', ${row}.${j("tenant")}, 'code', ${row}.${j("code")}, 'name', ${row}.${j("name")}, 'type', ${row}.${j("type")}, 'defaultAccountId', ${row}.${j("defaultAccount")}, 'currency', ${row}.${j("currency")}, 'contraAccountId', ${row}.${j("contraAccount")}, 'bankAccountId', ${row}.${j("bankAccount")}, 'createdAt', ${row}.${j("createdAt")}, 'updatedAt', ${row}.${j("updatedAt")})`,
     period: (row) =>
-      `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'fiscalYear', ${row}.${p("fiscalYear")}, 'number', ${row}.${p("number")}, 'startsOn', ${row}.${p("startsOn")}, 'endsOn', ${row}.${p("endsOn")}, 'status', ${row}.${p("status")}, 'closedAt', ${row}.${p("closedAt")}, 'closedBy', ${row}.${p("closedBy")})`,
+      `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'fiscalYear', ${row}.${p("fiscalYear")}, 'number', ${row}.${p("number")}, 'startsOn', ${row}.${p("startsOn")}, 'endsOn', ${row}.${p("endsOn")}, 'status', ${row}.${p("status")}, 'closedAt', ${row}.${p("closedAt")}, 'closedBy', ${row}.${p("closedBy")}, 'lockedAt', ${row}.${p("lockedAt")}, 'lockedBy', ${row}.${p("lockedBy")})`,
     dimension: (row) =>
       `jsonb_build_object('id', ${row}.${d("id")}, 'organizationId', ${row}.${d("tenant")}, 'key', ${row}.${d("key")}, 'name', ${row}.${d("name")}, 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv.${v("id")}, 'code', dv.${v("code")}, 'name', dv.${v("name")}, 'archivedAt', dv.${v("archivedAt")}) order by dv.${v("code")}) from ${ctx.table("dimensionValues")} dv where dv.${v("dimension")} = ${row}.${d("id")}), '[]'::jsonb), 'createdAt', ${row}.${d("createdAt")})`,
   };
@@ -96,11 +96,11 @@ export function accountingSetupFunctions(ctx: BlockSqlContext): string {
     config.chart === "generic"
       ? `
   if not exists (select 1 from ${accounts} y where y.${a("tenant")} = setup_accounting.tenant) then
-    insert into ${accounts} (${a("tenant")}, ${a("code")}, ${a("name")}, ${a("type")}, ${a("subtype")}, ${a("reconcilable")})
+    insert into ${accounts} (${a("tenant")}, ${a("code")}, ${a("name")}, ${a("type")}, ${a("subtype")}, ${a("reconcilable")}, ${a("normalSide")})
     values
       ${GENERIC_CHART.map(
         (account) =>
-          `(setup_accounting.tenant, ${sqlString(account.code)}, ${sqlString(account.name)}, ${sqlString(account.type)}, ${sqlString(account.subtype)}, ${String(account.reconcilable ?? false)})`,
+          `(setup_accounting.tenant, ${sqlString(account.code)}, ${sqlString(account.name)}, ${sqlString(account.type)}, ${sqlString(account.subtype)}, ${String(account.reconcilable ?? false)}, ${sqlString(account.type === "asset" || account.type === "expense" ? "debit" : "credit")})`,
       ).join(",\n      ")};
     insert into ${roles} (${r("tenant")}, ${r("role")}, ${r("account")})
     select setup_accounting.tenant, c.role, y.${a("id")}
@@ -171,7 +171,11 @@ begin
     insert into ${settings} (${s("tenant")}, ${s("functionalCurrency")}, ${s("fiscalYearStartMonth")})
     values (setup_accounting.tenant, v_currency, v_month)
     returning * into v_row;
-  end if;${chart}
+  end if;
+  -- Cost center and cost object are built in: every organization has both.
+  insert into ${dimensions} (${d("tenant")}, ${d("key")}, ${d("name")})
+  values (setup_accounting.tenant, 'cost_center', 'Cost center'), (setup_accounting.tenant, 'cost_object', 'Cost object')
+  on conflict (${d("tenant")}, ${d("key")}) do nothing;${chart}
   return ${json.settings("v_row")};
 end;
 $$;
@@ -212,8 +216,12 @@ $$;
 ${userGrant(`${fn("set_accounting_lock_date")}(${idType}, date)`)}
 
 -- Creates an account, or changes one (account_id, or the account with the code).
--- An account with posted lines keeps its type.
-create or replace function ${fn("save_accounting_account")}(tenant ${idType}, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null)
+-- An account with posted lines keeps its type. The normal side defaults to
+-- debit for assets and expenses and credit for the rest; the level follows
+-- the parent; the default tax code is the code a line on the account takes
+-- when it names none.
+drop function if exists ${fn("save_accounting_account")}(${idType}, text, text, text, text, uuid, text, boolean, uuid);
+create or replace function ${fn("save_accounting_account")}(tenant ${idType}, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -224,6 +232,7 @@ declare
   v_row ${accounts}%rowtype;
   v_id uuid := save_accounting_account.account_id;
   v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+  v_side text;
 begin
   if not ${allowed("save_accounting_account.tenant", sql.manage)} then
     ${sql.forbidden("ACCOUNTING_ACCOUNT", "not allowed to manage the chart of accounts")}
@@ -239,6 +248,15 @@ begin
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     ${sql.invalid("ACCOUNTING_ACCOUNT", "the currency must be an ISO 4217 code such as EUR")}
+  end if;
+  v_side := coalesce(save_accounting_account.normal_side, case when save_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
+  if v_side not in ('debit', 'credit') then
+    ${sql.invalid("ACCOUNTING_ACCOUNT", "the normal side is debit or credit")}
+  end if;
+  if save_accounting_account.default_tax_code_id is not null and not exists (
+    select 1 from ${taxes} y where y.${t("id")} = save_accounting_account.default_tax_code_id and y.${t("tenant")} = save_accounting_account.tenant
+  ) then
+    ${sql.notFound("ACCOUNTING_TAX_CODE", "tax code not found")}
   end if;
   if v_id is null then
     select y.${a("id")} into v_id from ${accounts} y
@@ -260,9 +278,11 @@ begin
     end if;
   end if;
   if v_id is null then
-    insert into ${accounts} (${a("tenant")}, ${a("code")}, ${a("name")}, ${a("type")}, ${a("subtype")}, ${a("parent")}, ${a("currency")}, ${a("reconcilable")})
+    insert into ${accounts} (${a("tenant")}, ${a("code")}, ${a("name")}, ${a("type")}, ${a("subtype")}, ${a("parent")}, ${a("currency")}, ${a("reconcilable")},
+      ${a("normalSide")}, ${a("defaultTaxCode")}, ${a("active")})
     values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
-      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false))
+      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false),
+      v_side, save_accounting_account.default_tax_code_id, coalesce(save_accounting_account.active, true))
     returning * into v_row;
   else
     select * into v_row from ${accounts} y where y.${a("id")} = v_id and y.${a("tenant")} = save_accounting_account.tenant for update;
@@ -278,14 +298,16 @@ begin
     end if;
     update ${accounts} y set ${a("code")} = trim(save_accounting_account.code), ${a("name")} = trim(save_accounting_account.name),
       ${a("type")} = save_accounting_account.type, ${a("subtype")} = save_accounting_account.subtype, ${a("parent")} = save_accounting_account.parent_id,
-      ${a("currency")} = v_currency, ${a("reconcilable")} = coalesce(save_accounting_account.reconcilable, false), ${a("updatedAt")} = now()
+      ${a("currency")} = v_currency, ${a("reconcilable")} = coalesce(save_accounting_account.reconcilable, false),
+      ${a("normalSide")} = v_side, ${a("defaultTaxCode")} = save_accounting_account.default_tax_code_id,
+      ${a("active")} = coalesce(save_accounting_account.active, true), ${a("updatedAt")} = now()
     where y.${a("id")} = v_id
     returning * into v_row;
   end if;
   return ${json.account("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_accounting_account")}(${idType}, text, text, text, text, uuid, text, boolean, uuid)`)}
+${userGrant(`${fn("save_accounting_account")}(${idType}, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean)`)}
 
 -- Archives an account (nothing posts to it), or restores it. An account
 -- mapped to a role, a journal or a tax code stays.
@@ -372,7 +394,8 @@ $$;
 ${userGrant(`${fn("list_accounting_accounts")}(${idType}, boolean)`)}
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
-create or replace function ${fn("save_accounting_journal")}(tenant ${idType}, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null)
+drop function if exists ${fn("save_accounting_journal")}(${idType}, text, text, text, uuid, text, uuid);
+create or replace function ${fn("save_accounting_journal")}(tenant ${idType}, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -403,16 +426,24 @@ begin
   ) then
     ${notFound("ACCOUNTING_ACCOUNT", "account")}
   end if;
+  if save_accounting_journal.contra_account_id is not null and not exists (
+    select 1 from ${accounts} y where y.${a("id")} = save_accounting_journal.contra_account_id
+      and y.${a("tenant")} = save_accounting_journal.tenant and y.${a("archivedAt")} is null
+  ) then
+    ${sql.notFound("ACCOUNTING_ACCOUNT", "contra account not found")}
+  end if;
   if v_id is null then
     select y.${j("id")} into v_id from ${journals} y where y.${j("tenant")} = save_accounting_journal.tenant and y.${j("code")} = v_code;
   end if;
   if v_id is null then
-    insert into ${journals} (${j("tenant")}, ${j("code")}, ${j("name")}, ${j("type")}, ${j("defaultAccount")}, ${j("currency")})
-    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency)
+    insert into ${journals} (${j("tenant")}, ${j("code")}, ${j("name")}, ${j("type")}, ${j("defaultAccount")}, ${j("currency")}, ${j("contraAccount")}, ${j("bankAccount")})
+    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency,
+      save_accounting_journal.contra_account_id, save_accounting_journal.bank_account_id)
     returning * into v_row;
   else
     update ${journals} y set ${j("code")} = v_code, ${j("name")} = trim(save_accounting_journal.name), ${j("type")} = save_accounting_journal.type,
-      ${j("defaultAccount")} = save_accounting_journal.default_account_id, ${j("currency")} = v_currency, ${j("updatedAt")} = now()
+      ${j("defaultAccount")} = save_accounting_journal.default_account_id, ${j("currency")} = v_currency,
+      ${j("contraAccount")} = save_accounting_journal.contra_account_id, ${j("bankAccount")} = save_accounting_journal.bank_account_id, ${j("updatedAt")} = now()
     where y.${j("id")} = v_id and y.${j("tenant")} = save_accounting_journal.tenant
     returning * into v_row;
     if not found then
@@ -422,7 +453,7 @@ begin
   return ${json.journal("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_accounting_journal")}(${idType}, text, text, text, uuid, text, uuid)`)}
+${userGrant(`${fn("save_accounting_journal")}(${idType}, text, text, text, uuid, text, uuid, uuid, uuid)`)}
 
 create or replace function ${fn("list_accounting_journals")}(tenant ${idType})
 returns jsonb

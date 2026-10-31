@@ -23,7 +23,7 @@ export function entryJson(
   const extras = ctx.extraColumns("entries", ENTRY_RESERVED);
   const lines = ctx.table("lines");
 
-  const lineJson = `jsonb_build_object('id', el.${l("id")}, 'accountId', el.${l("account")}, 'accountCode', ea.${a("code")}, 'accountName', ea.${a("name")}, 'debit', el.${l("debit")}::text, 'credit', el.${l("credit")}::text, 'currency', el.${l("currency")}, 'amountCurrency', el.${l("amountCurrency")}::text, 'fxRate', el.${l("fxRate")}::text, 'taxCodeId', el.${l("taxCode")}, 'partyId', el.${l("party")}, 'dimensions', el.${l("dimensions")}, 'description', el.${l("description")})`;
+  const lineJson = `jsonb_build_object('id', el.${l("id")}, 'accountId', el.${l("account")}, 'accountCode', ea.${a("code")}, 'accountName', ea.${a("name")}, 'debit', el.${l("debit")}::text, 'credit', el.${l("credit")}::text, 'currency', el.${l("currency")}, 'amountCurrency', el.${l("amountCurrency")}::text, 'fxRate', el.${l("fxRate")}::text, 'taxCodeId', el.${l("taxCode")}, 'taxAmount', el.${l("taxAmount")}::text, 'partyId', el.${l("party")}, 'dimensions', el.${l("dimensions")}, 'description', el.${l("description")})`;
 
   const linesJson = withLines
     ? `, 'lines', coalesce((select jsonb_agg(${lineJson} order by el.${l("position")}, el.${l("id")}) from ${lines} el join ${ctx.table("accounts")} ea on ea.${a("id")} = el.${l("account")} where el.${l("entry")} = ${row}.${e("id")}), '[]'::jsonb)`
@@ -79,7 +79,9 @@ export function accountingEntryFunctions(ctx: BlockSqlContext): string {
 -- Posts a draft entry: balanced in the functional currency, dated in an open
 -- period after the lock date, with known dimension values; then numbers it per
 -- journal and fiscal year. Called by the posting, reversal and year close
--- functions; closing skips the period and lock date checks.
+-- functions; closing skips the closed period and lock date checks. A locked
+-- period refuses every post. A ledger import (import mode) may post into a
+-- closed period, and the organization's lock date still applies to it.
 create or replace function ${fn("accounting_post")}(entry_id uuid, closing boolean default false)
 returns ${entries}
 language plpgsql
@@ -115,9 +117,9 @@ begin
   end if;
   if exists (
     select 1 from ${lines} y join ${accounts} z on z.${a("id")} = y.${l("account")}
-    where y.${l("entry")} = v_row.${e("id")} and z.${a("archivedAt")} is not null
+    where y.${l("entry")} = v_row.${e("id")} and (z.${a("archivedAt")} is not null or not z.${a("active")})
   ) then
-    ${sql.invalid("ACCOUNTING_ACCOUNT", "an account of the entry is archived")}
+    ${sql.invalid("ACCOUNTING_ACCOUNT", "an account of the entry is archived or inactive")}
   end if;
   if exists (
     select 1 from ${lines} y, jsonb_each(y.${l("dimensions")}) dim
@@ -135,8 +137,11 @@ begin
   if not found then
     ${fail("ACCOUNTING_PERIOD_NOT_FOUND", "no period covers the entry date; open its fiscal year first", "P0002")}
   end if;
+  if v_period.${p("status")} = 'locked' then
+    ${fail("ACCOUNTING_PERIOD_LOCKED", "the entry date is in a locked period", "55000")}
+  end if;
   if not coalesce(accounting_post.closing, false) and (
-    v_period.${p("status")} = 'closed'
+    (v_period.${p("status")} = 'closed' and better_supabase.import_run() is null)
     or (v_settings.${s("lockDate")} is not null and v_row.${e("entryDate")} <= v_settings.${s("lockDate")})
   ) then
     ${fail("ACCOUNTING_PERIOD_CLOSED", "the entry date is in a closed period or on or before the lock date", "55000")}
@@ -261,8 +266,12 @@ begin
     if v_account.${a("id")} is null or v_account.${a("archivedAt")} is not null then
       ${sql.notFound("ACCOUNTING_ACCOUNT", "a line's account doesn't exist here or is archived")}
     end if;
+    if not v_account.${a("active")} then
+      ${sql.invalid("ACCOUNTING_ACCOUNT", "a line's account is inactive")}
+    end if;
     if coalesce(v_line.value ->> 'debit', '0') !~ '^[0-9]{1,18}$' or coalesce(v_line.value ->> 'credit', '0') !~ '^[0-9]{1,18}$'
       or coalesce(v_line.value ->> 'amountCurrency', '0') !~ '^-?[0-9]{1,18}$'
+      or coalesce(v_line.value ->> 'taxAmount', '0') !~ '^[0-9]{1,18}$'
       or coalesce(v_line.value ->> 'fxRate', '1') !~ '^[0-9]+(\\.[0-9]+)?$' then
       ${invalid("debit and credit are non-negative integers, amountCurrency an integer and fxRate a positive decimal")}
     end if;
@@ -302,7 +311,7 @@ begin
     if (v_debit = 0) = (v_credit = 0) then
       ${invalid("every line has either a debit or a credit")}
     end if;
-    v_tax := null;
+    v_tax := case when v_line.value ? 'taxCodeId' then null else v_account.${a("defaultTaxCode")} end;
     if v_line.value ->> 'taxCodeId' is not null then
       select y.${t("id")} into v_tax from ${taxes} y
       where y.${t("id")}::text = v_line.value ->> 'taxCodeId' and y.${t("tenant")} = v_journal.${j("tenant")};
@@ -314,6 +323,9 @@ begin
       ${invalid("partyId must be a uuid")}
     end if;
     v_party := (v_line.value ->> 'partyId')::uuid;
+    if coalesce((v_line.value ->> 'taxAmount')::bigint, 0) > v_debit + v_credit then
+      ${invalid("a line's taxAmount can't exceed its amount")}
+    end if;
     v_dimensions := coalesce(v_line.value -> 'dimensions', '{}'::jsonb);
     if jsonb_typeof(v_dimensions) = 'null' then
       v_dimensions := '{}'::jsonb;
@@ -322,9 +334,9 @@ begin
       ${fail("ACCOUNTING_DIMENSION_INVALID", "a line's dimensions are an object of dimension keys to value codes", "22023")}
     end if;
     insert into ${lines} (${l("tenant")}, ${l("entry")}, ${l("position")}, ${l("account")}, ${l("debit")}, ${l("credit")}, ${l("currency")},
-      ${l("amountCurrency")}, ${l("fxRate")}, ${l("taxCode")}, ${l("party")}, ${l("dimensions")}, ${l("description")})
+      ${l("amountCurrency")}, ${l("fxRate")}, ${l("taxCode")}, ${l("taxAmount")}, ${l("party")}, ${l("dimensions")}, ${l("description")})
     values (v_journal.${j("tenant")}, v_row.${e("id")}, v_line.ordinality, v_account.${a("id")}, v_debit, v_credit, v_currency,
-      v_amount, v_rate, v_tax, v_party, v_dimensions, nullif(trim(v_line.value ->> 'description'), ''));
+      v_amount, v_rate, v_tax, coalesce((v_line.value ->> 'taxAmount')::bigint, 0), v_party, v_dimensions, nullif(trim(v_line.value ->> 'description'), ''));
   end loop;${writeExtraColumns(entries, extras, "save_accounting_entry.fields", `x.${e("id")} = v_row.${e("id")}`, "v_row")}
   return ${entryJson(ctx, "v_row", true)};
 end;

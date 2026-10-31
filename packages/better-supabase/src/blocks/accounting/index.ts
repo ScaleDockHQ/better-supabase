@@ -3,6 +3,7 @@ export {
   type AccountRole,
   type AccountType,
   type Accounting,
+  type AccountNormalSide,
   type AccountingAccount,
   type AccountingAccountInput,
   type AccountingDimension,
@@ -58,6 +59,21 @@ export { accountingBlock } from "./manifest.ts";
 export { taxReportFormatOf } from "./postings.ts";
 
 export type {
+  AccountingLedger,
+  ColumnBalance,
+  ColumnBalanceOptions,
+  ColumnBalanceRow,
+  JournalListing,
+  JournalListingEntry,
+  JournalListingJournal,
+  JournalListingLine,
+  JournalListingOptions,
+  OpeningBalance,
+  OpeningBalanceInput,
+  OpeningBalances,
+} from "./ledger.ts";
+
+export type {
   AccountingBudget,
   AccountingBudgetInput,
   AccountingBudgetLine,
@@ -88,6 +104,7 @@ export type {
   AccountingEvents,
   AccountingPeriodEventData,
   AccountingPeriodReopenedEventData,
+  AccountingPeriodUnlockedEventData,
   FiscalYearClosedEventData,
 } from "./events.ts";
 

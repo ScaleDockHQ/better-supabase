@@ -86,6 +86,7 @@ export function accountingCloseFunctions(ctx: BlockSqlContext): string {
   const periods = ctx.table("periods");
   const entries = ctx.table("entries");
   const lines = ctx.table("lines");
+  const openings = ctx.table("openingBalances");
   const settings = ctx.table("settings");
   const s = (column: string): string => ctx.col("settings", column);
   const a = (column: string): string => ctx.col("accounts", column);
@@ -94,6 +95,7 @@ export function accountingCloseFunctions(ctx: BlockSqlContext): string {
   const p = (column: string): string => ctx.col("periods", column);
   const e = (column: string): string => ctx.col("entries", column);
   const l = (column: string): string => ctx.col("lines", column);
+  const o = (column: string): string => ctx.col("openingBalances", column);
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
   const sql = accountingSql(ctx);
@@ -106,7 +108,11 @@ export function accountingCloseFunctions(ctx: BlockSqlContext): string {
     `jsonb_build_object('organizationId', ${row}.${p("tenant")}, 'id', ${row}.${p("id")}, 'fiscalYear', ${row}.${p("fiscalYear")}, 'number', ${row}.${p("number")}, 'startsOn', ${row}.${p("startsOn")}, 'endsOn', ${row}.${p("endsOn")}${extra})`;
 
   const recordPeriod = (
-    type: "accounting_period.closed" | "accounting_period.reopened",
+    type:
+      | "accounting_period.closed"
+      | "accounting_period.reopened"
+      | "accounting_period.locked"
+      | "accounting_period.unlocked",
     row: string,
     extra = "",
   ): string =>
@@ -120,7 +126,7 @@ export function accountingCloseFunctions(ctx: BlockSqlContext): string {
         targetType: "accounting_period",
         recordId: `${row}.${p("id")}::text`,
         targetLabel: `${row}.${p("fiscalYear")}::text || '-' || lpad(${row}.${p("number")}::text, 2, '0')`,
-        summary: `'${type === "accounting_period.closed" ? "closed" : "reopened"} period ' || ${row}.${p("fiscalYear")}::text || '-' || lpad(${row}.${p("number")}::text, 2, '0')`,
+        summary: `'${type.slice("accounting_period.".length)} period ' || ${row}.${p("fiscalYear")}::text || '-' || lpad(${row}.${p("number")}::text, 2, '0')`,
       },
     });
 
@@ -162,7 +168,7 @@ begin
   if not ${allowed(`v_period.${p("tenant")}`, sql.close)} then
     ${sql.forbidden("ACCOUNTING_PERIOD", "not allowed to close accounting periods")}
   end if;
-  if v_period.${p("status")} = 'closed' then
+  if v_period.${p("status")} in ('closed', 'locked') then
     return ${json.period("v_period")};
   end if;
   v_blockers := ${fn("accounting_period_close_blockers")}(v_period.${p("id")});
@@ -201,6 +207,9 @@ begin
   if v_period.${p("status")} = 'open' then
     return ${json.period("v_period")};
   end if;
+  if v_period.${p("status")} = 'locked' then
+    ${fail("ACCOUNTING_PERIOD_LOCKED", "the period is locked; unlock it first", "55000")}
+  end if;
   ${requireSettings(ctx, `v_period.${p("tenant")}`)}
   if v_settings.${s("lockDate")} is not null and v_period.${p("startsOn")} <= v_settings.${s("lockDate")} then
     ${fail("ACCOUNTING_PERIOD_CLOSED", "the period is on or before the lock date", "55000")}
@@ -214,9 +223,80 @@ end;
 $$;
 ${userGrant(`${fn("reopen_accounting_period")}(uuid, text)`)}
 
+-- Locks a closed period: nothing posts into it, not even a ledger import, and
+-- it can't reopen until it is unlocked. Locking a locked period returns it
+-- unchanged.
+create or replace function ${fn("lock_accounting_period")}(period_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period ${periods}%rowtype;
+begin
+  select * into v_period from ${periods} y where y.${p("id")} = lock_accounting_period.period_id for update;
+  if not found then
+    ${periodNotFound}
+  end if;
+  if not ${allowed(`v_period.${p("tenant")}`, sql.close)} then
+    ${sql.forbidden("ACCOUNTING_PERIOD", "not allowed to lock accounting periods")}
+  end if;
+  if v_period.${p("status")} = 'locked' then
+    return ${json.period("v_period")};
+  end if;
+  if v_period.${p("status")} <> 'closed' then
+    ${fail("ACCOUNTING_PERIOD_CLOSE_BLOCKED", "close the period before you lock it", "55000")}
+  end if;
+  update ${periods} y set ${p("status")} = 'locked', ${p("lockedAt")} = now(), ${p("lockedBy")} = auth.uid()
+  where y.${p("id")} = v_period.${p("id")}
+  returning * into v_period;
+  ${recordPeriod("accounting_period.locked", "v_period")}
+  return ${json.period("v_period")};
+end;
+$$;
+${userGrant(`${fn("lock_accounting_period")}(uuid)`)}
+
+-- Unlocks a locked period with a reason; it goes back to closed.
+create or replace function ${fn("unlock_accounting_period")}(period_id uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period ${periods}%rowtype;
+begin
+  select * into v_period from ${periods} y where y.${p("id")} = unlock_accounting_period.period_id for update;
+  if not found then
+    ${periodNotFound}
+  end if;
+  if not ${allowed(`v_period.${p("tenant")}`, sql.close)} then
+    ${sql.forbidden("ACCOUNTING_PERIOD", "not allowed to unlock accounting periods")}
+  end if;
+  if nullif(trim(unlock_accounting_period.reason), '') is null then
+    ${sql.invalid("ACCOUNTING_PERIOD", "unlocking a period needs a reason")}
+  end if;
+  if v_period.${p("status")} <> 'locked' then
+    return ${json.period("v_period")};
+  end if;
+  update ${periods} y set ${p("status")} = 'closed', ${p("lockedAt")} = null, ${p("lockedBy")} = null
+  where y.${p("id")} = v_period.${p("id")}
+  returning * into v_period;
+  ${recordPeriod("accounting_period.unlocked", "v_period", `, 'reason', trim(unlock_accounting_period.reason)`)}
+  return ${json.period("v_period")};
+end;
+$$;
+${userGrant(`${fn("unlock_accounting_period")}(uuid, text)`)}
+
 -- Closes a fiscal year: one closing entry in the first general journal moves
 -- every income and expense balance to the retained earnings account, then
--- every period of the year closes. Reverse the closing entry to redo it.
+-- every period of the year closes. The balances of the asset, liability and
+-- equity accounts at the year's end are kept as the next year's carried
+-- opening balances (accounting_opening_balances); reports add up every posted
+-- line, so no entry carries them. Reverse the closing entry to redo it.
 create or replace function ${fn("close_fiscal_year")}(tenant ${idType}, fiscal_year integer)
 returns jsonb
 language plpgsql
@@ -293,6 +373,22 @@ begin
   elsif v_open = 0 then
     ${fail("FISCAL_YEAR_CLOSED", "the fiscal year is already closed", "55000")}
   end if;
+  delete from ${openings} y
+  where y.${o("tenant")} = close_fiscal_year.tenant and y.${o("fiscalYear")} = close_fiscal_year.fiscal_year + 1 and y.${o("source")} = 'carried';
+  insert into ${openings} (${o("tenant")}, ${o("fiscalYear")}, ${o("account")}, ${o("party")}, ${o("amount")}, ${o("source")})
+  select close_fiscal_year.tenant, close_fiscal_year.fiscal_year + 1, c.account, c.party, c.net, 'carried'
+  from (
+    select y.${l("account")} as account, case when w.${a("reconcilable")} then y.${l("party")} end as party,
+      sum(y.${l("debit")}) - sum(y.${l("credit")}) as net
+    from ${lines} y
+    join ${entries} z on z.${e("id")} = y.${l("entry")}
+    join ${accounts} w on w.${a("id")} = y.${l("account")}
+    where z.${e("tenant")} = close_fiscal_year.tenant and z.${e("status")} in ('posted', 'reversed')
+      and z.${e("entryDate")} <= v_ends and w.${a("type")} in ('asset', 'liability', 'equity')
+    group by y.${l("account")}, case when w.${a("reconcilable")} then y.${l("party")} end
+    having sum(y.${l("debit")}) <> sum(y.${l("credit")})
+  ) c
+  on conflict do nothing;
   for v_period in
     select * from ${periods} y
     where y.${p("tenant")} = close_fiscal_year.tenant and y.${p("fiscalYear")} = close_fiscal_year.fiscal_year and y.${p("status")} = 'open'

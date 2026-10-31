@@ -37,7 +37,7 @@ export interface AccountingEntryReversedEventData {
   readonly reversalId: string;
 }
 
-/** `accounting_period.closed` and `accounting_period.reopened`. */
+/** `accounting_period.closed`, `.reopened`, `.locked` and `.unlocked`. */
 export interface AccountingPeriodEventData {
   readonly organizationId: string;
   readonly id: string;
@@ -51,6 +51,11 @@ export interface AccountingPeriodEventData {
 
 /** `accounting_period.reopened`: a closed period was opened again. */
 export interface AccountingPeriodReopenedEventData extends AccountingPeriodEventData {
+  readonly reason: string;
+}
+
+/** `accounting_period.unlocked`: a locked period went back to closed. */
+export interface AccountingPeriodUnlockedEventData extends AccountingPeriodEventData {
   readonly reason: string;
 }
 
@@ -77,6 +82,8 @@ export type AccountingEvents = {
   readonly "accounting_entry.reversed": AccountingEntryReversedEventData;
   readonly "accounting_period.closed": AccountingPeriodEventData;
   readonly "accounting_period.reopened": AccountingPeriodReopenedEventData;
+  readonly "accounting_period.locked": AccountingPeriodEventData;
+  readonly "accounting_period.unlocked": AccountingPeriodUnlockedEventData;
   readonly "fiscal_year.closed": FiscalYearClosedEventData;
   readonly "accounting_budget.created": AccountingBudgetEventData;
   readonly "accounting_budget.updated": AccountingBudgetEventData;
@@ -88,6 +95,8 @@ export const accountingEvents: Events<AccountingEvents> = defineEvents({
   "accounting_entry.reversed": event<AccountingEntryReversedEventData>(),
   "accounting_period.closed": event<AccountingPeriodEventData>(),
   "accounting_period.reopened": event<AccountingPeriodReopenedEventData>(),
+  "accounting_period.locked": event<AccountingPeriodEventData>(),
+  "accounting_period.unlocked": event<AccountingPeriodUnlockedEventData>(),
   "fiscal_year.closed": event<FiscalYearClosedEventData>(),
   "accounting_budget.created": event<AccountingBudgetEventData>(),
   "accounting_budget.updated": event<AccountingBudgetEventData>(),

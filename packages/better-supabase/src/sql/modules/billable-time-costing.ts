@@ -165,3 +165,92 @@ $$;
 ${userGrant(`${fn("project_costs")}(uuid)`)}
 `;
 }
+
+/**
+ * `wip_valuation`: the finished, billable time no invoice has billed, valued at
+ * the rate card's cost and at its billing rate, per currency.
+ */
+export function wipValuationSql(
+  ctx: BlockSqlContext,
+  timeZone: string,
+): string {
+  if (!ctx.manages) {
+    return "";
+  }
+
+  const time = ctx.of("time-tracking");
+  const entries = time.table("entries");
+  const e = (column: string): string => time.col("entries", column);
+  const r = (column: string): string => ctx.col("rates", column);
+  const b = (column: string): string => ctx.col("billed", column);
+  const fn = (name: string): string => ctx.fn(name);
+  const read = ctx.permission("read", moduleOperations("billable-time").read);
+  const { rowSubject } = entrySubjects(time, subjectsOption(time, ["column"]));
+  const subject = rowSubject("x");
+  const zone = sqlString(timeZone);
+  const cost = ctx.has("rates", "cost") ? `c.${r("cost")}` : "null::bigint";
+  const idType = ctx.idType;
+
+  return `
+-- The work in progress of unbilled time on as_of (today by default): the
+-- finished, billable entries started on or before it that no invoice has
+-- billed, per currency at the rate card's cost and at the billing rate (an
+-- entry's own rate first). Entries without a cost or a rate are counted in
+-- uncostedHours and unratedHours and left out of the amounts. Stock
+-- consumed into production is not part of it (ADR 0144).
+create or replace function ${fn("wip_valuation")}(tenant ${idType}, as_of date default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_as_of date := coalesce(wip_valuation.as_of, current_date);
+begin
+  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "wip_valuation.tenant", read)}) then
+    ${fail("BILLABLE_TIME_FORBIDDEN", "not allowed to read billable time")}
+  end if;
+  return (
+    with open as (
+      select extract(epoch from ${entryEnded(time, "x")} - x.${e("startedAt")}) as seconds,
+        card.cost, card.currency as cost_currency,
+        coalesce(x.${e("rate")}, card.rate) as rate, coalesce(x.${e("rateCurrency")}, card.currency) as rate_currency
+      from ${entries} x
+      left join lateral (
+        select ${cost} as cost, c.${r("rate")} as rate, c.${r("currency")}::text as currency
+        from ${ctx.table("rates")} c
+        where c.${r("tenant")} = x.${e("tenant")}
+          and (c.${r("user")} is null or c.${r("user")} = x.${e("user")})
+          and (c.${r("subjectType")} is null or (c.${r("subjectType")} = ${subject.type} and c.${r("subjectId")} = ${subject.id}))
+          and c.${r("effectiveFrom")} <= (x.${e("startedAt")} at time zone ${zone})::date
+        order by (c.${r("subjectType")} is not null) desc, (c.${r("user")} is not null) desc, c.${r("effectiveFrom")} desc
+        limit 1
+      ) card on true
+      where x.${e("tenant")} = wip_valuation.tenant
+        and x.${e("billable")} and ${entryEnded(time, "x")} is not null
+        and (x.${e("startedAt")} at time zone ${zone})::date <= v_as_of
+        and not exists (select 1 from ${ctx.table("billed")} d where d.${b("entry")} = x.${e("id")})
+    ),
+    amounts as (
+      select o.cost_currency as currency, round(o.seconds / 3600.0 * o.cost)::bigint as cost, 0::bigint as billable
+      from open o where o.cost is not null
+      union all
+      select o.rate_currency, 0, round(o.seconds / 3600.0 * o.rate)::bigint
+      from open o where o.rate is not null
+    )
+    select jsonb_build_object(
+      'asOf', v_as_of,
+      'hours', (select round(coalesce(sum(o.seconds), 0) / 3600.0, 2) from open o),
+      'uncostedHours', (select round(coalesce(sum(o.seconds) filter (where o.cost is null), 0) / 3600.0, 2) from open o),
+      'unratedHours', (select round(coalesce(sum(o.seconds) filter (where o.rate is null), 0) / 3600.0, 2) from open o),
+      'totals', (select coalesce(jsonb_agg(jsonb_build_object('currency', t.currency, 'cost', t.cost::text, 'billable', t.billable::text) order by t.currency), '[]'::jsonb)
+        from (select a.currency, sum(a.cost)::bigint as cost, sum(a.billable)::bigint as billable from amounts a group by a.currency) t)
+    )
+  );
+end;
+$$;
+${userGrant(`${fn("wip_valuation")}(${idType}, date)`)}
+`;
+}

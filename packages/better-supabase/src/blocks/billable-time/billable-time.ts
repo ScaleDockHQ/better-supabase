@@ -8,6 +8,7 @@ import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { ProjectCosts } from "./project-costs.ts";
 
+import { bigintOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -133,6 +134,22 @@ export interface UnbilledTime {
   readonly unrated: readonly string[];
 }
 
+/** What `wipValuation` returns: unbilled time valued on one day. */
+export interface WipValuation {
+  readonly asOf: Temporal.PlainDate;
+  readonly hours: number;
+  /** Hours the rate card has no cost for; they are left out of `cost`. */
+  readonly uncostedHours: number;
+  /** Hours no rate covers; they are left out of `billable`. */
+  readonly unratedHours: number;
+  /** Per currency: the time at the rate card's cost and at its billing rate. */
+  readonly totals: readonly {
+    readonly currency: string;
+    readonly cost: bigint;
+    readonly billable: bigint;
+  }[];
+}
+
 export interface InvoiceFromTimeInput extends BillableTimeQuery {
   /** Picks the entries billed in this currency; required when they differ. */
   readonly currency?: string;
@@ -181,6 +198,12 @@ export interface BillableTime {
   rateFor(lookup?: TimeRateLookup): AsyncResult<TimeRate | null>;
   /** What `invoice` would bill, without billing it. */
   unbilled(query?: BillableTimeQuery): AsyncResult<UnbilledTime>;
+  /**
+   * The work in progress of unbilled time on a day (today by default): the
+   * finished, billable entries no invoice has billed, at cost and at the
+   * billing rate. Needs `billable_time.read`.
+   */
+  wipValuation(asOf?: Temporal.PlainDate): AsyncResult<WipValuation>;
   /**
    * Bills the unbilled time the scope selects on a new draft invoice. Needs
    * `billable_time.invoice` and `invoices.write`. Fails with
@@ -371,6 +394,30 @@ export function createBillableTime(options: BillableTimeOptions): BillableTime {
                 moneyOf(total["amount"], total["currency"], "total"),
               ),
               unrated: idsOf(row["unrated"], "unrated"),
+            };
+          },
+        ),
+      ),
+    wipValuation: (asOf) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "wip_valuation",
+          { tenant: organizationId, as_of: asOf?.toString() ?? null },
+          (value) => {
+            const row = recordOf(value, "wip_valuation");
+
+            return {
+              asOf: temporal().PlainDate.from(textOf(row["asOf"])),
+              hours: Number(row["hours"]),
+              uncostedHours: Number(row["uncostedHours"]),
+              unratedHours: Number(row["unratedHours"]),
+              totals: recordsOf(row["totals"], "wip_valuation").map(
+                (total) => ({
+                  currency: textOf(total["currency"]),
+                  cost: bigintOf(total["cost"], "cost"),
+                  billable: bigintOf(total["billable"], "billable"),
+                }),
+              ),
             };
           },
         ),

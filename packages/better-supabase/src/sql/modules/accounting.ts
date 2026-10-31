@@ -16,6 +16,12 @@ import {
 import { seedDisposalAccounts } from "./accounting-data.ts";
 import { accountingEntryFunctions } from "./accounting-entries.ts";
 import {
+  accountingImportFunctions,
+  accountingImportTargets,
+  accountingLedgerReports,
+  accountingOpeningFunctions,
+} from "./accounting-ledger.ts";
+import {
   accountingPostingFunctions,
   accountingTaxReport,
 } from "./accounting-postings.ts";
@@ -62,6 +68,29 @@ const EVENTS: BlockSqlEvents<AccountingEvents> = {
     ],
   },
   "accounting_period.reopened": {
+    subject: "accounting-periods",
+    payload: [
+      "organizationId",
+      "id",
+      "fiscalYear",
+      "number",
+      "startsOn",
+      "endsOn",
+      "reason",
+    ],
+  },
+  "accounting_period.locked": {
+    subject: "accounting-periods",
+    payload: [
+      "organizationId",
+      "id",
+      "fiscalYear",
+      "number",
+      "startsOn",
+      "endsOn",
+    ],
+  },
+  "accounting_period.unlocked": {
     subject: "accounting-periods",
     payload: [
       "organizationId",
@@ -152,6 +181,10 @@ const NAMES: BlockSqlNames = {
         parent: "parent_id",
         currency: "currency",
         reconcilable: "reconcilable",
+        normalSide: "normal_side",
+        level: "level",
+        defaultTaxCode: "default_tax_code_id",
+        active: "active",
         archivedAt: "archived_at",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -180,6 +213,8 @@ const NAMES: BlockSqlNames = {
         type: "type",
         defaultAccount: "default_account_id",
         currency: "currency",
+        contraAccount: "contra_account_id",
+        bankAccount: "bank_account_id",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
@@ -198,6 +233,8 @@ const NAMES: BlockSqlNames = {
         status: "status",
         closedAt: "closed_at",
         closedBy: "closed_by",
+        lockedAt: "locked_at",
+        lockedBy: "locked_by",
         createdAt: "created_at",
       },
     },
@@ -243,6 +280,7 @@ const NAMES: BlockSqlNames = {
         amountCurrency: "amount_currency",
         fxRate: "fx_rate",
         taxCode: "tax_code_id",
+        taxAmount: "tax_amount",
         party: "party_id",
         dimensions: "dimensions",
         description: "description",
@@ -284,6 +322,22 @@ const NAMES: BlockSqlNames = {
         onDate: "on_date",
         rate: "rate",
         createdAt: "created_at",
+      },
+    },
+    openingBalances: {
+      name: "accounting_opening_balances",
+      app: {},
+      lifecycle: tenantTable,
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        fiscalYear: "fiscal_year",
+        account: "account_id",
+        party: "party_id",
+        amount: "amount",
+        source: "source",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
       },
     },
     budgets: {
@@ -331,7 +385,7 @@ function build(ctx: BlockSqlContext): string {
 -- currency, with dimensions, exchange rates, tax codes, reports and the
 -- period and year-end close, the documents other blocks book, tax reports
 -- and budgets.
-${accountingTables(ctx)}${accountingSetupFunctions(ctx)}${accountingEntryFunctions(ctx)}${accountingPostingFunctions(ctx)}${accountingCloseFunctions(ctx)}${accountingReportFunctions(ctx)}${accountingTaxReport(ctx)}${accountingBudgets(ctx)}`;
+${accountingTables(ctx)}${accountingSetupFunctions(ctx)}${accountingEntryFunctions(ctx)}${accountingPostingFunctions(ctx)}${accountingCloseFunctions(ctx)}${accountingReportFunctions(ctx)}${accountingLedgerReports(ctx)}${accountingOpeningFunctions(ctx)}${accountingImportFunctions(ctx)}${accountingTaxReport(ctx)}${accountingBudgets(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -363,6 +417,9 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "text",
         "boolean",
         "uuid",
+        "text",
+        "uuid",
+        "boolean",
       ],
       returns: "jsonb",
     },
@@ -383,10 +440,56 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     {
       name: "save_accounting_journal",
-      args: ["{id}", "text", "text", "text", "uuid", "text", "uuid"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "text",
+        "uuid",
+        "text",
+        "uuid",
+        "uuid",
+        "uuid",
+      ],
       returns: "jsonb",
     },
     { name: "list_accounting_journals", args: ["{id}"], returns: "jsonb" },
+    { name: "lock_accounting_period", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "unlock_accounting_period",
+      args: ["uuid", "text"],
+      returns: "jsonb",
+    },
+    {
+      name: "save_accounting_opening_balances",
+      args: ["{id}", "integer", "jsonb"],
+      returns: "jsonb",
+    },
+    {
+      name: "list_accounting_opening_balances",
+      args: ["{id}", "integer"],
+      returns: "jsonb",
+    },
+    {
+      name: "post_accounting_opening_balances",
+      args: ["{id}", "integer", "uuid"],
+      returns: "jsonb",
+    },
+    {
+      name: "accounting_period_trial_balance",
+      args: ["uuid", "jsonb"],
+      returns: "jsonb",
+    },
+    {
+      name: "accounting_column_balance",
+      args: ["{id}", "date", "date", "jsonb", "boolean"],
+      returns: "jsonb",
+    },
+    {
+      name: "accounting_journal_listing",
+      args: ["{id}", "date", "date", "uuid"],
+      returns: "jsonb",
+    },
     { name: "open_fiscal_year", args: ["{id}", "integer"], returns: "jsonb" },
     {
       name: "list_accounting_periods",
@@ -517,4 +620,5 @@ export const ACCOUNTING: BlockSqlDefinition = {
   contract,
   build,
   data: seedDisposalAccounts,
+  contributes: { imports: accountingImportTargets },
 };

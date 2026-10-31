@@ -14,6 +14,7 @@ export {
   type TimeRateListOptions,
   type TimeRateLookup,
   type UnbilledTime,
+  type WipValuation,
 } from "./billable-time.ts";
 
 export type { ProjectCosts, ProjectCostTotals } from "./project-costs.ts";

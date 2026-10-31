@@ -7412,7 +7412,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "data-lifecycle",
-        "banking"
+        "banking",
+        "imports"
       ],
       "manifest": "accounting",
       "scopes": [
@@ -7461,6 +7462,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "parent": "parent_id",
               "currency": "currency",
               "reconcilable": "reconcilable",
+              "normalSide": "normal_side",
+              "level": "level",
+              "defaultTaxCode": "default_tax_code_id",
+              "active": "active",
               "archivedAt": "archived_at",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -7476,6 +7481,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "type": "type",
               "defaultAccount": "default_account_id",
               "currency": "currency",
+              "contraAccount": "contra_account_id",
+              "bankAccount": "bank_account_id",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
@@ -7492,6 +7499,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "status": "status",
               "closedAt": "closed_at",
               "closedBy": "closed_by",
+              "lockedAt": "locked_at",
+              "lockedBy": "locked_by",
               "createdAt": "created_at"
             }
           },
@@ -9727,6 +9736,22 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "boolean",
                 "optional": true
               },
+              "normalSide": {
+                "kind": "enum",
+                "values": [
+                  "debit",
+                  "credit"
+                ],
+                "optional": true
+              },
+              "defaultTaxCodeId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "active": {
+                "kind": "boolean",
+                "optional": true
+              },
               "accountId": {
                 "kind": "uuid",
                 "optional": true
@@ -9772,6 +9797,20 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "reconcilable": {
                   "type": "boolean"
                 },
+                "normalSide": {
+                  "type": "string",
+                  "enum": [
+                    "debit",
+                    "credit"
+                  ]
+                },
+                "defaultTaxCodeId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "active": {
+                  "type": "boolean"
+                },
                 "accountId": {
                   "type": "string",
                   "format": "uuid"
@@ -9814,6 +9853,14 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "uuid",
                 "optional": true
               },
+              "contraAccountId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "bankAccountId": {
+                "kind": "uuid",
+                "optional": true
+              },
               "currency": {
                 "kind": "string",
                 "minLength": 3,
@@ -9851,6 +9898,14 @@ export const PRESET_CATALOG: PresetCatalog = {
                   ]
                 },
                 "defaultAccountId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "contraAccountId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "bankAccountId": {
                   "type": "string",
                   "format": "uuid"
                 },
@@ -9975,6 +10030,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "accounting_entry.reversed",
           "accounting_period.closed",
           "accounting_period.reopened",
+          "accounting_period.locked",
+          "accounting_period.unlocked",
           "fiscal_year.closed",
           "accounting_budget.created",
           "accounting_budget.updated"
