@@ -609,6 +609,69 @@ the partition key and `attachments/<id>` as the subject:
 | `attachment.restored` | `restore` made an earlier version current              | `attachmentId`, `subjectType`, `subjectId`, `version`                        |
 | `object.uploaded`     | an object landed in a `scanBuckets` bucket (no tenant) | `bucket`, `path`                                                             |
 
+## Document types and imported files
+
+An organization declares the kinds of document it files, with typed metadata
+per kind. `documentTypes.define` creates or changes a type, and the module
+validates every attachment's `metadata` against it on write:
+
+```ts
+await attachments.documentTypes
+  .define({
+    key: "supplier_invoice",
+    name: "Supplier invoice",
+    fields: {
+      total: { type: "amount", required: true },
+      issued_on: { type: "date", required: true },
+      number: { type: "number" },
+      valid_until: { type: "expiry" },
+      status: { type: "select", options: ["open", "paid"] },
+    },
+  })
+  .orThrow();
+
+await attachments
+  .create({
+    subjectType: "supplier",
+    subjectId,
+    name: "invoice-1042.pdf",
+    mimeType: "application/pdf",
+    size: 0,
+    documentType: "supplier_invoice",
+    source: "legacy_erp",
+    externalId: "DOC-1042",
+    metadata: { total: 1250, issued_on: "2026-03-01" },
+  })
+  .orThrow();
+```
+
+The field types are `text`, `number`, `amount`, `date`, `expiry`, `boolean`
+and `select`. A bad value fails with `ATTACHMENT_FIELD_INVALID`, an unknown
+type with `ATTACHMENT_DOCUMENT_TYPE_UNKNOWN`, an invalid schema with
+`ATTACHMENT_DOCUMENT_SCHEMA_INVALID`, and `documentTypes.remove` fails with
+`ATTACHMENT_DOCUMENT_TYPE_IN_USE` while a file uses the type. Any member can
+read the types; defining and removing them needs `attachments.manage`.
+
+`source` names where the record came from. It must be a value of
+`options.sources` or the source of an import run, otherwise the write fails
+with `ATTACHMENT_SOURCE_UNKNOWN`. `(organization, source, externalId)` is
+unique, so the pair is an organization-wide index of the outside system's
+ids (`ATTACHMENT_EXTERNAL_ID_TAKEN`). `subjectType` must be a registered
+subject type (`ATTACHMENT_SUBJECT_UNKNOWN`), so a file can belong to any
+record type an installed block or `config.subjects` registers.
+
+`storageStatus` is `stored`, `pending_upload` or `missing`. An import can
+register the metadata first (the `attachment` target of the `imports` block,
+with `sourcePath` naming where the file lives) and leave the file for later:
+`claim(id)` marks the upload as arrived, and `markMissing(id)` records that
+the file will never come. Both fail with `ATTACHMENT_NOT_CLAIMABLE` once the
+file is stored. A metadata-first record has size 0 and the type
+`application/octet-stream` until the real file replaces them.
+
+A table you adopted for `tables.attachments` maps the new columns
+(`documentType`, `source`, `externalId`, `storage`, `sourcePath`) or sets
+them to `null`; the document guard renders only when all five are mapped.
+
 ## Your own fields
 
 `blocks.attachments.options.extraColumns` adds columns to the `attachments` table,

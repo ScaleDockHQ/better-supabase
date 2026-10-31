@@ -160,3 +160,4 @@ add one, and link it from the code or config it explains.
 | [0156](0156-field-packs-and-registered-entities.md)           | Field definitions name registered subject types, packs install them idempotently, values can belong to a legal entity, and `field_value` is an import target |
 | [0157](0157-numbering-for-imports.md)                         | Numbers are scoped per legal entity, an import keeps its historical numbers and the sync reports what does not match the format                              |
 | [0160](0160-maintenance-block.md)                             | Preventive maintenance plans by time or meter open dispatch work orders with their parts; readings and calibrations are records                              |
+| [0161](0161-attachment-document-types.md)                     | Attachments carry per-organization document types with typed metadata, a source and external id index, and can be registered metadata-first                  | accepted |

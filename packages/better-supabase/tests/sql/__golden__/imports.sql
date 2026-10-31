@@ -811,7 +811,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:ce84dd273961f72966a130e21ccecf6b5c17eeef1aded98e16505368ded2f3a0
+-- @bsb-hash sha256:aff645563d84706456bf4b0020b08cf0eb67a91abf53abebf01a71cf5abd9ff7
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1185,7 +1185,7 @@ declare
   v_hint text;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array['data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier']::text[]) then
+  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -1265,6 +1265,9 @@ begin
         v_subject_id := case when v_found then v_rec."subject_id" else null end;
         v_call := v_item || jsonb_build_object('tenant', v_run."tenant_id", 'scope', v_scope);
         case v_entity
+      when 'attachment' then
+        v_subject_type := 'attachment';
+        v_out := "better_supabase"."import_attachment"(v_run_id, v_call, v_subject_id);
       when 'data_lifecycle_row' then
         v_subject_type := 'data_lifecycle_row';
         v_out := "better_supabase"."restore_data_row"(v_run_id, v_call, v_subject_id);

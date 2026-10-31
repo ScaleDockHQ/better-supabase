@@ -274,6 +274,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0157: Numbers are scoped per legal entity, an import keeps its historical numbers and the sync reports what does not match the format.
 - 0159: E-invoice formats and channels and chart-of-accounts formats are versioned ports; nothing is bundled.
 - 0160: Preventive maintenance plans by time or meter open dispatch work orders with their parts; readings and calibrations are records.
+- 0161: Attachments take per-organization document types with typed metadata, a source and external id index, and metadata-first import records.
 
 ## Pre-release pins
 

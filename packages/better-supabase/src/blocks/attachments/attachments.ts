@@ -14,6 +14,7 @@ import type { TtlPreset } from "../../storage/ttl.ts";
 import type { JobHandler } from "../queue/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { UploadClaimStorage } from "../upload-claim.ts";
+import type { DocumentField, DocumentType } from "./document-types.ts";
 
 import { authorOf } from "../../core/block-authors.ts";
 import {
@@ -45,6 +46,7 @@ import {
   applyTemporal,
 } from "../shared.ts";
 import { claimsUploads, claimUpload } from "../upload-claim.ts";
+import { documentTypeOf } from "./document-types.ts";
 
 interface StorageReply<T> {
   readonly data: T | null;
@@ -175,7 +177,24 @@ export interface Attachment {
   /** Set by `confirm()` once the object exists. */
   readonly uploadedAt: Temporal.Instant | undefined;
   readonly scannedAt: Temporal.Instant | undefined;
+  /** The id of the file's document type, from `documentTypes`. */
+  readonly documentTypeId: string | undefined;
+  /** Where the record came from: an import source or one of `options.sources`. */
+  readonly source: string | undefined;
+  /** The id of the file in its source, unique per organization and source. */
+  readonly externalId: string | undefined;
+  /**
+   * `stored` once the file is uploaded, `pending_upload` for a record an import
+   * registered before the file existed, `missing` when the source has none.
+   * `undefined` on a table without document types.
+   */
+  readonly storageStatus: AttachmentStorageStatus | undefined;
+  /** The file's path in the source system. */
+  readonly sourcePath: string | undefined;
 }
+
+/** Where a file's bytes are. */
+export type AttachmentStorageStatus = "stored" | "pending_upload" | "missing";
 
 export interface NewAttachment {
   readonly name: string;
@@ -193,6 +212,19 @@ export interface NewAttachment {
   readonly height?: number;
   /** The document's page count. */
   readonly pages?: number;
+  /**
+   * The key of one of the organization's document types; `metadata` is checked
+   * against its fields.
+   */
+  readonly documentType?: string;
+  /**
+   * Where the record came from; with `externalId` it is unique per
+   * organization.
+   */
+  readonly source?: string;
+  readonly externalId?: string;
+  /** The file's path in the source system. */
+  readonly sourcePath?: string;
 }
 
 /** A new version of a file for `replace`: what changes with the bytes. */
@@ -365,6 +397,30 @@ export interface Attachments<F extends object = Record<never, never>> {
   read(
     id: string,
   ): AsyncResult<{ readonly attachment: Attachment & F; readonly file: Blob }>;
+  /**
+   * Takes over the upload of a record an import registered before its file
+   * existed (`pending_upload` or `missing`): the caller becomes the uploader,
+   * uploads to the record's path and calls `confirm`. Hint
+   * `ATTACHMENT_NOT_CLAIMABLE` for a file that is already stored.
+   */
+  claim(id: string): AsyncResult<Attachment & F>;
+  /**
+   * Marks a registered record whose file the source doesn't have (`missing`).
+   * Hint `ATTACHMENT_NOT_CLAIMABLE` for a stored file.
+   */
+  markMissing(id: string): AsyncResult<Attachment & F>;
+  /** The organization's document types, with the metadata fields each declares. */
+  readonly documentTypes: {
+    /** Creates or changes the type with `key`; the fields are validated. */
+    define(type: {
+      readonly key: string;
+      readonly name: string;
+      readonly fields?: Readonly<Record<string, DocumentField>>;
+    }): AsyncResult<DocumentType>;
+    list(): AsyncResult<readonly DocumentType[]>;
+    /** Hint `ATTACHMENT_DOCUMENT_TYPE_IN_USE` while a file uses the type. */
+    remove(key: string): AsyncResult<boolean>;
+  };
 }
 
 const STATUSES: readonly AttachmentStatus[] = [
@@ -412,7 +468,22 @@ export function attachmentOf(value: unknown): Attachment {
     createdAt: toInstant(textOf(row["created_at"])),
     uploadedAt: optionalInstant(row["uploaded_at"]),
     scannedAt: optionalInstant(row["scanned_at"]),
+    documentTypeId: optionalText(row["document_type_id"]),
+    source: optionalText(row["source"]),
+    externalId: optionalText(row["external_id"]),
+    storageStatus: storageStatusOf(row["storage_status"]),
+    sourcePath: optionalText(row["source_path"]),
   };
+}
+
+const STORAGE_STATUSES: readonly AttachmentStorageStatus[] = [
+  "stored",
+  "pending_upload",
+  "missing",
+];
+
+function storageStatusOf(value: unknown): AttachmentStorageStatus | undefined {
+  return STORAGE_STATUSES.find((status) => status === value);
 }
 
 /** An `attachment_versions` row, as `list_attachment_versions` returns it. */
@@ -522,6 +593,10 @@ const NEW_ATTACHMENT: ReadonlySet<string> = new Set([
   "width",
   "height",
   "pages",
+  "documentType",
+  "source",
+  "externalId",
+  "sourcePath",
 ]);
 
 export function createAttachments<
@@ -696,6 +771,10 @@ export function createAttachments<
               width: attachment.width,
               height: attachment.height,
               pages: attachment.pages,
+              document_type: attachment.documentType,
+              source: attachment.source,
+              external_id: attachment.externalId,
+              source_path: attachment.sourcePath,
               ...more,
             },
             (value) => value,
@@ -901,6 +980,44 @@ export function createAttachments<
           (file) => ({ attachment, file }),
         );
       }),
+    claim: (id) =>
+      call("claim_attachment_upload", { id }, (value) => value).andThen(typed),
+    markMissing: (id) =>
+      call("mark_attachment_missing", { id }, (value) => value).andThen(typed),
+    documentTypes: {
+      define: (type) =>
+        requireTenant(options.tenant).andThen((organizationId) =>
+          call(
+            "define_attachment_document_type",
+            {
+              tenant: organizationId,
+              key: type.key,
+              name: type.name,
+              fields: type.fields ?? {},
+            },
+            documentTypeOf,
+          ),
+        ),
+      list: () =>
+        requireTenant(options.tenant).andThen((organizationId) =>
+          call(
+            "list_attachment_document_types",
+            { tenant: organizationId },
+            (value) =>
+              recordsOf(value, "list_attachment_document_types").map(
+                documentTypeOf,
+              ),
+          ),
+        ),
+      remove: (key) =>
+        requireTenant(options.tenant).andThen((organizationId) =>
+          call(
+            "delete_attachment_document_type",
+            { tenant: organizationId, key },
+            (value) => value === true,
+          ),
+        ),
+    },
     remove: (id) =>
       options.offline === true
         ? removeRowFirst(id)

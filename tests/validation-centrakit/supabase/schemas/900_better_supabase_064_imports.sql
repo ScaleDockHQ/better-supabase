@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:5b408536317cebcf31d18670503f2166777006b074ffe31062ea68c874d88214
+-- @bsb-hash sha256:73a13fbee359dd6759186ff88ea8f81422819bf5381ffbf4e5f5d98c45292a39
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -365,7 +365,7 @@ declare
   v_hint text;
 begin
   select * into v_run from "centrakit"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array['data_lifecycle_row', 'field_value']::text[]) then
+  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -439,6 +439,9 @@ begin
         v_subject_id := case when v_found then v_rec."subject_id" else null end;
         v_call := v_item || jsonb_build_object('tenant', v_run."tenant_id", 'scope', v_scope);
         case v_entity
+      when 'attachment' then
+        v_subject_type := 'attachment';
+        v_out := "better_supabase"."import_attachment"(v_run_id, v_call, v_subject_id);
       when 'data_lifecycle_row' then
         v_subject_type := 'data_lifecycle_row';
         v_out := "better_supabase"."restore_data_row"(v_run_id, v_call, v_subject_id);

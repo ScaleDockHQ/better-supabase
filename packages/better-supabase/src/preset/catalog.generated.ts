@@ -549,7 +549,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "profiles",
-        "subjects"
+        "subjects",
+        "imports"
       ],
       "manifest": "attachments",
       "scopes": [
@@ -587,7 +588,12 @@ export const PRESET_CATALOG: PresetCatalog = {
               "version": "version",
               "width": "width",
               "height": "height",
-              "pages": "pages"
+              "pages": "pages",
+              "documentType": "document_type_id",
+              "source": "source",
+              "externalId": "external_id",
+              "storage": "storage_status",
+              "sourcePath": "source_path"
             }
           }
         },
@@ -10490,6 +10496,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "AttachmentStorage"
         },
         {
+          "name": "AttachmentStorageStatus"
+        },
+        {
           "name": "AttachmentSweeper"
         },
         {
@@ -10566,6 +10575,27 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "integer",
                 "minimum": 1,
                 "optional": true
+              },
+              "documentType": {
+                "kind": "string",
+                "minLength": 1,
+                "optional": true
+              },
+              "source": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "optional": true
+              },
+              "externalId": {
+                "kind": "string",
+                "minLength": 1,
+                "optional": true
+              },
+              "sourcePath": {
+                "kind": "string",
+                "minLength": 1,
+                "optional": true
               }
             },
             "jsonSchema": {
@@ -10598,6 +10628,23 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "pages": {
                   "type": "integer",
                   "minimum": 1
+                },
+                "documentType": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "externalId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sourcePath": {
+                  "type": "string",
+                  "minLength": 1
                 }
               },
               "required": [

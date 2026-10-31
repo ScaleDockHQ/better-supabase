@@ -134,6 +134,7 @@ may be your own enum or domain.
   - `better_supabase.assignments`: `id`, `tenant_id`, `queue_id`, `subject_type`, `subject_id`, `user_id`, `assigned_at`
 - `attachments`
   - `better_supabase.attachments`: `id`, `organization_id`, `subject_type`, `subject_id`, `bucket`, `object_path`, `name`, `mime_type`, `size`, `status`, `uploaded_by`, `created_at`, `uploaded_at`, `version`; typed: `status`
+  - `better_supabase.attachment_document_types`: `id`, `organization_id`, `key`, `name`, `fields`, `created_at`, `updated_at`
   - `better_supabase.attachment_versions`: `id`, `organization_id`, `attachment_id`, `version`, `bucket`, `object_path`, `name`, `mime_type`, `size`, `status`, `uploaded_by`, `uploaded_at`; typed: `status`
   - `better_supabase.scanned_objects`: `bucket`, `object_path`, `status`, `scanned_at`; typed: `status`
   - `better_supabase.attachment_cleanup`: `bucket`, `path`, `queued_by`, `queued_at`, `attempts`
