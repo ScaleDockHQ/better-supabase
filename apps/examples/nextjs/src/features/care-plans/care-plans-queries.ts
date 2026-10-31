@@ -133,7 +133,9 @@ function viewOf(clientName: string, plan: CarePlan): CarePlanView {
   };
 }
 
-async function loadCarePlan(): Promise<CarePlanState | null> {
+async function loadCarePlan(
+  clientId: string | undefined,
+): Promise<CarePlanState | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
 
@@ -142,7 +144,12 @@ async function loadCarePlan(): Promise<CarePlanState | null> {
   }
 
   const clients = await db.customers
-    .list({ select: ["id", "name"], orderBy: { name: "asc" }, limit: 1 })
+    .list({
+      select: ["id", "name"],
+      where: clientId === undefined ? {} : { id: clientId },
+      orderBy: { name: "asc" },
+      limit: 1,
+    })
     .orThrow();
 
   const [client] = clients;
@@ -163,9 +170,9 @@ async function loadCarePlan(): Promise<CarePlanState | null> {
 }
 
 /**
- * The first customer's care plan: the active one, or the newest draft when none
- * is active.
+ * The client's care plan, or the first customer's without an id: the active
+ * one, or the newest draft when none is active.
  */
-export function getCarePlan(): Promise<Loaded<CarePlanState>> {
-  return settle(loadCarePlan);
+export function getCarePlan(clientId?: string): Promise<Loaded<CarePlanState>> {
+  return settle(() => loadCarePlan(clientId));
 }

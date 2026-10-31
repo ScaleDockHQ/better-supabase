@@ -53,7 +53,9 @@ export interface CustomerChart {
   readonly orders: readonly ChartOrder[];
 }
 
-async function loadChart(): Promise<CustomerChart | "no-customer" | null> {
+async function loadChart(
+  customerId: string | undefined,
+): Promise<CustomerChart | "no-customer" | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
@@ -65,7 +67,10 @@ async function loadChart(): Promise<CustomerChart | "no-customer" | null> {
   const [customer] = await db.customers
     .list({
       select: ["id", "name"],
-      where: { organizationId: tenant },
+      where:
+        customerId === undefined
+          ? { organizationId: tenant }
+          : { organizationId: tenant, id: customerId },
       orderBy: { name: "asc" },
       limit: 1,
     })
@@ -101,11 +106,11 @@ async function loadChart(): Promise<CustomerChart | "no-customer" | null> {
 }
 
 /**
- * Today's medication chart of the organization's first customer by name, or
- * `"no-customer"` when it has none.
+ * Today's medication chart of the customer, or of the organization's first
+ * customer by name without an id. `"no-customer"` when there is none.
  */
-export function getCustomerChart(): Promise<
-  Loaded<CustomerChart | "no-customer">
-> {
-  return settle(loadChart);
+export function getCustomerChart(
+  customerId?: string,
+): Promise<Loaded<CustomerChart | "no-customer">> {
+  return settle(() => loadChart(customerId));
 }

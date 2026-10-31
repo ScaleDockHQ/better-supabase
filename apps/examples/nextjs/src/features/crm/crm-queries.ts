@@ -35,6 +35,9 @@ export async function settle<T>(
 
 export type ContactKind = "company" | "person";
 
+/** The records an activity timeline shows: a contact, or a care client. */
+export type TimelineSubjectType = ContactKind | "customer";
+
 export interface ContactSummary {
   readonly id: string;
   readonly kind: ContactKind;
@@ -242,7 +245,7 @@ export interface TimelineEntry {
 
 /** A contact's calls, emails, meetings and notes, newest first. */
 export async function loadTimeline(
-  type: ContactKind,
+  type: TimelineSubjectType,
   id: string,
 ): Promise<readonly TimelineEntry[] | null> {
   "use cache: private";

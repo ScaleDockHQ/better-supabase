@@ -102,6 +102,21 @@ msgctxt "care-plans.rTFlYI"
 msgid "A client's problems, goals and actions in the active plan, and what each goal evaluation found."
 msgstr "A client's problems, goals and actions in the active plan, and what each goal evaluation found."
 
+#: src/app/[locale]/(app)/care/[clientId]/page.tsx
+msgctxt "care.yp16Oy"
+msgid "All clients"
+msgstr "All clients"
+
+#: src/app/[locale]/(app)/care/page.tsx
+msgctxt "care.iCpuph"
+msgid "Clients"
+msgstr "Clients"
+
+#: src/app/[locale]/(app)/care/page.tsx
+msgctxt "care.y1nMyB"
+msgid "The clients in your care. Open one for their notes, care plan, observations, medication, consents and access log."
+msgstr "The clients in your care. Open one for their notes, care plan, observations, medication, consents and access log."
+
 #: src/app/[locale]/(app)/cases/page.tsx
 msgctxt "cases.TTLDST"
 msgid "Cases"
@@ -3297,6 +3312,198 @@ msgstr "Evaluate a goal of the active plan to record what it reached."
 msgctxt "care-plans.2ncFXE"
 msgid "Read about evaluations"
 msgstr "Read about evaluations"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.JX0502"
+msgid "Client"
+msgstr "Client"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.rKbDyw"
+msgid "Granted"
+msgstr "Granted"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.NT-3fY"
+msgid "Refused"
+msgstr "Refused"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.GH4LtS"
+msgid "Withdrawn"
+msgstr "Withdrawn"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.RahCRH"
+msgid "Expired"
+msgstr "Expired"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.m0RdHL"
+msgid "Purpose"
+msgstr "Purpose"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.I3b4hn"
+msgid "Version"
+msgstr "Version"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.R0YuTC"
+msgid "Decided"
+msgstr "Decided"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.C3Fz7P"
+msgid "Valid until"
+msgstr "Valid until"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.Pr2pvL"
+msgid "Unknown member"
+msgstr "Unknown member"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.S8paqM"
+msgid "Emergency"
+msgstr "Emergency"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.mdT403"
+msgid "Read by"
+msgstr "Read by"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.McnLsx"
+msgid "When"
+msgstr "When"
+
+#: src/features/care/components/care-grids.tsx
+msgctxt "care.L7g_1g"
+msgid "Through"
+msgstr "Through"
+
+#: src/features/care/components/care-load-error.tsx
+msgctxt "care.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/care/components/care-load-error.tsx
+msgctxt "care.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.EBv8Ot"
+msgid "Clients could not be loaded"
+msgstr "Clients could not be loaded"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.9ou3eL"
+msgid "No clients yet"
+msgstr "No clients yet"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.DHgmLA"
+msgid "Clients are the customers of your organization. Add one to open their dossier."
+msgstr "Clients are the customers of your organization. Add one to open their dossier."
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.JOqbzN"
+msgid "Add a client"
+msgstr "Add a client"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.TV30vm"
+msgid "This client could not be loaded"
+msgstr "This client could not be loaded"
+
+#: src/features/care/components/care-sections.tsx
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.HIBQqX"
+msgid "Consents"
+msgstr "Consents"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.JbasEf"
+msgid "The client's latest decision on each purpose, given by them or a representative."
+msgstr "The client's latest decision on each purpose, given by them or a representative."
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.cDvtgU"
+msgid "Consents could not be loaded"
+msgstr "Consents could not be loaded"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.zhbMj_"
+msgid "No consents recorded"
+msgstr "No consents recorded"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.RdEJM7"
+msgid "Record a decision against a purpose in the consent register."
+msgstr "Record a decision against a purpose in the consent register."
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care._vUzm4"
+msgid "Open the consent register"
+msgstr "Open the consent register"
+
+#: src/features/care/components/care-sections.tsx
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.qxdQ2B"
+msgid "Access log"
+msgstr "Access log"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.0LCeKg"
+msgid "Every read of this client's record, newest first. Repeated reads within a minute count once."
+msgstr "Every read of this client's record, newest first. Repeated reads within a minute count once."
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.FAHeXx"
+msgid "The access log could not be loaded"
+msgstr "The access log could not be loaded"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.3b3JFH"
+msgid "No reads logged"
+msgstr "No reads logged"
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.cFs2XI"
+msgid "Opening this dossier logs a read; it shows here once it's written."
+msgstr "Opening this dossier logs a read; it shows here once it's written."
+
+#: src/features/care/components/care-sections.tsx
+msgctxt "care.Q3wtNe"
+msgid "Back to clients"
+msgstr "Back to clients"
+
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.7-Domh"
+msgid "Notes"
+msgstr "Notes"
+
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.Du3mXR"
+msgid "Care plan"
+msgstr "Care plan"
+
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.M_xDHn"
+msgid "Observations"
+msgstr "Observations"
+
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.venWl7"
+msgid "Medication"
+msgstr "Medication"
 
 #: src/features/cases/components/case-board.tsx
 msgctxt "cases.Z3SH1K"
@@ -9021,6 +9228,91 @@ msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nothing matches yet. A new document is searchable once it is ready."
 
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.UybXB6"
+msgid "Records without a legal entity belong to the default one. Settings fall back from the entity to the organization."
+msgstr "Records without a legal entity belong to the default one. Settings fall back from the entity to the organization."
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.fmTLpn"
+msgid "The legal entities didn't load"
+msgstr "The legal entities didn't load"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.R6A9ZR"
+msgid "No legal entities"
+msgstr "No legal entities"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.dC5NSh"
+msgid "A single-company organization needs none. Add one through the API when you invoice from several companies."
+msgstr "A single-company organization needs none. Add one through the API when you invoice from several companies."
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.jaYSv1"
+msgid "Read the legal entities guide"
+msgstr "Read the legal entities guide"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.h2vipu"
+msgid "Code"
+msgstr "Code"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.5VJ7dT"
+msgid "VAT number"
+msgstr "VAT number"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.55hdQy"
+msgid "Currency"
+msgstr "Currency"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.30HC4Q"
+msgid "Tax period"
+msgstr "Tax period"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.wYsv4Z"
+msgid "Monthly"
+msgstr "Monthly"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.b1Ou36"
+msgid "Quarterly"
+msgstr "Quarterly"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.lKv8ex"
+msgid "Default"
+msgstr "Default"
+
+#: src/features/legal-entities/components/legal-entity-sections.tsx
+msgctxt "legal-entities.0HT-Ib"
+msgid "Archived"
+msgstr "Archived"
+
 #: src/features/manufacturing/components/material-requirements-grid.tsx
 msgctxt "production.eq1e8s"
 msgid "Unknown product"
@@ -9120,91 +9412,6 @@ msgstr "Every item with a reorder point has enough stock and incoming orders for
 msgctxt "production.9MRsjL"
 msgid "Read the manufacturing guide"
 msgstr "Read the manufacturing guide"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.UybXB6"
-msgid "Records without a legal entity belong to the default one. Settings fall back from the entity to the organization."
-msgstr "Records without a legal entity belong to the default one. Settings fall back from the entity to the organization."
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.fmTLpn"
-msgid "The legal entities didn't load"
-msgstr "The legal entities didn't load"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.162kF7"
-msgid "Try again in a moment."
-msgstr "Try again in a moment."
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.62nsdy"
-msgid "Retry"
-msgstr "Retry"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.R6A9ZR"
-msgid "No legal entities"
-msgstr "No legal entities"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.dC5NSh"
-msgid "A single-company organization needs none. Add one through the API when you invoice from several companies."
-msgstr "A single-company organization needs none. Add one through the API when you invoice from several companies."
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.jaYSv1"
-msgid "Read the legal entities guide"
-msgstr "Read the legal entities guide"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.h2vipu"
-msgid "Code"
-msgstr "Code"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.HAlOn1"
-msgid "Name"
-msgstr "Name"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.5VJ7dT"
-msgid "VAT number"
-msgstr "VAT number"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.55hdQy"
-msgid "Currency"
-msgstr "Currency"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.30HC4Q"
-msgid "Tax period"
-msgstr "Tax period"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.tzMNF3"
-msgid "Status"
-msgstr "Status"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.wYsv4Z"
-msgid "Monthly"
-msgstr "Monthly"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.b1Ou36"
-msgid "Quarterly"
-msgstr "Quarterly"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.lKv8ex"
-msgid "Default"
-msgstr "Default"
-
-#: src/features/legal-entities/components/legal-entity-sections.tsx
-msgctxt "legal-entities.0HT-Ib"
-msgid "Archived"
-msgstr "Archived"
 
 #: src/features/manufacturing/components/production-order-board.tsx
 msgctxt "manufacturing.W6nwjo"
@@ -10084,6 +10291,11 @@ msgstr "Finance"
 msgctxt "navigation.Yhu2Vp"
 msgid "Payables"
 msgstr "Payables"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.iCpuph"
+msgid "Clients"
+msgstr "Clients"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.M_xDHn"
