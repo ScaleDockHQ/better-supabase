@@ -22,5 +22,5 @@ export const enrollmentsBlock: BlockOf<
   events: enrollmentsEvents,
   create: createEnrollments,
   record: enrollmentsBinding,
-  category: "collaboration",
+  category: "people",
 });

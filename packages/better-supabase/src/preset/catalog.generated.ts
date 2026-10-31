@@ -1675,7 +1675,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "imports",
       "title": "Imports",
-      "category": "content",
+      "category": "database",
       "requires": [
         "memberships",
         "permissions",
@@ -2061,7 +2061,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "versions",
       "title": "Versions",
-      "category": "content",
+      "category": "database",
       "requires": [
         "memberships",
         "permissions"
@@ -2116,7 +2116,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "trash",
       "title": "Trash",
-      "category": "content",
+      "category": "database",
       "requires": [
         "memberships",
         "permissions"
@@ -4843,7 +4843,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "enrollments",
       "title": "Enrollments",
-      "category": "collaboration",
+      "category": "people",
       "requires": [
         "memberships",
         "permissions"
@@ -5929,7 +5929,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "incidents",
       "title": "Incidents",
-      "category": "developer",
+      "category": "work",
       "requires": [
         "memberships",
         "permissions"
@@ -6563,7 +6563,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "assignment",
       "title": "Assignment",
-      "category": "crm",
+      "category": "work",
       "requires": [
         "memberships",
         "permissions",
@@ -6781,7 +6781,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "lead-scoring",
       "title": "Lead scoring",
-      "category": "growth",
+      "category": "crm",
       "requires": [
         "memberships",
         "permissions",
@@ -12463,7 +12463,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "enrollments"
       ],
-      "category": "collaboration",
+      "category": "people",
       "client": {
         "export": "enrollmentsBlock",
         "subpath": "better-supabase/blocks/enrollments"
@@ -15505,7 +15505,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "incidents"
       ],
-      "category": "developer",
+      "category": "work",
       "client": {
         "export": "incidentsBlock",
         "subpath": "better-supabase/blocks/incidents"
@@ -16533,7 +16533,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "lead-scoring"
       ],
-      "category": "growth",
+      "category": "crm",
       "client": {
         "export": "leadScoringBlock",
         "subpath": "better-supabase/blocks/lead-scoring"
@@ -21244,7 +21244,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "imports"
       ],
-      "category": "content",
+      "category": "database",
       "client": {
         "export": "importsBlock",
         "subpath": "better-supabase/blocks/imports"
@@ -22440,7 +22440,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "assignment"
       ],
-      "category": "crm",
+      "category": "work",
       "client": {
         "export": "assignmentBlock",
         "subpath": "better-supabase/blocks/assignment"
@@ -24839,7 +24839,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "trash"
       ],
-      "category": "content",
+      "category": "database",
       "client": {
         "export": "trashBlock",
         "subpath": "better-supabase/blocks/trash"
@@ -24906,7 +24906,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "versions"
       ],
-      "category": "content",
+      "category": "database",
       "client": {
         "export": "versionsBlock",
         "subpath": "better-supabase/blocks/versions"

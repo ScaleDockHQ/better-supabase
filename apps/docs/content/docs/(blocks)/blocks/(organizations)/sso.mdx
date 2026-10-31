@@ -11,6 +11,8 @@ provider (through Supabase Auth's SAML support), and it can require that
 provider for everyone at the domain. Its identity provider can also create,
 update and remove members through SCIM 2.0.
 
+The domain here is an email domain that decides who may join. It is not a hostname your app is served on; for that, see [custom domains](/docs/blocks/domains).
+
 ```bash
 better-supabase add sso   # adds tenant and access as well
 ```

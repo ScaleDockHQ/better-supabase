@@ -17,6 +17,6 @@ export const importsBlock: BlockOf<
   options: { imports: importsSqlOptions },
   events: importsEvents,
   create: createImports,
-  category: "content",
+  category: "database",
   recipes: ["csv-import-wizard", "upsert-import"],
 });

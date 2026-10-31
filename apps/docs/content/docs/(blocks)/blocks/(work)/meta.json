@@ -19,6 +19,8 @@
     "dispatch",
     "risks",
     "cases",
-    "inspections"
+    "inspections",
+    "incidents",
+    "assignment"
   ]
 }

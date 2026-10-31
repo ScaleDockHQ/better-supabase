@@ -11,6 +11,9 @@
     "pgtap",
     "realtime-tables",
     "rls-guard",
-    "read-sets"
+    "read-sets",
+    "trash",
+    "versions",
+    "imports"
   ]
 }

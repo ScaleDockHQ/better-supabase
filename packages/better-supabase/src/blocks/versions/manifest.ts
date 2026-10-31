@@ -22,6 +22,6 @@ export const versionsBlock: BlockOf<
   events: versionsEvents,
   create: createVersions,
   record: versionsBinding,
-  category: "content",
+  category: "database",
   recipes: ["version-history", "record-history", "subject-timeline"],
 });

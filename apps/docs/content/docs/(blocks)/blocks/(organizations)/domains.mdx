@@ -5,6 +5,8 @@ description: Hostnames an organization serves your app on, its own domains verif
 
 `domains` lets each organization serve your app on its own hostnames: a custom domain such as `app.acme.com`, verified by a DNS TXT record, or a subdomain such as `acme.yourapp.com`, which is verified when added. Each organization can mark one verified hostname as primary, and your proxy looks up the organization behind a request's `Host` header with `resolve`.
 
+A hostname here says where your app is served. It does not decide who may join an organization; verified email domains for that live in [SSO](/docs/blocks/sso).
+
 Listing hostnames needs `domains.read`, and adding, removing or choosing the primary one needs `domains.manage`. Admins get both, and members get `domains.read`.
 
 ```bash
