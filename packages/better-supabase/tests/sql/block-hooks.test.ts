@@ -244,6 +244,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_meeting_hold",
     "after_meeting_decision",
   ],
+  "document-templates": [
+    "before_document_template_save",
+    "after_document_template_save",
+    "before_document_text_block_save",
+    "after_document_text_block_save",
+  ],
   "legal-entities": [
     "before_legal_entity_create",
     "after_legal_entity_create",

@@ -44,6 +44,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "apply_bank_rules bank_reconciliation_status delete_bank_rule get_bank_transaction ignore_bank_transaction import_bank_statement list_bank_accounts list_bank_rules list_bank_statements list_bank_transactions match_bank_transaction save_bank_account save_bank_rule suggest_bank_matches unmatch_bank_transaction",
   "payroll-export":
     "create_payroll_run delete_payroll_run get_payroll_run list_payroll_runs mark_payroll_run_exported refresh_payroll_run",
+  "document-templates":
+    "document_template_contract freeze_document get_document_template list_document_templates list_document_text_blocks render_document resolve_document_template save_document_template save_document_text_block set_document_template_active validate_document_template",
   tax: "compute_document_tax file_tax_return list_tax_codes list_tax_returns prepare_tax_return save_tax_code save_tax_rate tax_rate_on",
   "billable-time":
     "delete_time_rate invoice_from_time list_invoiced_time list_time_rates project_costs set_time_rate time_rate unbilled_time wip_valuation",

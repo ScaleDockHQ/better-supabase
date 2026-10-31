@@ -77,6 +77,9 @@ const NO_FIELDS: readonly string[] = [
   "dam",
   // Export and deletion requests are the module's bookkeeping, not app records.
   "data-lifecycle",
+  // Templates, text blocks and snapshots are fixed records; per-template data
+  // has no place, the variables come from the documents.
+  "document-templates",
   // A document row is the Yjs container of one subject's field; app columns belong on the subject.
   "documents",
   // A hostname row is routing state the proxy reads; the organization holds app data.

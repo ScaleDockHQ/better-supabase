@@ -815,7 +815,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:49e8892d8ac1c09d13cb9d117cd3b21db6203909bb758429a43c1372579acd27
+-- @bsb-hash sha256:539bcfa682a2a8256d90e2953f2866497ac9470beab8d68b90f87b76ca9ddf59
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1190,7 +1190,7 @@ declare
   v_hint text;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'order', 'payment_term', 'document_delivery_preference', 'quote', 'invoice', 'credit_note', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate']::text[]) then
+  if v_entity <> all (array['attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'order', 'payment_term', 'document_delivery_preference', 'quote', 'invoice', 'credit_note', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'document_template', 'document_text_block']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -1270,6 +1270,10 @@ begin
           v_current := "better_supabase"."invoice_updated_at"(v_rec."subject_id");
         when 'tax_code' then
           v_current := "better_supabase"."tax_code_updated_at"(v_rec."subject_id");
+        when 'document_template' then
+          v_current := "better_supabase"."document_template_updated_at"(v_rec."subject_id");
+        when 'document_text_block' then
+          v_current := "better_supabase"."document_text_block_updated_at"(v_rec."subject_id");
           else null;
         end case;
         if v_current is not null and v_rec."subject_updated_at_at_import" is not null and v_current > v_rec."subject_updated_at_at_import" then
@@ -1335,6 +1339,12 @@ begin
       when 'tax_rate' then
         v_subject_type := 'tax_rate';
         v_out := "better_supabase"."import_tax_rate"(v_run_id, v_call, v_subject_id);
+      when 'document_template' then
+        v_subject_type := 'document_template';
+        v_out := "better_supabase"."import_document_template"(v_run_id, v_call, v_subject_id);
+      when 'document_text_block' then
+        v_subject_type := 'document_text_block';
+        v_out := "better_supabase"."import_document_text_block"(v_run_id, v_call, v_subject_id);
       else
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
     end case;

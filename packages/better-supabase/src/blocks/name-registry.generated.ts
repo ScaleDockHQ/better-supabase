@@ -742,6 +742,23 @@ export interface BlockNameRegistry {
     readonly primary: "work_order";
     readonly formerKeys: never;
   };
+  readonly "document-templates": {
+    readonly tables: {
+      readonly "templates": "id" | "tenant" | "legalEntity" | "documentType" | "language" | "name" | "body" | "version" | "active" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "textBlocks": "id" | "tenant" | "legalEntity" | "key" | "language" | "body" | "version" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "snapshots": "id" | "tenant" | "documentType" | "documentId" | "language" | "legalEntity" | "contractVersion" | "templateId" | "templateVersion" | "template" | "blocks" | "variables" | "createdBy" | "createdAt";
+    };
+    readonly functions: "assert_document_template" | "document_address" | "document_entity" | "document_freeze" | "document_party" | "document_render_live" | "document_slot_rank" | "document_snapshot_immutable" | "document_tax_summary" | "document_template_contract" | "document_template_updated_at" | "document_text_block_updated_at" | "document_variables" | "document_variables_delivery_note" | "document_variables_dunning_letter" | "document_variables_invoice" | "document_variables_order" | "document_variables_quote" | "document_variables_statement" | "document_visible" | "freeze_document" | "get_document_template" | "import_document_template" | "import_document_text_block" | "list_document_templates" | "list_document_text_blocks" | "render_document" | "resolve_document_blocks" | "resolve_document_template" | "save_document_template" | "save_document_text_block" | "set_document_template_active" | "validate_document_template";
+    readonly actions: "read" | "manage";
+    readonly hooks: "before_document_template_save" | "after_document_template_save" | "before_document_text_block_save" | "after_document_text_block_save";
+    readonly entities: {
+      readonly "document_template": "id" | "tenant_id" | "legal_entity_id" | "document_type" | "language" | "name" | "body" | "version" | "active" | "created_by" | "created_at" | "updated_at";
+      readonly "document_text_block": "id" | "tenant_id" | "legal_entity_id" | "key" | "language" | "body" | "version" | "created_by" | "created_at" | "updated_at";
+      readonly "document_snapshot": "id" | "tenant_id" | "document_type" | "document_id" | "language" | "legal_entity_id" | "contract_version" | "template_id" | "template_version" | "template" | "blocks" | "variables" | "created_by" | "created_at";
+    };
+    readonly primary: "document_template";
+    readonly formerKeys: never;
+  };
   readonly "documents": {
     readonly tables: {
       readonly "documents": "id" | "tenant" | "subjectType" | "subjectId" | "name" | "createdBy" | "createdAt" | "updatedAt";

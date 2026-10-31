@@ -43,3 +43,32 @@ dunning wording) live in code or in free-text fields.
 - The schema is a public surface: changes need a changeset and a docs update.
 - Revisit if a document type needs data the contract can't carry, which would
   add an optional key.
+
+## As built
+
+The block shipped as `document-templates` and differs from the decision above
+in names and in one scope limit.
+
+- **Names.** The contract type is `DocumentVariables` (with `DOCUMENT_VARIABLES`
+  and `documentContract`), not `DocumentTemplateVariables`. The keys are
+  `document`, `entity`, `buyer`, `lines`, `tax_lines`, `totals`,
+  `payment_terms` and `shipping`, not `company`, `party`, `taxSummary`,
+  `paymentTerms` and `openBalance`; a statement carries its open invoices as
+  `lines` and the open balance in `totals`. `texts` is not a variable object:
+  `{{texts.<key>}}` is a placeholder that resolves a text block.
+- **SQL.** `document_variables(tenant, document_type, document_id)` builds the
+  payload and `render_document(tenant, document_type, document_id, language,
+  fresh, template_name)` adds the template and the blocks. The contract is
+  published as `document_template_contract(document_type)` and as
+  `documentContract` in TypeScript, not as a JSON Schema under `schemas/`.
+- **Tables.** Templates are `document_templates` (with a name, so one document
+  type can hold several), text blocks are `document_text_blocks`, not
+  `template_text_blocks`, and `rendered_documents` keeps the frozen render.
+- **Lookup order.** As decided, plus a last resort: a template in another
+  language beats no template.
+- **Snapshots.** Issued invoices and credit notes freeze on commit. Quotes,
+  orders, delivery notes, dunning letters and statements freeze through
+  `freeze_document`, because they have no single issue event.
+- **Not built.** Templates and text blocks cannot be deleted, only made
+  inactive. The dunning level's `template_key` is not used; the level's
+  `text_key` is resolved as the `dunning` block.

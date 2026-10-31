@@ -261,6 +261,7 @@ export const BLOCK_ICONS = {
   banking: BanknoteIcon,
   tax: PercentIcon,
   "legal-entities": LandmarkIcon,
+  "document-templates": FileTextIcon,
   funding: LandmarkIcon,
   "payroll-export": WalletIcon,
   orders: ShoppingCartIcon,
