@@ -8,7 +8,7 @@ const receivableCode = (invoice: string): string =>
   `'invoice:' || ${invoice}::text`;
 
 /** The code of the account payments in one currency arrive in. */
-const cashCode = (currency: string): string =>
+export const cashCode = (currency: string): string =>
   `'invoices:cash:' || ${currency}`;
 
 /**
@@ -36,6 +36,8 @@ export interface InvoiceLedger {
   readonly tx: (column: string) => string;
   /** What an invoice has been paid: the negated receivable balance. */
   readonly paidTotal: (alias: string) => string;
+  /** The id of an invoice's receivable account, opened when missing. */
+  readonly receivable: (alias: string) => string;
   /** An invoice's payments as a JSON array, oldest first. */
   readonly payments: (alias: string) => string;
   /** Posts one payment (a negative amount is a refund) and returns its id. */
@@ -87,6 +89,12 @@ export function invoiceLedger(ctx: BlockSqlContext): InvoiceLedger {
     tx,
     paidTotal: (alias) =>
       `coalesce(-(select sum(e.${le("amount")}) from ${entries} e where e.${le("account")} = ${receivableOf(alias)}), 0)`,
+    receivable: (alias) =>
+      accountFor(
+        alias,
+        "receivable",
+        `'Receivable ' || coalesce(${alias}.${i("identifier")}, ${alias}.${i("id")}::text)`,
+      ),
     payments: (alias) =>
       `coalesce((select jsonb_agg(jsonb_build_object('id', y.${tx("id")}, 'amount', (-e.${le("amount")})::text, 'paidAt', y.${tx("effectiveAt")}, 'method', y.${tx("metadata")} ->> 'method', 'reference', y.${tx("metadata")} ->> 'reference', 'note', y.${tx("metadata")} ->> 'note', 'recordedBy', y.${tx("actor")}) order by y.${tx("effectiveAt")}, y.${tx("createdAt")})
         from ${entries} e join ${transactions} y on y.${tx("id")} = e.${le("transaction")}

@@ -1,4 +1,5 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { CollectionNames } from "./invoices-collections.ts";
 import type { PurchaseNames } from "./invoices-purchase.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -28,12 +29,13 @@ import {
   userGrant,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
+import { invoiceCollections } from "./invoices-collections.ts";
 import { invoiceFromQuote } from "./invoices-from-quote.ts";
 import { invoiceLedger, paymentKey } from "./invoices-ledger.ts";
 import { invoicePurchase, PURCHASE_VALUES } from "./invoices-purchase.ts";
 import { createdFromLink } from "./quotes-functions.ts";
 
-export interface InvoiceNames extends PurchaseNames {
+export interface InvoiceNames extends PurchaseNames, CollectionNames {
   readonly fn: (name: string) => string;
   readonly t: (table: string) => string;
   readonly c: (table: string, column: string) => string;
@@ -1089,5 +1091,5 @@ begin
 end;
 $$;
 ${userGrant(`${fn("reverse_invoice_payment")}(uuid, text, jsonb)`)}
-${addCharge}${p.aging}${fromQuote}${p.functions}`;
+${addCharge}${p.aging}${fromQuote}${p.functions}${invoiceCollections(ctx, n, { i, can, st, kd, balance, row, record, settle, ledger, charges })}`;
 }

@@ -36,6 +36,15 @@ export {
   type RpcClient,
 } from "../../core/block-transport.ts";
 
+export type {
+  InvoiceCollections,
+  InvoiceDunning,
+  InvoiceDunningLevel,
+  InvoiceDunningLevelInput,
+  PartyPayment,
+  PartyPaymentInput,
+} from "./collections.ts";
+
 export { invoicesBlock } from "./manifest.ts";
 
 export { invoicesEvents } from "./events.ts";

@@ -8,6 +8,7 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { Line, LineInput, Totals } from "../sales-lines.ts";
 import type { RecordRef } from "../sales-shared.ts";
 import type { BlockTemporalOptions, TransitionActor } from "../shared.ts";
+import type { InvoiceCollections, InvoiceDunning } from "./collections.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -34,6 +35,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { DUNNING_KEYS, dunningOf, invoiceCollections } from "./collections.ts";
 
 export type { Line, LineInput, Totals } from "../sales-lines.ts";
 
@@ -171,6 +173,8 @@ export interface Invoice<F extends object = Record<never, never>> {
   readonly discountAmount?: Money;
   /** Unit amounts include tax, so tax is counted out of them. */
   readonly pricesIncludeTax: boolean;
+  /** Reminder level and pause, when the table has the dunning columns. */
+  readonly dunning?: InvoiceDunning;
   readonly lines: readonly Line[];
   readonly payments: readonly InvoicePayment[];
   readonly totals: Totals;
@@ -247,7 +251,9 @@ const actorArg = (
 ): { readonly actor?: TransitionActor } =>
   actor === undefined ? {} : { actor };
 
-export interface Invoices<F extends object = Record<never, never>> {
+export interface Invoices<
+  F extends object = Record<never, never>,
+> extends InvoiceCollections<Invoice<F>> {
   create(
     organizationId: string,
     input: InvoiceInput<F>,
@@ -424,6 +430,7 @@ const KNOWN = new Set([
   "overdue",
   "charges",
   "charged_total",
+  ...DUNNING_KEYS,
 ]);
 
 function paymentOf(
@@ -558,6 +565,7 @@ function invoiceOf(value: unknown): Invoice {
         ? moneyOf(row["discount_amount"], currency, "invoice discountAmount")
         : undefined,
     pricesIncludeTax: row["prices_include_tax"] === true,
+    dunning: dunningOf(row),
     lines: recordsOf(row["lines"], "invoice lines").map((line) =>
       lineOf(line, currency),
     ),
@@ -758,6 +766,7 @@ export function createInvoices<
             },
           )
         : AsyncResult.err(unknownCurrency(currency)),
+    ...invoiceCollections(call, invoice),
     match: (invoiceId) =>
       call("purchase_bill_match", { invoice: invoiceId }, matchOf),
     payments: (invoiceId) =>

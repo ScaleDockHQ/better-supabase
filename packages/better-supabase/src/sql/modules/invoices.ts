@@ -24,6 +24,15 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { invoiceAccountingSources } from "./invoices-accounting.ts";
 import {
+  COLLECTION_COLUMNS,
+  COLLECTION_EVENTS,
+  collectionColumnsSql,
+  collectionContract,
+  collectionNames,
+  DUNNING_LEVELS_TABLE,
+  dunningTableSql,
+} from "./invoices-collections.ts";
+import {
   chargeExtraColumns,
   invoiceFunctions,
   invoiceOptIn,
@@ -82,6 +91,7 @@ const EVENTS: BlockSqlEvents<InvoicesEvents> = {
     subject: "invoices",
     payload: [...INVOICE, "purchaseOrderId", "status"],
   },
+  ...COLLECTION_EVENTS,
 };
 
 const NAMES: BlockSqlNames = {
@@ -130,7 +140,12 @@ const NAMES: BlockSqlNames = {
       name: "invoices",
       app: {
         unused: (ctx) =>
-          ["writeOffReason", ...OPT_IN, ...PURCHASE_COLUMNS].filter(
+          [
+            "writeOffReason",
+            ...OPT_IN,
+            ...PURCHASE_COLUMNS,
+            ...COLLECTION_COLUMNS,
+          ].filter(
             (column) =>
               typeof ctx.config.columns["invoices"]?.[column] !== "string",
           ),
@@ -172,6 +187,9 @@ const NAMES: BlockSqlNames = {
         supplierReference: "supplier_reference",
         purchaseOrder: "purchase_order_id",
         dimensions: "dimensions",
+        dunningLevel: "dunning_level",
+        dunningAt: "dunning_at",
+        dunningPausedUntil: "dunning_paused_until",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -194,6 +212,7 @@ const NAMES: BlockSqlNames = {
         "pricesIncludeTax",
         "archivedAt",
         ...PURCHASE_COLUMNS,
+        ...COLLECTION_COLUMNS,
         "createdBy",
         "listTotal",
         "discountTotal",
@@ -218,6 +237,7 @@ const NAMES: BlockSqlNames = {
       },
       optional: ["currency", "description", "createdBy", "createdAt"],
     },
+    dunningLevels: DUNNING_LEVELS_TABLE,
   },
 };
 
@@ -327,7 +347,7 @@ create table if not exists ${t("invoices")} (
   ${i("paidTotal")} bigint not null default 0,
   ${i("creditedTotal")} bigint not null default 0,
   ${i("paidAt")} timestamptz,
-  ${i("voidedAt")} timestamptz,${column("voidReason", "text")}${column("note", "text")}${column("originType", "text")}${column("originId", "text")}${ctx.has("invoices", "depositBps") ? `\n  ${i("depositBps")} integer check (${i("depositBps")} > 0 and ${i("depositBps")} < 10000),` : ""}${column("pricesIncludeTax", "boolean not null default false")}${column("direction", (name) => `text not null default 'sales' check (${name} in ('sales', 'purchase'))`)}${column("supplierReference", (name) => `text check (length(${name}) <= 200)`)}${column("purchaseOrder", "uuid")}${column("dimensions", (name) => `jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}${column("createdBy", "uuid")}
+  ${i("voidedAt")} timestamptz,${column("voidReason", "text")}${column("note", "text")}${column("originType", "text")}${column("originId", "text")}${ctx.has("invoices", "depositBps") ? `\n  ${i("depositBps")} integer check (${i("depositBps")} > 0 and ${i("depositBps")} < 10000),` : ""}${column("pricesIncludeTax", "boolean not null default false")}${column("direction", (name) => `text not null default 'sales' check (${name} in ('sales', 'purchase'))`)}${column("supplierReference", (name) => `text check (length(${name}) <= 200)`)}${column("purchaseOrder", "uuid")}${column("dimensions", (name) => `jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}${collectionColumnsSql(column)}${column("createdBy", "uuid")}
   ${i("createdAt")} timestamptz not null default now(),
   ${i("updatedAt")} timestamptz not null default now(),
   ${totalColumnsSql(ctx, "invoices")},
@@ -367,7 +387,7 @@ ${renderPolicy(
   }),
   { drop: true, target: t("invoices") },
 )}
-${charges}
+${charges}${dunningTableSql(ctx, n.read)}
 `;
 }
 
@@ -554,6 +574,7 @@ function build(ctx: BlockSqlContext): string {
     depositLine: depositLine(ctx),
     quoteLineValues: quoteLineValues(ctx),
     ...purchaseNames(ctx, keys),
+    ...collectionNames(ctx, keys),
   };
 
   return `${schemaPreamble(ctx)}
@@ -656,6 +677,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
           },
         ]
       : []),
+    ...collectionContract(ctx),
   ];
 }
 
@@ -664,7 +686,7 @@ export const INVOICES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Invoices",
   description:
-    "Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, and invoices from accepted quotes.",
+    "Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.",
   requires: ["memberships", "permissions", "subjects", "ledger"],
   integrates: [
     "outbox",
