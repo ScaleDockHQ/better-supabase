@@ -216,6 +216,7 @@ export function invoicePurchase(
     override: `${n.service} or ${ctx.scope.can(`v_row.${i("tenant")}`, n.overrideCredit)}`,
     hint: "INVOICE_CREDIT_LIMIT_EXCEEDED",
     what: "this invoice",
+    warnings: "v_warnings",
   });
 
   const issue = (alias: string): string =>

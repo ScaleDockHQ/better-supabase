@@ -1,7 +1,7 @@
 -- better-supabase module: contacts
 -- @bsb-block contacts@2 managed
--- @bsb-hash sha256:f2be363a6d3cda0d1e08f28a0fedf73262435420adf8e7afd93bf31085c59824
--- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms, credit limits and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
+-- @bsb-hash sha256:0c18a2b9a1865cb50f9e86a49ed21c563b8b806956fa15d11b89f3d478a6026f
+-- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -99,6 +99,22 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
@@ -112,6 +128,28 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Companies and people an organization works with, and who works where.
 
+create table if not exists "better_supabase"."payment_terms" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null check (length("code") between 1 and 50),
+  "name" text not null check (length("name") between 1 and 300),
+  "days" integer not null default 30 check ("days" between 0 and 3650),
+  "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000),
+  "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650),
+  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+alter table "better_supabase"."payment_terms" enable row level security;
+revoke all on "better_supabase"."payment_terms" from public, anon, authenticated;
+grant select on "better_supabase"."payment_terms" to authenticated;
+grant all on "better_supabase"."payment_terms" to service_role;
+drop policy if exists payment_terms_read on "better_supabase"."payment_terms";
+create policy payment_terms_read on "better_supabase"."payment_terms"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
+
 create table if not exists "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -123,10 +161,13 @@ create table if not exists "better_supabase"."companies" (
   "owner_user_id" uuid,
   "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
-  "payment_terms_days" integer check ("payment_terms_days" >= 0 and "payment_terms_days" <= 3650),
+  "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
+  "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
   "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
   "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."companies" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -140,6 +181,8 @@ create index if not exists companies_owner_idx on "better_supabase"."companies" 
 create index if not exists companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
 create index if not exists companies_roles_idx on "better_supabase"."companies" using gin ("roles");
 create index if not exists companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
+create index if not exists companies_customer_terms_id_idx on "better_supabase"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
+create index if not exists companies_supplier_terms_id_idx on "better_supabase"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "better_supabase"."companies" enable row level security;
 revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;
@@ -162,10 +205,13 @@ create table if not exists "better_supabase"."people" (
   "avatar_url" text,
   "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
   "roles" text[] not null default '{}'::text[],
-  "payment_terms_days" integer check ("payment_terms_days" >= 0 and "payment_terms_days" <= 3650),
+  "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
+  "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
   "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
   "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -180,6 +226,8 @@ create index if not exists people_user_idx on "better_supabase"."people" ("user_
 create index if not exists people_merged_into_idx on "better_supabase"."people" ("merged_into");
 create index if not exists people_roles_idx on "better_supabase"."people" using gin ("roles");
 create index if not exists people_supplier_status_idx on "better_supabase"."people" ("tenant_id", "supplier_status") where "supplier_status" is not null;
+create index if not exists people_customer_terms_id_idx on "better_supabase"."people" ("customer_terms_id") where "customer_terms_id" is not null;
+create index if not exists people_supplier_terms_id_idx on "better_supabase"."people" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "better_supabase"."people" enable row level security;
 revoke all on "better_supabase"."people" from public, anon, authenticated;
 grant select on "better_supabase"."people" to authenticated;
@@ -206,6 +254,28 @@ grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
 drop policy if exists company_people_read on "better_supabase"."company_people";
 create policy company_people_read on "better_supabase"."company_people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
+
+create table if not exists "better_supabase"."document_delivery_preferences" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "party_id" uuid not null,
+  "document_type" text not null check (length("document_type") between 1 and 100),
+  "channel" text not null check ("channel" in ('email', 'post', 'portal')),
+  "copies" integer not null default 1 check ("copies" between 1 and 20),
+  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "party_id", "document_type", "channel")
+);
+create index if not exists document_delivery_preferences_party_idx on "better_supabase"."document_delivery_preferences" ("party_id");
+alter table "better_supabase"."document_delivery_preferences" enable row level security;
+revoke all on "better_supabase"."document_delivery_preferences" from public, anon, authenticated;
+grant select on "better_supabase"."document_delivery_preferences" to authenticated;
+grant all on "better_supabase"."document_delivery_preferences" to service_role;
+drop policy if exists document_delivery_preferences_read on "better_supabase"."document_delivery_preferences";
+create policy document_delivery_preferences_read on "better_supabase"."document_delivery_preferences"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -256,20 +326,29 @@ begin
   if save_company.attrs ? 'lifecycle' and not (save_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_company.attrs ->> 'paymentTermsDays' is not null and (case when save_company.attrs ->> 'paymentTermsDays' ~ '^[0-9]{1,4}$' then (save_company.attrs ->> 'paymentTermsDays')::integer > 3650 else true end) then
-    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  if save_company.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'customerTermsId' and pt."tenant_id" = save_company.tenant) then
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_company.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'supplierTermsId' and pt."tenant_id" = save_company.tenant) then
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_company.attrs ->> 'creditBlock' is not null and lower(trim(save_company.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_company.attrs ->> 'language' is not null and nullif(trim(save_company.attrs ->> 'language'), '') is not null and trim(save_company.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   if save_company.attrs ->> 'creditLimit' is not null and save_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
-    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   if save_company.attrs ->> 'creditCurrency' is not null and upper(trim(save_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
-    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   if save_company.attrs ? 'creditLimit' <> save_company.attrs ? 'creditCurrency' then
-    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   if save_company.attrs ? 'creditLimit' and (save_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_company.attrs ->> 'creditCurrency'), '') is null) then
-    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_company_save"(uuid, uuid, jsonb)');
@@ -284,8 +363,8 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "lifecycle", "owner_user_id", "payment_terms_days", "credit_limit", "credit_currency", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(trim(save_company.attrs ->> 'paymentTermsDays'), '')::integer, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), save_company.attrs -> 'address', auth.uid())
+      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "lifecycle", "owner_user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
+      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
       returning "id", "owner_user_id" into v_id, v_owner;
     else
       select x."owner_user_id" into v_previous_owner from "better_supabase"."companies" x
@@ -296,9 +375,12 @@ begin
         "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
         "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
-        "payment_terms_days" = case when save_company.attrs ? 'paymentTermsDays' then nullif(trim(save_company.attrs ->> 'paymentTermsDays'), '')::integer else x."payment_terms_days" end,
+        "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
         "credit_currency" = case when save_company.attrs ? 'creditCurrency' then upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when save_company.attrs ? 'creditBlock' then lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when save_company.attrs ? 'language' then nullif(trim(save_company.attrs ->> 'language'), '') else x."language" end,
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
@@ -310,7 +392,7 @@ begin
   exception when unique_violation then
     raise exception 'another company has this domain' using errcode = '23505', hint = 'PARTY_DOMAIN_TAKEN';
   end;
-  select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status") into v_row from "better_supabase"."companies" x where x."id" = v_id;
+  select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language") into v_row from "better_supabase"."companies" x where x."id" = v_id;
   if v_created then
     perform "better_supabase".emit_event('company.created', jsonb_build_object('organizationId', save_company.tenant, 'companyId', v_id, 'name', v_row ->> 'name'), 'companies/' || v_id::text, (save_company.tenant::text)::text, null, 'better-supabase/contacts');
   else
@@ -362,20 +444,29 @@ begin
   if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_person.attrs ->> 'paymentTermsDays' is not null and (case when save_person.attrs ->> 'paymentTermsDays' ~ '^[0-9]{1,4}$' then (save_person.attrs ->> 'paymentTermsDays')::integer > 3650 else true end) then
-    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  if save_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'customerTermsId' and pt."tenant_id" = save_person.tenant) then
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_person.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'supplierTermsId' and pt."tenant_id" = save_person.tenant) then
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_person.attrs ->> 'creditBlock' is not null and lower(trim(save_person.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+  end if;
+  if save_person.attrs ->> 'language' is not null and nullif(trim(save_person.attrs ->> 'language'), '') is not null and trim(save_person.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   if save_person.attrs ->> 'creditLimit' is not null and save_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
-    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   if save_person.attrs ->> 'creditCurrency' is not null and upper(trim(save_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
-    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   if save_person.attrs ? 'creditLimit' <> save_person.attrs ? 'creditCurrency' then
-    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   if save_person.attrs ? 'creditLimit' and (save_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_person.attrs ->> 'creditCurrency'), '') is null) then
-    raise exception 'payment terms are 0 to 3650 days; a credit limit is minor units with a currency' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
+    raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_person_save"(uuid, uuid, jsonb)');
@@ -390,8 +481,8 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "lifecycle", "owner_user_id", "user_id", "payment_terms_days", "credit_limit", "credit_currency", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(trim(save_person.attrs ->> 'paymentTermsDays'), '')::integer, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), auth.uid())
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "lifecycle", "owner_user_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
+      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
       returning "id", "owner_user_id" into v_id, v_owner;
     else
       select x."owner_user_id" into v_previous_owner from "better_supabase"."people" x
@@ -403,9 +494,12 @@ begin
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
         "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
-        "payment_terms_days" = case when save_person.attrs ? 'paymentTermsDays' then nullif(trim(save_person.attrs ->> 'paymentTermsDays'), '')::integer else x."payment_terms_days" end,
+        "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_person.attrs ? 'creditLimit' then nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
         "credit_currency" = case when save_person.attrs ? 'creditCurrency' then upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when save_person.attrs ? 'creditBlock' then lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
       returning x."owner_user_id" into v_owner;
@@ -416,7 +510,7 @@ begin
   exception when unique_violation then
     raise exception 'another person has this email' using errcode = '23505', hint = 'PARTY_EMAIL_TAKEN';
   end;
-  select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status") into v_row from "better_supabase"."people" x where x."id" = v_id;
+  select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language") into v_row from "better_supabase"."people" x where x."id" = v_id;
   if v_created then
     perform "better_supabase".emit_event('person.created', jsonb_build_object('organizationId', save_person.tenant, 'personId', v_id, 'name', v_row ->> 'name'), 'persons/' || v_id::text, (save_person.tenant::text)::text, null, 'better-supabase/contacts');
   else
@@ -613,7 +707,7 @@ begin
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "payment_terms_days" = coalesce(x."payment_terms_days", v_drop."payment_terms_days"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", merge_companies.keep, l."person_id", l."role", false
@@ -633,7 +727,7 @@ begin
     tenant => (v_keep."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_keep."tenant_id", 'companyId', merge_companies.keep, 'name', v_keep."name", 'mergedId', merge_companies.drop)
   );
-  return (select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status") from "better_supabase"."companies" x where x."id" = merge_companies.keep);
+  return (select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language") from "better_supabase"."companies" x where x."id" = merge_companies.keep);
 end;
 $$;
 revoke execute on function "better_supabase"."merge_companies"(uuid, uuid) from public, anon;
@@ -669,7 +763,7 @@ begin
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "payment_terms_days" = coalesce(x."payment_terms_days", v_drop."payment_terms_days"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", l."company_id", merge_people.keep, l."role", false
@@ -691,7 +785,7 @@ begin
     tenant => (v_keep."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_keep."tenant_id", 'personId', merge_people.keep, 'name', v_keep."name", 'mergedId', merge_people.drop)
   );
-  return (select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status") from "better_supabase"."people" x where x."id" = merge_people.keep);
+  return (select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language") from "better_supabase"."people" x where x."id" = merge_people.keep);
 end;
 $$;
 revoke execute on function "better_supabase"."merge_people"(uuid, uuid) from public, anon;
@@ -713,7 +807,7 @@ declare
   v_like text := '%' || replace(replace(replace(coalesce(list_companies.search, ''), '\', '\\'), '%', '\%'), '_', '\_') || '%';
 begin
   return coalesce((
-    select jsonb_agg(to_jsonb(p) || jsonb_build_object('roles', p."roles", 'payment_terms_days', p."payment_terms_days", 'credit_currency', p."credit_currency", 'credit_limit', p."credit_limit"::text, 'supplier_status', p."supplier_status") order by lower(p."name"), p."id")
+    select jsonb_agg(to_jsonb(p) || jsonb_build_object('roles', p."roles", 'customer_terms_id', p."customer_terms_id", 'supplier_terms_id', p."supplier_terms_id", 'credit_currency', p."credit_currency", 'credit_limit', p."credit_limit"::text, 'credit_block', p."credit_block", 'supplier_status', p."supplier_status", 'language', p."language") order by lower(p."name"), p."id")
     from (
       select x.* from "better_supabase"."companies" x
       where x."tenant_id" = list_companies.tenant
@@ -749,7 +843,7 @@ declare
   v_like text := '%' || replace(replace(replace(coalesce(list_people.search, ''), '\', '\\'), '%', '\%'), '_', '\_') || '%';
 begin
   return coalesce((
-    select jsonb_agg(to_jsonb(p) || jsonb_build_object('roles', p."roles", 'payment_terms_days', p."payment_terms_days", 'credit_currency', p."credit_currency", 'credit_limit', p."credit_limit"::text, 'supplier_status', p."supplier_status") order by lower(p."name"), p."id")
+    select jsonb_agg(to_jsonb(p) || jsonb_build_object('roles', p."roles", 'customer_terms_id', p."customer_terms_id", 'supplier_terms_id', p."supplier_terms_id", 'credit_currency', p."credit_currency", 'credit_limit', p."credit_limit"::text, 'credit_block', p."credit_block", 'supplier_status', p."supplier_status", 'language', p."language") order by lower(p."name"), p."id")
     from (
       select x.* from "better_supabase"."people" x
       where x."tenant_id" = list_people.tenant
@@ -777,13 +871,324 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(p) || jsonb_build_object('roles', p."roles", 'payment_terms_days', p."payment_terms_days", 'credit_currency', p."credit_currency", 'credit_limit', p."credit_limit"::text, 'supplier_status', p."supplier_status") || jsonb_build_object('role', l."role", 'is_primary', l."is_primary")
+  select coalesce(jsonb_agg(to_jsonb(p) || jsonb_build_object('roles', p."roles", 'customer_terms_id', p."customer_terms_id", 'supplier_terms_id', p."supplier_terms_id", 'credit_currency', p."credit_currency", 'credit_limit', p."credit_limit"::text, 'credit_block', p."credit_block", 'supplier_status', p."supplier_status", 'language', p."language") || jsonb_build_object('role', l."role", 'is_primary', l."is_primary")
     order by l."is_primary" desc, lower(p."name"), p."id"), '[]'::jsonb)
   from "better_supabase"."company_people" l join "better_supabase"."people" p on p."id" = l."person_id"
   where l."company_id" = company_people_of.company and p."archived_at" is null
 $$;
 revoke execute on function "better_supabase"."company_people_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."company_people_of"(uuid) to authenticated, service_role;
+-- Creates or changes payment terms. data: code (unique per organization),
+-- name, days (due days), discountBps and discountDays (an early-payment
+-- discount the buyer may deduct), creditRestrictionBps (the part of the
+-- document the tax does not apply to). A key that is not in data keeps its
+-- value. Internal: save_payment_term and the import target call it.
+create or replace function "better_supabase"."payment_term_write"(tenant uuid, data jsonb, id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := coalesce(payment_term_write.data, '{}'::jsonb);
+  v_id uuid := payment_term_write.id;
+  v_row "better_supabase"."payment_terms";
+begin
+  if jsonb_typeof(v_data) <> 'object'
+    or (v_data ? 'days' and (coalesce(v_data ->> 'days', '') !~ '^[0-9]{1,5}$' or (v_data ->> 'days')::integer > 3650)) or (v_data ? 'discountBps' and (coalesce(v_data ->> 'discountBps', '') !~ '^[0-9]{1,5}$' or (v_data ->> 'discountBps')::integer > 10000))
+    or (v_data ? 'discountDays' and (coalesce(v_data ->> 'discountDays', '') !~ '^[0-9]{1,5}$' or (v_data ->> 'discountDays')::integer > 3650)) or (v_data ? 'creditRestrictionBps' and (coalesce(v_data ->> 'creditRestrictionBps', '') !~ '^[0-9]{1,5}$' or (v_data ->> 'creditRestrictionBps')::integer > 10000))
+    or coalesce((v_data ->> 'discountDays')::integer, 0) > coalesce((v_data ->> 'days')::integer, 30)
+    or (v_data ? 'code' and length(coalesce(trim(v_data ->> 'code'), '')) not between 1 and 50)
+    or (v_data ? 'name' and length(coalesce(trim(v_data ->> 'name'), '')) not between 1 and 300) then
+    raise exception 'payment terms need a code and a name; days are 0 to 3650, the discount and the credit restriction are 0 to 10000 basis points, discountDays 0 to 3650' using errcode = '22023', hint = 'PAYMENT_TERM_INVALID';
+  end if;
+  if v_id is null and v_data ->> 'code' is not null then
+    select x."id" into v_id from "better_supabase"."payment_terms" x
+    where x."tenant_id" = payment_term_write.tenant and x."code" = trim(v_data ->> 'code');
+  end if;
+  if v_id is null then
+    if not (v_data ? 'code' and v_data ? 'name') then
+      raise exception 'payment terms need a code and a name; days are 0 to 3650, the discount and the credit restriction are 0 to 10000 basis points, discountDays 0 to 3650' using errcode = '22023', hint = 'PAYMENT_TERM_INVALID';
+    end if;
+    insert into "better_supabase"."payment_terms" ("tenant_id", "code", "name", "days", "discount_bps", "discount_days", "credit_restriction_bps")
+    values (payment_term_write.tenant, trim(v_data ->> 'code'), trim(v_data ->> 'name'),
+      coalesce((v_data ->> 'days')::integer, 30), coalesce((v_data ->> 'discountBps')::integer, 0),
+      coalesce((v_data ->> 'discountDays')::integer, 0), coalesce((v_data ->> 'creditRestrictionBps')::integer, 0))
+    returning * into v_row;
+  else
+    begin
+      update "better_supabase"."payment_terms" x set
+        "code" = coalesce(trim(v_data ->> 'code'), x."code"),
+        "name" = coalesce(trim(v_data ->> 'name'), x."name"),
+        "days" = coalesce((v_data ->> 'days')::integer, x."days"),
+        "discount_bps" = coalesce((v_data ->> 'discountBps')::integer, x."discount_bps"),
+        "discount_days" = coalesce((v_data ->> 'discountDays')::integer, x."discount_days"),
+        "credit_restriction_bps" = coalesce((v_data ->> 'creditRestrictionBps')::integer, x."credit_restriction_bps"),
+        "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = payment_term_write.tenant
+      returning * into v_row;
+    exception when unique_violation then
+      raise exception 'another payment terms row has this code' using errcode = '23505', hint = 'PAYMENT_TERM_CODE_TAKEN';
+    end;
+    if v_row."id" is null then
+      raise exception 'payment terms not found' using errcode = 'P0002', hint = 'PAYMENT_TERM_NOT_FOUND';
+    end if;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'days', v_row."days", 'discountBps', v_row."discount_bps", 'discountDays', v_row."discount_days", 'creditRestrictionBps', v_row."credit_restriction_bps", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."payment_term_write"(uuid, jsonb, uuid) from public, anon, authenticated;
+
+-- Creates payment terms, or changes the ones with the same code. Needs
+-- contacts.manage. Returns the row.
+create or replace function "better_supabase"."save_payment_term"(tenant uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
+    raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  return "better_supabase"."payment_term_write"(save_payment_term.tenant, save_payment_term.attrs, null);
+end;
+$$;
+revoke execute on function "better_supabase"."save_payment_term"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_payment_term"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_payment_terms"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'days', x."days", 'discountBps', x."discount_bps", 'discountDays', x."discount_days", 'creditRestrictionBps', x."credit_restriction_bps", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."payment_terms" x
+  where x."tenant_id" = list_payment_terms.tenant
+$$;
+revoke execute on function "better_supabase"."list_payment_terms"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_payment_terms"(uuid) to authenticated, service_role;
+
+-- Deletes payment terms. Parties that point at them lose the link; invoices
+-- keep the terms they copied. Needs contacts.manage.
+create or replace function "better_supabase"."delete_payment_term"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."payment_terms" x where x."id" = delete_payment_term.id;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.manage'), false)) then
+    raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."payment_terms" x where x."id" = delete_payment_term.id;
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_payment_term"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_payment_term"(uuid) to authenticated, service_role;
+
+-- Replaces how a party gets its documents. prefs: [{ documentType, channel
+-- (email, post or portal), copies (default 1), email }]; an email channel
+-- without an email uses the party's own. Returns the stored list. Needs
+-- contacts.write.
+create or replace function "better_supabase"."set_document_delivery_preferences"(party uuid, prefs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_kind text;
+  v_tenant uuid;
+  v_name text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select 'company', x."tenant_id", x."name" into v_kind, v_tenant, v_name
+  from "better_supabase"."companies" x where x."id" = set_document_delivery_preferences.party and x."merged_into" is null;
+  if v_kind is null then
+    select 'person', x."tenant_id", x."name" into v_kind, v_tenant, v_name
+  from "better_supabase"."people" x where x."id" = set_document_delivery_preferences.party and x."merged_into" is null;
+  end if;
+  if v_kind is null then
+    raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  if jsonb_typeof(set_document_delivery_preferences.prefs) is distinct from 'array'
+    or jsonb_array_length(set_document_delivery_preferences.prefs) > 100
+    or exists (
+      select 1 from jsonb_array_elements(set_document_delivery_preferences.prefs) e
+      where jsonb_typeof(e) <> 'object'
+        or length(coalesce(trim(e ->> 'documentType'), '')) not between 1 and 100
+        or coalesce(e ->> 'channel', '') not in ('email', 'post', 'portal')
+        or coalesce(e ->> 'copies', '1') !~ '^[0-9]{1,2}$'
+        or coalesce(nullif(e ->> 'copies', '')::integer, 1) not between 1 and 20
+        or (e ->> 'email' is not null and lower(trim(e ->> 'email')) !~ '^[^@[:space:]]+@[^@[:space:]]+$')
+    ) or (
+      select count(*) <> count(distinct (trim(e ->> 'documentType'), e ->> 'channel'))
+      from jsonb_array_elements(set_document_delivery_preferences.prefs) e
+    ) then
+    raise exception 'prefs is an array of at most 100 { documentType, channel, copies, email } with a unique documentType and channel' using errcode = '22023', hint = 'DELIVERY_PREFERENCE_INVALID';
+  end if;
+  delete from "better_supabase"."document_delivery_preferences" x where x."party_id" = set_document_delivery_preferences.party and x."tenant_id" = v_tenant;
+  insert into "better_supabase"."document_delivery_preferences" ("tenant_id", "party_id", "document_type", "channel", "copies", "email")
+  select v_tenant, set_document_delivery_preferences.party, trim(e ->> 'documentType'), e ->> 'channel',
+    coalesce(nullif(e ->> 'copies', '')::integer, 1), nullif(lower(trim(e ->> 'email')), '')
+  from jsonb_array_elements(set_document_delivery_preferences.prefs) e;
+  return "better_supabase"."list_document_delivery_preferences"(set_document_delivery_preferences.party);
+end;
+$$;
+revoke execute on function "better_supabase"."set_document_delivery_preferences"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."set_document_delivery_preferences"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_document_delivery_preferences"(party uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'partyId', x."party_id", 'documentType', x."document_type", 'channel', x."channel", 'copies', x."copies", 'email', x."email") order by x."document_type", x."channel"), '[]'::jsonb)
+  from "better_supabase"."document_delivery_preferences" x
+  where x."party_id" = list_document_delivery_preferences.party
+$$;
+revoke execute on function "better_supabase"."list_document_delivery_preferences"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_document_delivery_preferences"(uuid) to authenticated, service_role;
+
+-- The writer of one delivery preference for imports. data: { partyId,
+-- documentType, channel, copies, email }.
+create or replace function "better_supabase"."delivery_preference_write"(tenant uuid, data jsonb, id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."document_delivery_preferences";
+begin
+  if jsonb_typeof(delivery_preference_write.data) is distinct from 'object'
+    or coalesce(delivery_preference_write.data ->> 'partyId', '') !~ '^[0-9a-fA-F-]{36}$'
+    or length(coalesce(trim(delivery_preference_write.data ->> 'documentType'), '')) not between 1 and 100
+    or coalesce(delivery_preference_write.data ->> 'channel', '') not in ('email', 'post', 'portal')
+    or coalesce(delivery_preference_write.data ->> 'copies', '1') !~ '^[0-9]{1,2}$'
+    or coalesce(nullif(delivery_preference_write.data ->> 'copies', '')::integer, 1) not between 1 and 20
+    or (delivery_preference_write.data ->> 'email' is not null and lower(trim(delivery_preference_write.data ->> 'email')) !~ '^[^@[:space:]]+@[^@[:space:]]+$') then
+    raise exception 'a delivery preference needs a party, a document type and a channel of email, post or portal' using errcode = '22023', hint = 'DELIVERY_PREFERENCE_INVALID';
+  end if;
+  insert into "better_supabase"."document_delivery_preferences" ("tenant_id", "party_id", "document_type", "channel", "copies", "email")
+  values (delivery_preference_write.tenant, (delivery_preference_write.data ->> 'partyId')::uuid, trim(delivery_preference_write.data ->> 'documentType'),
+    delivery_preference_write.data ->> 'channel', coalesce(nullif(delivery_preference_write.data ->> 'copies', '')::integer, 1),
+    nullif(lower(trim(delivery_preference_write.data ->> 'email')), ''))
+  on conflict ("tenant_id", "party_id", "document_type", "channel") do update
+    set "copies" = excluded."copies", "email" = excluded."email", "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'partyId', v_row."party_id", 'documentType', v_row."document_type", 'channel', v_row."channel", 'copies', v_row."copies", 'email', v_row."email");
+end;
+$$;
+revoke execute on function "better_supabase"."delivery_preference_write"(uuid, jsonb, uuid) from public, anon, authenticated;
+
+-- The payment terms an invoice copies: terms_id when it is given, otherwise
+-- the party's customer terms (supplier terms for direction purchase). Null
+-- when there are none. Internal: create_invoice calls it.
+create or replace function "better_supabase"."resolve_payment_terms"(tenant uuid, terms_id uuid, party text, direction text default 'sales')
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', z."id", 'days', z."days", 'discountBps', z."discount_bps", 'discountDays', z."discount_days", 'creditRestrictionBps', z."credit_restriction_bps")
+  from "better_supabase"."payment_terms" z
+  where z."tenant_id" = resolve_payment_terms.tenant
+    and z."id" = coalesce(resolve_payment_terms.terms_id, (select o.id from (select case when resolve_payment_terms.direction = 'purchase' then p."supplier_terms_id" else p."customer_terms_id" end as id
+      from "better_supabase"."companies" p where p."id"::text = resolve_payment_terms.party and p."tenant_id" = resolve_payment_terms.tenant
+      union all
+      select case when resolve_payment_terms.direction = 'purchase' then p."supplier_terms_id" else p."customer_terms_id" end as id
+      from "better_supabase"."people" p where p."id"::text = resolve_payment_terms.party and p."tenant_id" = resolve_payment_terms.tenant) o where o.id is not null limit 1))
+$$;
+revoke execute on function "better_supabase"."resolve_payment_terms"(uuid, uuid, text, text) from public, anon, authenticated;
+
+-- The import target of the payment terms entity: item.data is the input of the writer.
+create or replace function "better_supabase"."import_payment_term"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+begin
+  if jsonb_typeof(import_payment_term.item -> 'data') is distinct from 'object' then
+    raise exception 'a payment terms item needs data' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_row := "better_supabase"."payment_term_write"((import_payment_term.item ->> 'tenant')::uuid, import_payment_term.item -> 'data', import_payment_term.subject_id::uuid);
+  return jsonb_build_object('subjectId', v_row ->> 'id', 'updatedAt', v_row ->> 'updatedAt');
+end;
+$$;
+revoke execute on function "better_supabase"."import_payment_term"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_payment_term"(uuid, jsonb, text) to service_role;
+
+-- When a payment terms row last changed, for the conflict check of imports.
+create or replace function "better_supabase"."payment_term_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."payment_terms" x where x."id"::text = payment_term_updated_at.subject_id
+$$;
+revoke execute on function "better_supabase"."payment_term_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."payment_term_updated_at"(text) to service_role;
+
+-- The import target of the delivery preference entity: item.data is the input of the writer.
+create or replace function "better_supabase"."import_document_delivery_preference"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+begin
+  if jsonb_typeof(import_document_delivery_preference.item -> 'data') is distinct from 'object' then
+    raise exception 'a delivery preference item needs data' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_row := "better_supabase"."delivery_preference_write"((import_document_delivery_preference.item ->> 'tenant')::uuid, import_document_delivery_preference.item -> 'data', import_document_delivery_preference.subject_id::uuid);
+  return jsonb_build_object('subjectId', v_row ->> 'id', 'updatedAt', v_row ->> 'updatedAt');
+end;
+$$;
+revoke execute on function "better_supabase"."import_document_delivery_preference"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_document_delivery_preference"(uuid, jsonb, text) to service_role;
+
+-- When a delivery preference row last changed, for the conflict check of imports.
+create or replace function "better_supabase"."document_delivery_preference_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."document_delivery_preferences" x where x."id"::text = document_delivery_preference_updated_at.subject_id
+$$;
+revoke execute on function "better_supabase"."document_delivery_preference_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."document_delivery_preference_updated_at"(text) to service_role;
+
 -- Sets the roles of a company or person (customer, supplier and so on),
 -- sorted and without duplicates. Returns { type, party }.
 create or replace function "better_supabase"."set_party_roles"(party uuid, roles text[])
@@ -830,8 +1235,8 @@ begin
     end if;
   end if;
   return case v_kind
-    when 'company' then (select jsonb_build_object('type', 'company', 'party', to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status")) from "better_supabase"."companies" x where x."id" = set_party_roles.party)
-    when 'person' then (select jsonb_build_object('type', 'person', 'party', to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status")) from "better_supabase"."people" x where x."id" = set_party_roles.party)
+    when 'company' then (select jsonb_build_object('type', 'company', 'party', to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language")) from "better_supabase"."companies" x where x."id" = set_party_roles.party)
+    when 'person' then (select jsonb_build_object('type', 'person', 'party', to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language")) from "better_supabase"."people" x where x."id" = set_party_roles.party)
   end;
 end;
 $$;
@@ -911,8 +1316,8 @@ begin
     end if;
   end if;
   return case v_kind
-    when 'company' then (select jsonb_build_object('type', 'company', 'party', to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status")) from "better_supabase"."companies" x where x."id" = set_supplier_status.party)
-    when 'person' then (select jsonb_build_object('type', 'person', 'party', to_jsonb(x) || jsonb_build_object('roles', x."roles", 'payment_terms_days', x."payment_terms_days", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'supplier_status', x."supplier_status")) from "better_supabase"."people" x where x."id" = set_supplier_status.party)
+    when 'company' then (select jsonb_build_object('type', 'company', 'party', to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language")) from "better_supabase"."companies" x where x."id" = set_supplier_status.party)
+    when 'person' then (select jsonb_build_object('type', 'person', 'party', to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language")) from "better_supabase"."people" x where x."id" = set_supplier_status.party)
   end;
 end;
 $$;
@@ -1125,7 +1530,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(p) || jsonb_build_object('roles', p."roles", 'payment_terms_days', p."payment_terms_days", 'credit_currency', p."credit_currency", 'credit_limit', p."credit_limit"::text, 'supplier_status', p."supplier_status") from "better_supabase"."person_identities" i
+  select to_jsonb(p) || jsonb_build_object('roles', p."roles", 'customer_terms_id', p."customer_terms_id", 'supplier_terms_id', p."supplier_terms_id", 'credit_currency', p."credit_currency", 'credit_limit', p."credit_limit"::text, 'credit_block', p."credit_block", 'supplier_status', p."supplier_status", 'language', p."language") from "better_supabase"."person_identities" i
   join "better_supabase"."people" p on p."id" = i."person_id"
   where i."tenant_id" = find_person_by_identity.tenant
     and i."channel" = trim(find_person_by_identity.channel)
@@ -1283,6 +1688,48 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_peop
 create policy bsb_tenant_scope_delete on "better_supabase"."company_people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
+create policy bsb_tenant_scope_select on "better_supabase"."payment_terms" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
+create policy bsb_tenant_scope_insert on "better_supabase"."payment_terms" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
+create policy bsb_tenant_scope_update on "better_supabase"."payment_terms" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
+create policy bsb_tenant_scope_delete on "better_supabase"."payment_terms" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
+create policy bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
+create policy bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
+create policy bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
+create policy bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_select on "better_supabase"."person_identities" as restrictive
@@ -1438,6 +1885,87 @@ set search_path = ''
 as $$ select "better_supabase"."company_people_of"($1) $$;
 revoke execute on function "api"."company_people_of"(uuid) from public, anon;
 grant execute on function "api"."company_people_of"(uuid) to authenticated, service_role;
+
+create or replace function "api"."save_payment_term"(tenant uuid, attrs jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_payment_term"($1, $2) $$;
+revoke execute on function "api"."save_payment_term"(uuid, jsonb) from public, anon;
+grant execute on function "api"."save_payment_term"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."list_payment_terms"(tenant uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_payment_terms"($1) $$;
+revoke execute on function "api"."list_payment_terms"(uuid) from public, anon;
+grant execute on function "api"."list_payment_terms"(uuid) to authenticated, service_role;
+
+create or replace function "api"."delete_payment_term"(id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_payment_term"($1) $$;
+revoke execute on function "api"."delete_payment_term"(uuid) from public, anon;
+grant execute on function "api"."delete_payment_term"(uuid) to authenticated, service_role;
+
+create or replace function "api"."set_document_delivery_preferences"(party uuid, prefs jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_document_delivery_preferences"($1, $2) $$;
+revoke execute on function "api"."set_document_delivery_preferences"(uuid, jsonb) from public, anon;
+grant execute on function "api"."set_document_delivery_preferences"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."list_document_delivery_preferences"(party uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_document_delivery_preferences"($1) $$;
+revoke execute on function "api"."list_document_delivery_preferences"(uuid) from public, anon;
+grant execute on function "api"."list_document_delivery_preferences"(uuid) to authenticated, service_role;
+
+create or replace function "api"."import_payment_term"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_payment_term"($1, $2, $3) $$;
+revoke execute on function "api"."import_payment_term"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."import_payment_term"(uuid, jsonb, text) to service_role;
+
+create or replace function "api"."payment_term_updated_at"(subject_id text)
+returns timestamptz
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."payment_term_updated_at"($1) $$;
+revoke execute on function "api"."payment_term_updated_at"(text) from public, anon, authenticated;
+grant execute on function "api"."payment_term_updated_at"(text) to service_role;
+
+create or replace function "api"."import_document_delivery_preference"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_document_delivery_preference"($1, $2, $3) $$;
+revoke execute on function "api"."import_document_delivery_preference"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."import_document_delivery_preference"(uuid, jsonb, text) to service_role;
+
+create or replace function "api"."document_delivery_preference_updated_at"(subject_id text)
+returns timestamptz
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."document_delivery_preference_updated_at"($1) $$;
+revoke execute on function "api"."document_delivery_preference_updated_at"(text) from public, anon, authenticated;
+grant execute on function "api"."document_delivery_preference_updated_at"(text) to service_role;
 
 create or replace function "api"."set_party_roles"(party uuid, roles text[])
 returns jsonb

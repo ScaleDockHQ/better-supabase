@@ -41,21 +41,30 @@ describe.skipIf(!live)("party roles and suppliers", () => {
         transport: sqlTransport(s.sql),
       });
 
+      await s.as(owner);
+
+      const net30 = await parties
+        .savePaymentTerm(org, { code: "NET30", name: "Net 30", days: 30 })
+        .orThrow();
+
       await s.as(buyer);
 
       const acme = await parties
         .saveCompany(org, {
           name: "Acme",
-          paymentTermsDays: 30,
+          customerTermsId: net30.id,
           creditLimit: money(500_000n, "EUR"),
         })
         .orThrow();
 
-      expect(acme).toMatchObject({ roles: [], paymentTermsDays: 30 });
+      expect(acme).toMatchObject({ roles: [], customerTermsId: net30.id });
       expect(acme.creditLimit).toEqual(money(500_000n, "EUR"));
       expect(
         await parties
-          .saveCompany(org, { name: "Bad", paymentTermsDays: 4000 })
+          .saveCompany(org, {
+            name: "Bad",
+            customerTermsId: crypto.randomUUID(),
+          })
           .then(hint),
       ).toBe("PARTY_TERMS_INVALID");
 

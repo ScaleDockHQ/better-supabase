@@ -77,7 +77,8 @@ await db.contacts.setRoles(acme.id, ["customer", "supplier"]).orThrow();
 await db.contacts
   .saveCompany(organizationId, {
     id: acme.id,
-    paymentTermsDays: 30,
+    customerTermsId: net30.id,
+    creditBlock: "soft",
     creditLimit: money(500_000n, "EUR"),
   })
   .orThrow();
@@ -86,7 +87,31 @@ const suppliers = await db.contacts
   .orThrow();
 ```
 
-`saveCompany` and `savePerson` also take the commercial terms: `paymentTermsDays`, 0 to 3650 days, and `creditLimit`, an amount in minor units with its currency (`PARTY_TERMS_INVALID` otherwise). `null` clears either. A returned record carries `roles`, `paymentTermsDays`, `creditLimit` and `supplierStatus`. `listCompanies` and `listPeople` filter on one `role` and on a `supplierStatus`.
+`saveCompany` and `savePerson` also take the commercial terms: `customerTermsId` and `supplierTermsId` (a [payment term](#payment-terms)), `creditLimit`, an amount in minor units with its currency (`PARTY_TERMS_INVALID` otherwise), and `creditBlock`. `null` clears any of them. A returned record carries `roles`, `customerTermsId`, `supplierTermsId`, `creditLimit`, `creditBlock`, `language` and `supplierStatus`. `listCompanies` and `listPeople` filter on one `role` and on a `supplierStatus`.
+
+`creditBlock` is `none`, `soft` or `hard`, and a party without one counts as `hard`. Over the credit limit, `hard` makes `issue` on a sales invoice and `place` on an order fail with `INVOICE_CREDIT_LIMIT_EXCEEDED` or `ORDER_CREDIT_LIMIT_EXCEEDED`, `soft` lets the call through and returns the overage in the result's `warnings`, and `none` skips the check. A caller with `orders.override_credit` and the service role skip it too.
+
+## Payment terms
+
+A payment term is a named set of due days and an optional early-payment discount. `savePaymentTerm(organizationId, input)` creates or changes one by `code`, and `paymentTerms(organizationId)` lists them. It needs `contacts.manage` and fails with `PAYMENT_TERM_INVALID`, `PAYMENT_TERM_CODE_TAKEN` or `PAYMENT_TERM_NOT_FOUND`.
+
+```ts
+await db.contacts
+  .savePaymentTerm(organizationId, {
+    code: "2-10-NET30",
+    name: "2 percent in 10 days, net 30",
+    days: 30,
+    discountBps: 200,
+    discountDays: 10,
+  })
+  .orThrow();
+```
+
+`discountBps` is the discount the buyer may deduct when paying within `discountDays` (at most `days`). `creditRestrictionBps` is a discount the buyer may deduct whatever the payment date: the invoice's tax is computed on the reduced amount, in `invoice_tax_lines`, and the header `tax_total` stays as issued. A new invoice copies the customer's `customerTermsId` (a purchase bill copies `supplierTermsId`) into `payment_terms_id`, and `issue` stores `terms_days`, `discount_due_on` and `discount_amount_early` from it.
+
+## Language and delivery
+
+`language` on a company or person is the language tag of their documents. `setDeliveryPreferences(partyId, preferences)` replaces the party's list of `{ documentType, channel, copies, email }`, where `channel` is `email`, `post` or `portal` and each document type and channel pair appears once (`DELIVERY_PREFERENCE_INVALID` otherwise). `deliveryPreferences(partyId)` reads it. Payment terms and delivery preferences also have [import](/docs/blocks/imports) targets named `payment_term` and `document_delivery_preference`.
 
 ## Suppliers
 
@@ -292,7 +317,11 @@ The ReUI CRM Contacts Directory reads `listPeople` for its grid, with the Filter
 | `PARTY_IDENTITY_TAKEN`          | another person of the organization has the address                                                                        |
 | `PARTY_ROLES_INVALID`           | a role isn't in `options.roles`                                                                                           |
 | `PARTY_SUPPLIER_STATUS_INVALID` | not `approved`, `conditional` or `blocked`, or a reason over 2000 characters                                              |
-| `PARTY_TERMS_INVALID`           | payment terms outside 0 to 3650 days, or a credit limit without whole minor units and a currency                          |
+| `PARTY_TERMS_INVALID`           | an unknown payment term, a bad credit block, or a credit limit without whole minor units and a currency                   |
+| `PAYMENT_TERM_INVALID`          | a code, name, days or discount outside its range, or a discount window longer than the due days                           |
+| `PAYMENT_TERM_CODE_TAKEN`       | another term of the organization has the code                                                                             |
+| `PAYMENT_TERM_NOT_FOUND`        | no such payment term                                                                                                      |
+| `DELIVERY_PREFERENCE_INVALID`   | a preference without a known channel, or a repeated document type and channel                                             |
 | `PARTY_FIELD_UNSUPPORTED`       | an adopted table has no column for the key                                                                                |
 
 ## Without the client

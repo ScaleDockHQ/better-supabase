@@ -26,10 +26,21 @@ export {
 } from "./representatives.ts";
 
 export {
+  CREDIT_BLOCKS,
+  DELIVERY_CHANNELS,
   PARTY_ROLES,
   SUPPLIER_STATUSES,
+  type CreditBlock,
+  type DeliveryChannel,
   type SupplierStatus,
 } from "./roles.ts";
+
+export type {
+  DeliveryPreference,
+  DeliveryPreferenceInput,
+  PaymentTerm,
+  PaymentTermInput,
+} from "./terms.ts";
 
 export {
   extendBlock,

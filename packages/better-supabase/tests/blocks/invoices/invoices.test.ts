@@ -474,3 +474,87 @@ describe("invoices block, currencies", () => {
     expect(invoice.fields).not.toHaveProperty("charges");
   });
 });
+
+describe("invoice call arguments", () => {
+  const ACTOR = { id: "u1", name: "Ada" };
+
+  it("sends the actor, due date, discount amount and payment terms when given", async () => {
+    const t = transport({
+      create_invoice: () => ROW,
+      issue_invoice: () => ROW,
+      record_invoice_payment: () => ROW,
+      add_invoice_charge: () => ROW,
+      reverse_invoice_payment: () => ROW,
+      remove_invoice_charge: () => ROW,
+    });
+
+    const invoices = createInvoices({ transport: t });
+
+    await invoices
+      .create("o", {
+        title: "x",
+        paymentTermsId: "t1",
+        discountAmount: eur(50n),
+      })
+      .orThrow();
+    expect(t.calls.at(-1)?.[1]).toMatchObject({
+      attrs: { paymentTermsId: "t1", discountAmount: "50" },
+    });
+
+    await invoices
+      .issue("i1", Temporal.PlainDate.from("2026-10-15"), {
+        dueOn: Temporal.PlainDate.from("2026-11-30"),
+        actor: ACTOR,
+      })
+      .orThrow();
+    expect(t.calls.at(-1)?.[1]).toMatchObject({
+      due_on: "2026-11-30",
+      actor: ACTOR,
+    });
+
+    await invoices
+      .recordPayment("i1", { amount: eur(10n), actor: ACTOR, reason: "late" })
+      .orThrow();
+    expect(t.calls.at(-1)?.[1]).toMatchObject({ actor: ACTOR, reason: "late" });
+
+    await invoices
+      .charge("i1", { amount: eur(5n), description: "Fee", actor: ACTOR })
+      .orThrow();
+    expect(t.calls.at(-1)?.[1]).toMatchObject({
+      description: "Fee",
+      actor: ACTOR,
+    });
+
+    await invoices.reversePayment("p1", "oops", { actor: ACTOR }).orThrow();
+    expect(t.calls.at(-1)?.[1]).toMatchObject({ reason: "oops", actor: ACTOR });
+
+    await invoices.removeCharge("c1", { actor: ACTOR }).orThrow();
+    expect(t.calls.at(-1)?.[1]).toMatchObject({ actor: ACTOR });
+  });
+
+  it("sends null for what the caller leaves out and reads deposit and discount amounts", async () => {
+    const t = transport({
+      add_invoice_charge: () => ({
+        ...ROW,
+        deposit_amount: "300",
+        discount_amount: "50",
+      }),
+      reverse_invoice_payment: () => ROW,
+      invoice_from_quote: () => ROW,
+    });
+
+    const invoices = createInvoices({ transport: t });
+
+    const charged = await invoices.charge("i1", { amount: eur(5n) }).orThrow();
+
+    expect(charged.depositAmount).toEqual(eur(300n));
+    expect(charged.discountAmount).toEqual(eur(50n));
+    expect(t.calls.at(-1)?.[1]).toMatchObject({ description: null });
+
+    await invoices.reversePayment("p1").orThrow();
+    expect(t.calls.at(-1)?.[1]).toMatchObject({ reason: null });
+
+    await invoices.fromQuote("q1").orThrow();
+    expect(t.calls.at(-1)?.[1]).toMatchObject({ deposit_bps: null });
+  });
+});

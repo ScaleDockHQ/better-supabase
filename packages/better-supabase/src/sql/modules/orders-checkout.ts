@@ -337,6 +337,7 @@ declare
   v_location uuid;
   v_reservation jsonb;
   v_claims text;
+  v_warnings jsonb;
 begin
   ${serviceOnlyGuard()}
   select x.${c("tenant")} as tenant, x.${c("user")} as owner, ${ctx.label("carts", "status", `x.${c("status")}`)} as status, x.${c("currency")} as currency,
@@ -423,7 +424,8 @@ begin
     audit: false,
   })}
   ${ctx.hook("after_order_place", [["uuid", "v_order.id"]])}
-  return ${fn("order_json")}(v_order.id) || jsonb_build_object('created', true);
+  return ${fn("order_json")}(v_order.id) || jsonb_build_object('created', true)
+    || case when v_warnings is null then '{}'::jsonb else jsonb_build_object('warnings', v_warnings) end;
 end;
 $$;
 ${serviceGrant(`${fn("place_order")}(uuid, jsonb, bigint, uuid${extraFieldsArg(names.extras).type})`)}

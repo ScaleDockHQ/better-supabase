@@ -1,5 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { fail } from "../shared.ts";
 import { linked } from "./manufacturing-sql.ts";
 
@@ -78,11 +79,17 @@ export function creditLimitSql(
     readonly override: string;
     readonly hint: string;
     readonly what: string;
+    /**
+     * A jsonb variable the caller declares; a soft block appends its warning to
+     * it.
+     */
+    readonly warnings: string;
   },
 ): string {
   const rows = partyRows(ctx, check.party, check.tenant, [
     "creditLimit",
     "creditCurrency",
+    "creditBlock",
   ]);
 
   if (rows === undefined) {
@@ -92,12 +99,18 @@ export function creditLimitSql(
   return `
   declare
     v_limit bigint;
+    v_block text;
   begin
-    select s.credit_limit into v_limit from (${rows}) s(credit_limit, credit_currency)
+    select s.credit_limit, s.credit_block into v_limit, v_block from (${rows}) s(credit_limit, credit_currency, credit_block)
     where s.credit_limit is not null and coalesce(s.credit_currency, ${check.currency}) = ${check.currency}
     order by s.credit_limit limit 1;
-    if v_limit is not null and (${check.open}) + ${check.amount} > v_limit and not (${check.override}) then
-      ${fail(check.hint, `${check.what} takes the customer over their credit limit`, "55000")}
+    if v_limit is not null and v_block is distinct from 'none' and (${check.open}) + ${check.amount} > v_limit and not (${check.override}) then
+      if v_block = 'soft' then
+        ${check.warnings} := coalesce(${check.warnings}, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+          'code', ${sqlString(check.hint)}, 'message', ${sqlString(`${check.what} takes the customer over their credit limit`)}, 'limit', v_limit::text));
+      else
+        ${fail(check.hint, `${check.what} takes the customer over their credit limit`, "55000")}
+      end if;
     end if;
   end;`;
 }

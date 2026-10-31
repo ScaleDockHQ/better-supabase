@@ -32,6 +32,12 @@ import {
   roleFunctions,
   roleIndexes,
 } from "./contacts-roles.ts";
+import {
+  deliveryTable,
+  termsFunctions,
+  termsImportTargets,
+  termsTable,
+} from "./contacts-terms.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -169,6 +175,39 @@ const NAMES: BlockSqlNames = {
       },
       optional: ["role"],
     },
+    terms: {
+      name: "payment_terms",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        code: "code",
+        name: "name",
+        days: "days",
+        discountBps: "discount_bps",
+        discountDays: "discount_days",
+        creditRestrictionBps: "credit_restriction_bps",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    deliveryPreferences: {
+      name: "document_delivery_preferences",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        party: "party_id",
+        documentType: "document_type",
+        channel: "channel",
+        copies: "copies",
+        email: "email",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
     identities: {
       name: "person_identities",
       app: {},
@@ -263,7 +302,7 @@ function tables(ctx: BlockSqlContext, names: PartyNames): string {
   ): string =>
     ctx.has(table, logical) ? `\n  ${definition(c(table, logical))},` : "";
 
-  return `
+  return `${termsTable(ctx, names)}
 create table if not exists ${t("companies")} (
   ${co("id")} uuid primary key default gen_random_uuid(),
   ${co("tenant")} ${ctx.idType} not null,
@@ -356,7 +395,7 @@ export function contactsUpgradeTables(ctx: BlockSqlContext): string {
   const names = partyNames(ctx);
 
   return `${schemaPreamble(ctx)}
-${tables(ctx, names)}${peopleInboxColumns(ctx)}
+${tables(ctx, names)}${deliveryTable(ctx, names)}${peopleInboxColumns(ctx)}
 ${identitiesTable(ctx, names)}`;
 }
 
@@ -369,11 +408,12 @@ function build(ctx: BlockSqlContext): string {
 
   return `${schemaPreamble(ctx)}
 -- Companies and people an organization works with, and who works where.
-${tables(ctx, names)}${identitiesTable(ctx, names)}${partyFunctions(ctx, names)}${roleFunctions(ctx, names, (kind, alias) => partyJson(ctx, kind, alias))}${identityFunctions(ctx, names)}${personReferences(ctx, names)}${representativeFunctions(ctx, names)}`;
+${tables(ctx, names)}${deliveryTable(ctx, names)}${identitiesTable(ctx, names)}${partyFunctions(ctx, names)}${termsFunctions(ctx, names)}${roleFunctions(ctx, names, (kind, alias) => partyJson(ctx, kind, alias))}${identityFunctions(ctx, names)}${personReferences(ctx, names)}${representativeFunctions(ctx, names)}`;
 }
 
 const CONTRIBUTES: BlockContributes = {
   relations: (own) => [representsKind(own)],
+  imports: termsImportTargets,
 };
 
 const LIST_ARGS = [
@@ -414,6 +454,19 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "list_people", args: LIST_ARGS, returns: "jsonb" },
     { name: "company_people_of", args: ["uuid"], returns: "jsonb" },
     { name: "list_person_identities", args: ["uuid"], returns: "jsonb" },
+    { name: "save_payment_term", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "list_payment_terms", args: ["{id}"], returns: "jsonb" },
+    { name: "delete_payment_term", args: ["uuid"], returns: "boolean" },
+    {
+      name: "set_document_delivery_preferences",
+      args: ["uuid", "jsonb"],
+      returns: "jsonb",
+    },
+    {
+      name: "list_document_delivery_preferences",
+      args: ["uuid"],
+      returns: "jsonb",
+    },
     {
       name: "add_person_identity",
       args: ["uuid", "text", "text", "boolean"],
@@ -471,7 +524,7 @@ export const PARTIES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Parties",
   description:
-    "Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms, credit limits and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.",
+    "Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.",
   requires: ["memberships", "permissions"],
   integrates: [
     "outbox",
@@ -485,7 +538,12 @@ export const PARTIES: BlockSqlDefinition = {
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,
-  internal: ["resolve_person"],
+  internal: [
+    "resolve_person",
+    "payment_term_write",
+    "delivery_preference_write",
+    "resolve_payment_terms",
+  ],
   names: NAMES,
   contract,
   build,

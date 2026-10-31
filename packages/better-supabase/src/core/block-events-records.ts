@@ -254,6 +254,10 @@ export interface InvoiceEventData extends SubjectEventData {
   readonly level?: number;
   /** For `invoice.dunning_escalated`: the level's reminder template. */
   readonly templateKey?: string;
+  /** For `invoice.dunning_escalated`: the level's text key. */
+  readonly textKey?: string | null;
+  /** For `invoice.collection_started`: the agency party's id. */
+  readonly agencyPartyId?: string;
   /** For `invoice.dunning_escalated`: the fee added, in minor units. */
   readonly fee?: string;
   /** For `invoice.dunning_escalated`: whether this is the last reminder. */

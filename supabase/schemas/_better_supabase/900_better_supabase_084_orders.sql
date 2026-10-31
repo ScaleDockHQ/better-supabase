@@ -1,6 +1,6 @@
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:1e1f4d3fbba6d7e361f05a30ca0b4d1106f588ae7cac537c1ab5be3789ada565
+-- @bsb-hash sha256:b39537d84252baf0edd18bccb213c8b581e050697e8e744aa3be64f12722c5f2
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1094,6 +1094,7 @@ declare
   v_location uuid;
   v_reservation jsonb;
   v_claims text;
+  v_warnings jsonb;
 begin
   if auth.role() is distinct from 'service_role' then
     raise exception 'only the service role can do this' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
@@ -1148,14 +1149,20 @@ begin
   v_total := (v_priced ->> 'total')::bigint + case when v_inclusive then 0 else v_tax end;
   declare
     v_limit bigint;
+    v_block text;
   begin
-    select s.credit_limit into v_limit from (select p."credit_limit", p."credit_currency" from "better_supabase"."companies" p where p."id"::text = (select p."id"::text from "better_supabase"."people" p where p."user_id" = v_cart.owner and p."tenant_id" = v_cart.tenant and p."merged_into" is null order by p."created_at" limit 1) and p."tenant_id" = v_cart.tenant and p."merged_into" is null union all select p."credit_limit", p."credit_currency" from "better_supabase"."people" p where p."id"::text = (select p."id"::text from "better_supabase"."people" p where p."user_id" = v_cart.owner and p."tenant_id" = v_cart.tenant and p."merged_into" is null order by p."created_at" limit 1) and p."tenant_id" = v_cart.tenant and p."merged_into" is null) s(credit_limit, credit_currency)
+    select s.credit_limit, s.credit_block into v_limit, v_block from (select p."credit_limit", p."credit_currency", p."credit_block" from "better_supabase"."companies" p where p."id"::text = (select p."id"::text from "better_supabase"."people" p where p."user_id" = v_cart.owner and p."tenant_id" = v_cart.tenant and p."merged_into" is null order by p."created_at" limit 1) and p."tenant_id" = v_cart.tenant and p."merged_into" is null union all select p."credit_limit", p."credit_currency", p."credit_block" from "better_supabase"."people" p where p."id"::text = (select p."id"::text from "better_supabase"."people" p where p."user_id" = v_cart.owner and p."tenant_id" = v_cart.tenant and p."merged_into" is null order by p."created_at" limit 1) and p."tenant_id" = v_cart.tenant and p."merged_into" is null) s(credit_limit, credit_currency, credit_block)
     where s.credit_limit is not null and coalesce(s.credit_currency, v_cart.currency) = v_cart.currency
     order by s.credit_limit limit 1;
-    if v_limit is not null and (select coalesce(sum(greatest(x."total" - x."paid_total", 0)), 0) from "better_supabase"."orders" x
+    if v_limit is not null and v_block is distinct from 'none' and (select coalesce(sum(greatest(x."total" - x."paid_total", 0)), 0) from "better_supabase"."orders" x
       where x."customer_id" = v_cart.owner and x."tenant_id" = v_cart.tenant and x."currency" = v_cart.currency
         and x."status" not in ('cancelled', 'refunded')) + v_total > v_limit and not (coalesce(better_supabase.can_user(v_cart.owner, 'tenant', v_cart.tenant, 'orders.override_credit'), false)) then
-      raise exception 'the order takes the customer over their credit limit' using errcode = '55000', hint = 'ORDER_CREDIT_LIMIT_EXCEEDED';
+      if v_block = 'soft' then
+        v_warnings := coalesce(v_warnings, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+          'code', 'ORDER_CREDIT_LIMIT_EXCEEDED', 'message', 'the order takes the customer over their credit limit', 'limit', v_limit::text));
+      else
+        raise exception 'the order takes the customer over their credit limit' using errcode = '55000', hint = 'ORDER_CREDIT_LIMIT_EXCEEDED';
+      end if;
     end if;
   end;
   if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
@@ -1228,7 +1235,8 @@ begin
         using v_order.id;
     end if;
   end;
-  return "better_supabase"."order_json"(v_order.id) || jsonb_build_object('created', true);
+  return "better_supabase"."order_json"(v_order.id) || jsonb_build_object('created', true)
+    || case when v_warnings is null then '{}'::jsonb else jsonb_build_object('warnings', v_warnings) end;
 end;
 $$;
 revoke execute on function "better_supabase"."place_order"(uuid, jsonb, bigint, uuid) from public, anon, authenticated;

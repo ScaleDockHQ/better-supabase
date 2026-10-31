@@ -6,6 +6,7 @@ export {
   type InvoiceCharge,
   type InvoiceDirection,
   type InvoiceInput,
+  type InvoiceWarning,
   type InvoiceMatch,
   type InvoiceMatchLine,
   type InvoiceMatchStatus,
@@ -37,10 +38,16 @@ export {
 } from "../../core/block-transport.ts";
 
 export type {
+  InvoiceCollection,
   InvoiceCollections,
   InvoiceDunning,
+  InvoiceDunningHistoryEntry,
   InvoiceDunningLevel,
   InvoiceDunningLevelInput,
+  InvoiceDunningRun,
+  InvoiceDunningRunCustomer,
+  InvoiceDunningRunItem,
+  InvoicePaymentTerms,
   PartyPayment,
   PartyPaymentInput,
 } from "./collections.ts";

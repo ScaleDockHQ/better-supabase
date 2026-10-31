@@ -5,6 +5,7 @@ import { hasLegalEntityColumn } from "../numbering-sql.ts";
 import { fail, userGrant } from "../shared.ts";
 import { linked } from "./banking-sql.ts";
 import { invoiceOptIn } from "./invoices-functions.ts";
+import { creditRestrictionSql } from "./invoices-terms.ts";
 import { taxSql } from "./tax-sql.ts";
 
 /**
@@ -277,7 +278,7 @@ begin
   select ${fn("tax_compute_lines")}(
     coalesce((select jsonb_agg(${line} order by x.${il("position")}) from ${inv.table("lines")} x
       where x.${il("parent")} = v_inv.${i("id")} and ${countedLine(inv, "lines", "x")}), '[]'::jsonb),
-    issue_invoice_tax.on_date, ${parentOf("pricesIncludeTax", "false")}, 0,
+    issue_invoice_tax.on_date, ${parentOf("pricesIncludeTax", "false")}, ${creditRestrictionSql(inv, "v_inv")},
     ${optIn("discountBps", "0")}, ${optIn("discountAmount", "0")})
   into v_result;
   delete from ${q.lines} x where x.${l("parent")} = v_inv.${i("id")};

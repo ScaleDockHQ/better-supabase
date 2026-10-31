@@ -74,15 +74,17 @@ interface Field {
 const text = (v: string): string => `nullif(trim(${v}), '')`;
 const lower = (v: string): string => `lower(nullif(trim(${v}), ''))`;
 const uuid = (v: string): string => `nullif(${v}, '')::uuid`;
-const integer = (v: string): string => `nullif(trim(${v}), '')::integer`;
 const bigint = (v: string): string => `nullif(trim(${v}), '')::bigint`;
 const upper = (v: string): string => `upper(nullif(trim(${v}), ''))`;
 
 /** The commercial terms companies and people share. */
 const TERMS: readonly Field[] = [
-  { key: "paymentTermsDays", column: "paymentTermsDays", value: integer },
+  { key: "customerTermsId", column: "customerTermsId", value: uuid },
+  { key: "supplierTermsId", column: "supplierTermsId", value: uuid },
   { key: "creditLimit", column: "creditLimit", value: bigint },
   { key: "creditCurrency", column: "creditCurrency", value: upper },
+  { key: "creditBlock", column: "creditBlock", value: lower },
+  { key: "language", column: "language", value: text },
 ];
 
 const FIELDS: Readonly<Record<Kind, readonly Field[]>> = {
@@ -254,7 +256,7 @@ begin
   end if;${unsupported(ctx, kind, `${fnName}.attrs`)}
   if ${has("lifecycle")} and not (${arg("lifecycle")} = any (${stages})) then
     ${fail("PARTY_LIFECYCLE_INVALID", "unknown lifecycle stage", "22023")}
-  end if;${termsChecks(ctx, spec.table, `${fnName}.attrs`)}
+  end if;${termsChecks(ctx, spec.table, `${fnName}.attrs`, `${fnName}.tenant`)}
   ${ctx.hook(`before_${spec.hook}_save`, [
     [ctx.idType, `${fnName}.tenant`],
     ["uuid", `${fnName}.${kind}`],

@@ -161,7 +161,7 @@ describe("parties block, roles and suppliers", () => {
   const SUPPLIER = {
     ...COMPANY,
     roles: ["customer", "supplier"],
-    payment_terms_days: 30,
+    customer_terms_id: "t1",
     credit_limit: "500000",
     credit_currency: "EUR",
     supplier_status: "approved",
@@ -180,7 +180,7 @@ describe("parties block, roles and suppliers", () => {
     });
     expect(page.items[0]).toMatchObject({
       roles: ["customer", "supplier"],
-      paymentTermsDays: 30,
+      customerTermsId: "t1",
       creditLimit: { amount: 500_000n, currency: "EUR" },
       supplierStatus: "approved",
       fields: { segment: "smb" },
@@ -194,14 +194,14 @@ describe("parties block, roles and suppliers", () => {
     await parties
       .savePerson("o", {
         id: "p1",
-        paymentTermsDays: 14,
+        customerTermsId: "t1",
         creditLimit: { amount: 2500n, currency: "USD" },
       })
       .orThrow();
     await parties.savePerson("o", { id: "p1", creditLimit: null }).orThrow();
 
     expect(t.calls.map(([, args]) => args["attrs"])).toEqual([
-      { paymentTermsDays: 14, creditLimit: "2500", creditCurrency: "USD" },
+      { customerTermsId: "t1", creditLimit: "2500", creditCurrency: "USD" },
       { creditLimit: null, creditCurrency: null },
     ]);
   });
@@ -457,5 +457,189 @@ describe("parties block with relations", () => {
     const result = await createContacts({ transport: t }).representedByMe("o");
 
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("payment terms, credit block and delivery", () => {
+  const TERM = {
+    id: "t1",
+    organizationId: "o",
+    code: "NET30",
+    name: "Net 30",
+    days: 30,
+    discountBps: 0,
+    discountDays: 0,
+    creditRestrictionBps: 0,
+  };
+
+  const PREFERENCE = {
+    id: "d1",
+    organizationId: "o",
+    partyId: "c1",
+    documentType: "invoice",
+    channel: "post",
+    copies: 2,
+  };
+
+  it("reads the terms columns of a company", async () => {
+    const t = transport({
+      save_company: () => ({
+        ...COMPANY,
+        customer_terms_id: "t1",
+        supplier_terms_id: "t2",
+        credit_block: "soft",
+        language: "nl",
+      }),
+    });
+
+    const company = await createContacts({ transport: t })
+      .saveCompany("o", {
+        id: "c1",
+        customerTermsId: "t1",
+        creditBlock: "soft",
+      })
+      .orThrow();
+
+    expect(t.calls[0]?.[1]).toMatchObject({
+      attrs: { customerTermsId: "t1", creditBlock: "soft" },
+    });
+    expect(company).toMatchObject({
+      customerTermsId: "t1",
+      supplierTermsId: "t2",
+      creditBlock: "soft",
+      language: "nl",
+    });
+  });
+
+  it("rejects an unknown credit block", async () => {
+    const t = transport({
+      save_company: () => ({ ...COMPANY, credit_block: "maybe" }),
+    });
+
+    await expect(
+      createContacts({ transport: t }).saveCompany("o", { id: "c1" }).orThrow(),
+    ).rejects.toThrow("credit block");
+  });
+
+  it("saves, lists and deletes payment terms", async () => {
+    const t = transport({
+      save_payment_term: () => TERM,
+      list_payment_terms: () => [TERM],
+      delete_payment_term: () => true,
+    });
+
+    const parties = createContacts({ transport: t });
+
+    expect(
+      await parties
+        .savePaymentTerm("o", { code: "NET30", name: "Net 30" })
+        .orThrow(),
+    ).toEqual(TERM);
+    expect(await parties.paymentTerms("o").orThrow()).toEqual([TERM]);
+    expect(await parties.deletePaymentTerm("t1").orThrow()).toBe(true);
+    expect(t.calls[0]).toEqual([
+      "save_payment_term",
+      { tenant: "o", attrs: { code: "NET30", name: "Net 30" } },
+    ]);
+  });
+
+  it("sets and lists delivery preferences", async () => {
+    const t = transport({
+      set_document_delivery_preferences: () => [PREFERENCE],
+      list_document_delivery_preferences: () => [PREFERENCE],
+    });
+
+    const parties = createContacts({ transport: t });
+
+    expect(
+      await parties
+        .setDeliveryPreferences("c1", [
+          { documentType: "invoice", channel: "post", copies: 2 },
+        ])
+        .orThrow(),
+    ).toEqual([PREFERENCE]);
+    expect(await parties.deliveryPreferences("c1").orThrow()).toEqual([
+      PREFERENCE,
+    ]);
+  });
+});
+
+describe("optional record keys", () => {
+  it("reads every optional key of a person, an identity and a linked person", async () => {
+    const full = {
+      ...PERSON,
+      phone: "+31 6 1234",
+      user_id: "u9",
+      avatar_url: "https://example.test/a.png",
+      metadata: { source: "import" },
+    };
+
+    const t = transport({
+      save_person: () => full,
+      add_person_identity: () => ({
+        id: "i1",
+        tenant_id: "o",
+        person_id: "p1",
+        channel: "email",
+        address: "ada@acme.com",
+        verified_at: "2026-10-14T00:00:00Z",
+        created_at: "2026-10-13T00:00:00Z",
+      }),
+      company_people_of: () => [{ ...full, is_primary: true, role: "billing" }],
+    });
+
+    const parties = createContacts({ transport: t });
+    const person = await parties.savePerson("o", { id: "p1" }).orThrow();
+
+    expect(person).toMatchObject({
+      phone: "+31 6 1234",
+      userId: "u9",
+      avatarUrl: "https://example.test/a.png",
+      metadata: { source: "import" },
+    });
+
+    const identity = await parties
+      .addIdentity("p1", { channel: "email", address: "ada@acme.com" })
+      .orThrow();
+
+    expect(identity.verifiedAt).toBeDefined();
+    expect(identity.createdAt).toBeDefined();
+    expect(await parties.peopleOf("c1").orThrow()).toMatchObject([
+      { primary: true, role: "billing", userId: "u9" },
+    ]);
+  });
+
+  it("reads the dates and contact details of a representative", async () => {
+    const t = transport({
+      list_representatives: () => [
+        {
+          id: "r1",
+          organizationId: "o",
+          personId: "p1",
+          role: "guardian",
+          authority: "act",
+          validFrom: "2026-01-01",
+          validUntil: "2026-12-31",
+          name: "Ada",
+          active: true,
+          email: "ada@acme.com",
+          phone: "+31 6 1234",
+          createdAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+
+    const [representative] = await createContacts({ transport: t })
+      .representativesOf("company", "c1")
+      .orThrow();
+
+    expect(representative).toMatchObject({
+      role: "guardian",
+      email: "ada@acme.com",
+      phone: "+31 6 1234",
+    });
+    expect(representative?.validFrom?.toString()).toBe("2026-01-01");
+    expect(representative?.validUntil?.toString()).toBe("2026-12-31");
+    expect(representative?.createdAt).toBeDefined();
   });
 });

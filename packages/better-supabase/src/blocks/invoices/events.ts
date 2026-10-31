@@ -21,6 +21,7 @@ export type InvoicesEvents = {
   readonly "invoice.credit_applied": InvoiceEventData;
   readonly "invoice.dunning_escalated": InvoiceEventData;
   readonly "invoice.dunning_paused": InvoiceEventData;
+  readonly "invoice.collection_started": InvoiceEventData;
 };
 
 /** The `invoices` block's event types, for its manifest and `onBlockEvent`. */
@@ -41,4 +42,5 @@ export const invoicesEvents: Events<InvoicesEvents> = defineEvents({
   "invoice.credit_applied": event<InvoiceEventData>(),
   "invoice.dunning_escalated": event<InvoiceEventData>(),
   "invoice.dunning_paused": event<InvoiceEventData>(),
+  "invoice.collection_started": event<InvoiceEventData>(),
 });

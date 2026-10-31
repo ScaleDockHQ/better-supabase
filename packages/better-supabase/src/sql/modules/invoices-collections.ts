@@ -18,6 +18,12 @@ import {
   transitionActorSql,
   userGrant,
 } from "../shared.ts";
+import {
+  dunningRunFunctions,
+  dunningRunSql,
+  hasHandOver,
+  hasRuns,
+} from "./invoices-dunning-runs.ts";
 import { cashCode, paymentKey } from "./invoices-ledger.ts";
 import { lockModuleTable } from "./over-app.ts";
 
@@ -48,6 +54,7 @@ export const COLLECTION_EVENTS: BlockSqlEvents<InvoicesEvents> = {
       ...INVOICE,
       "level",
       "templateKey",
+      "textKey",
       "fee",
       "final",
       "balance",
@@ -57,6 +64,10 @@ export const COLLECTION_EVENTS: BlockSqlEvents<InvoicesEvents> = {
   "invoice.dunning_paused": {
     subject: "invoices",
     payload: [...INVOICE, "until", "reason"],
+  },
+  "invoice.collection_started": {
+    subject: "invoices",
+    payload: [...INVOICE, "agencyPartyId", "balance", "level"],
   },
 };
 
@@ -72,11 +83,13 @@ export const DUNNING_LEVELS_TABLE: BlockSqlTableSpec = {
     level: "level",
     daysAfterDue: "days_after_due",
     templateKey: "template_key",
+    textKey: "text_key",
     fee: "fee",
     final: "final",
     createdAt: "created_at",
     updatedAt: "updated_at",
   },
+  optional: ["textKey"],
 };
 
 /** What collections adds to the invoice names. */
@@ -138,7 +151,7 @@ create table if not exists ${t} (
   ${d("tenant")} ${ctx.idType} not null,
   ${d("level")} integer not null check (${d("level")} between 1 and 20),
   ${d("daysAfterDue")} integer not null check (${d("daysAfterDue")} >= 0),
-  ${d("templateKey")} text not null check (length(${d("templateKey")}) between 1 and 200),
+  ${d("templateKey")} text not null check (length(${d("templateKey")}) between 1 and 200),${ctx.has("dunningLevels", "textKey") ? `\n  ${d("textKey")} text check (length(${d("textKey")}) between 1 and 200),` : ""}
   ${d("fee")} bigint not null default 0 check (${d("fee")} >= 0),
   ${d("final")} boolean not null default false,
   ${d("createdAt")} timestamptz not null default now(),
@@ -452,11 +465,24 @@ function dunningSql(
   const d = (column: string): string => ctx.col("dunningLevels", column);
   const sales = ctx.has("invoices", "direction");
 
+  const partyExpression = `coalesce(${
+    partyColumns(ctx)
+      .map((column) => `v_row.${i(column)}::text`)
+      .join(", ") || "null"
+  })`;
+
+  const run = dunningRunSql(ctx, h, partyExpression);
+
   const allowed = (tenant: string, permission: string): string =>
     `(${n.service} or ${ctx.scope.can(tenant, permission)})`;
 
+  const hasText = ctx.has("dunningLevels", "textKey");
+
+  const textKey = (alias: string): string =>
+    hasText ? `${alias}.${d("textKey")}` : "null::text";
+
   const levelJson = (alias: string): string =>
-    `jsonb_build_object('level', ${alias}.${d("level")}, 'daysAfterDue', ${alias}.${d("daysAfterDue")}, 'templateKey', ${alias}.${d("templateKey")}, 'fee', ${alias}.${d("fee")}::text, 'final', ${alias}.${d("final")})`;
+    `jsonb_build_object('level', ${alias}.${d("level")}, 'daysAfterDue', ${alias}.${d("daysAfterDue")}, 'templateKey', ${alias}.${d("templateKey")}, 'textKey', ${textKey(alias)}, 'fee', ${alias}.${d("fee")}::text, 'final', ${alias}.${d("final")})`;
 
   const listLevels = (tenant: string): string =>
     `coalesce((select jsonb_agg(${levelJson("l")} order by l.${d("level")}) from ${levels} l where l.${d("tenant")} = ${tenant}), '[]'::jsonb)`;
@@ -513,7 +539,7 @@ $$;
 ${userGrant(`${fn("list_invoice_dunning_levels")}(${ctx.idType})`)}
 
 -- Replaces an organization's reminder levels. levels: [{ daysAfterDue,
--- templateKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
+-- templateKey, textKey, fee, final }], numbered 1, 2, ... in order, with daysAfterDue
 -- rising. fee: minor units of the invoice's currency, added as a charge when
 -- the level is reached. Only the last level can be final.
 create or replace function ${fn("set_invoice_dunning_levels")}(tenant ${ctx.idType}, levels jsonb)
@@ -533,6 +559,7 @@ begin
       where jsonb_typeof(x.value) <> 'object'
         or coalesce(x.value ->> 'daysAfterDue', '') !~ '^[0-9]{1,5}$'
         or length(coalesce(trim(x.value ->> 'templateKey'), '')) not between 1 and 200
+        or length(coalesce(nullif(trim(x.value ->> 'textKey'), ''), 'x')) not between 1 and 200
         or coalesce(x.value ->> 'fee', '0') !~ '^[0-9]{1,18}$'
         or jsonb_typeof(coalesce(x.value -> 'final', 'false'::jsonb)) <> 'boolean'
         or ((x.value ->> 'final')::boolean is true and x.ordinality < jsonb_array_length(set_invoice_dunning_levels.levels))
@@ -556,8 +583,8 @@ begin
   end if;`
   }
   delete from ${levels} l where l.${d("tenant")} = set_invoice_dunning_levels.tenant;
-  insert into ${levels} (${d("tenant")}, ${d("level")}, ${d("daysAfterDue")}, ${d("templateKey")}, ${d("fee")}, ${d("final")})
-  select set_invoice_dunning_levels.tenant, x.ordinality, (x.value ->> 'daysAfterDue')::integer, trim(x.value ->> 'templateKey'),
+  insert into ${levels} (${d("tenant")}, ${d("level")}, ${d("daysAfterDue")}, ${d("templateKey")}${hasText ? `, ${d("textKey")}` : ""}, ${d("fee")}, ${d("final")})
+  select set_invoice_dunning_levels.tenant, x.ordinality, (x.value ->> 'daysAfterDue')::integer, trim(x.value ->> 'templateKey'),${hasText ? "\n    nullif(trim(x.value ->> 'textKey'), '')," : ""}
     coalesce((x.value ->> 'fee')::bigint, 0), coalesce((x.value ->> 'final')::boolean, false)
   from jsonb_array_elements(set_invoice_dunning_levels.levels) with ordinality x;
   return ${listLevels("set_invoice_dunning_levels.tenant")};
@@ -568,8 +595,10 @@ ${userGrant(`${fn("set_invoice_dunning_levels")}(${ctx.idType}, jsonb)`)}
 -- Raises each overdue invoice with a balance to the highest reminder level it
 -- has reached (one organization, or all), adds the level's fee as a charge,
 -- notifies who created the invoice and records invoice.dunning_escalated with
--- the level's template key, for a sink that sends the reminder. Invoices
--- paused until today or later wait. Returns how many invoices moved up.
+-- the level's template key, for a sink that sends the reminder. Each
+-- organization's invoices go into one run (invoice_dunning_runs) with the
+-- items picked per customer and a history row per invoice. Invoices paused
+-- until today or later, and invoices handed over to collection, wait. Returns how many invoices moved up.
 create or replace function ${fn("run_invoice_dunning")}(tenant ${ctx.idType} default null, as_of date default null)
 returns integer
 language plpgsql
@@ -580,13 +609,13 @@ declare
   v_today date := coalesce(run_invoice_dunning.as_of, current_date);
   v_row ${t("invoices")};
   v_level ${levels};
-  v_count integer := 0;${ctx.installed("notifications") ? "\n  v_claims text;" : ""}
+  v_count integer := 0;${run.declare}${ctx.installed("notifications") ? "\n  v_claims text;" : ""}
 begin
   for v_row in
     select x.* from ${t("invoices")} x
     where (run_invoice_dunning.tenant is null or x.${i("tenant")} = run_invoice_dunning.tenant)
       and ${h.kd(`x.${i("kind")}`, ["invoice"])} and ${h.st(`x.${i("status")}`, ["issued", "partially_paid"])}${sales ? ` and x.${i("direction")} = 'sales'` : ""}
-      and x.${i("dueOn")} < v_today
+      and x.${i("dueOn")} < v_today${hasHandOver(ctx) ? `\n      and x.${i("collectionStatus")} is null` : ""}
       and (x.${i("dunningPausedUntil")} is null or x.${i("dunningPausedUntil")} < v_today)
       and ${h.balance("x")} > 0
       and exists (select 1 ${due("x", "v_today")})
@@ -600,7 +629,8 @@ begin
       ${i("updatedAt")} = now()
     where x.${i("id")} = v_row.${i("id")}
     returning * into v_row;${fee}${notify}
-    ${h.record("invoice.dunning_escalated", "v_row", `, 'level', v_level.${d("level")}, 'templateKey', v_level.${d("templateKey")}, 'fee', v_level.${d("fee")}::text, 'final', v_level.${d("final")}, 'balance', ${h.balance("v_row")}::text, 'dueOn', v_row.${i("dueOn")}`, true)}
+    ${h.record("invoice.dunning_escalated", "v_row", `, 'level', v_level.${d("level")}, 'templateKey', v_level.${d("templateKey")}, 'textKey', ${hasText ? `v_level.${d("textKey")}` : "null::text"}, 'fee', v_level.${d("fee")}::text, 'final', v_level.${d("final")}, 'balance', ${h.balance("v_row")}::text, 'dueOn', v_row.${i("dueOn")}`, true)}
+${run.record}
     v_count := v_count + 1;
   end loop;
   return v_count;
@@ -639,7 +669,7 @@ begin
 end;
 $$;
 ${userGrant(`${fn("pause_invoice_dunning")}(uuid, date, text)`)}
-`;
+${dunningRunFunctions(ctx, n, h)}`;
 }
 
 /** The functions collections adds to the invoices contract. */
@@ -697,6 +727,34 @@ export function collectionContract(
           {
             name: "pause_invoice_dunning",
             args: ["uuid", "date", "text"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
+    ...(hasRuns(ctx)
+      ? [
+          {
+            name: "list_invoice_dunning_runs",
+            args: ["{id}", "integer"],
+            returns: "jsonb",
+          },
+          {
+            name: "list_invoice_dunning_run_items",
+            args: ["uuid"],
+            returns: "jsonb",
+          },
+          {
+            name: "list_invoice_dunning_history",
+            args: ["uuid"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
+    ...(hasHandOver(ctx)
+      ? [
+          {
+            name: "hand_over_to_collection",
+            args: ["uuid[]", "text", "text"],
             returns: "jsonb",
           },
         ]
