@@ -176,6 +176,27 @@ function oldEventTypes(context: DoctorContext): FindingInput[] {
   );
 }
 
+/**
+ * An adopted table for sequence runs (BS425). Version 0.46 named the table
+ * `members`; 0.47 keeps runs on `enrollments`, and the upgrade moves only the
+ * default `sequence_enrollments` table.
+ */
+function adoptedSequenceRunTable(context: DoctorContext): FindingInput[] {
+  return Object.entries(context.config.blocks).flatMap(([name, entry]) => {
+    const block = typeof entry?.block === "string" ? entry.block : name;
+    const adopted: unknown = entry?.tables?.["members"];
+
+    return block === "sequences" && typeof adopted === "string"
+      ? [
+          {
+            message: `blocks.${name}.tables.members adopts \`${adopted}\` for sequence runs, and the 0.47 upgrade does not move its rows. Sequence runs are enrollments in the program \`sequence:<id>\` now: copy the rows onto \`enrollments\` and \`enrollment_steps\`, then drop the key. The 0.46 to 0.47 guide shows the copy.`,
+            target: `blocks.${name}.tables.members`,
+          },
+        ]
+      : [];
+  });
+}
+
 export const NAMING_RULES: readonly Rule[] = [
   {
     code: "BS422",
@@ -197,5 +218,13 @@ export const NAMING_RULES: readonly Rule[] = [
     title: "Code uses a renamed event type",
     description: `Event types are named \`<entity>.<past verb>\`, so 0.47 renamed some (\`work_item.created\` is \`task.created\`) and split the \`saved\` events into \`created\` and \`updated\`. A sequence run's \`sequence_enrollment.*\` events are now \`enrollment.*\` events whose \`program\` starts with \`sequence:\`. The outbox stores the new types, so a subscriber to an old one misses its events; the outbox \`legacyEventTypes\` option relays the old names to receivers outside the app until the next minor. \`better-supabase codemod ${ENTITY_RENAMES_CODEMOD}\` renames them in the app's code and SQL, and lists the split ones.`,
     check: oldEventTypes,
+  },
+  {
+    code: "BS425",
+    severity: "warning",
+    title: "An adopted table holds sequence runs",
+    description:
+      "Sequence runs moved onto the enrollments block in 0.47. The upgrade copies the default `sequence_enrollments` table and drops it, but a `members` table adopted through `blocks.sequences.tables` keeps its rows where they are, so no run continues. Copy them onto `enrollments` and `enrollment_steps` before you remove the key.",
+    check: adoptedSequenceRunTable,
   },
 ];

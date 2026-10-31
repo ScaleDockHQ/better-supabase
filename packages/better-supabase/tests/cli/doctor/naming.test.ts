@@ -148,3 +148,41 @@ describe("BS424", () => {
     ).toEqual([]);
   });
 });
+
+describe("BS425", () => {
+  it("reports a members table adopted for sequence runs", () => {
+    const findings = check(
+      { sequences: { tables: { members: "my_runs" } } },
+      [],
+      "BS425",
+    );
+
+    expect(findings.map((each) => each.target)).toEqual([
+      "blocks.sequences.tables.members",
+    ]);
+    expect(findings[0]?.message).toContain("`my_runs`");
+  });
+
+  it("reports an instance of the sequences block by its block name", () => {
+    const findings = check(
+      { drips: { block: "sequences", tables: { members: "my_runs" } } },
+      [],
+      "BS425",
+    );
+
+    expect(findings).toHaveLength(1);
+  });
+
+  it("leaves other adopted tables alone", () => {
+    expect(
+      check(
+        { sequences: { tables: { sequences: "my_sequences" } } },
+        [],
+        "BS425",
+      ),
+    ).toEqual([]);
+    expect(
+      check({ other: { tables: { members: "people" } } }, [], "BS425"),
+    ).toEqual([]);
+  });
+});
