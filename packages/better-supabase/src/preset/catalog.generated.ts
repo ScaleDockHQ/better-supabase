@@ -23297,6 +23297,24 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
+          "name": "EInvoiceChannel"
+        },
+        {
+          "name": "EInvoiceContext"
+        },
+        {
+          "name": "EInvoiceDelivery"
+        },
+        {
+          "name": "EInvoiceDocument"
+        },
+        {
+          "name": "EInvoiceFormat"
+        },
+        {
+          "name": "EInvoiceStatus"
+        },
+        {
           "name": "Invoice",
           "fields": true
         },
@@ -23356,6 +23374,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "InvoiceStatus"
+        },
+        {
+          "name": "SendEInvoiceOptions"
         }
       ],
       "events": {
