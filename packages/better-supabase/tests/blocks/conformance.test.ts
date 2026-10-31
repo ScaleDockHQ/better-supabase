@@ -119,9 +119,6 @@ const NO_FIELDS: readonly string[] = [
   // Samples, methods and results are the laboratory's fixed records; app data
   // goes on the linked assets and forms.
   "lims",
-  // Requests, lines, invitations and quotes are fixed records; app data goes
-  // on the linked contacts and purchase orders.
-  "rfqs",
   // Mailboxes, threads and messages mirror a provider's mail; app data goes on the linked records.
   "mail-sync",
   // Plans, meters and calibrations are fixed records; app data goes on the
@@ -154,6 +151,9 @@ const NO_FIELDS: readonly string[] = [
   "queue",
   "rate-limit",
   "reactions",
+  // Requests, lines, invitations and quotes are fixed records; app data goes
+  // on the linked contacts and purchase orders.
+  "rfqs",
   // Models hold rule trees and metrics; the app's data lives on the scored
   // subjects, which pass their fields to compute_score.
   "scores",

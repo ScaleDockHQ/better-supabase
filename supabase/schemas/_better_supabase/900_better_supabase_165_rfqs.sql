@@ -1,6 +1,6 @@
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:992d086193516cc17e896389b78a4552f3da85382da23c136bf2019048e3024e
+-- @bsb-hash sha256:8c05f08e6d27cb9bdb453928c3f644a0ee3ee42a36cfb9c6dfb7daa4fddb8f69
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -869,8 +869,7 @@ begin
     raise exception 'no such request for quotation' using errcode = 'P0002', hint = 'RFQ_NOT_FOUND';
   end if;
   return jsonb_build_object(
-    'rfqId', v_row."id",
-    'currency', v_row."currency",
+    'currency', v_row."currency", 'rfqId', v_row."id",
     'lines', coalesce((
       select jsonb_agg(jsonb_build_object(
         'lineId', ln."id", 'ordinal', ln."ordinal", 'description', ln."description", 'quantity', ln."quantity",

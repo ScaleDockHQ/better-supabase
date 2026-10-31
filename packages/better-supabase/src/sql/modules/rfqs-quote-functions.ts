@@ -179,8 +179,7 @@ begin
     ${sql.rfqMissing}
   end if;
   return jsonb_build_object(
-    'rfqId', v_row.${q("id")},
-    'currency', v_row.${q("currency")},
+    'currency', v_row.${q("currency")}, 'rfqId', v_row.${q("id")},
     'lines', coalesce((
       select jsonb_agg(jsonb_build_object(
         'lineId', ln.${l("id")}, 'ordinal', ln.${l("ordinal")}, 'description', ln.${l("description")}, 'quantity', ln.${l("quantity")},

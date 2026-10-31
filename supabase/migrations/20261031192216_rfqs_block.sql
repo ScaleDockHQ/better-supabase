@@ -2164,8 +2164,7 @@ begin
     raise exception 'no such request for quotation' using errcode = 'P0002', hint = 'RFQ_NOT_FOUND';
   end if;
   return jsonb_build_object(
-    'rfqId', v_row."id",
-    'currency', v_row."currency",
+    'currency', v_row."currency", 'rfqId', v_row."id",
     'lines', coalesce((
       select jsonb_agg(jsonb_build_object(
         'lineId', ln."id", 'ordinal', ln."ordinal", 'description', ln."description", 'quantity', ln."quantity",
