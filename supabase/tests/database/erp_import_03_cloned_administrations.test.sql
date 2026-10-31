@@ -108,10 +108,7 @@ select is(
   'both scopes resolve a cloned key to one subject'
 );
 
--- Known gap: invoices are unique per (tenant, direction, kind, number), not per
--- legal entity, so two entities of one organization cannot both hold number 1
--- of their own series, although numbering counts per entity.
-select todo_start('invoice numbers are unique per organization, not per legal entity');
+-- Numbers are unique per legal entity: both entities hold INV-0001 of their own series.
 select is(
   (select better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'invoice',
     jsonb_build_array(jsonb_build_object('key', 'inv-b-same', 'scope', 'B', 'data', jsonb_build_object(
@@ -121,7 +118,6 @@ select is(
   '1',
   'the second legal entity can hold the same number as the first'
 );
-select todo_end();
 
 select better_supabase.finish_import_run(current_setting('bsb.run')::uuid);
 
@@ -129,8 +125,8 @@ select is(
   (select jsonb_build_array(
     better_supabase.get_import_run(current_setting('bsb.run')::uuid) -> 'counts' -> 'invoice' ->> 'inserted',
     better_supabase.get_import_run(current_setting('bsb.run')::uuid) -> 'counts' -> 'invoice' ->> 'unchanged')),
-  '["4", "3"]'::jsonb,
-  'the run reports four inserted invoices and three unchanged'
+  '["5", "3"]'::jsonb,
+  'the run reports five inserted invoices and three unchanged'
 );
 
 select * from finish();

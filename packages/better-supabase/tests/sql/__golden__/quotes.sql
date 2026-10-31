@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:74120e1092f58a5f6581374a724a8a3cba52d48cff0c4a843b7970e6f00a0d1a
+-- @bsb-hash sha256:078e802cdf304e9ce5e3c66c83fb891c695c6352a1fbafcc5ca935d34dadc31a
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -425,6 +425,7 @@ declare
   v_inclusive boolean;
   v_record_bps integer;
   v_record_amount bigint;
+  v_restriction integer;
   v_list bigint;
   v_line_discount bigint;
   v_net bigint;
@@ -435,8 +436,8 @@ declare
   v_tax bigint;
   v_total bigint;
 begin
-  select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount"
-    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount", 0
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount, v_restriction
   from "better_supabase"."quotes" x where x."id" = set_quote_lines_recount.parent;
   select coalesce(sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount")), 0), coalesce(sum((round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))), 0)
     into v_list, v_line_discount
@@ -448,7 +449,7 @@ begin
   end;
   with grouped as (
     select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) as amount,
-      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * (10000 - v_restriction) * l."tax_rate_bps" / (10000.0 * (case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)))) as tax
     from "better_supabase"."quote_lines" l where l."parent_id" = set_quote_lines_recount.parent and (not l."optional" or l."selected")
     group by 1, 2
   ), shared as (
@@ -461,7 +462,7 @@ begin
     window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
   ), taxed as (
     select s.rate, s.code, s.share, s.amount - s.share as amount,
-      s.tax - round(s.share * s.rate / case when v_inclusive then 10000.0 + s.rate else 10000.0 end) as tax
+      s.tax - round(s.share * (10000 - v_restriction) * s.rate / (10000.0 * (case when v_inclusive then 10000.0 + s.rate else 10000.0 end))) as tax
     from shared s
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -1669,7 +1670,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:7486760cc8f88b086ae08ca00c58d6f7a79c51e20dd3801d967d048d48ed2a1a
+-- @bsb-hash sha256:297902127f15808d71bf77e204b92e4ccdbafe2b7f9f060cf0ef338f7e1d258f
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2098,6 +2099,7 @@ declare
   v_inclusive boolean;
   v_record_bps integer;
   v_record_amount bigint;
+  v_restriction integer;
   v_list bigint;
   v_line_discount bigint;
   v_net bigint;
@@ -2108,8 +2110,8 @@ declare
   v_tax bigint;
   v_total bigint;
 begin
-  select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount"
-    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount", 0
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount, v_restriction
   from "better_supabase"."quotes" x where x."id" = set_quote_lines_recount.parent;
   select coalesce(sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount")), 0), coalesce(sum((round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))), 0)
     into v_list, v_line_discount
@@ -2121,7 +2123,7 @@ begin
   end;
   with grouped as (
     select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) as amount,
-      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * (10000 - v_restriction) * l."tax_rate_bps" / (10000.0 * (case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)))) as tax
     from "better_supabase"."quote_lines" l where l."parent_id" = set_quote_lines_recount.parent and (not l."optional" or l."selected")
     group by 1, 2
   ), shared as (
@@ -2134,7 +2136,7 @@ begin
     window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
   ), taxed as (
     select s.rate, s.code, s.share, s.amount - s.share as amount,
-      s.tax - round(s.share * s.rate / case when v_inclusive then 10000.0 + s.rate else 10000.0 end) as tax
+      s.tax - round(s.share * (10000 - v_restriction) * s.rate / (10000.0 * (case when v_inclusive then 10000.0 + s.rate else 10000.0 end))) as tax
     from shared s
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -3449,7 +3451,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:f58938d1794749fa993c33a23ce9c69c6e030b0ac9e39d02a92a65a1d43d41d7
+-- @bsb-hash sha256:c3a644e2ef418b06da6e8c505d3c4a52cf63d688c27f3bccacd5533badab4369
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3878,6 +3880,7 @@ declare
   v_inclusive boolean;
   v_record_bps integer;
   v_record_amount bigint;
+  v_restriction integer;
   v_list bigint;
   v_line_discount bigint;
   v_net bigint;
@@ -3888,8 +3891,8 @@ declare
   v_tax bigint;
   v_total bigint;
 begin
-  select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount"
-    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount", 0
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount, v_restriction
   from "app_private"."quotes" x where x."id" = set_quote_lines_recount.parent;
   select coalesce(sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount")), 0), coalesce(sum((round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))), 0)
     into v_list, v_line_discount
@@ -3901,7 +3904,7 @@ begin
   end;
   with grouped as (
     select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) as amount,
-      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * (10000 - v_restriction) * l."tax_rate_bps" / (10000.0 * (case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)))) as tax
     from "app_private"."quote_lines" l where l."parent_id" = set_quote_lines_recount.parent and (not l."optional" or l."selected")
     group by 1, 2
   ), shared as (
@@ -3914,7 +3917,7 @@ begin
     window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
   ), taxed as (
     select s.rate, s.code, s.share, s.amount - s.share as amount,
-      s.tax - round(s.share * s.rate / case when v_inclusive then 10000.0 + s.rate else 10000.0 end) as tax
+      s.tax - round(s.share * (10000 - v_restriction) * s.rate / (10000.0 * (case when v_inclusive then 10000.0 + s.rate else 10000.0 end))) as tax
     from shared s
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -5122,7 +5125,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:383afb1d8e4a66213a064c98d6324456ccd0e6928ce8308075d18db6e1f9fbee
+-- @bsb-hash sha256:0bf22764c52cb18b798ef6b38402337bddf44354d406d34d1ecbb094d4a87533
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5546,6 +5549,7 @@ declare
   v_inclusive boolean;
   v_record_bps integer;
   v_record_amount bigint;
+  v_restriction integer;
   v_list bigint;
   v_line_discount bigint;
   v_net bigint;
@@ -5556,8 +5560,8 @@ declare
   v_tax bigint;
   v_total bigint;
 begin
-  select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount"
-    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount", 0
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount, v_restriction
   from "better_supabase"."quotes" x where x."id" = set_quote_lines_recount.parent;
   select coalesce(sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount")), 0), coalesce(sum((round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))), 0)
     into v_list, v_line_discount
@@ -5569,7 +5573,7 @@ begin
   end;
   with grouped as (
     select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) as amount,
-      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * (10000 - v_restriction) * l."tax_rate_bps" / (10000.0 * (case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)))) as tax
     from "better_supabase"."quote_lines" l where l."parent_id" = set_quote_lines_recount.parent and (not l."optional" or l."selected")
     group by 1, 2
   ), shared as (
@@ -5582,7 +5586,7 @@ begin
     window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
   ), taxed as (
     select s.rate, s.code, s.share, s.amount - s.share as amount,
-      s.tax - round(s.share * s.rate / case when v_inclusive then 10000.0 + s.rate else 10000.0 end) as tax
+      s.tax - round(s.share * (10000 - v_restriction) * s.rate / (10000.0 * (case when v_inclusive then 10000.0 + s.rate else 10000.0 end))) as tax
     from shared s
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -7009,7 +7013,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:be5558db5952ee35a7dae8640bd88e9f91f72c2931944af7ad72621419a57bdc
+-- @bsb-hash sha256:aecd495a29d19ab036dedd5b140dec07dc40b1abeb49d24a55ba05f9ea41b3bc
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7437,6 +7441,7 @@ declare
   v_inclusive boolean;
   v_record_bps integer;
   v_record_amount bigint;
+  v_restriction integer;
   v_list bigint;
   v_line_discount bigint;
   v_net bigint;
@@ -7447,8 +7452,8 @@ declare
   v_tax bigint;
   v_total bigint;
 begin
-  select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount"
-    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount", 0
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount, v_restriction
   from "better_supabase"."quotes" x where x."id" = set_quote_lines_recount.parent;
   select coalesce(sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount")), 0), coalesce(sum((round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))), 0)
     into v_list, v_line_discount
@@ -7460,7 +7465,7 @@ begin
   end;
   with grouped as (
     select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) as amount,
-      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * (10000 - v_restriction) * l."tax_rate_bps" / (10000.0 * (case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)))) as tax
     from "better_supabase"."quote_lines" l where l."parent_id" = set_quote_lines_recount.parent and (not l."optional" or l."selected")
     group by 1, 2
   ), shared as (
@@ -7473,7 +7478,7 @@ begin
     window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
   ), taxed as (
     select s.rate, s.code, s.share, s.amount - s.share as amount,
-      s.tax - round(s.share * s.rate / case when v_inclusive then 10000.0 + s.rate else 10000.0 end) as tax
+      s.tax - round(s.share * (10000 - v_restriction) * s.rate / (10000.0 * (case when v_inclusive then 10000.0 + s.rate else 10000.0 end))) as tax
     from shared s
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -8682,7 +8687,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:fbb96dc3b71284e04d6fa817a6a8aaa3a09303fe3f3171fc72750d141ee57f61
+-- @bsb-hash sha256:30738cff9d20d0465c055a7623e35be36666b517514017a2cd85eb6edc97ffc4
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9106,6 +9111,7 @@ declare
   v_inclusive boolean;
   v_record_bps integer;
   v_record_amount bigint;
+  v_restriction integer;
   v_list bigint;
   v_line_discount bigint;
   v_net bigint;
@@ -9116,8 +9122,8 @@ declare
   v_tax bigint;
   v_total bigint;
 begin
-  select x."org_id", x."prices_include_tax", x."discount_bps", x."discount_amount"
-    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  select x."org_id", x."prices_include_tax", x."discount_bps", x."discount_amount", 0
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount, v_restriction
   from "better_supabase"."quotes" x where x."id" = set_quote_lines_recount.parent;
   select coalesce(sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount")), 0), coalesce(sum((round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))), 0)
     into v_list, v_line_discount
@@ -9129,7 +9135,7 @@ begin
   end;
   with grouped as (
     select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) as amount,
-      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * (10000 - v_restriction) * l."tax_rate_bps" / (10000.0 * (case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)))) as tax
     from "better_supabase"."quote_lines" l where l."parent_id" = set_quote_lines_recount.parent and (not l."optional" or l."selected")
     group by 1, 2
   ), shared as (
@@ -9142,7 +9148,7 @@ begin
     window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
   ), taxed as (
     select s.rate, s.code, s.share, s.amount - s.share as amount,
-      s.tax - round(s.share * s.rate / case when v_inclusive then 10000.0 + s.rate else 10000.0 end) as tax
+      s.tax - round(s.share * (10000 - v_restriction) * s.rate / (10000.0 * (case when v_inclusive then 10000.0 + s.rate else 10000.0 end))) as tax
     from shared s
   )
   select coalesce(jsonb_agg(jsonb_build_object(

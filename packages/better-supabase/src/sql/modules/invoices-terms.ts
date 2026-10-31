@@ -172,10 +172,14 @@ export function lineMatrix(
   i: (column: string) => string,
   has: (column: string) => boolean,
 ): {
+  readonly creditRestriction: (alias: string) => string;
   readonly discountMatrix?: { readonly party: string; readonly on: string };
 } {
+  const creditRestriction = (alias: string): string =>
+    creditRestrictionSql(ctx, alias);
+
   if (!ctx.flag("discountMatrix", false)) {
-    return {};
+    return { creditRestriction };
   }
 
   const parties =
@@ -185,6 +189,7 @@ export function lineMatrix(
       .join(", ") || "null";
 
   return {
+    creditRestriction,
     discountMatrix: {
       party: `(select coalesce(${parties}) from ${t("invoices")} x where x.${i("id")} = v_parent)`,
       on: "current_date",

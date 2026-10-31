@@ -92,12 +92,25 @@ const NAMES: BlockSqlNames = {
 const ON_TABLES: Readonly<
   Record<
     string,
-    { readonly module: string; readonly tables: readonly string[] }
+    {
+      readonly module: string;
+      readonly tables: readonly string[];
+      /** Logical number columns whose unique keys gain the legal entity. */
+      readonly numbers?: readonly string[];
+    }
   >
 > = {
-  invoices: { module: "invoices", tables: ["invoices"] },
-  quotes: { module: "quotes", tables: ["quotes"] },
-  orders: { module: "orders", tables: ["orders"] },
+  invoices: {
+    module: "invoices",
+    tables: ["invoices"],
+    numbers: ["number", "identifier"],
+  },
+  quotes: { module: "quotes", tables: ["quotes"], numbers: ["number"] },
+  orders: {
+    module: "orders",
+    tables: ["orders"],
+    numbers: ["number", "invoiceNumber"],
+  },
   numbering: { module: "numbering", tables: ["sequences"] },
   accounting: { module: "accounting", tables: ["journals", "entries"] },
   inventory_locations: { module: "inventory", tables: ["locations"] },
@@ -140,6 +153,64 @@ function onKeys(ctx: BlockSqlContext): readonly string[] {
 }
 
 /**
+ * Numbers count per legal entity (`number_scope`), so two entities may both
+ * hold number 1 of their own series. A unique key over the tenant and a number
+ * column, as a constraint or a plain index, is replaced by a unique index that
+ * adds the entity (null stands for the default entity). It runs on every
+ * generate and finds nothing once replaced, so the option off keeps the
+ * per-tenant key.
+ */
+function entityNumberKeys(
+  own: BlockSqlContext,
+  table: string,
+  numbers: readonly string[],
+): string {
+  const columns = numbers.filter((logical) => own.has(table, logical));
+
+  if (columns.length === 0) {
+    return "";
+  }
+
+  const physical = (logical: string): string =>
+    sqlString(own.colName(table, logical));
+
+  const tenant = physical("tenant");
+  const target = own.table(table);
+
+  return `
+do $$
+declare
+  v_key record;
+begin
+  for v_key in
+    select i.indexrelid, c.conname, ic.relname as index_name,
+      (select string_agg(quote_ident(a.attname), ', ' order by k.ord)
+       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum) as cols
+    from pg_index i
+    join pg_class ic on ic.oid = i.indexrelid
+    left join pg_constraint c on c.conindid = i.indexrelid and c.contype = 'u'
+    where i.indrelid = '${target}'::regclass and i.indisunique and not i.indisprimary
+      and i.indpred is null and i.indexprs is null
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        @> array[${tenant}]
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        && array[${columns.map(physical).join(", ")}]
+      and not (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        @> array['${LEGAL_ENTITY_COLUMN}']
+  loop
+    if v_key.conname is not null then
+      execute format('alter table ${target} drop constraint %I', v_key.conname);
+    else
+      execute format('drop index %s', v_key.indexrelid::regclass);
+    end if;
+    execute format('create unique index %I on ${target} (%s, coalesce(${LEGAL_ENTITY_COLUMN}, ''00000000-0000-0000-0000-000000000000''::uuid))',
+      v_key.index_name, v_key.cols);
+  end loop;
+end $$;`;
+}
+
+/**
  * A nullable `legal_entity_id` on each table `options.on` names, tied to the
  * same tenant. A null column means the default entity (`legal_entity_of`).
  */
@@ -170,7 +241,7 @@ function onColumns(ctx: BlockSqlContext): string {
       lines.push(`alter table ${own.table(table)} add column if not exists ${LEGAL_ENTITY_COLUMN} uuid;
 alter table ${own.table(table)} drop constraint if exists ${constraint};
 alter table ${own.table(table)} add constraint ${constraint} foreign key (${tenant}, ${LEGAL_ENTITY_COLUMN}) references ${entities} (${e("tenant")}, ${e("id")}) on delete restrict;
-create index if not exists ${index} on ${own.table(table)} (${tenant}, ${LEGAL_ENTITY_COLUMN}) where ${LEGAL_ENTITY_COLUMN} is not null;`);
+create index if not exists ${index} on ${own.table(table)} (${tenant}, ${LEGAL_ENTITY_COLUMN}) where ${LEGAL_ENTITY_COLUMN} is not null;${entityNumberKeys(own, table, target.numbers ?? [])}`);
     }
   }
 

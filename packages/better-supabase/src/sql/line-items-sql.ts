@@ -351,6 +351,12 @@ export interface LineItems {
   /** The logical table the recount writes the record's tax per rate to. */
   readonly taxLines?: string;
   /**
+   * SQL over a record row alias: the part of each base, in basis points, the
+   * tax does not apply to (a credit restriction). The recount counts tax as
+   * `tax_compute_lines` does, so the record total matches its tax lines.
+   */
+  readonly creditRestriction?: (alias: string) => string;
+  /**
    * `false` leaves out the unique `(parent, position)` index on the app's line
    * table, so the app can renumber lines in one update; the setter then updates
    * lines by position and inserts the rest. Default `true`.
@@ -395,6 +401,11 @@ export function lineItemsSql(
      * `v_tenant`. Needs the catalog with its discount tables.
      */
     readonly discountMatrix?: { readonly party: string; readonly on: string };
+    /**
+     * The same as `LineItems.creditRestriction`, for a caller that spreads it
+     * in.
+     */
+    readonly creditRestriction?: (alias: string) => string;
   },
 ): string {
   const t = ctx.table(items.lines);
@@ -566,7 +577,16 @@ using (exists (select 1 from ${p} x where x.${pc("id")} = ${c("parent")}));
   const recounted = items.totals !== false;
 
   const recountSql = documentTotals(ctx, items)
-    ? documentRecountSql(ctx, items, { setter: options.setter, recount })
+    ? documentRecountSql(
+        ctx,
+        {
+          ...items,
+          ...(options.creditRestriction === undefined
+            ? {}
+            : { creditRestriction: options.creditRestriction }),
+        },
+        { setter: options.setter, recount },
+      )
     : `
 -- Writes a record's totals from its lines. A record without lines keeps
 -- zero totals.
@@ -879,6 +899,10 @@ function documentRecountSql(
   const denominator = (bps: string): string =>
     `case when v_inclusive then 10000.0 + ${bps} else 10000.0 end`;
 
+  // The tax on an amount at a rate, less the credit restriction's part.
+  const taxOn = (base: string, bps: string): string =>
+    `round(${base} * (10000 - v_restriction) * ${bps} / (10000.0 * (${denominator(bps)})))`;
+
   const recordValue = (column: string, otherwise: string): string =>
     parentHas(column) ? `x.${pc(column)}` : otherwise;
 
@@ -938,6 +962,7 @@ declare
   v_inclusive boolean;
   v_record_bps integer;
   v_record_amount bigint;
+  v_restriction integer;
   v_list bigint;
   v_line_discount bigint;
   v_net bigint;
@@ -948,8 +973,8 @@ declare
   v_tax bigint;
   v_total bigint;
 begin
-  select x.${pc("tenant")}, ${recordValue("pricesIncludeTax", "false")}, ${recordValue("discountBps", "0")}, ${recordValue("discountAmount", "0")}
-    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  select x.${pc("tenant")}, ${recordValue("pricesIncludeTax", "false")}, ${recordValue("discountBps", "0")}, ${recordValue("discountAmount", "0")}, ${items.creditRestriction === undefined ? "0" : items.creditRestriction("x")}
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount, v_restriction
   from ${p} x where x.${pc("id")} = ${parent};
   select coalesce(sum(${amount}), 0), coalesce(sum(${discount}), 0)
     into v_list, v_line_discount
@@ -961,7 +986,7 @@ begin
   end;
   with grouped as (
     select ${rate} as rate, ${code} as code, sum(${amount} - ${discount}) as amount,
-      sum(round((${amount} - ${discount}) * ${rate} / ${denominator(rate)})) as tax
+      sum(${taxOn(`(${amount} - ${discount})`, rate)}) as tax
     from ${t} l where l.${c("parent")} = ${parent} and ${counted}
     group by 1, 2
   ), shared as (
@@ -974,7 +999,7 @@ begin
     window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
   ), taxed as (
     select s.rate, s.code, s.share, s.amount - s.share as amount,
-      s.tax - round(s.share * s.rate / ${denominator("s.rate")}) as tax
+      s.tax - ${taxOn("s.share", "s.rate")} as tax
     from shared s
   )
   select coalesce(jsonb_agg(jsonb_build_object(

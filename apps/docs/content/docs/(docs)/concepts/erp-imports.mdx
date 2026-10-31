@@ -46,10 +46,10 @@ imports without duplicate contacts or documents
 (`erp_import_03_cloned_administrations`). See
 [Legal entities](/docs/blocks/legal-entities).
 
-Invoice numbers are unique per tenant, direction and kind, not yet per legal
-entity. Two entities that both hold `INV-0001` collide, so give each entity a
-distinct number range or prefix until the key includes the entity. The test
-file records this as a TODO.
+When `options.on` of the legal entities block lists invoices, quotes or orders,
+their numbers are unique per legal entity, so two entities can both hold
+`INV-0001`. With the option off, numbers stay unique per organization
+(`erp_import_03_cloned_administrations`).
 
 ## 4. Numbering
 
@@ -67,9 +67,9 @@ without dropping the document. Margin-scheme invoices keep their margin tax
 line, and `attrs.paymentTermsId` supplies the credit restriction
 (`erp_import_07_margin_and_credit_restriction`).
 
-The header total of an issued invoice does not yet apply the credit
-restriction that the tax lines apply. Import the source header total and
-the tax lines, and check the `IMPORT_TOTALS_MISMATCH` warnings after the run.
+The header total of an issued invoice includes the credit restriction, the
+same way its tax lines do, so margin and credit-restriction invoices match
+their source totals.
 
 ## 6. Ledger and open items
 
@@ -101,4 +101,3 @@ See [Custom fields](/docs/blocks/custom-fields).
   an API schema only when you list them in `blocks.shipments.api.functions`.
 - Order payments are `payments` rows, so import them through the payments
   entity of the source.
-- The two gaps in sections 3 and 5.

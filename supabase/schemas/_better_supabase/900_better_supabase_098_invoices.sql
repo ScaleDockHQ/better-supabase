@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:ec867daeee7e32b80252ac95082163a2618dddd39b76ae4e518906d49a953c54
+-- @bsb-hash sha256:d7d747e7d0dcd78b3a5bfc0fa33a7c534d1d4ba3ee5d19fcc51bd0b7288119e1
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -926,6 +926,7 @@ declare
   v_inclusive boolean;
   v_record_bps integer;
   v_record_amount bigint;
+  v_restriction integer;
   v_list bigint;
   v_line_discount bigint;
   v_net bigint;
@@ -936,8 +937,8 @@ declare
   v_tax bigint;
   v_total bigint;
 begin
-  select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount"
-    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount", coalesce((select z."credit_restriction_bps" from "better_supabase"."payment_terms" z where z."id" = x."payment_terms_id"), 0)
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount, v_restriction
   from "better_supabase"."invoices" x where x."id" = set_invoice_lines_recount.parent;
   select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum((round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0), 0)))), 0)
     into v_list, v_line_discount
@@ -949,7 +950,7 @@ begin
   end;
   with grouped as (
     select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * l."unit_amount") - (round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) as amount,
-      sum(round((round(l."quantity" * l."unit_amount") - (round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+      sum(round((round(l."quantity" * l."unit_amount") - (round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * (10000 - v_restriction) * l."tax_rate_bps" / (10000.0 * (case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)))) as tax
     from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true
     group by 1, 2
   ), shared as (
@@ -962,7 +963,7 @@ begin
     window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
   ), taxed as (
     select s.rate, s.code, s.share, s.amount - s.share as amount,
-      s.tax - round(s.share * s.rate / case when v_inclusive then 10000.0 + s.rate else 10000.0 end) as tax
+      s.tax - round(s.share * (10000 - v_restriction) * s.rate / (10000.0 * (case when v_inclusive then 10000.0 + s.rate else 10000.0 end))) as tax
     from shared s
   )
   select coalesce(jsonb_agg(jsonb_build_object(
