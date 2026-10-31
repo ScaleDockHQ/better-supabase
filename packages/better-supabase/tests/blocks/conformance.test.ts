@@ -72,6 +72,9 @@ const NO_FIELDS: readonly string[] = [
   "content",
   // The block is itself the app's extra fields.
   "custom-fields",
+  // Renditions and usage rights are fixed records; app data goes on the
+  // drive files.
+  "dam",
   // Export and deletion requests are the module's bookkeeping, not app records.
   "data-lifecycle",
   // A document row is the Yjs container of one subject's field; app columns belong on the subject.

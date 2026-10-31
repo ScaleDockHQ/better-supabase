@@ -1,0 +1,141 @@
+---
+title: Digital asset management
+description: Renditions of drive files made through the drive's preview renderers, and usage rights with a territory, a channel and an expiry date.
+---
+
+`dam` adds what a brand or media team needs on top of the [drive](/docs/blocks/drive):
+derived versions of a file (a thumbnail, a web size) and the rights that say
+who may use a file, where, and until when.
+
+```bash
+better-supabase add dam
+```
+
+```ts
+import { createDam } from "better-supabase/blocks/dam";
+```
+
+The module requires `memberships`, `permissions` and `subjects`. It points at
+drive files by id and works with [drive](/docs/blocks/drive); with `notifications`
+it reminds the member who granted a right before it ends, with `outbox` it
+records the events, and with `audit` every grant and revoke is audited.
+
+## Tables
+
+| Table              | Holds                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| `dam_renditions`   | One derived version per file and kind, with its status, format, size and storage path |
+| `dam_usage_rights` | A right to use a file with a licensee, territory, channel, dates and a revoke time    |
+
+| Permission  | Allows                                      | Default roles |
+| ----------- | ------------------------------------------- | ------------- |
+| `dam.read`  | reading renditions and usage rights         | owner, admin  |
+| `dam.write` | recording renditions, granting and revoking | owner, admin  |
+
+A usage right is a subject of type `dam_usage_right`.
+
+## Renditions
+
+`renderRenditions` makes the kinds you configure. Each kind names a drive
+[preview renderer](/docs/blocks/drive), the same versioned `PreviewRenderer`
+port the drive uses for its preview pages. The block keeps the page you pick
+(the first by default), stores it in the `dam` bucket and records the rendition.
+A kind whose renderer skips the file is left out. A kind whose renderer throws
+is recorded as `failed` with the message, and the other kinds go on.
+
+```ts
+const dam = createDam({
+  transport: serviceTransport,
+  tenant: organizationId,
+  storage: supabaseAdmin.storage,
+  renditions: {
+    thumbnail: { renderer: imageResizer({ width: 320 }) },
+    web: { renderer: imageResizer({ width: 1600 }) },
+  },
+});
+
+await dam
+  .renderRenditions({ nodeId, name: "launch.png", mimeType: "image/png", file })
+  .orThrow();
+```
+
+`recordRendition` records a rendition your own job made, and `listRenditions`
+returns the renditions of a file by kind. Recording a kind again replaces it.
+
+## Usage rights
+
+`grantRight` takes the file, the licensee and optionally a territory, a channel,
+a start date and an expiry date. A right without a territory or channel covers
+every territory or channel, and one without an expiry date never ends.
+`revokeRight` ends a right now and keeps it in the history.
+
+```ts
+await dam
+  .grantRight({
+    nodeId,
+    licensee: "Acme Retail",
+    territory: "NL",
+    channel: "web",
+    expiresOn: Temporal.PlainDate.from("2027-06-30"),
+  })
+  .orThrow();
+
+const check = await dam
+  .checkUsage(nodeId, { territory: "NL", channel: "web" })
+  .orThrow();
+// { allowed: true, rightId, expiresOn }
+```
+
+`checkUsage` answers whether a file may be used on a day (today by default) in a
+territory and channel. A file without any right is not allowed. `listRights`
+filters by `nodeId`, `status` (`upcoming`, `active`, `expired` or `revoked`) and
+`expiringWithinDays`.
+
+## Reminders
+
+`notifyExpiring(days)` notifies the member who granted each right that ends
+within `days` days (30 by default), once per expiry date. Call it daily with a
+service-role transport, for example from a cron route.
+
+## Brand collections
+
+A brand's approved assets are a [collection](/docs/blocks/collections) of drive
+files, and its attributes (campaign, photographer, colour profile) are
+[custom fields](/docs/blocks/custom-fields) on the same records. `dam` adds no
+tables for them, so the collection, its sharing and its fields work as they do
+for any other record.
+
+```ts
+const brand = await db.collections
+  .create({ name: "Spring campaign" })
+  .orThrow();
+await db.collections
+  .add(brand.id, { type: "drive_node", id: nodeId })
+  .orThrow();
+```
+
+## Errors
+
+| Hint code                   | Meaning                                                          |
+| --------------------------- | ---------------------------------------------------------------- |
+| `DAM_INVALID`               | A value is out of bounds, for example an expiry before the start |
+| `DAM_FORBIDDEN`             | The caller lacks `dam.read` or `dam.write`                       |
+| `DAM_USAGE_RIGHT_NOT_FOUND` | No such usage right in a tenant the caller can read              |
+| `DAM_RENDER_CONFIG`         | `renderRenditions` has no uploading storage or no kinds          |
+
+## Events
+
+| Event                                                                                   | Data                                                      |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `dam_rendition.recorded`                                                                | `organizationId`, `id`, `nodeId`, `kind`, `status`        |
+| `dam_usage_right.granted`, `dam_usage_right.revoked`, `dam_usage_right.expiry_notified` | `organizationId`, `id`, `nodeId`, `licensee`, `expiresOn` |
+
+The hooks are `before_dam_usage_right_create` and `after_dam_usage_right_create`.
+
+## Without the client
+
+`record_rendition(tenant, node_id, kind, input)`, `list_renditions(tenant, node_id)`,
+`grant_usage_right(tenant, input)`, `revoke_usage_right(right_id)`,
+`list_usage_rights(tenant, filters)`, `check_usage(tenant, node_id, filters)` and
+`notify_expiring_usage_rights(days)` (service role only) are plain SQL functions.
+In custom mode you implement them over your own tables.

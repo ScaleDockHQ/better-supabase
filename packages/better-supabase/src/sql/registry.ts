@@ -51,6 +51,7 @@ import { COURSES } from "./modules/courses.ts";
 import { ACTOR } from "./modules/created-by.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
+import { DAM } from "./modules/dam.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { DEALS } from "./modules/deals.ts";
 import { DISPATCH } from "./modules/dispatch.ts";
@@ -416,6 +417,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(FUNDING),
       built(PAYROLL_EXPORT),
       built(MAINTENANCE),
+      built(DAM),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

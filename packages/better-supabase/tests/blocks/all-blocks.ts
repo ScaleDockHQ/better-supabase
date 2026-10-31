@@ -39,6 +39,7 @@ import type { BlocksEventMap } from "../../src/blocks/create-blocks.ts";
 import type { createdByBlock } from "../../src/blocks/created-by/manifest.ts";
 import type { credentialsBlock } from "../../src/blocks/credentials/manifest.ts";
 import type { customFieldsBlock } from "../../src/blocks/custom-fields/manifest.ts";
+import type { damBlock } from "../../src/blocks/dam/manifest.ts";
 import type { dataLifecycleBlock } from "../../src/blocks/data-lifecycle/manifest.ts";
 import type { dealsBlock } from "../../src/blocks/deals/manifest.ts";
 import type { dispatchBlock } from "../../src/blocks/dispatch/manifest.ts";
@@ -239,6 +240,7 @@ export type AllBlocks = {
   readonly inspections: typeof inspectionsBlock;
   readonly meetings: typeof meetingsBlock;
   readonly maintenance: typeof maintenanceBlock;
+  readonly dam: typeof damBlock;
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
   readonly funding: typeof fundingBlock;

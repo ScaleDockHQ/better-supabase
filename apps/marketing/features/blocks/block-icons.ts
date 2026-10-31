@@ -57,6 +57,7 @@ import {
   FolderOpenIcon,
   GaugeIcon,
   GavelIcon,
+  ImagesIcon,
   WrenchIcon,
   GitCommitHorizontalIcon,
   GlobeIcon,
@@ -334,6 +335,7 @@ export const BLOCK_ICONS = {
   inspections: SearchCheckIcon,
   meetings: GavelIcon,
   maintenance: WrenchIcon,
+  dam: ImagesIcon,
   "care-plans": ClipboardPlusIcon,
   // Database primitives
   "updated-at": ClockIcon,

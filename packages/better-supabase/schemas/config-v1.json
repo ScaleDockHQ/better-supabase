@@ -1663,6 +1663,7 @@
               "created-by",
               "credentials",
               "custom-fields",
+              "dam",
               "data-lifecycle",
               "deals",
               "dispatch",
@@ -1836,6 +1837,7 @@
                   "created-by",
                   "credentials",
                   "custom-fields",
+                  "dam",
                   "data-lifecycle",
                   "deals",
                   "dispatch",
@@ -2083,6 +2085,9 @@
             },
             "custom-fields": {
               "$ref": "#/$defs/blocks/custom-fields"
+            },
+            "dam": {
+              "$ref": "#/$defs/blocks/dam"
             },
             "data-lifecycle": {
               "$ref": "#/$defs/blocks/data-lifecycle"
@@ -4915,6 +4920,17 @@
                 }
               }
             }
+          }
+        }
+      },
+      "dam": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

@@ -9354,6 +9354,88 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "dam",
+      "title": "Digital asset management",
+      "category": "content",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "drive",
+        "outbox",
+        "audit",
+        "notifications"
+      ],
+      "manifest": "dam",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "dam_usage_right": {
+            "table": "rights",
+            "singular": "dam_usage_right",
+            "primary": true,
+            "subject": {
+              "title": "licensee",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          },
+          "dam_rendition": {
+            "table": "renditions",
+            "singular": "dam_rendition"
+          }
+        },
+        "tables": {
+          "rights": {
+            "name": "dam_usage_rights",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "node": "node_id",
+              "licensee": "licensee",
+              "territory": "territory",
+              "channel": "channel",
+              "startsOn": "starts_on",
+              "expiresOn": "expires_on",
+              "note": "note",
+              "revokedAt": "revoked_at",
+              "remindedFor": "reminded_for",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          },
+          "renditions": {
+            "name": "dam_renditions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "node": "node_id",
+              "kind": "kind",
+              "status": "status",
+              "format": "format",
+              "width": "width",
+              "height": "height",
+              "sizeBytes": "size_bytes",
+              "path": "path",
+              "error": "error",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "dam.read",
+          "write": "dam.write"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -19978,6 +20060,161 @@ export const PRESET_CATALOG: PresetCatalog = {
           "maintenance_plan.completed",
           "maintenance_meter_reading.recorded",
           "maintenance_calibration.recorded"
+        ]
+      }
+    },
+    {
+      "name": "dam",
+      "sql": [
+        "dam"
+      ],
+      "category": "content",
+      "client": {
+        "export": "damBlock",
+        "subpath": "better-supabase/blocks/dam"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "DamRendition"
+        },
+        {
+          "name": "DamRenditionEventData"
+        },
+        {
+          "name": "DamRenditionInput"
+        },
+        {
+          "name": "DamRenditionKind"
+        },
+        {
+          "name": "DamRenditionStatus"
+        },
+        {
+          "name": "DamUsageRight"
+        },
+        {
+          "name": "DamUsageRightEventData"
+        },
+        {
+          "name": "DamUsageRightInput"
+        },
+        {
+          "name": "DamUsageRightListOptions"
+        },
+        {
+          "name": "DamUsageRightStatus"
+        }
+      ],
+      "entitySchemas": {
+        "dam_usage_right": {
+          "input": {
+            "title": "DamUsageRightInput",
+            "fields": {
+              "nodeId": {
+                "kind": "uuid",
+                "description": "The drive file."
+              },
+              "licensee": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "territory": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "description": "Without one the right covers every territory."
+              },
+              "channel": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "description": "Without one the right covers every channel."
+              },
+              "startsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "expiresOn": {
+                "kind": "plainDate",
+                "optional": true,
+                "nullable": true,
+                "description": "On or after startsOn. Without one the right never ends."
+              },
+              "note": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 2000
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "DamUsageRightInput",
+              "type": "object",
+              "properties": {
+                "nodeId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "The drive file."
+                },
+                "licensee": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "territory": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Without one the right covers every territory."
+                },
+                "channel": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Without one the right covers every channel."
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "expiresOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date",
+                  "description": "On or after startsOn. Without one the right never ends."
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "nodeId",
+                "licensee"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "DamEvents",
+        "types": [
+          "dam_rendition.recorded",
+          "dam_usage_right.granted",
+          "dam_usage_right.revoked",
+          "dam_usage_right.expiry_notified"
         ]
       }
     },

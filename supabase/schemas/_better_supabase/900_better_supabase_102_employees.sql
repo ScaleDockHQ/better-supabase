@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:aea79e8505185f63fb9f57ddf6f3b3236315d888f24de54c7ba90ad0ee3638c3
+-- @bsb-hash sha256:0369221c130f113c2d60422db037ad74be0719aed03cd3b5a9740fedc29da798
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -721,6 +721,7 @@ begin
       when 'meeting' then (select s."title"::text from "better_supabase"."meetings" s where s."id" = (v_application."candidate_id")::uuid)
       when 'meeting_decision' then (select s."title"::text from "better_supabase"."meeting_decisions" s where s."id" = (v_application."candidate_id")::uuid)
       when 'maintenance_plan' then (select s."title"::text from "better_supabase"."maintenance_plans" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'dam_usage_right' then (select s."licensee"::text from "better_supabase"."dam_usage_rights" s where s."id" = (v_application."candidate_id")::uuid)
       when 'production_order' then (select s."number"::text from "better_supabase"."production_orders" s where s."id" = (v_application."candidate_id")::uuid)
       when 'work_center' then (select s."name"::text from "better_supabase"."work_centers" s where s."id" = (v_application."candidate_id")::uuid)
       when 'bank_account' then (select s."name"::text from "better_supabase"."bank_accounts" s where s."id" = (v_application."candidate_id")::uuid)

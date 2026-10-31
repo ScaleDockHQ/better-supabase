@@ -232,6 +232,7 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_inspection_finding_create",
     "after_inspection_finding_create",
   ],
+  dam: ["before_dam_usage_right_create", "after_dam_usage_right_create"],
   maintenance: [
     "before_maintenance_plan_create",
     "after_maintenance_plan_create",

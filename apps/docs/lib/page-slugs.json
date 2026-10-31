@@ -80,6 +80,7 @@
   "blocks/created-by",
   "blocks/credentials",
   "blocks/custom-fields",
+  "blocks/dam",
   "blocks/data-lifecycle",
   "blocks/deals",
   "blocks/dispatch",
