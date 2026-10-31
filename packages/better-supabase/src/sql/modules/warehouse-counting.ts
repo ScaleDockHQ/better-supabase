@@ -7,7 +7,7 @@ import { warehouseSql } from "./warehouse-sql.ts";
  * Without a plan, a count with more variance than this percent waits for a
  * review.
  */
-export const DEFAULT_VARIANCE_LIMIT = 5;
+const DEFAULT_VARIANCE_LIMIT = 5;
 
 export function warehouseCounting(ctx: BlockSqlContext): string {
   const q = warehouseSql(ctx);
