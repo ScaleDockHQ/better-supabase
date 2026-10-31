@@ -8758,6 +8758,154 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "meetings",
+      "title": "Meetings",
+      "category": "collaboration",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "tasks"
+      ],
+      "integrates": [
+        "reactions",
+        "documents",
+        "calendar",
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "meetings",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "meeting": {
+            "table": "meetings",
+            "singular": "meeting",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "location",
+                  "summary"
+                ]
+              }
+            }
+          },
+          "meeting_attendee": {
+            "table": "attendees",
+            "singular": "meeting_attendee"
+          },
+          "meeting_agenda_item": {
+            "table": "agenda",
+            "singular": "meeting_agenda_item"
+          },
+          "meeting_decision": {
+            "table": "decisions",
+            "singular": "meeting_decision",
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          },
+          "meeting_action_item": {
+            "table": "actions",
+            "singular": "meeting_action_item"
+          }
+        },
+        "tables": {
+          "meetings": {
+            "name": "meetings",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "title": "title",
+              "location": "location",
+              "startsAt": "starts_at",
+              "endsAt": "ends_at",
+              "status": "status",
+              "startedAt": "started_at",
+              "heldAt": "held_at",
+              "summary": "summary",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "attendees": {
+            "name": "meeting_attendees",
+            "columns": {
+              "meeting": "meeting_id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "role": "role",
+              "attendance": "attendance",
+              "createdAt": "created_at"
+            }
+          },
+          "agenda": {
+            "name": "meeting_agenda_items",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "meeting": "meeting_id",
+              "ordinal": "ordinal",
+              "title": "title",
+              "notes": "notes",
+              "presenter": "presenter_id",
+              "minutes": "minutes",
+              "status": "status",
+              "outcome": "outcome",
+              "createdAt": "created_at"
+            }
+          },
+          "decisions": {
+            "name": "meeting_decisions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "meeting": "meeting_id",
+              "agendaItem": "agenda_item_id",
+              "title": "title",
+              "body": "body",
+              "status": "status",
+              "decidedBy": "decided_by",
+              "decidedAt": "decided_at",
+              "createdAt": "created_at"
+            }
+          },
+          "actions": {
+            "name": "meeting_action_items",
+            "columns": {
+              "task": "task_id",
+              "tenant": "tenant_id",
+              "meeting": "meeting_id",
+              "agendaItem": "agenda_item_id",
+              "decision": "decision_id",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "meetings.read",
+          "write": "meetings.write",
+          "manage": "meetings.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -18666,6 +18814,396 @@ export const PRESET_CATALOG: PresetCatalog = {
           "description": "Tells the lead of each inspection past its planned end, once per planned end."
         }
       ]
+    },
+    {
+      "name": "meetings",
+      "sql": [
+        "meetings"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "meetingsBlock",
+        "subpath": "better-supabase/blocks/meetings"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Meeting"
+        },
+        {
+          "name": "MeetingActionItem"
+        },
+        {
+          "name": "MeetingActionItemEventData"
+        },
+        {
+          "name": "MeetingActionItemInput"
+        },
+        {
+          "name": "MeetingAgendaItem"
+        },
+        {
+          "name": "MeetingAgendaItemInput"
+        },
+        {
+          "name": "MeetingAgendaStatus"
+        },
+        {
+          "name": "MeetingAttendance"
+        },
+        {
+          "name": "MeetingAttendee"
+        },
+        {
+          "name": "MeetingAttendeeRole"
+        },
+        {
+          "name": "MeetingCanceledEventData"
+        },
+        {
+          "name": "MeetingChange"
+        },
+        {
+          "name": "MeetingDecision"
+        },
+        {
+          "name": "MeetingDecisionEventData"
+        },
+        {
+          "name": "MeetingDecisionInput"
+        },
+        {
+          "name": "MeetingDecisionStatus"
+        },
+        {
+          "name": "MeetingDecisionVotes"
+        },
+        {
+          "name": "MeetingDetail"
+        },
+        {
+          "name": "MeetingEventData"
+        },
+        {
+          "name": "MeetingInput"
+        },
+        {
+          "name": "MeetingListOptions"
+        },
+        {
+          "name": "Meetings"
+        },
+        {
+          "name": "MeetingsEvents"
+        },
+        {
+          "name": "MeetingsOptions"
+        },
+        {
+          "name": "MeetingsSqlOptions"
+        },
+        {
+          "name": "MeetingStatus"
+        }
+      ],
+      "entitySchemas": {
+        "meeting": {
+          "input": {
+            "title": "MeetingInput",
+            "fields": {
+              "kind": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 63,
+                "description": "One of `options.kinds`. Default: the first one."
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "location": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 500
+              },
+              "startsAt": {
+                "kind": "instant"
+              },
+              "endsAt": {
+                "kind": "instant",
+                "optional": true,
+                "nullable": true,
+                "description": "On or after startsAt."
+              },
+              "attendees": {
+                "kind": "json",
+                "array": true,
+                "optional": true,
+                "description": "The invited users: `{ userId, role, attendance }`."
+              },
+              "agenda": {
+                "kind": "json",
+                "array": true,
+                "optional": true,
+                "description": "The agenda, in order: `{ title, notes, presenterId }`."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MeetingInput",
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "description": "One of `options.kinds`. Default: the first one."
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "location": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 500
+                },
+                "startsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "endsAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time",
+                  "description": "On or after startsAt."
+                },
+                "attendees": {
+                  "type": "array",
+                  "items": {},
+                  "description": "The invited users: `{ userId, role, attendance }`."
+                },
+                "agenda": {
+                  "type": "array",
+                  "items": {},
+                  "description": "The agenda, in order: `{ title, notes, presenterId }`."
+                }
+              },
+              "required": [
+                "title",
+                "startsAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "meeting_agenda_item": {
+          "input": {
+            "title": "MeetingAgendaItemInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "notes": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 10000
+              },
+              "presenterId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "minutes": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 50000
+              },
+              "status": {
+                "kind": "enum",
+                "optional": true,
+                "values": [
+                  "open",
+                  "covered",
+                  "skipped"
+                ]
+              },
+              "outcome": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 2000
+              },
+              "ordinal": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MeetingAgendaItemInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 10000
+                },
+                "presenterId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "minutes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 50000
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "covered",
+                    "skipped"
+                  ]
+                },
+                "outcome": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 2000
+                },
+                "ordinal": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "meeting_decision": {
+          "input": {
+            "title": "MeetingDecisionInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "body": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 10000
+              },
+              "agendaItemId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "status": {
+                "kind": "enum",
+                "optional": true,
+                "values": [
+                  "proposed",
+                  "passed",
+                  "rejected",
+                  "deferred"
+                ]
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MeetingDecisionInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "body": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 10000
+                },
+                "agendaItemId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "proposed",
+                    "passed",
+                    "rejected",
+                    "deferred"
+                  ]
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "MeetingsEvents",
+        "types": [
+          "meeting.created",
+          "meeting.updated",
+          "meeting.started",
+          "meeting.concluded",
+          "meeting.cancelled",
+          "meeting.deleted",
+          "meeting_decision.recorded",
+          "meeting_decision.decided",
+          "meeting_action_item.created"
+        ]
+      }
     },
     {
       "name": "manufacturing",

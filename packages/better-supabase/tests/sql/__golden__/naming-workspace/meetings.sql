@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_155_meetings.sql
+-- ==== schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
 -- @bsb-hash sha256:656cca6b037256634daf83caaf2d0eb8c4620736400b214a1a7475f43345d377
@@ -1222,7 +1222,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_155_meetings.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block-data meetings
 -- @bsb-hash sha256:d31cbf2e018d65bfd29e91b50d5c2732ada972c444c0320c57445f6ebe6a41f6

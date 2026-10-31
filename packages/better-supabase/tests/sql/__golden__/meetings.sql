@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_155_meetings.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
 -- @bsb-hash sha256:3e930329f5de05c0ccf0c66f7f6cef44789b7f820c17c0703e3b290b4c717039
@@ -1222,7 +1222,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_155_meetings.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block-data meetings
 -- @bsb-hash sha256:d31cbf2e018d65bfd29e91b50d5c2732ada972c444c0320c57445f6ebe6a41f6
@@ -1236,7 +1236,7 @@ values ('meetings', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_155_meetings.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
 -- @bsb-hash sha256:38c9a546f3ea58a31ac0b49c5be55d7e186f508dc8d588c87f1baf49befd8edc
@@ -2599,7 +2599,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_155_meetings.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block-data meetings
 -- @bsb-hash sha256:d31cbf2e018d65bfd29e91b50d5c2732ada972c444c0320c57445f6ebe6a41f6
@@ -2613,7 +2613,7 @@ values ('meetings', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_155_meetings.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
 -- @bsb-hash sha256:5cd52e146561c2ab5ceaebd3b85c3fedc9796565c7a2366a3cbbdfb5884c60e4
@@ -3842,7 +3842,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_155_meetings.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block-data meetings
 -- @bsb-hash sha256:d31cbf2e018d65bfd29e91b50d5c2732ada972c444c0320c57445f6ebe6a41f6
@@ -3856,7 +3856,7 @@ values ('meetings', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_155_meetings.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
 -- @bsb-hash sha256:a0e5892f1c6b36268b1742d487ba833fbe35b60f25c2c0c6457d262a7c41ad4a
@@ -5255,7 +5255,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_155_meetings.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block-data meetings
 -- @bsb-hash sha256:d31cbf2e018d65bfd29e91b50d5c2732ada972c444c0320c57445f6ebe6a41f6
@@ -5269,7 +5269,7 @@ values ('meetings', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_155_meetings.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
 -- @bsb-hash sha256:993b7753d47c2ddddf1d90cdd79f57ef3968025df7430438bdc503780bde25a4
@@ -6473,7 +6473,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_155_meetings.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block-data meetings
 -- @bsb-hash sha256:d31cbf2e018d65bfd29e91b50d5c2732ada972c444c0320c57445f6ebe6a41f6
@@ -6487,7 +6487,7 @@ values ('meetings', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_155_meetings.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
 -- @bsb-hash sha256:226d6cdafcd1249c00fa6864a2382867a455cfab527d2dd12d2f2da2131668e3
@@ -7711,7 +7711,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_155_meetings.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block-data meetings
 -- @bsb-hash sha256:d31cbf2e018d65bfd29e91b50d5c2732ada972c444c0320c57445f6ebe6a41f6
