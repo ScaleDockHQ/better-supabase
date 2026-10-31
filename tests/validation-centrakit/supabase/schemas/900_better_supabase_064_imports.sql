@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:73a13fbee359dd6759186ff88ea8f81422819bf5381ffbf4e5f5d98c45292a39
+-- @bsb-hash sha256:394e4594e2892ed2f3760a27da4d66d9c5bb92908a01d926dd7aae608f95b61d
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -361,6 +361,7 @@ declare
   v_unchanged integer := 0;
   v_conflicted integer := 0;
   v_errors jsonb := '[]'::jsonb;
+  v_warnings jsonb := '[]'::jsonb;
   v_message text;
   v_hint text;
 begin
@@ -461,6 +462,9 @@ begin
         end if;
 
         for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+          end if;
           insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_updated_at_at_import", "missing_since")
           values (
             v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
@@ -492,7 +496,7 @@ begin
     end;
   end loop;
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors);
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;

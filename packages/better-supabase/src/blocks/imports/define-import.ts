@@ -156,6 +156,15 @@ export interface ImportBatchReply extends ImportBatchCounts {
     readonly code: string;
     readonly message: string;
   }[];
+  /**
+   * What a target noticed and kept going (ADR 0141), such as stored totals that
+   * differ from the computed ones. A warning never rejects an item.
+   */
+  readonly warnings?: readonly {
+    readonly key: string | null;
+    readonly code: string;
+    readonly message: string;
+  }[];
 }
 
 export interface RunImportResult<T> {

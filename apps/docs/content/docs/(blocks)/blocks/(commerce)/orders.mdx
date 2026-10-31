@@ -464,3 +464,9 @@ export const orders = createOrders({
   tax: fixedRates({ rates: { NL: { standard: "0.21" } } }),
 });
 ```
+
+## Historical orders
+
+`import_order` writes an order with its number, dates, final status, buyer
+and totals as given, with free-text and variant lines, and no stock
+movement. See [importing historical documents](/docs/blocks/imports#importing-historical-documents).

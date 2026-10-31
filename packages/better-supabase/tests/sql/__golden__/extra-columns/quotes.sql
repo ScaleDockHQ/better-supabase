@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:5d292aa83ebb582de84f296851769ab8500ab9f874ac3da21431cc2981b9d0c3
+-- @bsb-hash sha256:4b4223bde48d399b0d877389c4c53724728c5624319c9406259cc9d1f02249d8
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -161,6 +161,7 @@ create table if not exists "better_supabase"."quotes" (
   "deposit_required" boolean not null default false,
   "deposit_due" bigint not null default 0,
   "unpublished_changes" boolean not null default false,
+  "buyer" jsonb,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -176,6 +177,7 @@ create table if not exists "better_supabase"."quotes" (
 alter table "better_supabase"."quotes" add column if not exists "deposit_amount" bigint check ("deposit_amount" > 0);
 alter table "better_supabase"."quotes" add column if not exists "deposit_required" boolean not null default false;
 alter table "better_supabase"."quotes" add column if not exists "unpublished_changes" boolean not null default false;
+alter table "better_supabase"."quotes" add column if not exists "buyer" jsonb;
 create index if not exists quotes_tenant_status_idx on "better_supabase"."quotes" ("tenant_id", "status", "created_at" desc);
 create index if not exists quotes_origin_idx on "better_supabase"."quotes" ("origin_type", "origin_id");
 
@@ -403,6 +405,15 @@ create table if not exists "better_supabase"."quote_lines" (
   "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
   "tax_rate_bps" integer not null default 0 check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
   "tax_code" text,
+  "tax_code_id" uuid,
+  "unit_cost" bigint,
+  "discount_amount" bigint not null default 0 check ("discount_amount" >= 0),
+  "cost_source" text check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
+  "location_id" uuid,
+  "bin_id" uuid,
+  "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
+  "billing_party_id" text,
+  "billing_account_id" uuid,
   "section" text check (length("section") between 1 and 300),
   "optional" boolean not null default false,
   "selected" boolean not null default true,
@@ -449,7 +460,7 @@ begin
   select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount"
     into v_tenant, v_inclusive, v_record_bps, v_record_amount
   from "better_supabase"."quotes" x where x."id" = set_quote_lines_recount.parent;
-  select coalesce(sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0)), 0)
+  select coalesce(sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount")), 0), coalesce(sum((round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))), 0)
     into v_list, v_line_discount
   from "better_supabase"."quote_lines" l where l."parent_id" = set_quote_lines_recount.parent and (not l."optional" or l."selected");
   v_net := v_list - v_line_discount;
@@ -458,8 +469,8 @@ begin
     else 0
   end;
   with grouped as (
-    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0)) as amount,
-      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) as amount,
+      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
     from "better_supabase"."quote_lines" l where l."parent_id" = set_quote_lines_recount.parent and (not l."optional" or l."selected")
     group by 1, 2
   ), shared as (
@@ -577,7 +588,7 @@ begin
   end if;
   delete from "better_supabase"."quote_lines" l where l."parent_id" = v_parent;
   begin
-    insert into "better_supabase"."quote_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "section", "optional", "selected", "periods", "position")
+    insert into "better_supabase"."quote_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "tax_code_id", "unit_cost", "discount_amount", "cost_source", "location_id", "bin_id", "billing_party", "billing_party_id", "billing_account_id", "section", "optional", "selected", "periods", "position")
     select v_tenant,
       v_parent,
       x.value -> 'product' ->> 'type',
@@ -588,6 +599,15 @@ begin
       coalesce((x.value ->> 'discountBps')::integer, 0),
       coalesce((x.value ->> 'taxRateBps')::integer, 0),
       x.value ->> 'taxCode',
+      nullif(x.value ->> 'taxCodeId', '')::uuid,
+      (x.value ->> 'unitCost')::bigint,
+      coalesce((x.value ->> 'discountAmount')::bigint, 0),
+      nullif(x.value ->> 'costSource', ''),
+      nullif(x.value ->> 'locationId', '')::uuid,
+      nullif(x.value ->> 'binId', '')::uuid,
+      coalesce(nullif(x.value ->> 'billingParty', ''), 'customer'),
+      nullif(x.value ->> 'billingPartyId', ''),
+      nullif(x.value ->> 'billingAccountId', '')::uuid,
       nullif(trim(x.value ->> 'section'), ''),
       coalesce((x.value ->> 'optional')::boolean, false),
       coalesce((x.value ->> 'selected')::boolean, not coalesce((x.value ->> 'optional')::boolean, false)),
@@ -1264,6 +1284,152 @@ end;
 $$;
 revoke execute on function "better_supabase"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_quotes"() to service_role;
+
+-- The import target of the quote entity (ADR 0141): item.data is { number,
+-- status?, title?, currency, validUntil?, createdAt?, sentAt?, viewedAt?,
+-- decidedAt?, decidedBy?, decisionNote?, company?, contact?, origin?,
+-- pricesIncludeTax?, attrs?, legalEntityId?, buyer?, lines, taxLines?,
+-- totals? }. A quote that is already imported is kept as it is.
+create or replace function "better_supabase"."import_quote"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_quote.item ->> 'tenant')::uuid;
+  v_data jsonb := import_quote.item -> 'data';
+  v_number text := nullif(btrim(v_data ->> 'number'), '');
+  v_made jsonb;
+  v_id uuid;
+  v_row "better_supabase"."quotes";
+  v_warnings jsonb := '[]'::jsonb;
+  v_computed jsonb;
+  v_given jsonb;
+begin
+  if import_quote.subject_id is not null then
+    select * into v_row from "better_supabase"."quotes" y where y."id" = import_quote.subject_id::uuid and y."tenant_id" = v_tenant;
+    if not found then
+      raise exception 'the quote no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    return jsonb_build_object('subjectId', v_row."id"::text, 'updatedAt', v_row."updated_at", 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source quote changed after it was imported; an imported quote is kept as imported, so import the correction as a new quote')));
+  end if;
+  if v_number is null then
+    raise exception 'a quote needs its number' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if coalesce(v_data ->> 'status', 'draft') not in ('draft', 'sent', 'viewed', 'accepted', 'rejected', 'changes_requested', 'expired', 'withdrawn') then
+    raise exception 'status is draft, sent, viewed, accepted, rejected, changes_requested, expired or withdrawn' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if jsonb_typeof(v_data -> 'lines') is distinct from 'array' or jsonb_array_length(v_data -> 'lines') = 0 then
+    raise exception 'a quote needs at least one line' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  v_made := "better_supabase"."create_quote"(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
+    'title', coalesce(nullif(v_data ->> 'title', ''), 'Quote ' || v_number),
+    'currency', v_data -> 'currency',
+    'validUntil', v_data -> 'validUntil',
+    'terms', v_data -> 'terms',
+    'note', v_data -> 'note',
+    'company', v_data -> 'company',
+    'contact', v_data -> 'contact',
+    'origin', v_data -> 'origin',
+    'pricesIncludeTax', v_data -> 'pricesIncludeTax',
+    'discountBps', v_data -> 'discountBps',
+    'discountAmount', v_data -> 'discountAmount',
+    'depositBps', v_data -> 'depositBps',
+    'depositAmount', v_data -> 'depositAmount')), v_data -> 'lines');
+  perform set_config('better_supabase.fixed_number', '', true);
+  v_id := (v_made ->> 'id')::uuid;
+  update "better_supabase"."quotes" y set
+    "status" = coalesce(v_data ->> 'status', 'draft'),
+    "created_at" = coalesce(nullif(v_data ->> 'createdAt', '')::timestamptz, y."created_at"),
+    "sent_at" = nullif(v_data ->> 'sentAt', '')::timestamptz,
+    "viewed_at" = nullif(v_data ->> 'viewedAt', '')::timestamptz,
+    "decided_at" = nullif(v_data ->> 'decidedAt', '')::timestamptz,
+    "decided_by" = nullif(v_data ->> 'decidedBy', ''),
+    "decision_note" = nullif(v_data ->> 'decisionNote', ''),
+    "buyer" = case when jsonb_typeof(v_data -> 'buyer') = 'object' then v_data -> 'buyer' end,
+    "updated_at" = now()
+  where y."id" = v_id;
+  if jsonb_typeof(v_data -> 'taxLines') = 'array' then
+    v_computed := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(z."tax_code", '') || ':' || z."tax_rate_bps"::text as key, sum(z."net") as net, sum(z."tax") as tax
+        from "better_supabase"."quote_tax_lines" z where z."parent_id" = v_id group by 1) k
+    ), '{}'::jsonb);
+    v_given := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(g.value ->> 'taxCode', '') || ':' || coalesce((g.value ->> 'taxRateBps')::integer, 0)::text as key,
+          sum((g.value ->> 'net')::bigint) as net, sum((g.value ->> 'tax')::bigint) as tax
+        from jsonb_array_elements(v_data -> 'taxLines') g group by 1) k
+    ), '{}'::jsonb);
+    if v_computed <> v_given then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TAX_MISMATCH', 'message', 'the stored tax per code differs from the tax computed from the lines; the stored amounts were kept', 'computed', v_computed, 'given', v_given));
+    end if;
+    delete from "better_supabase"."quote_tax_lines" z where z."parent_id" = v_id;
+    insert into "better_supabase"."quote_tax_lines" ("tenant_id", "parent_id", "tax_rate_bps", "tax_code", "net", "tax", "gross", "discount")
+    select v_tenant, v_id, coalesce((g.value ->> 'taxRateBps')::integer, 0), nullif(g.value ->> 'taxCode', ''), (g.value ->> 'net')::bigint, (g.value ->> 'tax')::bigint,
+      coalesce((g.value ->> 'gross')::bigint, (g.value ->> 'net')::bigint + (g.value ->> 'tax')::bigint), coalesce((g.value ->> 'discount')::bigint, 0)
+    from jsonb_array_elements(v_data -> 'taxLines') g;
+  end if;
+  if jsonb_typeof(v_data -> 'totals') = 'object' then
+    select * into v_row from "better_supabase"."quotes" y where y."id" = v_id;
+    if (v_data -> 'totals' ->> 'subtotal' is not null and (v_data -> 'totals' ->> 'subtotal')::bigint <> v_row."subtotal")
+      or (v_data -> 'totals' ->> 'tax' is not null and (v_data -> 'totals' ->> 'tax')::bigint <> v_row."tax_total")
+      or (v_data -> 'totals' ->> 'total' is not null and (v_data -> 'totals' ->> 'total')::bigint <> v_row."total") then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TOTALS_MISMATCH', 'message', 'the stored totals differ from the totals computed from the lines; the stored totals were kept',
+        'computed', jsonb_build_object('subtotal', v_row."subtotal"::text, 'tax', v_row."tax_total"::text, 'total', v_row."total"::text),
+        'given', v_data -> 'totals'));
+    end if;
+    update "better_supabase"."quotes" y set
+      "subtotal" = coalesce((v_data -> 'totals' ->> 'subtotal')::bigint, y."subtotal"),
+      "tax_total" = coalesce((v_data -> 'totals' ->> 'tax')::bigint, y."tax_total"),
+      "total" = coalesce((v_data -> 'totals' ->> 'total')::bigint, y."total")
+    where y."id" = v_id;
+  end if;
+  select * into v_row from "better_supabase"."quotes" y where y."id" = v_id;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_row."updated_at", 'warnings', v_warnings);
+end;
+$$;
+revoke execute on function "better_supabase"."import_quote"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_quote"(uuid, jsonb, text) to service_role;
+
+-- When a quote last changed, for the conflict check of imports.
+create or replace function "better_supabase"."quote_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select y."updated_at" from "better_supabase"."quotes" y where y."id" = $1::uuid
+$$;
+revoke execute on function "better_supabase"."quote_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."quote_updated_at"(text) to service_role;
+
+-- Totals and cost of one record's lines per billing party (ADR 0141). It runs
+-- as the caller, so only lines the caller can read count.
+create or replace function "better_supabase"."quote_totals_by_billing_party"(quote uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(g.row order by g.party, g.party_id, g.account_id), '[]'::jsonb)
+  from (
+    select l."billing_party" as party, l."billing_party_id" as party_id, l."billing_account_id"::text as account_id,
+      jsonb_build_object(
+        'billingParty', l."billing_party", 'billingPartyId', l."billing_party_id", 'billingAccountId', l."billing_account_id"::text,
+        'lines', count(*), 'net', sum((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - (round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0) + least(coalesce(l."discount_amount", 0), greatest(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0), 0)))))::text, 'cost', sum(round(l."quantity" * l."unit_cost"))::text
+      ) as row
+    from "better_supabase"."quote_lines" l
+    where l."parent_id" = quote and (not l."optional" or l."selected")
+    group by 1, 2, 3
+  ) g
+$$;
+revoke execute on function "better_supabase"."quote_totals_by_billing_party"(uuid) from public, anon;
+grant execute on function "better_supabase"."quote_totals_by_billing_party"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

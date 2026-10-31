@@ -201,6 +201,27 @@ Explicit calls stay as they are: `adjust_stock`, `count_stock`,
 payment or credit call. Import those through their own targets with the
 quantities and balances of the source system.
 
+## Importing historical documents
+
+The invoices, quotes and orders blocks contribute import targets, so a
+migration keeps each document as it was issued. The entities are `invoice`,
+`credit_note`, `quote` and `order`; the database functions behind them are
+`import_invoice`, `import_credit_note`, `import_quote` and `import_order`.
+
+Each document keeps its number, its original dates and its final status. The
+document is written in import mode: no events, no stock movement and no
+accounting auto-post. An invoice payment keeps its real date through
+`payments`. A stored tax total per code and the stored document totals are
+taken as given and compared with the tax block's computation. A difference
+becomes an item warning (`IMPORT_TAX_MISMATCH`, `IMPORT_TOTALS_MISMATCH`) in
+the `warnings` of the batch outcome, and the item is still written.
+
+The buyer is stored as given in the `buyer` column. With the
+[legal entities](/docs/blocks/legal-entities) block on, the item's
+`legalEntity` sets `legal_entity_id`. Importing the same document again
+writes nothing. A document edited after the import is reported as a conflict,
+and a document whose source changed yields `IMPORT_DOCUMENT_CHANGED`.
+
 ## Over your own tables
 
 Map `tables.runs` onto the app's import table. Optional columns can be `null`.

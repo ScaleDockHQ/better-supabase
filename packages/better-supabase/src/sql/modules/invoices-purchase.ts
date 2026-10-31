@@ -3,7 +3,7 @@ import type { InvoiceNames } from "./invoices-names.ts";
 import type { BlockSqlOperations } from "./permissions-model.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { lineAmount, lineColumn } from "../line-items-sql.ts";
+import { lineAmount, lineColumn, lineDiscount } from "../line-items-sql.ts";
 import { fail, userGrant } from "../shared.ts";
 import { linked } from "./manufacturing-sql.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -306,7 +306,14 @@ function matchFunctions(
     ? `v_row.${i("purchaseOrder")}`
     : "null::uuid";
 
-  const discount = `round(${amount} * ${lineColumn(ctx, "lines", "il", "discountBps")} / 10000.0)`;
+  const discount = lineDiscount(
+    ctx,
+    "lines",
+    "il",
+    amount,
+    lineColumn(ctx, "lines", "il", "discountBps"),
+  );
+
   const rate = lineColumn(ctx, "lines", "il", "taxRateBps");
 
   const inclusive = ctx.has("invoices", "pricesIncludeTax")

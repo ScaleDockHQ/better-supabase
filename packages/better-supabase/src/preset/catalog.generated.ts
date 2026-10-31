@@ -2760,10 +2760,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         "inventory",
         "promotions",
         "numbering",
+        "legal-entities",
         "state-machine",
         "invoices",
         "quotes",
-        "contacts"
+        "contacts",
+        "imports"
       ],
       "manifest": "orders",
       "scopes": [
@@ -2827,6 +2829,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "cancelReason": "cancel_reason",
               "originType": "origin_type",
               "originId": "origin_id",
+              "buyer": "buyer",
               "updatedAt": "updated_at"
             }
           },
@@ -3739,12 +3742,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "notifications",
         "numbering",
+        "legal-entities",
         "deals",
         "relations",
         "catalog",
         "automations",
         "orders",
-        "inventory"
+        "inventory",
+        "imports"
       ],
       "manifest": "quotes",
       "scopes": [
@@ -3805,6 +3810,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "depositRequired": "deposit_required",
               "depositDue": "deposit_due",
               "unpublishedChanges": "unpublished_changes",
+              "buyer": "buyer",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
@@ -3845,7 +3851,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tax",
         "inventory",
         "contacts",
-        "orders"
+        "orders",
+        "imports"
       ],
       "manifest": "invoices",
       "scopes": [
@@ -3909,6 +3916,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "dunningLevel": "dunning_level",
               "dunningAt": "dunning_at",
               "dunningPausedUntil": "dunning_paused_until",
+              "buyer": "buyer",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
