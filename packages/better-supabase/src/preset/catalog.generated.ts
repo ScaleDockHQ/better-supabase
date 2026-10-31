@@ -9132,6 +9132,82 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "payroll-export",
+      "title": "Payroll export",
+      "category": "people",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "time-tracking",
+        "leave",
+        "shifts",
+        "employees",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "payroll-export",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "payroll_run": {
+            "table": "runs",
+            "singular": "payroll_run",
+            "primary": true
+          },
+          "payroll_line": {
+            "table": "lines",
+            "singular": "payroll_line"
+          }
+        },
+        "tables": {
+          "runs": {
+            "name": "payroll_runs",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "periodFrom": "period_from",
+              "periodTo": "period_to",
+              "label": "label",
+              "status": "status",
+              "format": "format",
+              "checksum": "checksum",
+              "exportedAt": "exported_at",
+              "exportedBy": "exported_by",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "lines": {
+            "name": "payroll_lines",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "run": "run_id",
+              "user": "user_id",
+              "employee": "employee_id",
+              "employeeName": "employee_name",
+              "kind": "kind",
+              "code": "code",
+              "paid": "paid",
+              "unit": "unit",
+              "quantity": "quantity",
+              "sourceCount": "source_count",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "payroll_export.read",
+          "export": "payroll_export.export"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -20469,6 +20545,105 @@ export const PRESET_CATALOG: PresetCatalog = {
           "funding_claim.sent",
           "funding_claim.responded",
           "funding_claim.deleted"
+        ]
+      }
+    },
+    {
+      "name": "payroll-export",
+      "sql": [
+        "payroll-export"
+      ],
+      "category": "people",
+      "client": {
+        "export": "payrollExportBlock",
+        "subpath": "better-supabase/blocks/payroll-export"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "PayrollLine"
+        },
+        {
+          "name": "PayrollLineKind"
+        },
+        {
+          "name": "PayrollLineUnit"
+        },
+        {
+          "name": "PayrollRun"
+        },
+        {
+          "name": "PayrollRunEventData"
+        },
+        {
+          "name": "PayrollRunExportedEventData"
+        },
+        {
+          "name": "PayrollRunInput"
+        },
+        {
+          "name": "PayrollRunStatus"
+        },
+        {
+          "name": "PayrollRunSummary"
+        }
+      ],
+      "entitySchemas": {
+        "payroll_run": {
+          "input": {
+            "title": "PayrollRunInput",
+            "fields": {
+              "from": {
+                "kind": "plainDate",
+                "description": "The first day."
+              },
+              "to": {
+                "kind": "plainDate",
+                "description": "The last day; at most 400 days after from."
+              },
+              "label": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PayrollRunInput",
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "The first day."
+                },
+                "to": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "The last day; at most 400 days after from."
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "PayrollExportEvents",
+        "types": [
+          "payroll_run.created",
+          "payroll_run.exported"
         ]
       }
     },

@@ -130,6 +130,8 @@ const NO_FIELDS: readonly string[] = [
   "outbox",
   // A pass is an admission credential; what it admits to lives on its booking or record.
   "passes",
+  // Payroll runs and lines are fixed records that come from other blocks.
+  "payroll-export",
   // Role and catalog rows are the access model; the client reads permission keys.
   "permissions",
   // One user's emoji on a subject, and a custom emoji's image and shortcode.

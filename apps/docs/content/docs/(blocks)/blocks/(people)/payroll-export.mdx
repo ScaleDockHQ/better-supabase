@@ -1,0 +1,111 @@
+---
+title: Payroll export
+description: Payroll runs that add up the approved time, leave and scheduled shifts of a period per person, and hand them to the payroll provider through a versioned export format.
+---
+
+`payroll-export` adds up a period for payroll. A run collects, per person, the hours worked from [time tracking](/docs/blocks/time-tracking), the approved leave from [leave](/docs/blocks/leave) and, when you ask for it, the assigned hours from [shifts](/docs/blocks/shifts). Exporting a run renders the lines through a `PayrollExportFormat`, keeps the SHA-256 of the file on the run and locks it, so the same days are never paid twice.
+
+Reading runs needs `payroll_export.read`, and creating, refreshing, exporting and deleting runs needs `payroll_export.export`. Admins get both; members get neither, because a run holds everyone's hours.
+
+```bash
+better-supabase add payroll-export
+```
+
+The module needs `memberships` and `permissions`. It collects from the sources that are installed: `time-tracking` and `leave` by default. Install the block next to them, or name the sources yourself.
+
+```ts
+import {
+  csvPayrollFormat,
+  type PayrollExportFormat,
+} from "better-supabase/blocks/payroll-export";
+
+const run = await db["payroll-export"]
+  .create({
+    from: Temporal.PlainDate.from("2026-10-01"),
+    to: Temporal.PlainDate.from("2026-10-31"),
+    label: "October",
+  })
+  .orThrow();
+
+const { file } = await db["payroll-export"]
+  .exportRun(run.id, csvPayrollFormat())
+  .orThrow();
+// file.filename: "payroll-2026-10-01-2026-10-31.csv"
+```
+
+## Options
+
+| Option     | Default                     | Meaning                                                                                    |
+| ---------- | --------------------------- | ------------------------------------------------------------------------------------------ |
+| `timeZone` | `UTC`                       | The zone that decides which day a time entry or shift belongs to.                          |
+| `sources`  | `time-tracking` and `leave` | What a run collects: any of `time-tracking`, `leave` and `shifts`. Each must be installed. |
+
+Shifts are not collected by default: scheduled hours overlap the hours people track, so adding both would pay the same time twice. Name `shifts` when the roster is what you pay, and leave `time-tracking` out.
+
+## Tables
+
+| Table           | Holds                                                                                                                                                            |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `payroll_runs`  | One run per period with its label, status (`draft` or `exported`), the export format, the file's checksum and who exported it. A period covers at most 400 days. |
+| `payroll_lines` | One line per person, kind and leave code: the quantity in `hours` or `days`, whether the leave type is paid, and how many entries the line adds up.              |
+
+A line names the member (`user_id`), the employee (`employee_id`) or both, and keeps the employee's name as it was when the run was collected.
+
+## Collecting
+
+`create` makes a draft run and collects its lines. `refresh` collects them again for a draft run, which is how late corrections reach it. The collection is deterministic: the same entries give the same lines.
+
+- Time tracking counts finished time entries that start in the period (in `timeZone`), in hours. The block does not look at timesheet approval, so lock the weeks through [time tracking](/docs/blocks/time-tracking) first, then create the run.
+- Leave counts requests that are approved and not cancelled, by their start date, in the unit of the leave type.
+- Shifts count assigned assignments of published, not canceled shifts that start in the period, minus the shift's break, in hours.
+
+An exported run is final. A new run for a period that overlaps an exported one is refused.
+
+## Exporting
+
+`exportRun(runId, format)` renders the run, hashes the file and locks the run in one call, and returns the locked run with the file. Exporting a locked run again with the same file returns it unchanged; a different file fails with `PAYROLL_RUN_EXPORTED`. A run can only be deleted while it is a draft.
+
+### The export format
+
+A format is a versioned port, so a payroll provider's layout ships as its own package:
+
+```ts
+const myProvider: PayrollExportFormat = {
+  apiVersion: 1,
+  name: "my-provider",
+  render: (run) => ({
+    filename: `hours-${run.periodTo.toString()}.txt`,
+    contentType: "text/plain",
+    body: run.lines
+      .map((line) => `${line.employeeId ?? line.userId}\t${line.quantity}`)
+      .join("\n"),
+  }),
+};
+```
+
+A format with another `apiVersion` fails before it renders. `csvPayrollFormat` is the reference: a header and one row per line, with `;` as the delimiter and a `.` decimal by default. A cell that starts with `=`, `+`, `-` or `@` gets a leading apostrophe so a spreadsheet doesn't run it.
+
+## Errors
+
+| Hint code                 | Meaning                                                                    |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `PAYROLL_FORBIDDEN`       | The caller lacks `payroll_export.read` or `payroll_export.export`.         |
+| `PAYROLL_RUN_INVALID`     | The period is missing, backwards, longer than 400 days or not a real date. |
+| `PAYROLL_RUN_NOT_FOUND`   | No such run, or the caller can't see it.                                   |
+| `PAYROLL_PERIOD_EXPORTED` | An exported run already covers part of the period.                         |
+| `PAYROLL_RUN_EXPORTED`    | The run is locked: refresh, delete and a different file are refused.       |
+
+## Events
+
+| Event                  | Data                                                                    |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `payroll_run.created`  | `organizationId`, `id`, `periodFrom`, `periodTo`, `status`, `lineCount` |
+| `payroll_run.exported` | the same, plus `format` and `checksum`                                  |
+
+## Without the client
+
+Call the SQL functions directly: `create_payroll_run(tenant, input)`, `refresh_payroll_run(run_id)`, `get_payroll_run(run_id)`, `list_payroll_runs(tenant)`, `mark_payroll_run_exported(run_id, format, checksum)` and `delete_payroll_run(run_id)`. Rendering the file stays in TypeScript, so a custom backend renders it and calls `mark_payroll_run_exported` with the file's checksum.
+
+## Example
+
+The [payroll runs recipe](/docs/registry/ui-recipes/payroll-runs) lists the runs with their line count, format and status.

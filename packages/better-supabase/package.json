@@ -1110,6 +1110,11 @@
       "types": "./dist/blocks/funding/index.d.ts",
       "default": "./dist/blocks/funding/index.js"
     },
+    "./blocks/payroll-export": {
+      "@better-supabase/source": "./src/blocks/payroll-export/index.ts",
+      "types": "./dist/blocks/payroll-export/index.d.ts",
+      "default": "./dist/blocks/payroll-export/index.js"
+    },
     "./blocks/shifts": {
       "@better-supabase/source": "./src/blocks/shifts/index.ts",
       "types": "./dist/blocks/shifts/index.d.ts",
@@ -2037,6 +2042,10 @@
       "./blocks/funding": {
         "types": "./dist/blocks/funding/index.d.ts",
         "default": "./dist/blocks/funding/index.js"
+      },
+      "./blocks/payroll-export": {
+        "types": "./dist/blocks/payroll-export/index.d.ts",
+        "default": "./dist/blocks/payroll-export/index.js"
       },
       "./blocks/shifts": {
         "types": "./dist/blocks/shifts/index.d.ts",

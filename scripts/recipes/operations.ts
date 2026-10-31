@@ -260,4 +260,25 @@ export const OPERATIONS_RECIPES: readonly RecipeSource[] = [
       glue: [],
     },
   },
+  {
+    slug: "payroll-runs",
+    title: "Payroll runs",
+    blocks: ["payroll-export"],
+    kind: "screen",
+    description:
+      "The organization's payroll runs, newest period first, with their line count, export format and whether they are locked.",
+    web: {
+      file: `${WEB_APP}/src/features/payroll-export/components/payroll-runs.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "empty",
+        "skeleton",
+        "table",
+        "@reui/frame",
+      ],
+      glue: [],
+    },
+  },
 ];

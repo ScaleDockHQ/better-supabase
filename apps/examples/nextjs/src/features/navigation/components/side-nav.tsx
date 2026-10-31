@@ -70,6 +70,7 @@ import {
   TruckIcon,
   PackageSearchIcon,
   ReceiptTextIcon,
+  WalletIcon,
 } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -112,6 +113,7 @@ const ICONS = {
   production: PackageSearchIcon,
   banking: BanknoteIcon,
   legalEntities: LandmarkIcon,
+  payrollExport: WalletIcon,
   orders: ReceiptIcon,
   dispatch: CalendarRangeIcon,
   myDay: RouteIcon,
@@ -254,6 +256,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "legalEntities": {
         return t("Legal entities");
+      }
+
+      case "payrollExport": {
+        return t("Payroll export");
       }
 
       case "orders": {

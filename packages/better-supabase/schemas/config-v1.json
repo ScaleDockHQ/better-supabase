@@ -1697,6 +1697,7 @@
               "organizations",
               "outbox",
               "passes",
+              "payroll-export",
               "permissions",
               "pgtap",
               "pipelines",
@@ -1868,6 +1869,7 @@
                   "organizations",
                   "outbox",
                   "passes",
+                  "payroll-export",
                   "permissions",
                   "pgtap",
                   "pipelines",
@@ -2231,6 +2233,9 @@
             },
             "passes": {
               "$ref": "#/$defs/blocks/passes"
+            },
+            "payroll-export": {
+              "$ref": "#/$defs/blocks/payroll-export"
             },
             "permissions": {
               "$ref": "#/$defs/blocks/permissions"
@@ -6418,6 +6423,28 @@
               "creditRefundBefore": {
                 "type": "string",
                 "default": "12 hours"
+              }
+            }
+          }
+        }
+      },
+      "payroll-export": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "timeZone": {
+                "type": "string",
+                "default": "UTC"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }

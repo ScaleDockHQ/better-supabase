@@ -9648,6 +9648,44 @@
       "RpcClient"
     ]
   },
+  "./blocks/payroll-export": {
+    "values": [
+      "createPayrollExport",
+      "csvPayrollFormat",
+      "dbTransport",
+      "extendBlock",
+      "payrollExportBlock",
+      "payrollExportEvents",
+      "payrollFormatOf",
+      "payrollRunInputSchema",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CsvPayrollFormatOptions",
+      "PayrollExport",
+      "PayrollExportEvents",
+      "PayrollExportFile",
+      "PayrollExportFormat",
+      "PayrollExportOptions",
+      "PayrollExportResult",
+      "PayrollLine",
+      "PayrollLineKind",
+      "PayrollLineUnit",
+      "PayrollRun",
+      "PayrollRunEventData",
+      "PayrollRunExportedEventData",
+      "PayrollRunInput",
+      "PayrollRunStatus",
+      "PayrollRunSummary",
+      "RpcClient"
+    ]
+  },
   "./blocks/shifts": {
     "values": [
       "createShifts",
