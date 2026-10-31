@@ -148,6 +148,139 @@ describe("createLegalEntities", () => {
     });
   });
 
+  it("resolves a setting through the entity, the organization, then the default", async () => {
+    const answers = [
+      { value: "Thanks", source: "legal_entity", legalEntityId: "le1" },
+      { value: 7, source: "organization", legalEntityId: null },
+      { value: null, source: "default" },
+      { value: "x", source: "unknown" },
+    ];
+
+    const queue = [...answers];
+
+    const t = fieldsTransport({ resolve_setting: () => queue.shift() });
+
+    const entities = createLegalEntities({ transport: t, tenant: "org-1" });
+
+    expect(
+      await entities
+        .resolveSetting("invoice.footer", { legalEntityId: "le1" })
+        .orThrow(),
+    ).toEqual({
+      source: "legal_entity",
+      value: "Thanks",
+      legalEntityId: "le1",
+    });
+    expect(await entities.resolveSetting("invoice.days").orThrow()).toEqual({
+      source: "organization",
+      value: 7,
+      legalEntityId: undefined,
+    });
+    expect(await entities.resolveSetting("a").orThrow()).toEqual({
+      source: "default",
+      value: undefined,
+      legalEntityId: undefined,
+    });
+    expect((await entities.resolveSetting("b").orThrow()).source).toBe(
+      "default",
+    );
+    expect(t.calls[0]?.[1]).toEqual({
+      tenant: "org-1",
+      key: "invoice.footer",
+      legal_entity: "le1",
+    });
+    expect(t.calls[1]?.[1]).toEqual({
+      tenant: "org-1",
+      key: "invoice.days",
+      legal_entity: null,
+    });
+  });
+
+  it("reads rows with missing or malformed fields", async () => {
+    const t = fieldsTransport({
+      list_legal_entities: () => [
+        {
+          ...ENTITY,
+          address: "not an object",
+          fiscal: { taxPeriod: "monthly" },
+          archivedAt: AT,
+        },
+        { ...ENTITY, fiscal: "broken" },
+      ],
+    });
+
+    const entities = createLegalEntities({ transport: t, tenant: "org-1" });
+    const [first, second] = await entities.list().orThrow();
+
+    expect(first?.address).toEqual({});
+    expect(first?.fiscal).toEqual({
+      fiscalYearStartMonth: 1,
+      taxPeriod: "monthly",
+    });
+    expect(first?.archivedAt?.toString()).toBe("2026-10-30T10:00:00Z");
+    expect(second?.fiscal).toEqual({
+      fiscalYearStartMonth: 1,
+      taxPeriod: "quarterly",
+    });
+  });
+
+  it("sends every optional field on create and update", async () => {
+    const t = fieldsTransport({
+      create_legal_entity: () => ENTITY,
+      update_legal_entity: () => ENTITY,
+      get_legal_entity_settings: () => "not a record",
+    });
+
+    const entities = createLegalEntities({ transport: t, tenant: "org-1" });
+
+    await entities
+      .create({
+        code: "NL02",
+        name: "Beta B.V.",
+        address: { city: "Delft" },
+        vatNumber: "NL1",
+        cocNumber: "123",
+        iban: "NL2",
+        bic: "ABNANL2A",
+        logoAttachmentId: "att1",
+        defaultCurrency: "EUR",
+        fiscal: { fiscalYearStartMonth: 4, taxPeriod: "monthly" },
+        isDefault: true,
+      })
+      .orThrow();
+    await entities
+      .update("le1", {
+        code: "NL03",
+        address: { city: "Breda" },
+        cocNumber: "9",
+        iban: "NL3",
+        bic: null,
+        logoAttachmentId: null,
+        defaultCurrency: "USD",
+      })
+      .orThrow();
+
+    expect(t.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        coc_number: "123",
+        bic: "ABNANL2A",
+        logo_attachment_id: "att1",
+        default_currency: "EUR",
+        is_default: true,
+      }),
+    );
+    expect(t.calls[1]?.[1]).toEqual({
+      legal_entity_id: "le1",
+      patch: expect.objectContaining({
+        code: "NL03",
+        coc_number: "9",
+        bic: null,
+        default_currency: "USD",
+      }),
+    });
+    expect(await entities.settings("le1").orThrow()).toEqual({});
+  });
+
   it("needs an organization to create or list", async () => {
     const entities = createLegalEntities({ transport: fieldsTransport({}) });
     const result = await entities.list();

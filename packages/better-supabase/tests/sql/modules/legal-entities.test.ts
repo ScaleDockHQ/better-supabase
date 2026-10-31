@@ -48,4 +48,27 @@ describe("legal-entities module", () => {
     expect(() => sqlOf(withOn(["nothing"]))).toThrow(/not one of/);
     expect(() => sqlOf(withOn(["invoices"]))).toThrow(/needs the invoices/);
   });
+
+  it("renders nothing in custom mode", () => {
+    expect(sqlOf({ modules: { "legal-entities": { mode: "custom" } } })).toBe(
+      "",
+    );
+  });
+
+  it("refuses custom-mode settings or a custom-mode target table", () => {
+    expect(() => sqlOf({ modules: { settings: { mode: "custom" } } })).toThrow(
+      /settings can't be in custom mode/,
+    );
+    expect(() =>
+      sqlOf(
+        {
+          modules: {
+            "legal-entities": { options: { on: ["numbering"] } },
+            numbering: { mode: "custom" },
+          },
+        },
+        [...BASE.slice(0, -1), "numbering", "legal-entities"],
+      ),
+    ).toThrow(/numbering can't be in custom mode/);
+  });
 });
