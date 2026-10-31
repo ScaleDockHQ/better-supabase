@@ -1,4 +1,4 @@
--- better-supabase add --adopt: the rows and settings of updated-at, audit, memberships, invitations, queue, realtime-tables, jsonb-schemas, grants, read-sets, entitlements, rate-limit, vector-search, permissions, organizations, profiles, outbox, notifications, webhooks-out, sessions, api-keys, settings, usage, flags, drive, guests, comments, attachments, data-lifecycle, sso, enrollments, onboarding, waitlist, announcements, streams, credentials, workflows, workflow-sdk, workflow-editor, chat-sdk-state, inbox, ai-chat, ai-files, knowledge, memory, agents, connectors, ai-schedules, push, ai-cache, ai-keys, numbering, teams, tags, state-machine, custom-fields, share-links, reminders, imports, subjects, rank, saved-views, relations, bulk, catalog, search, metrics, calendar, bookings, versions, trash, reactions, approvals, access-requests, documents, ledger, inventory, drive-files, orders, promotions, forms, signatures, time-tracking, service-accounts, templates, cases, deals, hiring, tasks, tasks, pipelines, contacts, activities, quotes, invoices, sla, goals, employees, signing-keys, moderation, automations, assets, scores, passes, billable-time, leases, expenses, donations, dispatch, shipments, contracts, compliance, incidents, courses, messaging, channels, timeline, mail-sync, segments, assignment, enrichment, forecasts, field-history, sequences, lead-scoring, posts, field-encryption, content, qualifications, risks, shifts, accounting, acknowledgements, consents, observations, medications, care-plans, inspections, manufacturing, banking, meetings, legal-entities, funding, payroll-export, which a schema diff skips.
+-- better-supabase add --adopt: the rows and settings of updated-at, audit, memberships, invitations, queue, realtime-tables, jsonb-schemas, grants, read-sets, entitlements, rate-limit, vector-search, permissions, organizations, profiles, outbox, notifications, webhooks-out, sessions, api-keys, settings, usage, flags, drive, guests, comments, attachments, data-lifecycle, sso, enrollments, onboarding, waitlist, announcements, streams, credentials, workflows, workflow-sdk, workflow-editor, chat-sdk-state, inbox, ai-chat, ai-files, knowledge, memory, agents, connectors, ai-schedules, push, ai-cache, ai-keys, numbering, teams, tags, state-machine, custom-fields, share-links, reminders, imports, subjects, rank, saved-views, relations, bulk, catalog, search, metrics, calendar, bookings, versions, trash, reactions, approvals, access-requests, documents, ledger, inventory, drive-files, orders, promotions, forms, signatures, time-tracking, service-accounts, templates, cases, deals, hiring, tasks, tasks, pipelines, contacts, activities, quotes, invoices, sla, goals, employees, signing-keys, moderation, automations, assets, scores, passes, billable-time, leases, expenses, donations, dispatch, shipments, contracts, compliance, incidents, courses, messaging, channels, timeline, mail-sync, segments, assignment, enrichment, forecasts, field-history, sequences, lead-scoring, posts, field-encryption, content, qualifications, risks, shifts, accounting, acknowledgements, consents, observations, medications, care-plans, inspections, manufacturing, banking, meetings, legal-entities, funding, payroll-export, maintenance, which a schema diff skips.
 
 set lock_timeout = '5s';
 
@@ -1820,9 +1820,9 @@ values ('tasks', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- better-supabase module: maintenance
--- @bsb-block-data maintenance
--- @bsb-hash sha256:a0ccc1da1ce32a36eafb5c579cb76ec4ab7c8d72a3f650115a74b857f4a49eaa
+-- better-supabase module: facilities
+-- @bsb-block-data facilities
+-- @bsb-hash sha256:7aac5e57171e1c786cd29cbba37282ac4ccb1838e8aa7acf06d40065e919df8b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1830,7 +1830,7 @@ on conflict (name) do update
 
 alter table better_supabase.blocks add column if not exists block text;
 insert into better_supabase.blocks (name, block, version, mode)
-values ('maintenance', 'tasks', 4, 'managed')
+values ('facilities', 'tasks', 4, 'managed')
 on conflict (name) do update
   set block = excluded.block, version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -3036,5 +3036,18 @@ on conflict (name) do update
 
 insert into better_supabase.blocks (name, version, mode)
 values ('payroll-export', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: maintenance
+-- @bsb-block-data maintenance
+-- @bsb-hash sha256:aa67977ca8bdd7c9dee7e72445d71fb451fd1793d30bf571fe1ddd58a7d20225
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('maintenance', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -1,4 +1,4 @@
-# 0160: Attachments take document types, a source and metadata-first records
+# 0161: Attachments take document types, a source and metadata-first records
 
 - Status: accepted
 - Date: 2026-10-31
