@@ -1211,13 +1211,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@8 managed
-<<<<<<< HEAD
--- @bsb-hash sha256:d9f5e250e9d4edf54ba3cbb6504fe4c7568178bccae14def4e4d6fd24871cdbf
-||||||| 81cbc6f6c
--- @bsb-hash sha256:5ee45f50e8dc1e65ccc2ad820a9c65e057ef6eb122453be9c30682256ea642d0
-=======
--- @bsb-hash sha256:8205b2863e4dd7e9b9f10f4219d5875024aac1e341b20cb92f2ba3e9af90a0ca
->>>>>>> a38d48dd9
+-- @bsb-hash sha256:03eb4c8ff3b98d0b478770308c3bc620d5a3472288f08d42925a36a62b09cb51
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

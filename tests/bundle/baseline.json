@@ -1,21 +1,9 @@
 {
   ".": 86628,
-<<<<<<< HEAD
-  "./config": 157493,
-  "./preset": 121293,
-  "./create": 2312755,
-  "./create/lite": 2361530,
-||||||| 81cbc6f6c
-  "./config": 157316,
-  "./preset": 121216,
-  "./create": 2304658,
-  "./create/lite": 2353435,
-=======
-  "./config": 158813,
-  "./preset": 122573,
-  "./create": 2325869,
-  "./create/lite": 2374645,
->>>>>>> a38d48dd9
+  "./config": 158987,
+  "./preset": 122663,
+  "./create": 2333988,
+  "./create/lite": 2382762,
   "./create/oauth": 1576,
   "./create/supabase": 4625,
   "./cli": 690981,
@@ -208,16 +196,8 @@
   "./spec": 84580,
   "./otel": 7902,
   "./lint": 15138,
-<<<<<<< HEAD
-  "./sql": 2233058,
-  "./testing": 357725,
-||||||| 81cbc6f6c
-  "./sql": 2224948,
-  "./testing": 357547,
-=======
-  "./sql": 2246154,
-  "./testing": 365299,
->>>>>>> a38d48dd9
+  "./sql": 2254280,
+  "./testing": 365480,
   "./sqlite": 43614,
   "./tanstack-db": 9408,
   "./blocks/push": 34443,

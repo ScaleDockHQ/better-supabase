@@ -308,6 +308,8 @@ export const BLOCK_ICONS = {
   "ai-cache": DatabaseZapIcon,
   "ai-keys": CpuIcon,
   prompts: BracesIcon,
+  "ai-evals": FlaskConicalIcon,
+  "ai-guardrails": ShieldIcon,
   // Automation
   queue: ListTodoIcon,
   outbox: SendIcon,

@@ -1,10 +1,4 @@
-<<<<<<< HEAD
--- ==== alone: schema supabase/schemas/900_better_supabase_173_rls_guard.sql
-||||||| 81cbc6f6c
--- ==== alone: schema supabase/schemas/900_better_supabase_171_rls_guard.sql
-=======
--- ==== alone: schema supabase/schemas/900_better_supabase_172_rls_guard.sql
->>>>>>> a38d48dd9
+-- ==== alone: schema supabase/schemas/900_better_supabase_174_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
 -- @bsb-hash sha256:d32966f654bb5088310207bf84e3fad61a5e6f56c1bc7f6c3e852dfce05a6cfc
@@ -63,13 +57,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
-<<<<<<< HEAD
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_173_rls_guard.sql
-||||||| 81cbc6f6c
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_171_rls_guard.sql
-=======
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_172_rls_guard.sql
->>>>>>> a38d48dd9
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_174_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block-data rls-guard
 -- @bsb-hash sha256:b20ee84ae3af8ffef11d625c16a0408f5a38ede4b92c843bdac1e5460d517399
@@ -88,13 +76,7 @@ values ('rls-guard', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
-<<<<<<< HEAD
--- ==== with every module: schema supabase/schemas/900_better_supabase_173_rls_guard.sql
-||||||| 81cbc6f6c
--- ==== with every module: schema supabase/schemas/900_better_supabase_171_rls_guard.sql
-=======
--- ==== with every module: schema supabase/schemas/900_better_supabase_172_rls_guard.sql
->>>>>>> a38d48dd9
+-- ==== with every module: schema supabase/schemas/900_better_supabase_174_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
 -- @bsb-hash sha256:d32966f654bb5088310207bf84e3fad61a5e6f56c1bc7f6c3e852dfce05a6cfc
@@ -153,13 +135,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
-<<<<<<< HEAD
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_173_rls_guard.sql
-||||||| 81cbc6f6c
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_171_rls_guard.sql
-=======
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_172_rls_guard.sql
->>>>>>> a38d48dd9
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_174_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block-data rls-guard
 -- @bsb-hash sha256:b20ee84ae3af8ffef11d625c16a0408f5a38ede4b92c843bdac1e5460d517399
@@ -178,13 +154,7 @@ values ('rls-guard', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
-<<<<<<< HEAD
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_173_rls_guard.sql
-||||||| 81cbc6f6c
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_171_rls_guard.sql
-=======
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_172_rls_guard.sql
->>>>>>> a38d48dd9
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_174_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
 -- @bsb-hash sha256:d32966f654bb5088310207bf84e3fad61a5e6f56c1bc7f6c3e852dfce05a6cfc
@@ -243,13 +213,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
-<<<<<<< HEAD
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_173_rls_guard.sql
-||||||| 81cbc6f6c
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_171_rls_guard.sql
-=======
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_172_rls_guard.sql
->>>>>>> a38d48dd9
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_174_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block-data rls-guard
 -- @bsb-hash sha256:b20ee84ae3af8ffef11d625c16a0408f5a38ede4b92c843bdac1e5460d517399
@@ -268,13 +232,7 @@ values ('rls-guard', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
-<<<<<<< HEAD
--- ==== api schema: schema supabase/schemas/900_better_supabase_173_rls_guard.sql
-||||||| 81cbc6f6c
--- ==== api schema: schema supabase/schemas/900_better_supabase_171_rls_guard.sql
-=======
--- ==== api schema: schema supabase/schemas/900_better_supabase_172_rls_guard.sql
->>>>>>> a38d48dd9
+-- ==== api schema: schema supabase/schemas/900_better_supabase_174_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
 -- @bsb-hash sha256:d32966f654bb5088310207bf84e3fad61a5e6f56c1bc7f6c3e852dfce05a6cfc
@@ -333,13 +291,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
-<<<<<<< HEAD
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_173_rls_guard.sql
-||||||| 81cbc6f6c
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_171_rls_guard.sql
-=======
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_172_rls_guard.sql
->>>>>>> a38d48dd9
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_174_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block-data rls-guard
 -- @bsb-hash sha256:b20ee84ae3af8ffef11d625c16a0408f5a38ede4b92c843bdac1e5460d517399

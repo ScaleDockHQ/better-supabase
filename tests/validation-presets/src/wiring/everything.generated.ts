@@ -9,7 +9,9 @@ import { accountingBlock } from "better-supabase/blocks/accounting";
 import { agentsBlock } from "better-supabase/blocks/agents";
 import { aiCacheBlock } from "better-supabase/blocks/ai-cache";
 import { aiChatBlock } from "better-supabase/blocks/ai-chat";
+import { aiEvalsBlock } from "better-supabase/blocks/ai-evals";
 import { aiFilesBlock } from "better-supabase/blocks/ai-files";
+import { aiGuardrailsBlock } from "better-supabase/blocks/ai-guardrails";
 import { aiKeysBlock } from "better-supabase/blocks/ai-keys";
 import { aiSchedulesBlock } from "better-supabase/blocks/ai-schedules";
 import { announcementsBlock } from "better-supabase/blocks/announcements";
@@ -165,7 +167,9 @@ export const blockSet = defineBlocks(blockConfig, {
   agents: agentsBlock,
   aiCache: aiCacheBlock,
   aiChat: aiChatBlock,
+  aiEvals: aiEvalsBlock,
   aiFiles: aiFilesBlock,
+  aiGuardrails: aiGuardrailsBlock,
   aiKeys: aiKeysBlock,
   aiSchedules: aiSchedulesBlock,
   announcements: announcementsBlock,

@@ -18,7 +18,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   prompts:
     "create_prompt_version get_prompt list_prompt_versions set_prompt_label",
   "ai-evals":
-    "add_eval_items add_eval_items_from_feedback compare_eval_runs create_eval_dataset create_eval_run eval_run_summary finish_eval_run get_eval_run list_eval_items list_eval_results list_eval_runs record_eval_result",
+    "add_eval_items add_eval_items_from_feedback compare_eval_runs create_eval_dataset create_eval_run finish_eval_run get_eval_run list_eval_items list_eval_results list_eval_runs record_eval_result",
   "ai-guardrails":
     "get_guardrail_policy list_guardrail_decisions purge_guardrail_decisions record_guardrail_decision set_guardrail_policy",
   "ai-cache": "ai_cache_delete ai_cache_get ai_cache_set purge_ai_cache",
