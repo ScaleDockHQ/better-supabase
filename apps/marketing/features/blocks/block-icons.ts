@@ -347,6 +347,7 @@ export const BLOCK_ICONS = {
   warehouse: ClipboardListIcon,
   rfqs: FileQuestionMarkIcon,
   tills: CoinsIcon,
+  "clinical-decision-support": ShieldAlertIcon,
   "care-plans": ClipboardPlusIcon,
   // Database primitives
   "updated-at": ClockIcon,

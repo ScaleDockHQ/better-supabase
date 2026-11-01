@@ -10285,6 +10285,88 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "clinical-decision-support",
+      "title": "Clinical decision support",
+      "category": "people",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "medications"
+      ],
+      "integrates": [
+        "observations",
+        "consents",
+        "care-plans",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "clinical-decision-support",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "care_alert": {
+            "table": "alerts",
+            "singular": "care_alert",
+            "primary": true
+          },
+          "care_rule": {
+            "table": "rules",
+            "singular": "care_rule"
+          }
+        },
+        "tables": {
+          "alerts": {
+            "name": "care_alerts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "kind": "kind",
+              "severity": "severity",
+              "source": "source",
+              "rule": "rule_id",
+              "orderIds": "order_ids",
+              "message": "message",
+              "details": "details",
+              "fingerprint": "fingerprint",
+              "status": "status",
+              "decidedBy": "decided_by",
+              "decidedAt": "decided_at",
+              "decisionReason": "decision_reason",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "rules": {
+            "name": "care_rules",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "medicationIds": "medication_ids",
+              "minDose": "min_dose",
+              "maxDose": "max_dose",
+              "maxPerDay": "max_per_day",
+              "severity": "severity",
+              "message": "message",
+              "active": "active",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "clinical_decision_support.read",
+          "write": "clinical_decision_support.write",
+          "manage": "clinical_decision_support.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -22088,6 +22170,195 @@ export const PRESET_CATALOG: PresetCatalog = {
           "till_movement.recorded",
           "till_deposit.recorded",
           "till_deposit.reconciled"
+        ]
+      }
+    },
+    {
+      "name": "clinical-decision-support",
+      "sql": [
+        "clinical-decision-support"
+      ],
+      "category": "people",
+      "client": {
+        "export": "clinicalDecisionSupportBlock",
+        "subpath": "better-supabase/blocks/clinical-decision-support"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "CareAlert"
+        },
+        {
+          "name": "CareAlertDecision"
+        },
+        {
+          "name": "CareAlertEventData"
+        },
+        {
+          "name": "CareAlertKind"
+        },
+        {
+          "name": "CareAlertListOptions"
+        },
+        {
+          "name": "CareAlertSeverity"
+        },
+        {
+          "name": "CareAlertStatus"
+        },
+        {
+          "name": "CareRule"
+        },
+        {
+          "name": "CareRuleEventData"
+        },
+        {
+          "name": "CareRuleInput"
+        },
+        {
+          "name": "CareRuleKind"
+        }
+      ],
+      "entitySchemas": {
+        "care_rule": {
+          "input": {
+            "title": "CareRuleInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true,
+                "description": "Set to change a rule; leave out to add one."
+              },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "dose_range",
+                  "duplicate_therapy",
+                  "interaction"
+                ]
+              },
+              "medicationIds": {
+                "kind": "uuid",
+                "array": true,
+                "description": "One medication for a dose range, two for an interaction, two or more for a therapy group."
+              },
+              "minDose": {
+                "kind": "number",
+                "optional": true,
+                "nullable": true
+              },
+              "maxDose": {
+                "kind": "number",
+                "optional": true,
+                "nullable": true
+              },
+              "maxPerDay": {
+                "kind": "number",
+                "optional": true,
+                "nullable": true
+              },
+              "severity": {
+                "kind": "enum",
+                "optional": true,
+                "values": [
+                  "info",
+                  "warning",
+                  "critical"
+                ]
+              },
+              "message": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 1000
+              },
+              "active": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CareRuleInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Set to change a rule; leave out to add one."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "dose_range",
+                    "duplicate_therapy",
+                    "interaction"
+                  ]
+                },
+                "medicationIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "description": "One medication for a dose range, two for an interaction, two or more for a therapy group."
+                },
+                "minDose": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "maxDose": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "maxPerDay": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "info",
+                    "warning",
+                    "critical"
+                  ]
+                },
+                "message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 1000
+                },
+                "active": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "medicationIds"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "ClinicalDecisionSupportEvents",
+        "types": [
+          "care_alert.raised",
+          "care_alert.decided",
+          "care_alert.resolved",
+          "care_rule.created",
+          "care_rule.updated",
+          "care_rule.deleted"
         ]
       }
     },

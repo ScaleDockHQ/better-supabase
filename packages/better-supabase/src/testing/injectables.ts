@@ -8,6 +8,10 @@ import type {
   AiTaskRun,
   AiTaskRunner,
 } from "../blocks/ai-schedules/ai-schedules.ts";
+import type {
+  CareDecisionContext,
+  ClinicalDecisionSupport,
+} from "../blocks/clinical-decision-support/clinical-decision-support.ts";
 import type { DriveTextFile, TextExtractor } from "../blocks/drive/extract.ts";
 import type {
   FundingClaim,
@@ -30,6 +34,11 @@ import type {
 import type { EveDocumentBackend } from "../eve/eve.ts";
 import type { Check, ConformanceReport } from "./conformance.ts";
 
+import {
+  CARE_ALERT_KINDS,
+  CARE_ALERT_SEVERITIES,
+  CARE_BUILT_IN_SOURCE,
+} from "../sql/modules/clinical-decision-support-values.ts";
 import { conform, expect, same } from "./conformance.ts";
 
 const hasApiVersion = (subject: { readonly apiVersion?: unknown }): Check => [
@@ -733,4 +742,97 @@ export function testFundingClaimChannel(
       },
     ],
   ]);
+}
+
+export interface TestClinicalDecisionSupportOptions {
+  /** A context the engine answers; use one with orders it raises alerts for. */
+  readonly context: CareDecisionContext;
+}
+
+/**
+ * Proves a `ClinicalDecisionSupport` engine has a key the block accepts,
+ * answers `options.context` with well-formed alerts, answers it the same way
+ * twice (so fingerprints stay stable and a decision survives re-evaluation),
+ * and answers a context without medications.
+ */
+export function testClinicalDecisionSupport(
+  engine: ClinicalDecisionSupport,
+  options: TestClinicalDecisionSupportOptions,
+): Promise<ConformanceReport> {
+  const { context } = options;
+
+  const checks: Check[] = [
+    hasApiVersion(engine),
+    [
+      "has a key the block accepts",
+      () => {
+        expect(
+          engine.key.trim() !== "" &&
+            engine.key.length <= 100 &&
+            engine.key !== CARE_BUILT_IN_SOURCE,
+          `key "${engine.key}" must be 1 to 100 characters and not "${CARE_BUILT_IN_SOURCE}"`,
+        );
+      },
+    ],
+    [
+      "returns well-formed alerts",
+      async () => {
+        const alerts = await engine.evaluate(context, {});
+
+        for (const alert of alerts) {
+          const kind: unknown = alert.kind ?? "other";
+          const severity: unknown = alert.severity ?? "warning";
+
+          expect(
+            alert.message.trim() !== "" && alert.message.length <= 1000,
+            "a message of 1 to 1000 characters is required",
+          );
+          expect(
+            CARE_ALERT_KINDS.some((known) => known === kind),
+            `kind ${String(kind)} is unknown`,
+          );
+          expect(
+            CARE_ALERT_SEVERITIES.some((known) => known === severity),
+            `severity ${String(severity)} is unknown`,
+          );
+          expect(
+            (alert.fingerprint ?? "").length <= 200,
+            "a fingerprint has at most 200 characters",
+          );
+        }
+      },
+    ],
+    [
+      "answers the same context with the same fingerprints",
+      async () => {
+        const fingerprints = async (): Promise<string> =>
+          JSON.stringify(
+            (await engine.evaluate(context, {}))
+              .map((alert) => alert.fingerprint ?? alert.message)
+              .toSorted(),
+          );
+
+        const first = await fingerprints();
+        const second = await fingerprints();
+
+        expect(
+          first === second,
+          "a second evaluation returned different alerts",
+        );
+      },
+    ],
+    [
+      "answers a context without medications",
+      async () => {
+        const alerts = await engine.evaluate(
+          { ...context, medications: [], observations: [], consents: [] },
+          {},
+        );
+
+        expect(Array.isArray(alerts), "evaluate must return an array");
+      },
+    ],
+  ];
+
+  return conform(`ClinicalDecisionSupport "${engine.key}"`, checks);
 }

@@ -1652,6 +1652,7 @@
               "catalog",
               "channels",
               "chat-sdk-state",
+              "clinical-decision-support",
               "collections",
               "comments",
               "compliance",
@@ -1833,6 +1834,7 @@
                   "catalog",
                   "channels",
                   "chat-sdk-state",
+                  "clinical-decision-support",
                   "collections",
                   "comments",
                   "compliance",
@@ -2066,6 +2068,9 @@
             },
             "chat-sdk-state": {
               "$ref": "#/$defs/blocks/chat-sdk-state"
+            },
+            "clinical-decision-support": {
+              "$ref": "#/$defs/blocks/clinical-decision-support"
             },
             "collections": {
               "$ref": "#/$defs/blocks/collections"
@@ -4686,6 +4691,17 @@
         }
       },
       "chat-sdk-state": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "clinical-decision-support": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {

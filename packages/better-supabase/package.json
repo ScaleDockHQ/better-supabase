@@ -1115,6 +1115,11 @@
       "types": "./dist/blocks/rfqs/index.d.ts",
       "default": "./dist/blocks/rfqs/index.js"
     },
+    "./blocks/clinical-decision-support": {
+      "@better-supabase/source": "./src/blocks/clinical-decision-support/index.ts",
+      "types": "./dist/blocks/clinical-decision-support/index.d.ts",
+      "default": "./dist/blocks/clinical-decision-support/index.js"
+    },
     "./blocks/tills": {
       "@better-supabase/source": "./src/blocks/tills/index.ts",
       "types": "./dist/blocks/tills/index.d.ts",
@@ -2096,6 +2101,10 @@
       "./blocks/rfqs": {
         "types": "./dist/blocks/rfqs/index.d.ts",
         "default": "./dist/blocks/rfqs/index.js"
+      },
+      "./blocks/clinical-decision-support": {
+        "types": "./dist/blocks/clinical-decision-support/index.d.ts",
+        "default": "./dist/blocks/clinical-decision-support/index.js"
       },
       "./blocks/tills": {
         "types": "./dist/blocks/tills/index.d.ts",

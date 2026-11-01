@@ -15,6 +15,7 @@
     "shifts",
     "payroll-export",
     "medications",
+    "clinical-decision-support",
     "passes",
     "enrollments"
   ]

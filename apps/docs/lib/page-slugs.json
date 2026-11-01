@@ -67,6 +67,7 @@
   "blocks/catalog-people",
   "blocks/catalog-work",
   "blocks/channels",
+  "blocks/clinical-decision-support",
   "blocks/collections",
   "blocks/comments",
   "blocks/compliance",
