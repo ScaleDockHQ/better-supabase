@@ -207,21 +207,25 @@ export interface BlockNameRegistry {
   };
   readonly "appraisals": {
     readonly tables: {
-      readonly "cycles": "id" | "tenant" | "name" | "startsOn" | "endsOn" | "program" | "status" | "openedAt" | "closedAt" | "createdBy" | "createdAt";
-      readonly "appraisals": "id" | "tenant" | "cycle" | "subjectUser" | "manager" | "status" | "rating" | "calibratedRating" | "approval" | "signedOffAt" | "signedOffBy" | "createdAt" | "updatedAt";
+      readonly "cycles": "id" | "tenant" | "name" | "startsOn" | "endsOn" | "program" | "status" | "anonymity" | "shareFeedback" | "openedAt" | "closedAt" | "createdBy" | "createdAt";
+      readonly "appraisals": "id" | "tenant" | "cycle" | "subjectUser" | "manager" | "status" | "rating" | "calibratedRating" | "calibratedCompetencies" | "approval" | "signedOffAt" | "signedOffBy" | "createdAt" | "updatedAt";
       readonly "reviews": "id" | "tenant" | "appraisal" | "reviewer" | "kind" | "rating" | "comments" | "submission" | "submittedAt";
-      readonly "calibrations": "id" | "tenant" | "appraisal" | "fromRating" | "toRating" | "reason" | "calibratedBy" | "calibratedAt";
+      readonly "calibrations": "id" | "tenant" | "appraisal" | "fromRating" | "toRating" | "competencyRatings" | "reason" | "calibratedBy" | "calibratedAt";
+      readonly "competencies": "id" | "tenant" | "cycle" | "key" | "name" | "weight" | "position";
+      readonly "ratings": "id" | "tenant" | "review" | "competency" | "rating" | "comment";
       readonly "goals": "id" | "tenant" | "appraisal" | "goal";
     };
-    readonly functions: "appraisal_json" | "calibrate_appraisal" | "close_appraisal_cycle" | "create_appraisal_cycle" | "get_appraisal" | "list_appraisal_cycles" | "list_appraisals" | "open_appraisal_cycle" | "set_appraisal_goals" | "sign_off_appraisal" | "submit_appraisal_review";
+    readonly functions: "appraisal_json" | "appraisal_review_hidden" | "appraisal_score" | "appraisal_write_competencies" | "calibrate_appraisal" | "calibrate_appraisal_competencies" | "close_appraisal_cycle" | "create_appraisal_cycle" | "get_appraisal" | "list_appraisal_cycles" | "list_appraisals" | "open_appraisal_cycle" | "set_appraisal_competencies" | "set_appraisal_goals" | "sign_off_appraisal" | "submit_appraisal_review";
     readonly actions: "read" | "review" | "manage";
     readonly hooks: "before_appraisal_cycle_create" | "after_appraisal_cycle_create";
     readonly entities: {
-      readonly "appraisal": "id" | "tenant_id" | "cycle_id" | "subject_user_id" | "manager_id" | "status" | "rating" | "calibrated_rating" | "approval_id" | "signed_off_at" | "signed_off_by" | "created_at" | "updated_at";
-      readonly "appraisal_cycle": "id" | "tenant_id" | "name" | "starts_on" | "ends_on" | "program" | "status" | "opened_at" | "closed_at" | "created_by" | "created_at";
+      readonly "appraisal": "id" | "tenant_id" | "cycle_id" | "subject_user_id" | "manager_id" | "status" | "rating" | "calibrated_rating" | "calibrated_competencies" | "approval_id" | "signed_off_at" | "signed_off_by" | "created_at" | "updated_at";
+      readonly "appraisal_cycle": "id" | "tenant_id" | "name" | "starts_on" | "ends_on" | "program" | "status" | "anonymity" | "share_feedback" | "opened_at" | "closed_at" | "created_by" | "created_at";
       readonly "appraisal_review": "id" | "tenant_id" | "appraisal_id" | "reviewer_id" | "kind" | "rating" | "comments" | "submission_id" | "submitted_at";
-      readonly "appraisal_calibration": "id" | "tenant_id" | "appraisal_id" | "from_rating" | "to_rating" | "reason" | "calibrated_by" | "calibrated_at";
+      readonly "appraisal_calibration": "id" | "tenant_id" | "appraisal_id" | "from_rating" | "to_rating" | "competency_ratings" | "reason" | "calibrated_by" | "calibrated_at";
       readonly "appraisal_goal": "id" | "tenant_id" | "appraisal_id" | "goal_id";
+      readonly "appraisal_competency": "id" | "tenant_id" | "cycle_id" | "key" | "name" | "weight" | "position";
+      readonly "appraisal_review_rating": "id" | "tenant_id" | "review_id" | "competency_id" | "rating" | "comment";
     };
     readonly primary: "appraisal";
     readonly formerKeys: never;

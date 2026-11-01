@@ -3,7 +3,9 @@ import type { AppraisalsSql } from "./appraisals-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { pageSize, userGrant } from "../shared.ts";
+import { rubricFunctions } from "./appraisals-rubrics.ts";
 import { appraisalsSql } from "./appraisals-sql.ts";
+import { APPRAISAL_ANONYMITY } from "./appraisals-values.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
@@ -82,13 +84,35 @@ const mark = (
     ? ""
     : `perform ${q.fn("appraisal_step")}(${id}, '${step}');`;
 
-/** The json of an appraisal with its reviews, calibrations and goals. */
 function viewFunction(q: AppraisalsSql): string {
-  const { fn, a, r, c, g, appraisals, reviews, calibrations, goals } = q;
+  const {
+    fn,
+    y,
+    a,
+    r,
+    c,
+    g,
+    k,
+    t,
+    cycles,
+    appraisals,
+    reviews,
+    calibrations,
+    goals,
+    competencies,
+    ratings,
+  } = q;
+
+  // The appraised person reads the feedback once it is signed off, when the
+  // cycle shares it.
+  const shared = `(x.${a("subjectUser")} = auth.uid() and x.${a("status")} = 'signed_off'
+      and (select z.${y("shareFeedback")} from ${cycles} z where z.${y("id")} = x.${a("cycle")}))`;
 
   return `
 -- The appraisal as json. all_reviews false keeps only the caller's own
--- reviews. Not granted to anyone.
+-- reviews, plus everyone's submitted manager and peer reviews for the appraised
+-- person once a cycle that shares feedback is signed off. A peer reviewer
+-- stays unset where the cycle hides peer reviewers. Not granted to anyone.
 create or replace function ${fn("appraisal_json")}(appraisal_id uuid, all_reviews boolean)
 returns jsonb
 language sql
@@ -100,15 +124,36 @@ as $$
     'subjectUserId', x.${a("subjectUser")}, 'managerId', x.${a("manager")}, 'status', x.${a("status")},
     'rating', x.${a("rating")}::text, 'calibratedRating', x.${a("calibratedRating")}, 'approvalId', x.${a("approval")},
     'signedOffAt', x.${a("signedOffAt")}, 'signedOffBy', x.${a("signedOffBy")}, 'createdAt', x.${a("createdAt")},
+    'rubric', coalesce((
+      select jsonb_agg(jsonb_build_object('key', w.${k("key")}, 'name', w.${k("name")}, 'weight', w.${k("weight")}) order by w.${k("position")})
+      from ${competencies} w where w.${k("cycle")} = x.${a("cycle")}
+    ), '[]'::jsonb),
+    'competencies', case when appraisal_json.all_reviews or ${shared} then coalesce((
+      select jsonb_agg(jsonb_build_object('key', w.${k("key")}, 'name', w.${k("name")}, 'weight', w.${k("weight")},
+        'average', (
+          select round(avg(z.${t("rating")}), 2)::text from ${ratings} z join ${reviews} v on v.${r("id")} = z.${t("review")}
+          where z.${t("competency")} = w.${k("id")} and v.${r("appraisal")} = x.${a("id")} and v.${r("submittedAt")} is not null
+        ),
+        'calibrated', x.${a("calibratedCompetencies")} -> w.${k("key")}) order by w.${k("position")})
+      from ${competencies} w where w.${k("cycle")} = x.${a("cycle")}
+    ), '[]'::jsonb) else '[]'::jsonb end,
     'reviews', coalesce((
-      select jsonb_agg(jsonb_build_object('id', y.${r("id")}, 'reviewerId', y.${r("reviewer")}, 'kind', y.${r("kind")},
-        'rating', y.${r("rating")}, 'comments', y.${r("comments")}, 'submissionId', y.${r("submission")}, 'submittedAt', y.${r("submittedAt")})
+      select jsonb_agg(jsonb_build_object('id', y.${r("id")},
+        'reviewerId', case when ${fn("appraisal_review_hidden")}(y.${r("id")}) then null else y.${r("reviewer")} end,
+        'kind', y.${r("kind")}, 'rating', y.${r("rating")}, 'comments', y.${r("comments")}, 'submissionId', y.${r("submission")}, 'submittedAt', y.${r("submittedAt")},
+        'ratings', coalesce((
+          select jsonb_agg(jsonb_build_object('competency', w.${k("key")}, 'rating', z.${t("rating")}, 'comment', z.${t("comment")}) order by w.${k("position")})
+          from ${ratings} z join ${competencies} w on w.${k("id")} = z.${t("competency")}
+          where z.${t("review")} = y.${r("id")}
+        ), '[]'::jsonb))
         order by y.${r("kind")}, y.${r("id")})
       from ${reviews} y
-      where y.${r("appraisal")} = x.${a("id")} and (appraisal_json.all_reviews or y.${r("reviewer")} = auth.uid())
+      where y.${r("appraisal")} = x.${a("id")}
+        and (appraisal_json.all_reviews or y.${r("reviewer")} = auth.uid() or (${shared} and y.${r("submittedAt")} is not null))
     ), '[]'::jsonb),
     'calibrations', coalesce((
       select jsonb_agg(jsonb_build_object('id', z.${c("id")}, 'fromRating', z.${c("fromRating")}::text, 'toRating', z.${c("toRating")},
+        'competencyRatings', z.${c("competencyRatings")},
         'reason', z.${c("reason")}, 'calibratedBy', z.${c("calibratedBy")}, 'calibratedAt', z.${c("calibratedAt")})
         order by z.${c("calibratedAt")}, z.${c("id")})
       from ${calibrations} z where z.${c("appraisal")} = x.${a("id")} and appraisal_json.all_reviews
@@ -153,7 +198,11 @@ function cycleFunctions(ctx: BlockSqlContext, q: AppraisalsSql): string {
       end if;`;
 
   return `
--- Creates a draft review cycle. input is { name, startsOn, endsOn, program }.
+-- Creates a draft review cycle. input is { name, startsOn, endsOn, program,
+-- anonymity, shareFeedback, competencies }. anonymity is none, subject (default)
+-- or all and says who learns which peer wrote a review; shareFeedback lets the
+-- appraised person read the manager and peer reviews once signed off;
+-- competencies is the rubric [{ key, name, weight }].
 -- program is the key of an enrollment program whose steps may be named
 -- self_review, peer_review, manager_review, calibration and sign_off; the
 -- appraisals of the cycle are enrolled in it. Needs appraisals.manage.
@@ -170,6 +219,8 @@ declare
   v_starts date;
   v_ends date;
   v_program text;
+  v_anonymity text;
+  v_share boolean;
 begin
   if not ${q.allowed("create_appraisal_cycle.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage review cycles")}
@@ -182,9 +233,16 @@ begin
     v_starts := (create_appraisal_cycle.input ->> 'startsOn')::date;
     v_ends := (create_appraisal_cycle.input ->> 'endsOn')::date;
     v_program := nullif(trim(create_appraisal_cycle.input ->> 'program'), '');
+    v_anonymity := coalesce(nullif(trim(create_appraisal_cycle.input ->> 'anonymity'), ''), 'subject');
+    v_share := coalesce((create_appraisal_cycle.input ->> 'shareFeedback')::boolean, false);
   exception when invalid_datetime_format or datetime_field_overflow then
     ${q.invalid("startsOn and endsOn are dates")}
+  when invalid_text_representation then
+    ${q.invalid("shareFeedback is true or false")}
   end;
+  if v_anonymity not in (${APPRAISAL_ANONYMITY.map((v) => `'${v}'`).join(", ")}) then
+    ${q.invalid("anonymity is none, subject or all")}
+  end if;
   if coalesce(length(v_name), 0) not between 1 and 200 then
     ${q.invalid("a cycle needs a name of 1 to 200 characters")}
   end if;
@@ -196,9 +254,10 @@ begin
     [idType, "create_appraisal_cycle.tenant"],
     ["jsonb", "create_appraisal_cycle.input"],
   ])}
-  insert into ${cycles} (${y("tenant")}, ${y("name")}, ${y("startsOn")}, ${y("endsOn")}, ${y("program")}, ${y("createdBy")})
-  values (create_appraisal_cycle.tenant, v_name, v_starts, v_ends, v_program, auth.uid())
+  insert into ${cycles} (${y("tenant")}, ${y("name")}, ${y("startsOn")}, ${y("endsOn")}, ${y("program")}, ${y("anonymity")}, ${y("shareFeedback")}, ${y("createdBy")})
+  values (create_appraisal_cycle.tenant, v_name, v_starts, v_ends, v_program, v_anonymity, v_share, auth.uid())
   returning * into v_row;
+  perform ${fn("appraisal_write_competencies")}(v_row.${y("id")}, create_appraisal_cycle.input -> 'competencies');
   ${q.recordCycle("appraisal_cycle.created", "v_row", "review cycle created")}
   ${ctx.hook("after_appraisal_cycle_create", [["uuid", `v_row.${y("id")}`]])}
   return ${q.cycleJson("v_row")};
@@ -368,6 +427,10 @@ function reviewFunctions(ctx: BlockSqlContext, q: AppraisalsSql): string {
     reviews,
     calibrations,
     goals,
+    competencies,
+    ratings,
+    k,
+    t,
   } = q;
 
   const idType = ctx.idType;
@@ -375,9 +438,12 @@ function reviewFunctions(ctx: BlockSqlContext, q: AppraisalsSql): string {
   return `
 -- Submits a review the caller was assigned. input is { rating: 1 to 5,
 -- comments, submissionId } where submissionId is the forms submission that
--- holds the longer answers. A submitted review stays. When the last review of
--- an appraisal arrives, the appraisal is reviewed and its rating is the
--- average. Needs appraisals.review.
+-- holds the longer answers. A cycle with a rubric takes
+-- ratings: [{ competency, rating, comment }] for every competency instead of
+-- rating, and the review's rating is their weighted average, rounded. A
+-- submitted review stays. When the last review of an appraisal arrives, the
+-- appraisal is reviewed and its rating is the average, or the weighted average
+-- of the competencies. Needs appraisals.review.
 create or replace function ${fn("submit_appraisal_review")}(review_id uuid, input jsonb)
 returns jsonb
 language plpgsql
@@ -393,6 +459,15 @@ declare
   v_comments text;
   v_submission uuid;
   v_left integer;
+  v_rubric integer;
+  v_item jsonb;
+  v_key text;
+  v_value integer;
+  v_note text;
+  v_comp ${competencies};
+  v_keys text[] := '{}';
+  v_sum numeric := 0;
+  v_weights numeric := 0;
 begin
   select * into v_review from ${reviews} x where x.${r("id")} = submit_appraisal_review.review_id for update;
   if not found then
@@ -412,6 +487,7 @@ begin
   if jsonb_typeof(submit_appraisal_review.input) is distinct from 'object' then
     ${q.invalid("input must be an object")}
   end if;
+  select count(*) into v_rubric from ${competencies} x where x.${k("cycle")} = v_cycle.${y("id")};
   begin
     v_rating := (submit_appraisal_review.input ->> 'rating')::integer;
     v_comments := nullif(trim(submit_appraisal_review.input ->> 'comments'), '');
@@ -419,16 +495,64 @@ begin
   exception when invalid_text_representation or numeric_value_out_of_range then
     ${q.invalid("rating is a whole number and submissionId an id")}
   end;
-  if v_rating is null or v_rating not between 1 and 5 then
-    ${q.invalid("the rating is a whole number from 1 to 5")}
-  end if;
   if length(v_comments) > 10000 then
     ${q.invalid("comments are at most 10000 characters")}
   end if;
+  if v_rubric = 0 then
+    if submit_appraisal_review.input ? 'ratings' then
+      ${q.invalid("this cycle has no rubric; send a rating")}
+    end if;
+    if v_rating is null or v_rating not between 1 and 5 then
+      ${q.invalid("the rating is a whole number from 1 to 5")}
+    end if;
+  else
+    if submit_appraisal_review.input ? 'rating' then
+      ${q.invalid("this cycle has a rubric; send a rating for each competency")}
+    end if;
+    if jsonb_typeof(submit_appraisal_review.input -> 'ratings') is distinct from 'array' then
+      ${q.invalid("ratings is a list of { competency, rating, comment }")}
+    end if;
+  end if;
   update ${reviews} x
-  set ${r("rating")} = v_rating, ${r("comments")} = v_comments, ${r("submission")} = v_submission, ${r("submittedAt")} = now()
+  set ${r("rating")} = coalesce(v_rating, 1), ${r("comments")} = v_comments, ${r("submission")} = v_submission, ${r("submittedAt")} = now()
   where x.${r("id")} = v_review.${r("id")}
   returning * into v_review;
+  if v_rubric > 0 then
+    for v_item in select e from jsonb_array_elements(submit_appraisal_review.input -> 'ratings') e loop
+      begin
+        v_key := v_item ->> 'competency';
+        v_value := (v_item ->> 'rating')::integer;
+        v_note := nullif(trim(v_item ->> 'comment'), '');
+      exception when invalid_text_representation or numeric_value_out_of_range then
+        ${q.invalid("a competency rating is a whole number from 1 to 5")}
+      end;
+      select * into v_comp from ${competencies} x where x.${k("cycle")} = v_cycle.${y("id")} and x.${k("key")} = v_key;
+      if not found then
+        ${q.invalid("no such competency in this cycle's rubric")}
+      end if;
+      if v_value is null or v_value not between 1 and 5 then
+        ${q.invalid("a competency rating is a whole number from 1 to 5")}
+      end if;
+      if length(v_note) > 2000 then
+        ${q.invalid("a competency comment is at most 2000 characters")}
+      end if;
+      if v_key = any(v_keys) then
+        ${q.invalid("rate each competency once")}
+      end if;
+      v_keys := v_keys || v_key;
+      v_sum := v_sum + v_comp.${k("weight")} * v_value;
+      v_weights := v_weights + v_comp.${k("weight")};
+      insert into ${ratings} (${t("tenant")}, ${t("review")}, ${t("competency")}, ${t("rating")}, ${t("comment")})
+      values (v_review.${r("tenant")}, v_review.${r("id")}, v_comp.${k("id")}, v_value, v_note);
+    end loop;
+    if cardinality(v_keys) <> v_rubric then
+      ${q.invalid("rate every competency of the rubric")}
+    end if;
+    update ${reviews} x
+    set ${r("rating")} = round(v_sum / v_weights)::integer
+    where x.${r("id")} = v_review.${r("id")}
+    returning * into v_review;
+  end if;
   ${q.recordReview("appraisal_review.submitted", "v_review", "appraisal review submitted")}
   ${
     managed(ctx, "enrollments") === undefined
@@ -438,7 +562,7 @@ begin
   select count(*) into v_left from ${reviews} x
   where x.${r("appraisal")} = v_row.${a("id")} and x.${r("submittedAt")} is null;
   update ${appraisals} x
-  set ${a("rating")} = (select round(avg(z.${r("rating")}), 2) from ${reviews} z where z.${r("appraisal")} = x.${a("id")} and z.${r("submittedAt")} is not null),
+  set ${a("rating")} = ${fn("appraisal_score")}(x.${a("id")}, '{}'::jsonb),
     ${a("status")} = case when v_left = 0 then 'reviewed' else x.${a("status")} end,
     ${a("updatedAt")} = now()
   where x.${a("id")} = v_row.${a("id")}
@@ -501,6 +625,69 @@ begin
 end;
 $$;
 ${userGrant(`${fn("calibrate_appraisal")}(uuid, integer, text)`)}
+
+-- Moves the competency ratings of a reviewed appraisal in a calibration
+-- session. competencies is { key: 1 to 5 } for the competencies that move; the
+-- rest keep their review average. The calibrated rating becomes the weighted
+-- rating of the result, and the reason and previous value stay. Needs
+-- appraisals.manage, an open cycle and a cycle with a rubric.
+create or replace function ${fn("calibrate_appraisal_competencies")}(appraisal_id uuid, competencies jsonb, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${appraisals};
+  v_cycle ${cycles};
+  v_reason text := nullif(trim(calibrate_appraisal_competencies.reason), '');
+  v_item record;
+  v_merged jsonb;
+  v_rating numeric;
+begin
+  select * into v_row from ${appraisals} x where x.${a("id")} = calibrate_appraisal_competencies.appraisal_id for update;
+  if not found then
+    ${q.appraisalMissing}
+  end if;
+  if not ${q.allowed(`v_row.${a("tenant")}`, q.manage)} then
+    ${q.forbidden("not allowed to calibrate appraisals")}
+  end if;
+  select * into v_cycle from ${cycles} x where x.${y("id")} = v_row.${a("cycle")};
+  if v_cycle.${y("status")} <> 'open' or v_row.${a("status")} not in ('reviewed', 'calibrated') then
+    ${q.state("only a reviewed appraisal in an open cycle is calibrated")}
+  end if;
+  if jsonb_typeof(calibrate_appraisal_competencies.competencies) is distinct from 'object'
+    or calibrate_appraisal_competencies.competencies = '{}'::jsonb then
+    ${q.invalid("competencies is an object of competency ratings")}
+  end if;
+  if v_reason is null or length(v_reason) > 2000 then
+    ${q.invalid("a calibration needs a reason of up to 2000 characters")}
+  end if;
+  for v_item in select e.key, e.value from jsonb_each(calibrate_appraisal_competencies.competencies) e loop
+    if not exists (select 1 from ${competencies} w where w.${k("cycle")} = v_cycle.${y("id")} and w.${k("key")} = v_item.key) then
+      ${q.invalid("no such competency in this cycle's rubric")}
+    end if;
+    if jsonb_typeof(v_item.value) <> 'number' or v_item.value::text !~ '^[1-5]$' then
+      ${q.invalid("a competency rating is a whole number from 1 to 5")}
+    end if;
+  end loop;
+  v_merged := v_row.${a("calibratedCompetencies")} || calibrate_appraisal_competencies.competencies;
+  v_rating := ${fn("appraisal_score")}(v_row.${a("id")}, v_merged);
+  insert into ${calibrations} (${c("tenant")}, ${c("appraisal")}, ${c("fromRating")}, ${c("toRating")}, ${c("competencyRatings")}, ${c("reason")}, ${c("calibratedBy")})
+  values (v_row.${a("tenant")}, v_row.${a("id")}, coalesce(v_row.${a("calibratedRating")}::numeric, v_row.${a("rating")}), round(v_rating)::integer,
+    calibrate_appraisal_competencies.competencies, v_reason, auth.uid());
+  update ${appraisals} x
+  set ${a("calibratedCompetencies")} = v_merged, ${a("calibratedRating")} = round(v_rating)::integer,
+    ${a("status")} = 'calibrated', ${a("updatedAt")} = now()
+  where x.${a("id")} = v_row.${a("id")}
+  returning * into v_row;
+  ${q.recordAppraisal("appraisal.calibrated", "v_row", "appraisal calibrated", `, 'rating', v_row.${a("calibratedRating")}`)}
+  ${mark(ctx, q, `v_row.${a("id")}`, "calibration")}
+  return ${fn("appraisal_json")}(v_row.${a("id")}, true);
+end;
+$$;
+${userGrant(`${fn("calibrate_appraisal_competencies")}(uuid, jsonb, text)`)}
 
 -- Replaces the goals an appraisal looks back on with goal ids from the goals
 -- block (or your own table). Needs appraisals.manage.
@@ -651,7 +838,8 @@ revoke execute on function ${fn("appraisal_rejected")}(uuid) from public, anon, 
       ? finish
       : `
   v_payload := jsonb_build_object('appraisalId', v_row.${a("id")}, 'cycleId', v_row.${a("cycle")}, 'subjectUserId', v_row.${a("subjectUser")},
-    'rating', coalesce(v_row.${a("calibratedRating")}::numeric, v_row.${a("rating")})::text);
+    'rating', coalesce(v_row.${a("calibratedRating")}::numeric, v_row.${a("rating")})::text,
+    'competencies', ${fn("appraisal_json")}(v_row.${a("id")}, true) -> 'competencies');
   v_approval := ${approvals.fn("open_approval")}(
     v_row.${a("tenant")}, ${q.subject}, v_row.${a("id")}::text, 'sign_off',
     coalesce(${approvals.fn("approval_effective_policy")}(v_row.${a("tenant")}, ${q.subject}, 'sign_off', v_payload), ${sqlString(defaultPolicy(ctx))}::jsonb),
@@ -730,5 +918,5 @@ function defaultPolicy(ctx: BlockSqlContext): string {
 export function appraisalsFunctions(ctx: BlockSqlContext): string {
   const q = appraisalsSql(ctx);
 
-  return `${stepSql(ctx, q)}${viewFunction(q)}${cycleFunctions(ctx, q)}${reviewFunctions(ctx, q)}${signOffFunctions(ctx, q)}`;
+  return `${stepSql(ctx, q)}${rubricFunctions(q)}${viewFunction(q)}${cycleFunctions(ctx, q)}${reviewFunctions(ctx, q)}${signOffFunctions(ctx, q)}`;
 }
