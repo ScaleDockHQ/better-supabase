@@ -5,6 +5,8 @@ import type { CredentialSigner } from "./shared.ts";
 import { fromBase64, toBase64Url } from "../core/base64.ts";
 import { isRecord } from "../core/guards.ts";
 import { JwsError, verifyCompact } from "../core/jws.ts";
+import { nowInstant } from "../core/temporal.ts";
+import { nowInstant } from "../core/temporal.ts";
 import { CredentialError, epochSeconds, signJws } from "./shared.ts";
 
 /** The JWS `typ` of a Token Status List Token. */
@@ -322,7 +324,7 @@ export async function signBitstringStatusListCredential(
       id: options.id,
       type: ["VerifiableCredential", "BitstringStatusListCredential"],
       issuer: options.issuer,
-      validFrom: (options.validFrom ?? Temporal.Now.instant()).toString(),
+      validFrom: (options.validFrom ?? nowInstant()).toString(),
       ...(options.validUntil === undefined
         ? {}
         : { validUntil: options.validUntil.toString() }),

@@ -53,7 +53,7 @@ another implementation, such as a test double.
 import { createMcp } from "better-supabase/mcp";
 import { mcpToolsOf } from "better-supabase/webmcp";
 
-const mcp = createMcp(betterSupabase, {
+const bsb = createMcp(betterSupabase, {
   name: "crm",
   version: "1.0.0",
   tools: mcpToolsOf([archive]),

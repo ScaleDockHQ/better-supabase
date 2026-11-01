@@ -2,6 +2,7 @@ import type { Jwk, JwsAlgorithm } from "../core/jws.ts";
 
 import { toBase64Url } from "../core/base64.ts";
 import { importSigningKey, jwkAlgorithm, signBytes } from "../core/jws.ts";
+import { nowInstant } from "../core/temporal.ts";
 
 /** A stable code on a failed verification or request, for `switch` and logs. */
 export class CredentialError extends Error {
@@ -105,9 +106,7 @@ export function randomUrl(bytes = 16): string {
 
 /** Seconds since the epoch of `instant`, or of now. */
 export function epochSeconds(instant?: Temporal.Instant): number {
-  return Math.floor(
-    (instant ?? Temporal.Now.instant()).epochMilliseconds / 1000,
-  );
+  return Math.floor((instant ?? nowInstant()).epochMilliseconds / 1000);
 }
 
 /** A compact JWS over `payload`, signed by `signer`. */

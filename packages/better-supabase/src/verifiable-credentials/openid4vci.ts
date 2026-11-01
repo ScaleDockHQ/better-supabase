@@ -5,6 +5,8 @@ import type { CredentialSigner } from "./shared.ts";
 import { decodeJwtHeader, toBase64Url } from "../core/base64.ts";
 import { isList, isRecord } from "../core/guards.ts";
 import { JwsError, publicJwk, verifyCompact } from "../core/jws.ts";
+import { temporal } from "../core/temporal-required.ts";
+import { nowInstant } from "../core/temporal.ts";
 import { issueJwtVc } from "./jwt-vc.ts";
 import { issueSdJwt } from "./sd-jwt.ts";
 import { epochSeconds, randomUrl, sha256Url } from "./shared.ts";
@@ -110,7 +112,7 @@ export function memoryIssuanceStore(
   const counters = new Map<string, number>();
 
   const live = (at: Temporal.Instant, now: Temporal.Instant): boolean =>
-    Temporal.Instant.compare(at, now) > 0;
+    temporal().Instant.compare(at, now) > 0;
 
   return {
     saveOffer(hash, offer) {
@@ -261,7 +263,7 @@ export function createCredentialIssuer(
   options: CredentialIssuerOptions,
 ): CredentialIssuer {
   const { issuer, signer, store } = options;
-  const clock = options.now ?? (() => Temporal.Now.instant());
+  const clock = options.now ?? (() => nowInstant());
   const sources = new Map(options.sources.map((s) => [s.configuration.id, s]));
 
   const inSeconds = (seconds: number): Temporal.Instant =>

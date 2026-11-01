@@ -4,6 +4,7 @@ import type { BitstringStatusEntry } from "./status-list.ts";
 
 import { isList, isRecord } from "../core/guards.ts";
 import { JwsError, verifyCompact } from "../core/jws.ts";
+import { nowInstant } from "../core/temporal.ts";
 import { CredentialError, signJws } from "./shared.ts";
 import { VC_CONTEXT_V2 } from "./status-list.ts";
 
@@ -38,7 +39,7 @@ export function issueJwtVc(options: IssueJwtVcOptions): Promise<string> {
       ...(options.id === undefined ? {} : { id: options.id }),
       type: ["VerifiableCredential", ...options.types],
       issuer: options.issuer,
-      validFrom: (options.validFrom ?? Temporal.Now.instant()).toString(),
+      validFrom: (options.validFrom ?? nowInstant()).toString(),
       ...(options.validUntil === undefined
         ? {}
         : { validUntil: options.validUntil.toString() }),
@@ -110,7 +111,7 @@ export async function verifyJwtVc(
     );
   }
 
-  const now = (options.now ?? Temporal.Now.instant()).epochMilliseconds;
+  const now = (options.now ?? nowInstant()).epochMilliseconds;
 
   for (const [member, after] of [
     ["validFrom", true],
