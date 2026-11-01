@@ -1,6 +1,6 @@
 -- better-supabase module: consents
--- @bsb-block consents@1 managed
--- @bsb-hash sha256:06a632085c048fb36f82359234c5185680f8273f4257733568d6cf0a7cdb3f4f
+-- @bsb-block consents@2 managed
+-- @bsb-hash sha256:9e7deb46e28cac78412a62ef48d7791b3db3de17d2b8f093caa9bddae9c9e01f
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -57,6 +57,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consents";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."consents";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -127,6 +143,55 @@ drop policy if exists consents_read on "better_supabase"."consents";
 create policy consents_read on "better_supabase"."consents"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
+
+
+-- A signal a browser or consent platform sent for a record: the Sec-GPC header,
+-- an IAB TCF v2.2 TC string or a GPP string, with what was parsed from it.
+create table if not exists "better_supabase"."consent_signals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "kind" text not null check ("kind" in ('gpc', 'tcf', 'gpp')),
+  "raw" text not null check (length("raw") between 1 and 8192),
+  "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object'),
+  "consent_ids" uuid[] not null default '{}',
+  "created_by" uuid,
+  "received_at" timestamptz not null default now()
+);
+create index if not exists "consent_signals_subject_idx" on "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "received_at" desc);
+alter table "better_supabase"."consent_signals" enable row level security;
+revoke all on "better_supabase"."consent_signals" from public, anon, authenticated;
+grant select on "better_supabase"."consent_signals" to authenticated;
+grant all on "better_supabase"."consent_signals" to service_role;
+drop policy if exists consent_signals_read on "better_supabase"."consent_signals";
+create policy consent_signals_read on "better_supabase"."consent_signals"
+  for select to authenticated
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
+
+-- A receipt for one consent decision: the document handed to the person, with
+-- the SHA-256 of its text. One receipt per consent and status, never changed.
+create table if not exists "better_supabase"."consent_receipts" (
+  "id" uuid primary key,
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "consent_id" uuid not null references "better_supabase"."consents" ("id") on delete cascade,
+  "status" text not null,
+  "receipt" jsonb not null check (jsonb_typeof("receipt") = 'object'),
+  "digest" text not null check ("digest" ~ '^[0-9a-f]{64}$'),
+  "issued_at" timestamptz not null default now(),
+  unique ("consent_id", "status")
+);
+create index if not exists "consent_receipts_tenant_idx" on "better_supabase"."consent_receipts" ("tenant_id", "issued_at" desc);
+alter table "better_supabase"."consent_receipts" enable row level security;
+revoke all on "better_supabase"."consent_receipts" from public, anon, authenticated;
+grant select on "better_supabase"."consent_receipts" to authenticated;
+grant all on "better_supabase"."consent_receipts" to service_role;
+drop policy if exists consent_receipts_read on "better_supabase"."consent_receipts";
+create policy consent_receipts_read on "better_supabase"."consent_receipts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
 -- Creates or changes the purpose with key and version: what the organization
 -- asks consent for, its lawful basis, whether it takes a signature and how many
@@ -951,6 +1016,515 @@ $$;
 revoke execute on function "better_supabase"."expire_consents"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_consents"() to service_role;
 
+-- Parses the core segment of an IAB TCF v2.2 TC string.
+create or replace function "better_supabase"."parse_tc_string"(tc_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_core text := split_part(coalesce(tc_string, ''), '.', 1);
+  v_bits text := '';
+  i integer;
+begin
+  if v_core !~ '^[A-Za-z0-9_-]{36,}$' then
+    raise exception 'a TC string is base64url text of at least 36 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_core) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_core, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 213 then
+    raise exception 'the TC string is shorter than a core segment' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if substring(v_bits from 1 for 6)::bit(6)::bigint <> 2 then
+    raise exception 'only TCF v2 TC strings are supported' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  return jsonb_build_object(
+    'version', substring(v_bits from 1 for 6)::bit(6)::bigint,
+    'created', to_jsonb(to_timestamp(substring(v_bits from 7 for 36)::bit(36)::bigint / 10.0)),
+    'lastUpdated', to_jsonb(to_timestamp(substring(v_bits from 43 for 36)::bit(36)::bigint / 10.0)),
+    'cmpId', substring(v_bits from 79 for 12)::bit(12)::bigint,
+    'cmpVersion', substring(v_bits from 91 for 12)::bit(12)::bigint,
+    'consentScreen', substring(v_bits from 103 for 6)::bit(6)::bigint,
+    'consentLanguage', chr(65 + (substring(v_bits from 109 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 115 for 6)::bit(6)::int)),
+    'vendorListVersion', substring(v_bits from 121 for 12)::bit(12)::bigint,
+    'tcfPolicyVersion', substring(v_bits from 133 for 6)::bit(6)::bigint,
+    'tcfV22', substring(v_bits from 133 for 6)::bit(6)::bigint >= 4,
+    'isServiceSpecific', substring(v_bits from 139 for 1) = '1',
+    'useNonStandardTexts', substring(v_bits from 140 for 1) = '1',
+    'specialFeatureOptIns', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 12) k where substring(v_bits from 140 + k for 1) = '1'),
+    'purposesConsent', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 152 + k for 1) = '1'),
+    'purposesLiTransparency', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 176 + k for 1) = '1'),
+    'purposeOneTreatment', substring(v_bits from 201 for 1) = '1',
+    'publisherCc', chr(65 + (substring(v_bits from 202 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 208 for 6)::bit(6)::int))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."parse_tc_string"(text) from public, anon, authenticated;
+
+-- Reads the header of a GPP string and keeps its sections.
+create or replace function "better_supabase"."parse_gpp_string"(gpp_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_header text := split_part(coalesce(gpp_string, ''), '~', 1);
+  v_bits text := '';
+  i integer;
+  v_sections jsonb;
+begin
+  if v_header !~ '^[A-Za-z0-9_-]{4,}$' then
+    raise exception 'a GPP string starts with a base64url header' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_header) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_header, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 12 or substring(v_bits from 1 for 6)::bit(6)::int <> 3 then
+    raise exception 'the GPP header has type 3' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(s order by n), '[]'::jsonb) into v_sections
+  from unnest(string_to_array(gpp_string, '~')) with ordinality as t(s, n)
+  where n > 1;
+  return jsonb_build_object(
+    'type', substring(v_bits from 1 for 6)::bit(6)::int,
+    'version', substring(v_bits from 7 for 6)::bit(6)::int,
+    'sections', v_sections
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."parse_gpp_string"(text) from public, anon, authenticated;
+
+-- Records a signal for record subject_type/subject_id as consent evidence.
+-- kind gpc: value is the Sec-GPC header value, 1, and purpose_keys names the
+-- purposes it opts out of; each gets a refused consent. kind tcf or gpp: value
+-- is the string, parsed and kept; consent_id optionally ties it to a consent
+-- of the same record. The raw value is kept either way.
+create or replace function "better_supabase"."record_consent_signal"(
+  subject_type text,
+  subject_id text,
+  kind text,
+  value text,
+  purpose_keys text[] default '{}',
+  consent_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := ((case record_consent_signal.subject_type
+      when 'message' then (select s."tenant_id"::text from "better_supabase"."messages" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'conversation' then (select s."tenant_id"::text from "better_supabase"."conversations" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'channel' then (select s."tenant_id"::text from "better_supabase"."channels" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'company' then (select s."tenant_id"::text from "better_supabase"."companies" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'person' then (select s."tenant_id"::text from "better_supabase"."people" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'deal' then (select s."tenant_id"::text from "better_supabase"."deals" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'activity' then (select s."tenant_id"::text from "better_supabase"."activities" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'till' then (select s."tenant_id"::text from "better_supabase"."tills" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'asset' then (select s."tenant_id"::text from "better_supabase"."assets" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'asset_location' then (select s."tenant_id"::text from "better_supabase"."asset_locations" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'lease' then (select s."tenant_id"::text from "better_supabase"."leases" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'control' then (select s."tenant_id"::text from "better_supabase"."controls" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'compliance_policy' then (select s."tenant_id"::text from "better_supabase"."compliance_policies" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'qualification_type' then (select s."tenant_id"::text from "better_supabase"."qualification_types" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'risk' then (select s."tenant_id"::text from "better_supabase"."risks" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'case' then (select s."tenant_id"::text from "better_supabase"."cases" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'inspection' then (select s."tenant_id"::text from "better_supabase"."inspections" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'inspection_program' then (select s."tenant_id"::text from "better_supabase"."inspection_programs" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'inspection_finding' then (select s."tenant_id"::text from "better_supabase"."inspection_findings" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'meeting' then (select s."tenant_id"::text from "better_supabase"."meetings" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'meeting_decision' then (select s."tenant_id"::text from "better_supabase"."meeting_decisions" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'maintenance_plan' then (select s."tenant_id"::text from "better_supabase"."maintenance_plans" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'dam_usage_right' then (select s."tenant_id"::text from "better_supabase"."dam_usage_rights" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'lims_sample' then (select s."tenant_id"::text from "better_supabase"."lims_samples" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'tax_code' then (select s."tenant_id"::text from "better_supabase"."tax_codes" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'drive_node' then (select s."tenant_id"::text from "better_supabase"."drive_nodes" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      else null::text
+    end))::uuid;
+  v_value text := trim(coalesce(record_consent_signal.value, ''));
+  v_keys text[] := coalesce(record_consent_signal.purpose_keys, '{}');
+  v_parsed jsonb;
+  v_key text;
+  v_ids uuid[] := '{}';
+  v_decision jsonb;
+  v_row "better_supabase"."consent_signals";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.record'), false) and coalesce("better_supabase"."can_subject"(record_consent_signal.subject_type, record_consent_signal.subject_id, 'read'), false))
+      or ((v_tenant)::text, (record_consent_signal.subject_type)::text, (record_consent_signal.subject_id)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g)
+      or exists (select 1 from "better_supabase"."relations" r
+      where r."kind" = 'represents' and r."source_type" = 'person'
+        and r."tenant_id"::text = (v_tenant)::text
+        and r."target_type" = record_consent_signal.subject_type and r."target_id" = (record_consent_signal.subject_id)::text
+        and r."data" ->> 'authority' = 'act'
+        and (case when r."data" ->> 'valid_from' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_from', 'date') then (r."data" ->> 'valid_from')::date <= current_date
+      else false end) and (case when r."data" ->> 'valid_until' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
+      else false end)
+        and ((v_tenant)::text, ('person')::text, (r."source_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))) then
+    raise exception 'not allowed to record a consent signal for this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  if record_consent_signal.kind is null or record_consent_signal.kind not in ('gpc', 'tcf', 'gpp') then
+    raise exception 'kind is gpc, tcf or gpp' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if length(v_value) not between 1 and 8192 then
+    raise exception 'value is 1 to 8192 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if record_consent_signal.kind = 'gpc' then
+    if v_value <> '1' then
+      raise exception 'the Sec-GPC header is 1 when the person opts out' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if cardinality(v_keys) = 0 then
+      raise exception 'purpose_keys names the purposes the signal opts out of' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if record_consent_signal.consent_id is not null then
+      raise exception 'a Sec-GPC signal creates its own consents' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := jsonb_build_object('header', 'Sec-GPC', 'optOut', true, 'purposeKeys', to_jsonb(v_keys));
+    foreach v_key in array v_keys loop
+      v_decision := "better_supabase"."record_consent"(record_consent_signal.subject_type, record_consent_signal.subject_id, v_key, 'refused');
+      v_ids := v_ids || (v_decision ->> 'id')::uuid;
+    end loop;
+  else
+    if cardinality(v_keys) > 0 then
+      raise exception 'purpose_keys applies to a Sec-GPC signal only' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := case record_consent_signal.kind
+      when 'tcf' then "better_supabase"."parse_tc_string"(v_value)
+      else "better_supabase"."parse_gpp_string"(v_value)
+    end;
+    if record_consent_signal.consent_id is not null then
+      if not exists (
+        select 1 from "better_supabase"."consents" x
+        where x."id" = record_consent_signal.consent_id and x."tenant_id" = v_tenant
+          and x."subject_type" = record_consent_signal.subject_type and x."subject_id" = record_consent_signal.subject_id
+      ) then
+        raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+      end if;
+      v_ids := array[record_consent_signal.consent_id];
+    end if;
+  end if;
+  insert into "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "kind", "raw", "parsed", "consent_ids", "created_by")
+  values (v_tenant, record_consent_signal.subject_type, record_consent_signal.subject_id, record_consent_signal.kind, v_value, v_parsed, v_ids, auth.uid())
+  returning * into v_row;
+  perform "better_supabase".emit_event('consent_signal.recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'signalId', v_row."id", 'kind', v_row."kind", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'consent-signals/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/consents');
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'kind', v_row."kind", 'raw', v_row."raw", 'parsed', v_row."parsed", 'consentIds', to_jsonb(v_row."consent_ids"), 'receivedAt', v_row."received_at");
+end;
+$$;
+revoke execute on function "better_supabase"."record_consent_signal"(text, text, text, text, text[], uuid) from public, anon;
+grant execute on function "better_supabase"."record_consent_signal"(text, text, text, text, text[], uuid) to authenticated, service_role;
+
+-- The signals recorded for a record, the newest first.
+create or replace function "better_supabase"."list_consent_signals"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := ((case list_consent_signals.subject_type
+      when 'message' then (select s."tenant_id"::text from "better_supabase"."messages" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'conversation' then (select s."tenant_id"::text from "better_supabase"."conversations" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'channel' then (select s."tenant_id"::text from "better_supabase"."channels" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'company' then (select s."tenant_id"::text from "better_supabase"."companies" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'person' then (select s."tenant_id"::text from "better_supabase"."people" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'deal' then (select s."tenant_id"::text from "better_supabase"."deals" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'activity' then (select s."tenant_id"::text from "better_supabase"."activities" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'till' then (select s."tenant_id"::text from "better_supabase"."tills" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'asset' then (select s."tenant_id"::text from "better_supabase"."assets" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'asset_location' then (select s."tenant_id"::text from "better_supabase"."asset_locations" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'lease' then (select s."tenant_id"::text from "better_supabase"."leases" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'control' then (select s."tenant_id"::text from "better_supabase"."controls" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'compliance_policy' then (select s."tenant_id"::text from "better_supabase"."compliance_policies" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'qualification_type' then (select s."tenant_id"::text from "better_supabase"."qualification_types" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'risk' then (select s."tenant_id"::text from "better_supabase"."risks" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'case' then (select s."tenant_id"::text from "better_supabase"."cases" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'inspection' then (select s."tenant_id"::text from "better_supabase"."inspections" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'inspection_program' then (select s."tenant_id"::text from "better_supabase"."inspection_programs" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'inspection_finding' then (select s."tenant_id"::text from "better_supabase"."inspection_findings" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'meeting' then (select s."tenant_id"::text from "better_supabase"."meetings" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'meeting_decision' then (select s."tenant_id"::text from "better_supabase"."meeting_decisions" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'maintenance_plan' then (select s."tenant_id"::text from "better_supabase"."maintenance_plans" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'dam_usage_right' then (select s."tenant_id"::text from "better_supabase"."dam_usage_rights" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'lims_sample' then (select s."tenant_id"::text from "better_supabase"."lims_samples" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'tax_code' then (select s."tenant_id"::text from "better_supabase"."tax_codes" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'drive_node' then (select s."tenant_id"::text from "better_supabase"."drive_nodes" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      else null::text
+    end))::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_signals.subject_type, list_consent_signals.subject_id, 'read'), false))
+      or ((v_tenant)::text, (list_consent_signals.subject_type)::text, (list_consent_signals.subject_id)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)
+      or ((v_tenant)::text, (list_consent_signals.subject_type)::text, (list_consent_signals.subject_id)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g)
+      or exists (select 1 from "better_supabase"."relations" r
+      where r."kind" = 'represents' and r."source_type" = 'person'
+        and r."tenant_id"::text = (v_tenant)::text
+        and r."target_type" = list_consent_signals.subject_type and r."target_id" = (list_consent_signals.subject_id)::text
+        and r."data" ->> 'authority' in ('inform', 'act')
+        and (case when r."data" ->> 'valid_from' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_from', 'date') then (r."data" ->> 'valid_from')::date <= current_date
+      else false end) and (case when r."data" ->> 'valid_until' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
+      else false end)
+        and ((v_tenant)::text, ('person')::text, (r."source_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))) then
+    raise exception 'not allowed to read the consent signals of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'kind', x."kind", 'raw', x."raw", 'parsed', x."parsed", 'consentIds', to_jsonb(x."consent_ids"), 'receivedAt', x."received_at") order by x."received_at" desc, x."id"), '[]'::jsonb)
+    from "better_supabase"."consent_signals" x
+    where x."tenant_id" = v_tenant
+      and x."subject_type" = list_consent_signals.subject_type and x."subject_id" = list_consent_signals.subject_id
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_consent_signals"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_consent_signals"(text, text) to authenticated, service_role;
+
+-- Issues the receipt for a consent decision: who, what, when, on which
+-- purpose version and with which evidence, plus the SHA-256 of its text. The
+-- same consent and status give the same receipt back; a withdrawal is a
+-- second receipt.
+create or replace function "better_supabase"."issue_consent_receipt"(consent_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."consents";
+  v_purpose "better_supabase"."consent_purposes";
+  v_receipt "better_supabase"."consent_receipts";
+  v_id uuid := gen_random_uuid();
+  v_issued timestamptz := now();
+  v_doc jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."consents" x where x."id" = issue_consent_receipt.consent_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'consents.read'), false) and coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false))
+      or ((v_row."tenant_id")::text, (v_row."subject_type")::text, (v_row."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)
+      or ((v_row."tenant_id")::text, (v_row."subject_type")::text, (v_row."subject_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g)
+      or exists (select 1 from "better_supabase"."relations" r
+      where r."kind" = 'represents' and r."source_type" = 'person'
+        and r."tenant_id"::text = (v_row."tenant_id")::text
+        and r."target_type" = v_row."subject_type" and r."target_id" = (v_row."subject_id")::text
+        and r."data" ->> 'authority' in ('inform', 'act')
+        and (case when r."data" ->> 'valid_from' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_from', 'date') then (r."data" ->> 'valid_from')::date <= current_date
+      else false end) and (case when r."data" ->> 'valid_until' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
+      else false end)
+        and ((v_row."tenant_id")::text, ('person')::text, (r."source_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))) then
+    raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+  end if;
+  select * into v_receipt from "better_supabase"."consent_receipts" x where x."consent_id" = v_row."id" and x."status" = v_row."status";
+  if found then
+    return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+  end if;
+  select * into v_purpose from "better_supabase"."consent_purposes" x where x."id" = v_row."purpose_id";
+  v_doc := jsonb_build_object(
+    'format', 'better-supabase/consent-receipt@1',
+    'receiptId', v_id,
+    'issuedAt', v_issued,
+    'organizationId', v_row."tenant_id",
+    'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
+    'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'evidence', jsonb_build_object(
+      'signatureId', v_row."signature_id",
+      'submissionId', v_row."submission_id",
+      'attachmentId', v_row."attachment_id",
+      'signals', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'kind', y."kind", 'receivedAt', y."received_at") order by y."received_at", y."id"), '[]'::jsonb) from "better_supabase"."consent_signals" y where v_row."id" = any(y."consent_ids"))
+    )
+  );
+  insert into "better_supabase"."consent_receipts" ("id", "tenant_id", "subject_type", "subject_id", "consent_id", "status", "receipt", "digest", "issued_at")
+  values (v_id, v_row."tenant_id", v_row."subject_type", v_row."subject_id", v_row."id", v_row."status", v_doc, encode(sha256(convert_to(v_doc::text, 'UTF8')), 'hex'), v_issued)
+  returning * into v_receipt;
+  perform "better_supabase".emit_event('consent_receipt.issued', jsonb_build_object('organizationId', v_receipt."tenant_id", 'receiptId', v_receipt."id", 'consentId', v_receipt."consent_id", 'status', v_receipt."status", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'consent-receipts/' || v_receipt."id"::text, (v_receipt."tenant_id")::text, null, 'better-supabase/consents');
+  return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+end;
+$$;
+revoke execute on function "better_supabase"."issue_consent_receipt"(uuid) from public, anon;
+grant execute on function "better_supabase"."issue_consent_receipt"(uuid) to authenticated, service_role;
+
+-- The receipts of a record's consents, the newest first.
+create or replace function "better_supabase"."list_consent_receipts"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := ((case list_consent_receipts.subject_type
+      when 'message' then (select s."tenant_id"::text from "better_supabase"."messages" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'conversation' then (select s."tenant_id"::text from "better_supabase"."conversations" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'channel' then (select s."tenant_id"::text from "better_supabase"."channels" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'company' then (select s."tenant_id"::text from "better_supabase"."companies" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'person' then (select s."tenant_id"::text from "better_supabase"."people" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'deal' then (select s."tenant_id"::text from "better_supabase"."deals" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'activity' then (select s."tenant_id"::text from "better_supabase"."activities" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'till' then (select s."tenant_id"::text from "better_supabase"."tills" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'order' then (select s."tenant_id"::text from "better_supabase"."orders" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'asset' then (select s."tenant_id"::text from "better_supabase"."assets" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'asset_location' then (select s."tenant_id"::text from "better_supabase"."asset_locations" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'lease' then (select s."tenant_id"::text from "better_supabase"."leases" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'control' then (select s."tenant_id"::text from "better_supabase"."controls" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'compliance_policy' then (select s."tenant_id"::text from "better_supabase"."compliance_policies" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'qualification_type' then (select s."tenant_id"::text from "better_supabase"."qualification_types" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'risk' then (select s."tenant_id"::text from "better_supabase"."risks" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'case' then (select s."tenant_id"::text from "better_supabase"."cases" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'inspection' then (select s."tenant_id"::text from "better_supabase"."inspections" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'inspection_program' then (select s."tenant_id"::text from "better_supabase"."inspection_programs" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'inspection_finding' then (select s."tenant_id"::text from "better_supabase"."inspection_findings" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'meeting' then (select s."tenant_id"::text from "better_supabase"."meetings" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'meeting_decision' then (select s."tenant_id"::text from "better_supabase"."meeting_decisions" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'maintenance_plan' then (select s."tenant_id"::text from "better_supabase"."maintenance_plans" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'dam_usage_right' then (select s."tenant_id"::text from "better_supabase"."dam_usage_rights" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'lims_sample' then (select s."tenant_id"::text from "better_supabase"."lims_samples" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'tax_code' then (select s."tenant_id"::text from "better_supabase"."tax_codes" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'drive_node' then (select s."tenant_id"::text from "better_supabase"."drive_nodes" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      else null::text
+    end))::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_receipts.subject_type, list_consent_receipts.subject_id, 'read'), false))
+      or ((v_tenant)::text, (list_consent_receipts.subject_type)::text, (list_consent_receipts.subject_id)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)
+      or ((v_tenant)::text, (list_consent_receipts.subject_type)::text, (list_consent_receipts.subject_id)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g)
+      or exists (select 1 from "better_supabase"."relations" r
+      where r."kind" = 'represents' and r."source_type" = 'person'
+        and r."tenant_id"::text = (v_tenant)::text
+        and r."target_type" = list_consent_receipts.subject_type and r."target_id" = (list_consent_receipts.subject_id)::text
+        and r."data" ->> 'authority' in ('inform', 'act')
+        and (case when r."data" ->> 'valid_from' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_from', 'date') then (r."data" ->> 'valid_from')::date <= current_date
+      else false end) and (case when r."data" ->> 'valid_until' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
+      else false end)
+        and ((v_tenant)::text, ('person')::text, (r."source_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))) then
+    raise exception 'not allowed to read the consent receipts of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg((x."receipt" || jsonb_build_object('digest', x."digest")) order by x."issued_at" desc, x."id"), '[]'::jsonb)
+    from "better_supabase"."consent_receipts" x
+    where x."tenant_id" = v_tenant
+      and x."subject_type" = list_consent_receipts.subject_type and x."subject_id" = list_consent_receipts.subject_id
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_consent_receipts"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_consent_receipts"(text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1006,6 +1580,48 @@ create policy bsb_tenant_scope_update on "better_supabase"."consents" as restric
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
 create policy bsb_tenant_scope_delete on "better_supabase"."consents" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_select on "better_supabase"."consent_signals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_insert on "better_supabase"."consent_signals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_update on "better_supabase"."consent_signals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_delete on "better_supabase"."consent_signals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_select on "better_supabase"."consent_receipts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_insert on "better_supabase"."consent_receipts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_update on "better_supabase"."consent_receipts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_delete on "better_supabase"."consent_receipts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -1102,6 +1718,42 @@ set search_path = ''
 as $$ select "better_supabase"."expire_consents"() $$;
 revoke execute on function "api"."expire_consents"() from public, anon, authenticated;
 grant execute on function "api"."expire_consents"() to service_role;
+
+create or replace function "api"."record_consent_signal"(subject_type text, subject_id text, kind text, value text, purpose_keys text[] default '{}', consent_id uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."record_consent_signal"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."record_consent_signal"(text, text, text, text, text[], uuid) from public, anon;
+grant execute on function "api"."record_consent_signal"(text, text, text, text, text[], uuid) to authenticated, service_role;
+
+create or replace function "api"."list_consent_signals"(subject_type text, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_consent_signals"($1, $2) $$;
+revoke execute on function "api"."list_consent_signals"(text, text) from public, anon;
+grant execute on function "api"."list_consent_signals"(text, text) to authenticated, service_role;
+
+create or replace function "api"."issue_consent_receipt"(consent_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."issue_consent_receipt"($1) $$;
+revoke execute on function "api"."issue_consent_receipt"(uuid) from public, anon;
+grant execute on function "api"."issue_consent_receipt"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_consent_receipts"(subject_type text, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_consent_receipts"($1, $2) $$;
+revoke execute on function "api"."list_consent_receipts"(text, text) from public, anon;
+grant execute on function "api"."list_consent_receipts"(text, text) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
