@@ -1,4 +1,4 @@
-import type { BlockCategory } from "../blocks/define-block.ts";
+import type { BlockCategory, PartDefaults } from "../blocks/define-block.ts";
 import type { PortName } from "../blocks/ports.ts";
 import type {
   BlockEnvKey,
@@ -125,6 +125,12 @@ export interface PresetCatalogManifest {
   readonly schedules?: readonly BlockSchedule[];
   /** The automations it ships as default rows. */
   readonly automations?: readonly PresetCatalogAutomation[];
+  /** The blocks it is built from (a composite, ADR 0177). */
+  readonly composes?: readonly string[];
+  /** What a composite sets on each part until the app does. */
+  readonly defaults?: Readonly<Record<string, PartDefaults>>;
+  /** The composites that list it as a part. */
+  readonly composedBy?: readonly string[];
 }
 
 /** One entity's input schemas, in the block's default names. */

@@ -1,7 +1,11 @@
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { AiFiles } from "../../src/blocks/ai-files/index.ts";
-import type { BlockContext, Notifier } from "../../src/blocks/index.ts";
+import type {
+  BlockContext,
+  CompositeOptions,
+  Notifier,
+} from "../../src/blocks/index.ts";
 import type { OrganizationsEvents } from "../../src/blocks/organizations/index.ts";
 import type { CloudEvent } from "../../src/events/index.ts";
 
@@ -617,5 +621,62 @@ describe("defineBlocks", () => {
     expect(set.config).toBe(config);
     expect(typeof blocks.organizations.create).toBe("function");
     blocks.close();
+  });
+});
+
+describe("createBlocks composites", () => {
+  const part = (name: string, answer: string) =>
+    defineBlock({
+      name,
+      create: (_options: BlockContext) => ({ answer: () => answer }),
+      category: "work",
+    });
+
+  const alpha = part("alpha", "a");
+  const beta = part("beta", "b");
+
+  const composite = defineBlock({
+    name: "pair",
+    composes: { alpha, beta },
+    create: (
+      options: BlockContext &
+        CompositeOptions<{ alpha: typeof alpha; beta: typeof beta }>,
+    ) => ({
+      both: () => options.parts.alpha.answer() + options.parts.beta.answer(),
+    }),
+    category: "work",
+  });
+
+  it("hands a composite the clients of its parts", () => {
+    const blocks = createBlocks(
+      { transport },
+      { alpha, beta, pair: composite },
+    );
+
+    expect(blocks.pair.both()).toBe("ab");
+  });
+
+  it("builds a part once, for the composite and for the app", () => {
+    const seen: Record<string, unknown>[] = [];
+
+    const counted = defineBlock({
+      name: "alpha",
+      create: (options: Record<string, unknown>) => {
+        seen.push(options);
+
+        return { answer: () => "a" };
+      },
+      category: "work",
+    });
+
+    createBlocks({ transport }, { alpha: counted, beta, pair: composite });
+
+    expect(seen).toHaveLength(1);
+  });
+
+  it("names the part that is missing", () => {
+    expect(() =>
+      createBlocks({ transport }, { alpha, pair: composite }),
+    ).toThrow(/"pair" is built from "beta"/u);
   });
 });

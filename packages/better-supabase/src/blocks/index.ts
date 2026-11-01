@@ -106,7 +106,11 @@ export type {
   BlockOptionSchemas,
   BlockProvides,
   ClientOf,
+  ComposedParts,
+  CompositeOptions,
   ConsumedPorts,
+  PartClients,
+  PartDefaults,
   ProvidedPorts,
   UsingOptions,
 } from "./define-block.ts";

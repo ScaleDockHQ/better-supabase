@@ -4,6 +4,7 @@
     "plugins",
     "repositories",
     "blocks",
+    "composite-blocks",
     "interfaces",
     "authorizers",
     "authorization-providers",

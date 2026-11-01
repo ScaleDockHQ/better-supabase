@@ -511,3 +511,151 @@ describe("the block contract", () => {
     ).toEqual(SIBLING_CLIENTS);
   });
 });
+
+/** What is wrong with the composites in `manifests` (ADR 0177). */
+function compositeProblems(
+  manifests: readonly AnyBlock[],
+  requires: (module: string) => readonly string[],
+): string[] {
+  const byName = new Map(manifests.map((block) => [block.name, block]));
+
+  /** The SQL modules a block installs, parts included. */
+  const modulesOf = (block: AnyBlock, seen: Set<string>): string[] => {
+    if (seen.has(block.name)) {
+      return [];
+    }
+
+    seen.add(block.name);
+
+    return [
+      ...block.sql,
+      ...Object.keys(block.composes ?? {}).flatMap((part) => {
+        const found = byName.get(part);
+
+        return found === undefined ? [] : modulesOf(found, seen);
+      }),
+    ];
+  };
+
+  /** Every module `modules` need, themselves included. */
+  const closure = (modules: readonly string[]): Set<string> => {
+    const out = new Set<string>();
+
+    const visit = (module: string): void => {
+      if (!out.has(module)) {
+        out.add(module);
+
+        for (const need of requires(module)) {
+          visit(need);
+        }
+      }
+    };
+
+    for (const module of modules) {
+      visit(module);
+    }
+
+    return out;
+  };
+
+  return manifests.flatMap((block) => {
+    const parts = Object.keys(block.composes ?? {});
+
+    if (parts.length === 0) {
+      return [];
+    }
+
+    const problems: string[] = [];
+
+    for (const part of parts) {
+      const found = byName.get(part);
+
+      if (found === undefined) {
+        problems.push(`${block.name}: part "${part}" is not a block`);
+      } else if (found.composes?.[part] !== undefined || part === block.name) {
+        problems.push(`${block.name}: part "${part}" composes itself`);
+      } else if (block.composes?.[part] !== found) {
+        problems.push(
+          `${block.name}: part "${part}" is not the registered block`,
+        );
+      }
+    }
+
+    for (const [part, defaults] of Object.entries(block.defaults ?? {})) {
+      const found = byName.get(part);
+
+      if (!parts.includes(part)) {
+        problems.push(
+          `${block.name}: defaults name "${part}", which is not a part`,
+        );
+        continue;
+      }
+
+      const known = new Set(
+        (found?.sql ?? []).flatMap((module) =>
+          Object.keys(found?.options[module]?.specs ?? {}),
+        ),
+      );
+
+      for (const key of Object.keys(defaults.options ?? {})) {
+        if (!known.has(key)) {
+          problems.push(`${block.name}: "${part}" has no option "${key}"`);
+        }
+      }
+    }
+
+    const partModules = closure(
+      parts.flatMap((part) => {
+        const found = byName.get(part);
+
+        return found === undefined ? [] : modulesOf(found, new Set());
+      }),
+    );
+
+    for (const module of block.sql) {
+      for (const need of requires(module)) {
+        if (!partModules.has(need) && !block.sql.includes(need)) {
+          problems.push(
+            `${block.name}: glue "${module}" reads "${need}", which no part installs`,
+          );
+        }
+      }
+    }
+
+    return problems;
+  });
+}
+
+describe("composite blocks", () => {
+  const requiresOf = (module: string): readonly string[] =>
+    SQL_MODULES[module]?.requires ?? [];
+
+  it("compose registered blocks, set real options and read only their parts", () => {
+    expect(compositeProblems(BLOCK_MANIFESTS, requiresOf)).toEqual([]);
+  });
+
+  it("catches a part that is missing, a default with no option and a stray read", () => {
+    const comments = BLOCK_MANIFESTS.find((each) => each.name === "comments");
+    const tags = BLOCK_MANIFESTS.find((each) => each.name === "tags");
+
+    if (comments === undefined || tags === undefined) {
+      throw new TypeError("comments and tags are blocks");
+    }
+
+    const bad = {
+      ...comments,
+      name: "bad",
+      sql: [],
+      composes: { comments, tags, ghost: tags },
+      defaults: { comments: { options: { nope: 1 } }, other: {} },
+    } satisfies AnyBlock;
+
+    const problems = compositeProblems([comments, tags, bad], requiresOf);
+
+    expect(problems).toContain('bad: part "ghost" is not a block');
+    expect(problems).toContain('bad: "comments" has no option "nope"');
+    expect(problems).toContain(
+      'bad: defaults name "other", which is not a part',
+    );
+  });
+});

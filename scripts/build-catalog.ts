@@ -540,10 +540,24 @@ function presetManifest(
     provides: Object.keys(block.provides).filter(isPortName),
   };
 
+  const parts = Object.keys(block.composes ?? {});
+
+  const composedBy = BLOCK_MANIFESTS.filter((each) =>
+    Object.hasOwn(each.composes ?? {}, block.name),
+  ).map((each) => each.name);
+
+  const withParts =
+    parts.length === 0
+      ? manifest
+      : { ...manifest, composes: parts, defaults: block.defaults ?? {} };
+
+  const composed =
+    composedBy.length === 0 ? withParts : { ...withParts, composedBy };
+
   const extended =
     block.extension === undefined
-      ? manifest
-      : { ...manifest, extension: block.extension };
+      ? composed
+      : { ...composed, extension: block.extension };
 
   const entitySchemas = entitySchemasOf(block);
 

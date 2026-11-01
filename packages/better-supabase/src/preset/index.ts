@@ -148,11 +148,18 @@ export { presetFromSpec, presetOfSpec, presetSpec } from "./spec.ts";
 
 export type { PresetSpec } from "./spec.ts";
 
-export { listNames, presetBlockConflict, resolvePreset } from "./resolve.ts";
+export {
+  listNames,
+  presetBlockConflict,
+  removeComposite,
+  resolvePreset,
+} from "./resolve.ts";
 
 export type {
+  CompositeRemoval,
   PresetConflict,
   PresetIntegration,
+  ResolvedComposite,
   ResolvedPreset,
   ResolvedPresetBlock,
 } from "./resolve.ts";

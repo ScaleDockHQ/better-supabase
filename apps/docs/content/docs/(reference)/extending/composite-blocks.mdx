@@ -1,0 +1,70 @@
+---
+title: Composite blocks
+description: Build one block from other blocks, with defaults for its parts and a client that holds theirs, and install or remove it as a unit.
+---
+
+A composite block is a block made of other blocks. The CRM is deals,
+contacts, activities and tasks with a few helpers across them; installing
+`crm` installs those four. A composite is an ordinary block otherwise: one
+manifest, one name, one docs page, one client.
+
+## Declare one
+
+List the parts under `composes` and read their clients from `options.parts`
+in the creator. The part clients are the same objects the app gets, so hooks
+you set on `deals` also run when the composite calls `deals`.
+
+```ts
+import {
+  defineBlock,
+  type BlockContext,
+  type CompositeOptions,
+} from "better-supabase/blocks";
+import { commentsBlock } from "better-supabase/blocks/comments";
+import { tagsBlock } from "better-supabase/blocks/tags";
+
+const composes = { comments: commentsBlock, tags: tagsBlock };
+
+export const discussionBlock = defineBlock({
+  name: "discussion",
+  category: "collaboration",
+  composes,
+  defaults: { comments: { options: { mentions: true } } },
+  create: (options: BlockContext & CompositeOptions<typeof composes>) => ({
+    comments: options.parts.comments,
+    tags: options.parts.tags,
+  }),
+});
+```
+
+`createBlocks` builds each part once, in the composite's creator and for the
+app, and throws when a part is not in the block set.
+
+## Defaults
+
+`defaults` sets options on a part until the app sets them. The app's own
+`blocks.<part>.options` wins key by key, so a default is a starting point and
+never a lock. `resolvePreset` returns the merged result as `partOptions`.
+Conformance checks that every default names a part and an option the part
+has.
+
+## Install and remove
+
+Selecting a composite in a preset selects its parts, and the resolved preset
+lists each part with the reason `part of <composite>`. `removeComposite`
+takes out the composite and its glue and keeps the parts as ordinary blocks.
+With `withParts` it also removes each part that no other selected block or
+composite still needs, and reports the ones it kept and why.
+
+## The catalog
+
+Each manifest in the catalog carries `composes` and `defaults` for a
+composite, and `composedBy` for a part, so the docs, the CLI and Create can
+show the relation without importing the blocks.
+
+## Conformance
+
+The block conformance test checks that parts are registered blocks, that
+defaults name real options, and that glue SQL requires only modules its parts
+install. A composite's glue never reaches into a block that is not one of its
+parts.

@@ -79,6 +79,32 @@ type Nothing = Record<never, never>;
 /** Event pattern to the read methods it makes stale. */
 export type BlockInvalidates = Readonly<Record<string, readonly string[]>>;
 
+/**
+ * What a composite sets on one of its parts when the app leaves it unset: the
+ * part's `blocks.<part>.options` keys (ADR 0177). The app's own `blocks.<part>`
+ * entry wins key by key.
+ */
+export interface PartDefaults {
+  readonly options?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * The blocks a composite is built from, by the key its creator reads them
+ * under.
+ */
+export type ComposedParts = Readonly<Record<string, AnyBlock>>;
+
+/** The clients of a composite's parts, as its creator receives them. */
+export type PartClients<P extends ComposedParts> = {
+  readonly [K in keyof P]: ClientOf<P[K]>;
+};
+
+/** What a composite's creator receives besides the shared block options. */
+export interface CompositeOptions<P extends ComposedParts> {
+  /** The parts' built clients, hooks included. */
+  readonly parts: PartClients<P>;
+}
+
 /** What `defineBlock` takes. */
 export interface BlockDefinition<
   Name extends string,
@@ -147,6 +173,19 @@ export interface BlockDefinition<
   readonly automations?: readonly DefaultAutomation[];
   /** The timers the block runs on the queue. */
   readonly schedules?: readonly BlockSchedule[];
+  /**
+   * The blocks this one is built from, keyed by the block's name (a composite,
+   * ADR 0177). Installing the composite installs its parts, and `create`
+   * receives their clients as `options.parts`. A composite is an ordinary block
+   * otherwise: one manifest, one name, one docs page. Parts may be composites;
+   * a composite is a singleton.
+   */
+  readonly composes?: ComposedParts;
+  /**
+   * What the composite sets on each part, by part name, until the app sets it.
+   * Keys must exist on the part (conformance checks them).
+   */
+  readonly defaults?: Readonly<Record<string, PartDefaults>>;
 }
 
 /**
@@ -201,6 +240,10 @@ export interface Block<
   readonly automations: readonly DefaultAutomation[];
   /** The timers the block runs on the queue. */
   readonly schedules: readonly BlockSchedule[];
+  /** The blocks it is built from, by name; empty for a plain block. */
+  readonly composes: ComposedParts;
+  /** What it sets on each part until the app does. */
+  readonly defaults: Readonly<Record<string, PartDefaults>>;
   /** The env keys it reads, for `.env.example` and doctor's BS504. */
   readonly env: readonly BlockEnvKey[];
   /** The interfaces the app implements for it, for `providers.ts` and BS505. */
@@ -253,6 +296,8 @@ export interface AnyBlock {
   readonly handlers?: Readonly<Record<string, ActionFactory>>;
   readonly automations?: readonly DefaultAutomation[];
   readonly schedules?: readonly BlockSchedule[];
+  readonly composes?: ComposedParts;
+  readonly defaults?: Readonly<Record<string, PartDefaults>>;
   readonly env?: readonly BlockEnvKey[];
   readonly providers?: readonly BlockProvider[];
   readonly routes?: readonly string[];
@@ -363,6 +408,8 @@ function blockOf<
     handlers: parts.handlers ?? {},
     automations: parts.automations ?? [],
     schedules: parts.schedules ?? [],
+    composes: parts.composes ?? {},
+    defaults: parts.defaults ?? {},
     env: parts.env ?? [],
     providers: parts.providers ?? [],
     routes: parts.routes ?? [],
