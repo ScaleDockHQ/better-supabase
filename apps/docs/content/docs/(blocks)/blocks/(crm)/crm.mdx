@@ -60,6 +60,16 @@ export const crmDashboard = defineCompositeReadSet(
 
 Pass the result to `db.$many(crmDashboard, { pipelineId })`. `defineCompositeReadSet` throws a `TypeError` that names the block read when it is missing, for example when `deals` is not installed.
 
+## Example
+
+The Next.js example builds the helpers over the clients it already installs, in `apps/examples/nextjs/src/features/composites/composites.ts`, and calls them from the server actions in `composite-actions.ts`:
+
+```ts
+const closed = await crmOf(db).closeWon({ dealId, quote: true });
+```
+
+`closeDealWon` is that call behind a server action with the `deals.write` permission. The example keeps its pipeline board on its own `pipelineOverview` read set, which calls the same `deals.board` read as `crmReadSets.dashboard`.
+
 ## Remove
 
 ```bash

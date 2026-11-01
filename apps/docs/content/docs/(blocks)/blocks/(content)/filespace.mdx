@@ -60,6 +60,14 @@ const link = await blocks.filespace
   .orThrow();
 ```
 
+## Example
+
+The Next.js example builds the helpers over the drive, attachments, versions, share-links, search and trash clients in `apps/examples/nextjs/src/features/composites/composites.ts`. The `createPublicLink` server action in `composite-actions.ts` calls `filespace.publicLink` with an expiry:
+
+```ts
+const link = await filespaceOf(db, driveOf(db)).publicLink({ id, expiresAt });
+```
+
 ## Remove
 
 ```bash
