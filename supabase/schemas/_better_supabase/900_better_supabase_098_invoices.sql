@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:d30d27ba66d8a0edb5bad9aef2a2f3c00403560cd9619fe8bb26d2840b2c3626
+-- @bsb-hash sha256:1b52c7ec3ebaca234a576c17132c810d2e68461e5c6998787ee4e2ea5af6bb1b
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -489,7 +489,7 @@ create table if not exists "better_supabase"."invoice_e_deliveries" (
   "updated_at" timestamptz not null default now()
 );
 create unique index if not exists invoice_e_deliveries_message_key on "better_supabase"."invoice_e_deliveries" ("tenant_id", "channel", "message_id");
-create index if not exists invoice_e_deliveries_invoice_idx on "better_supabase"."invoice_e_deliveries" ("tenant_id", "invoice_id");
+create index if not exists invoice_e_deliveries_invoice_idx on "better_supabase"."invoice_e_deliveries" ("invoice_id", "tenant_id");
 create index if not exists invoice_e_deliveries_state_idx on "better_supabase"."invoice_e_deliveries" ("tenant_id", "direction", "state");
 alter table "better_supabase"."invoice_e_deliveries" enable row level security;
 revoke all on "better_supabase"."invoice_e_deliveries" from public, anon, authenticated;

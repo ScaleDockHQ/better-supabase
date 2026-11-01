@@ -289591,8 +289591,8 @@
           {
             "name": "invoice_e_deliveries_invoice_idx",
             "columns": [
-              "tenant_id",
-              "invoice_id"
+              "invoice_id",
+              "tenant_id"
             ],
             "unique": false,
             "primary": false,

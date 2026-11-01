@@ -1483,7 +1483,7 @@ $function$;
 ALTER TABLE "better_supabase"."invoice_e_deliveries"
   ADD CONSTRAINT "invoice_e_deliveries_invoice_id_fkey" FOREIGN KEY (invoice_id) REFERENCES better_supabase.invoices(id) ON DELETE SET NULL;
 
-CREATE INDEX invoice_e_deliveries_invoice_idx ON better_supabase.invoice_e_deliveries USING btree (tenant_id, invoice_id);
+CREATE INDEX invoice_e_deliveries_invoice_idx ON better_supabase.invoice_e_deliveries USING btree (invoice_id, tenant_id);
 
 CREATE UNIQUE INDEX invoice_e_deliveries_message_key ON better_supabase.invoice_e_deliveries USING btree (tenant_id, channel, message_id);
 

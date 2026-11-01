@@ -165,7 +165,7 @@ create table if not exists ${deliveries} (
   ${d("updatedAt")} timestamptz not null default now()
 );
 create unique index if not exists ${ctx.naming.rename("invoice_e_deliveries_message_key")} on ${deliveries} (${d("tenant")}, ${d("channel")}, ${d("messageId")});
-create index if not exists ${ctx.naming.rename("invoice_e_deliveries_invoice_idx")} on ${deliveries} (${d("tenant")}, ${d("invoice")});
+create index if not exists ${ctx.naming.rename("invoice_e_deliveries_invoice_idx")} on ${deliveries} (${d("invoice")}, ${d("tenant")});
 create index if not exists ${ctx.naming.rename("invoice_e_deliveries_state_idx")} on ${deliveries} (${d("tenant")}, ${d("direction")}, ${d("state")});
 ${lockModuleTable(ctx, "eDeliveries", { read: true })}
 ${readPolicy("invoice_e_deliveries_read", d("tenant"), deliveries)}
