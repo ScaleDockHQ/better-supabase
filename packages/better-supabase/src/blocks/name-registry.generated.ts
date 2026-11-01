@@ -524,6 +524,21 @@ export interface BlockNameRegistry {
     readonly primary: never;
     readonly formerKeys: never;
   };
+  readonly "clinical-decision-support": {
+    readonly tables: {
+      readonly "rules": "id" | "tenant" | "kind" | "medicationIds" | "minDose" | "maxDose" | "maxPerDay" | "severity" | "message" | "active" | "createdAt" | "updatedAt";
+      readonly "alerts": "id" | "tenant" | "subjectType" | "subjectId" | "kind" | "severity" | "source" | "rule" | "orderIds" | "message" | "details" | "fingerprint" | "status" | "decidedBy" | "decidedAt" | "decisionReason" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "care_decision_context" | "decide_care_alert" | "delete_care_rule" | "evaluate_care_rules" | "list_care_alerts" | "list_care_rules" | "record_care_alerts" | "save_care_rule" | "sync_care_alerts";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: "before_care_alert_decide" | "after_care_alert_decide";
+    readonly entities: {
+      readonly "care_alert": "id" | "tenant_id" | "subject_type" | "subject_id" | "kind" | "severity" | "source" | "rule_id" | "order_ids" | "message" | "details" | "fingerprint" | "status" | "decided_by" | "decided_at" | "decision_reason" | "created_at" | "updated_at";
+      readonly "care_rule": "id" | "tenant_id" | "kind" | "medication_ids" | "min_dose" | "max_dose" | "max_per_day" | "severity" | "message" | "active" | "created_at" | "updated_at";
+    };
+    readonly primary: "care_alert";
+    readonly formerKeys: never;
+  };
   readonly "collections": {
     readonly tables: {
       readonly "collections": "id" | "tenant" | "subjectType" | "scope" | "owner" | "team" | "name" | "description" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
@@ -2379,7 +2394,7 @@ export interface BlockNameRegistry {
       readonly "entries": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "startedAt" | "endedAt" | "billable" | "rate" | "rateCurrency" | "note" | "createdAt" | "updatedAt" | "seconds" | "runningSince" | "employee";
       readonly "timesheets": "id" | "tenant" | "user" | "week" | "approval" | "note" | "submittedAt" | "approvedAt" | "createdAt" | "status" | "decidedBy" | "decidedAt" | "decisionNote" | "employee";
     };
-    readonly functions: "approve_timesheet" | "delete_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "reject_timesheet" | "reopen_timesheet" | "running_timer" | "running_timers" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_locked" | "update_time_entry";
+    readonly functions: "approve_timesheet" | "delete_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "reject_timesheet" | "reopen_timesheet" | "running_timer" | "running_timers" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_approved" | "time_week_locked" | "update_time_entry";
     readonly actions: "read" | "track" | "approve" | "manage";
     readonly hooks: "before_time_entry_save" | "after_time_entry_save" | "before_timesheet_submit" | "after_timesheet_submit";
     readonly entities: {

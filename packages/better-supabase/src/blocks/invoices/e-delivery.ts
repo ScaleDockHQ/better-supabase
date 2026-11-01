@@ -108,9 +108,9 @@ export interface InvoiceEDelivery<I> {
     options: SendEInvoiceOptions,
   ): AsyncResult<EInvoiceDelivery>;
   /**
-   * Logs a document the channel already accepted, as `pending`. Use it with
-   * the message id a failed `sendEInvoice` names instead of sending again; the
-   * same channel and message id return the first row.
+   * Logs a document the channel already accepted, as `pending`. Use it with the
+   * message id a failed `sendEInvoice` names instead of sending again; the same
+   * channel and message id return the first row.
    */
   recordEInvoiceDelivery(
     invoice: I,
