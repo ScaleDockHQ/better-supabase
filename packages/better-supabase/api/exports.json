@@ -7174,6 +7174,7 @@
       "ApprovalApprovers",
       "ApprovalDecideOptions",
       "ApprovalDecision",
+      "ApprovalGuarded",
       "ApprovalListOptions",
       "ApprovalMode",
       "ApprovalPolicyInput",
@@ -9542,6 +9543,7 @@
       "CaseStatsGroup",
       "CaseStatsOptions",
       "CaseStatus",
+      "CaseTryClose",
       "CaseUpdatedEventData",
       "RpcClient"
     ]

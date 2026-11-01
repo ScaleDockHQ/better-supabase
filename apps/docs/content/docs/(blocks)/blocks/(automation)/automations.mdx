@@ -455,3 +455,7 @@ await createAutomationsAdmin({ transport: serviceTransport })
   .syncFields(expenseFields)
   .orThrow();
 ```
+
+## Install the defaults at setup
+
+`createAutomationsAdmin(...).installDefaults({ organizationId })` copies the default automations the organization doesn't have yet and returns how many it copied. Listing and running rules do the same, so call it when you create the organization to have the defaults before the first visit.

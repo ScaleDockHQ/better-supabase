@@ -241,3 +241,7 @@ await incidents
   .saveComponent(organizationId, { name: "Primary database", public: false })
   .orThrow();
 ```
+
+## Resolve an incident
+
+`resolve({ incidentId, body })` posts a `resolved` update, which also sets the incident's `resolvedAt`.

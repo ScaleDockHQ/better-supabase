@@ -543,6 +543,12 @@ export interface AutomationsAdmin {
     organizationId: string;
     input: RuleRun;
   }): AsyncResult<readonly RuleMatch[]>;
+  /**
+   * Copies the default automations the organization doesn't have yet into its
+   * rules and returns how many it copied. Listing and running rules do this
+   * too; call it at setup, so the defaults exist before the first visit.
+   */
+  installDefaults(input: { organizationId: string }): AsyncResult<number>;
 }
 
 /** The field sync and live evaluation, with a service-role client. */
@@ -553,6 +559,8 @@ export function createAutomationsAdmin(
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   return {
+    installDefaults: ({ organizationId }) =>
+      call("install_default_rules", { tenant: organizationId }, Number),
     syncFields: (catalog) =>
       call(
         "sync_rule_fields",

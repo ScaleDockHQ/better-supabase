@@ -25,7 +25,7 @@ import { subjectRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
-import { AsyncResult, err } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -306,6 +306,11 @@ export interface ApprovalListOptions {
  * `F` is the extra request fields `options.fields` describes. `request` and
  * `list` act in the block's `tenant`.
  */
+/** What `guarded` answers: the value `run` returned, or the filed request. */
+export type ApprovalGuarded<T, F extends object = Record<never, never>> =
+  | { readonly ran: true; readonly value: T }
+  | { readonly ran: false; readonly request: ApprovalRequest & F };
+
 export interface Approvals<F extends object = Record<never, never>> {
   /**
    * Files a request on `subject` under its type's policy for the action. Keys
@@ -383,6 +388,28 @@ export interface Approvals<F extends object = Record<never, never>> {
   ): AsyncResult<ApprovalTenantPolicy>;
   /** Deletes a tenant policy; `false` when it did not exist. */
   removePolicy(id: string): AsyncResult<boolean>;
+  /**
+   * Approves or rejects the pending request for `action` on `subject`, the one
+   * `list` finds, so a caller does not need the request id. Fails with
+   * `not_found` when nothing is pending.
+   */
+  decideForSubject(input: {
+    subject: RecordRef;
+    action: string;
+    decision: "approve" | "reject";
+    comment?: string | undefined;
+  }): AsyncResult<ApprovalRequest & F>;
+  /**
+   * Runs `run` when `action` on `subject` is approved. Otherwise it files a
+   * request and returns it, so a route answers once and the retry after the
+   * decision runs.
+   */
+  guarded<T>(input: {
+    subject: RecordRef;
+    action: string;
+    request?: ApprovalRequestInput | undefined;
+    run: () => PromiseLike<T> | T;
+  }): AsyncResult<ApprovalGuarded<T, F>>;
 }
 
 /**
@@ -842,10 +869,53 @@ export function createApprovals<
         { policy_id: id },
         (value) => value === true,
       ),
+    decideForSubject: ({ subject, action, decision, comment }) =>
+      hooked.list({ subject, status: "pending" }).andThen(async (requests) => {
+        const found = requests.find((each) => each.action === action);
+
+        if (found === undefined) {
+          return err(
+            dbError("not_found", `No pending ${action} request for the record`),
+          );
+        }
+
+        return decision === "approve"
+          ? hooked.approve({ id: found.id, comment })
+          : hooked.reject({ id: found.id, comment });
+      }),
+    guarded: <T>({
+      subject,
+      action,
+      request,
+      run,
+    }: {
+      subject: RecordRef;
+      action: string;
+      request?: ApprovalRequestInput | undefined;
+      run: () => PromiseLike<T> | T;
+    }) =>
+      hooked
+        .isApproved({ subject, action })
+        .andThen<ApprovalGuarded<T, F>>(async (approved) => {
+          if (approved) {
+            return ok({ ran: true as const, value: await run() });
+          }
+
+          // SAFETY: the request carries no extra columns, so Partial<F> is empty.
+          const input = { ...request, action } as ApprovalRequestInput &
+            Partial<F>;
+
+          return hooked
+            .request({ subject, input })
+            .map((filed) => ({ ran: false as const, request: filed }));
+        }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Approvals<F> = withBlockHooks(client, options.hooks, {
     block: "approvals",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

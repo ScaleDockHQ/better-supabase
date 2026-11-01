@@ -8,7 +8,8 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -239,6 +240,17 @@ export interface Enrollments {
   reset(input: { enrollmentId: string; step: string }): AsyncResult<Enrollment>;
   /** Cancels an active enrollment; its completed steps stay. */
   cancel(enrollmentId: string): AsyncResult<Enrollment>;
+  /** Resets every completed step, so the enrollment runs from the start. */
+  restart(enrollmentId: string): AsyncResult<Enrollment>;
+  /**
+   * Completes the first step that isn't done yet, in the program's order. Fails
+   * with `not_found` when every step is done.
+   */
+  advance(input: {
+    enrollmentId: string;
+    subject: RecordRef;
+    program: string;
+  }): AsyncResult<Enrollment>;
 }
 
 function optional<K extends string, V>(
@@ -540,10 +552,60 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
         { enrollment_id: enrollmentId },
         one("cancel_enrollment"),
       ),
+    restart: (enrollmentId) =>
+      AsyncResult.from(async () => {
+        const found = await hooked.list({ pageSize: 200 });
+
+        if (!found.ok) {
+          return found;
+        }
+
+        const enrollment = found.data.find((each) => each.id === enrollmentId);
+
+        if (enrollment === undefined) {
+          return err(
+            dbError("not_found", `Enrollment ${enrollmentId} not found`),
+          );
+        }
+
+        let latest = enrollment;
+
+        for (const { step } of enrollment.progress) {
+          const reset = await hooked.reset({ enrollmentId, step });
+
+          if (!reset.ok) {
+            return reset;
+          }
+
+          latest = reset.data;
+        }
+
+        return ok(latest);
+      }),
+    advance: ({ enrollmentId, subject, program }) =>
+      hooked.enrollment({ program, subject }).andThen(async (enrollment) => {
+        if (enrollment === null || enrollment.id !== enrollmentId) {
+          return err(
+            dbError("not_found", `Enrollment ${enrollmentId} not found`),
+          );
+        }
+
+        const done = new Set(enrollment.progress.map((each) => each.step));
+        const next = enrollment.steps.find((step) => !done.has(step));
+
+        if (next === undefined) {
+          return err(dbError("not_found", "Every step is done"));
+        }
+
+        return hooked.complete({ enrollmentId, step: next });
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Enrollments = withBlockHooks(client, options.hooks, {
     block: "enrollments",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

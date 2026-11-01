@@ -12142,6 +12142,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ApprovalDecision"
         },
         {
+          "name": "ApprovalGuarded"
+        },
+        {
           "name": "ApprovalListOptions"
         },
         {
@@ -20400,6 +20403,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "CaseStatus"
+        },
+        {
+          "name": "CaseTryClose",
+          "fields": true
         },
         {
           "name": "CaseUpdatedEventData"

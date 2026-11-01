@@ -2,7 +2,6 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { MessageReaction } from "../messaging/messaging.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import type { InboxDrafts } from "./drafts.ts";
@@ -28,6 +27,7 @@ import type {
 } from "./types.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { reactionsOf } from "../messaging/rows.ts";
 import {
   applyTemporal,
@@ -290,6 +290,25 @@ export interface Inbox {
     }): AsyncResult<boolean>;
     events(conversationId: string): AsyncResult<readonly ConversationEvent[]>;
     counts(tenant: string): AsyncResult<InboxCounts>;
+    /**
+     * Sends a reply to the customer, then resolves the conversation when
+     * `resolve` is set. A failed send leaves the conversation as it was.
+     */
+    reply(input: {
+      conversationId: string;
+      input: MessageInput;
+      resolve?: boolean | undefined;
+    }): AsyncResult<InboxMessage>;
+    /**
+     * Takes a conversation from the bot: switches it to human mode and assigns
+     * it to `assigneeId`.
+     */
+    takeOver(input: {
+      conversationId: string;
+      assigneeId: string;
+      teamId?: string | null | undefined;
+      reason?: string | undefined;
+    }): AsyncResult<Conversation>;
   };
   readonly messages: {
     send(input: {
@@ -719,6 +738,27 @@ export function createInbox(options: InboxOptions): Inbox {
           eventsOf,
         ),
       counts: (tenant) => call("inbox_counts", { tenant }, countsOf),
+      reply: ({ conversationId, input, resolve }) =>
+        AsyncResult.from(async () => {
+          const sent = await hooked.messages.send({ conversationId, input });
+
+          if (!sent.ok || resolve !== true) {
+            return sent;
+          }
+
+          const resolved = await hooked.conversations.resolve(conversationId);
+
+          return resolved.ok ? sent : resolved;
+        }),
+      takeOver: ({ conversationId, assigneeId, teamId, reason }) =>
+        hooked.conversations
+          .setBotMode({ conversationId, mode: "human", reason })
+          .andThen(() =>
+            hooked.conversations.assign({
+              conversationId,
+              to: { assigneeId, ...(teamId === undefined ? {} : { teamId }) },
+            }),
+          ),
     },
     messages: {
       send,
@@ -959,7 +999,8 @@ export function createInbox(options: InboxOptions): Inbox {
 
   const logger = options.logger ? { logger: options.logger } : {};
 
-  return withBlockHooks(
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Inbox = withBlockHooks(
     {
       ...client,
       inboxes: withBlockHooks(client.inboxes, groups.inboxes, {
@@ -999,4 +1040,6 @@ export function createInbox(options: InboxOptions): Inbox {
     hooks,
     { block: "inbox", ...logger },
   );
+
+  return hooked;
 }

@@ -463,3 +463,7 @@ export const serviceInbox = createInbox({
   transport: sqlTransport(postgres.asService()),
 });
 ```
+
+## Reply and take over
+
+`conversations.reply({ conversationId, input, resolve })` sends the reply and, with `resolve: true`, resolves the conversation after a successful send. `conversations.takeOver({ conversationId, assigneeId })` switches a bot conversation to human mode and assigns it. Both call the hooked methods, so `hooks` see every step.

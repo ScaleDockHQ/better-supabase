@@ -236,3 +236,12 @@ const { accepted, rejected } = await items
   })
   .orThrow();
 ```
+
+## Close and reopen an item
+
+`complete`, `cancel` and `reopen` take `{ workItemId, stageId }`. Each one moves the item (a refused move comes back as the error) and then reads it, so a stage of the wrong category fails with `invalid_input` instead of leaving the board in a state the app didn't mean.
+
+```ts
+await tasks.complete({ workItemId, stageId: doneStageId }).orThrow();
+await tasks.reopen({ workItemId, stageId: todoStageId }).orThrow();
+```

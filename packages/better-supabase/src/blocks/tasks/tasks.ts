@@ -13,7 +13,8 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult, ok } from "../../core/result.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { amountText, optionalMoneyOf } from "../money-codec.ts";
 import {
@@ -349,6 +350,19 @@ export interface Tasks<F extends object = Record<never, never>> {
     organizationId: string;
     iteration: Partial<Omit<Iteration, "id">> & { readonly id?: string };
   }): AsyncResult<Iteration>;
+  /**
+   * Moves the item to `stageId`, a stage of the `completed` category, and
+   * checks that the item is completed afterwards. A stage of another category
+   * comes back as an `invalid_input` error (the item has moved by then).
+   */
+  complete(input: { workItemId: string; stageId: string }): AsyncResult<true>;
+  /** `complete` for a stage of the `canceled` category. */
+  cancel(input: { workItemId: string; stageId: string }): AsyncResult<true>;
+  /**
+   * Moves a closed item back to `stageId`, a stage of an open category, and
+   * checks that it is open afterwards.
+   */
+  reopen(input: { workItemId: string; stageId: string }): AsyncResult<true>;
 }
 
 export interface TasksOptions<
@@ -385,6 +399,14 @@ const BUILT_IN: ReadonlySet<string> = new Set<WorkItemField>([
   "closeReason",
   "window",
 ]);
+
+/** The states of an item that is not closed. */
+const OPEN_STATES: readonly WorkItemState[] = [
+  "triage",
+  "backlog",
+  "unstarted",
+  "started",
+];
 
 const KNOWN = new Set([
   "id",
@@ -632,6 +654,28 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
     "work item fields",
   );
 
+  /** Moves the item, then checks the state the stage's category gave it. */
+  const settle = (
+    { workItemId, stageId }: { workItemId: string; stageId: string },
+    expected: readonly WorkItemState[],
+    label: string,
+  ): AsyncResult<true> =>
+    hooked
+      .move({ workItemId, stageId })
+      .andThen(() => hooked.get(workItemId))
+      .andThen((item) =>
+        Promise.resolve(
+          item !== undefined && expected.includes(item.state)
+            ? ok(true as const)
+            : err(
+                dbError(
+                  "invalid_input",
+                  `Stage ${stageId} does not make work item ${workItemId} ${label}`,
+                ),
+              ),
+        ),
+      );
+
   const client: Tasks<F> = {
     create: ({ organizationId, input, assigneeIds }) => {
       const { fields: extra, attachmentIds, ...attrs } = input;
@@ -827,6 +871,9 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         iterationOf,
       );
     },
+    complete: (input) => settle(input, ["completed"], "completed"),
+    cancel: (input) => settle(input, ["canceled"], "canceled"),
+    reopen: (input) => settle(input, OPEN_STATES, "open"),
   };
 
   // Helpers call the hooked client, so app hooks see each step.

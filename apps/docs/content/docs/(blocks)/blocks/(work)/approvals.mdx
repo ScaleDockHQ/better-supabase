@@ -458,3 +458,19 @@ const onInvoice = await approvals
   .orThrow();
 await approvals.approve(request.id, "Looks right").orThrow();
 ```
+
+## Decide and guard by subject
+
+`decideForSubject({ subject, action, decision })` approves or rejects the pending request for `action` on a record, so a button doesn't need the request id. It fails with `not_found` when nothing is pending.
+
+`guarded({ subject, action, run })` runs `run` when the action is approved and otherwise files a request and returns it, as `{ ran: true, value }` or `{ ran: false, request }`.
+
+```ts
+const sent = await approvals
+  .guarded({
+    subject: { type: "invoice", id },
+    action: "send",
+    run: () => invoices.issue({ invoiceId: id }).orThrow(),
+  })
+  .orThrow();
+```

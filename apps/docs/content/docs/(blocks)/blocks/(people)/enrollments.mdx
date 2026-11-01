@@ -288,3 +288,7 @@ const enrollment = await enrollments
 
 await enrollments.complete(enrollment.id, "kickoff").orThrow();
 ```
+
+## Restart and advance
+
+`restart(enrollmentId)` resets every completed step. `advance({ enrollmentId, program, subject })` completes the first step that isn't done, in the program's order, and fails with `not_found` when every step is done.

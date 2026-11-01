@@ -1,11 +1,13 @@
 import type { BlockOptions } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { RankNeighbors } from "../../core/rank-result.ts";
 import type { JobHandler } from "../queue/types.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { RANK_REBALANCE_QUEUE } from "../../core/rank-keys.ts";
+import { rankBetweenResult } from "../../core/rank-result.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { blockCall, isRecord, optionalText, textOf } from "../shared.ts";
 
 export interface RankOptions extends Pick<
@@ -58,6 +60,8 @@ export interface Rank {
   }): AsyncResult<number>;
   /** The handler for the `rank.rebalance` queue. */
   readonly job: JobHandler<unknown>;
+  /** A key between two neighbors, without a database call. */
+  between(input: RankNeighbors): AsyncResult<string>;
 }
 
 function payloadOf(value: unknown): RankRebalancePayload {
@@ -104,6 +108,8 @@ export function createRank(options: RankOptions): Rank {
       const { subjectType, tenant, group } = payloadOf(payload);
       await hooked.rebalance({ subjectType, tenant, group }).orThrow();
     },
+    between: (input) =>
+      AsyncResult.from(() => Promise.resolve(rankBetweenResult(input))),
   };
 
   const hooked = withBlockHooks(client, options.hooks, {

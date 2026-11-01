@@ -380,6 +380,12 @@ export interface Incidents<F extends object = Record<never, never>> {
     slug: string;
     days?: number | undefined;
   }): AsyncResult<PublicStatusPage | undefined>;
+  /** Posts a `resolved` update; the incident's `resolvedAt` is set with it. */
+  resolve(input: {
+    incidentId: string;
+    body: string;
+    public?: boolean | undefined;
+  }): AsyncResult<IncidentUpdate>;
 }
 
 const SEVERITIES: readonly IncidentSeverity[] = [
@@ -825,10 +831,22 @@ export function createIncidents<
       call("public_status_page", { slug, days: days ?? null }, (value) =>
         publicPageOf(value, "public_status_page"),
       ),
+    resolve: ({ incidentId, body, public: isPublic }) =>
+      hooked.postUpdate({
+        incidentId,
+        input: {
+          status: "resolved",
+          body,
+          ...(isPublic === undefined ? {} : { public: isPublic }),
+        },
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Incidents<F> = withBlockHooks(client, options.hooks, {
     block: "incidents",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

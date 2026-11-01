@@ -10,6 +10,7 @@ export {
   type ApprovalRequestInput,
   type ApprovalRequestPolicy,
   type ApprovalRequirement,
+  type ApprovalGuarded,
   type Approvals,
   type ApprovalsOptions,
   type ApprovalStatus,

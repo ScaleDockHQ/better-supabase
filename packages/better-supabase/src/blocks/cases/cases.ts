@@ -13,6 +13,7 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   CASE_ACTION_TYPES,
@@ -257,6 +258,11 @@ export interface CaseStat {
   readonly count: number;
 }
 
+/** What `tryClose` answers: the closed case, or what still blocks it. */
+export type CaseTryClose<F extends object = Record<never, never>> =
+  | { readonly closed: true; readonly case: Case<F> }
+  | { readonly closed: false; readonly blockers: readonly CaseBlocker[] };
+
 export interface Cases<F extends object = Record<never, never>> {
   /** Creates or changes a kind; needs `cases.manage`. */
   saveKind(input: CaseKindInput): AsyncResult<CaseKind>;
@@ -325,6 +331,14 @@ export interface Cases<F extends object = Record<never, never>> {
   stats(options?: CaseStatsOptions): AsyncResult<readonly CaseStat[]>;
   /** Reports the cases whose effectiveness check is due; service role only. */
   notifyDueEffectiveness(): AsyncResult<number>;
+  /**
+   * Closes the case when nothing blocks it. Otherwise it changes nothing and
+   * returns the blockers, so a form can list them instead of parsing an error.
+   */
+  tryClose(input: {
+    caseId: string;
+    note?: string | undefined;
+  }): AsyncResult<CaseTryClose<F>>;
 }
 
 export interface CasesOptions<
@@ -732,10 +746,23 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     notifyDueEffectiveness: () =>
       call("notify_due_case_effectiveness", {}, (value) => numberOf(value)),
+    tryClose: ({ caseId, note }) =>
+      hooked.blockers(caseId).andThen<CaseTryClose<F>>(async (blockers) => {
+        if (blockers.length > 0) {
+          return ok({ closed: false as const, blockers });
+        }
+
+        return hooked
+          .close({ caseId, note })
+          .map((closed) => ({ closed: true as const, case: closed }));
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Cases<F> = withBlockHooks(client, options.hooks, {
     block: "cases",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

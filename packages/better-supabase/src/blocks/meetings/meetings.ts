@@ -5,13 +5,13 @@ import type {
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { AsyncResult } from "../../core/result.ts";
 import {
   MEETING_AGENDA_STATUSES,
   MEETING_ATTENDANCE,
@@ -275,6 +275,20 @@ export interface Meetings<F extends object = Record<never, never>> {
   }): AsyncResult<Readonly<Record<string, unknown>>>;
   get(meetingId: string): AsyncResult<MeetingDetail<F>>;
   list(options?: MeetingListOptions): AsyncResult<readonly Meeting<F>[]>;
+  /**
+   * Settles the `decisions` (each one through `decide`), then marks the meeting
+   * held with its summary. It stops at the first failure.
+   */
+  conclude(input: {
+    meetingId: string;
+    summary?: string | undefined;
+    decisions?:
+      | readonly {
+          readonly decisionId: string;
+          readonly status?: Exclude<MeetingDecisionStatus, "proposed">;
+        }[]
+      | undefined;
+  }): AsyncResult<Meeting<F>>;
 }
 
 /** Options for {@link createMeetings}. */
@@ -597,10 +611,25 @@ export function createMeetings<
             ),
         ).andThen(fields.rows),
       ),
+    conclude: ({ meetingId, summary, decisions }) =>
+      AsyncResult.from(async () => {
+        for (const { decisionId, status } of decisions ?? []) {
+          const decided = await hooked.decide({ decisionId, status });
+
+          if (!decided.ok) {
+            return decided;
+          }
+        }
+
+        return hooked.hold({ meetingId, summary });
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Meetings<F> = withBlockHooks(client, options.hooks, {
     block: "meetings",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }
