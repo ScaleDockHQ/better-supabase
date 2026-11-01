@@ -40,8 +40,16 @@ const NO_FIELDS: readonly string[] = [
   // Assignments and read receipts point at the app's record, which carries
   // the app's data.
   "acknowledgements",
+  // Tenant-owned catalog rows; vulnerabilities and advisories are not app data.
+  "advisories",
+  // Sessions and mandates are protocol records; app data goes on the cart and order.
+  "agent-checkout",
   // Cache entries keyed by a request hash; nothing for an app to extend.
   "ai-cache",
+  // Datasets, items, runs and results are fixed records the block writes.
+  "ai-evals",
+  // Policies and the decision log are written by the block only.
+  "ai-guardrails",
   // Provider keys and batch jobs the block writes itself.
   "ai-keys",
   // Cycles, appraisals, reviews and calibrations are fixed records; app data
@@ -88,6 +96,7 @@ const NO_FIELDS: readonly string[] = [
   "documents",
   // A hostname row is routing state the proxy reads; the organization holds app data.
   "domains",
+  "e-prescribing",
   // Results describe parties; app data lives on the companies and people.
   "enrichment",
   // Programs and enrollments track steps of a subject the app owns; the
@@ -147,6 +156,8 @@ const NO_FIELDS: readonly string[] = [
   "payroll-export",
   // Role and catalog rows are the access model; the client reads permission keys.
   "permissions",
+  // Versions are immutable templates; nothing for an app to extend.
+  "prompts",
   // One user's emoji on a subject, and a custom emoji's image and shortcode.
   // Job rows, schedules and rate limit rules belong to the block's functions.
   "queue",
@@ -516,7 +527,7 @@ describe("the block contract", () => {
   });
 });
 
-/** What is wrong with the composites in `manifests` (ADR 0177). */
+/** What is wrong with the composites in `manifests` (ADR 0196). */
 function compositeProblems(
   manifests: readonly AnyBlock[],
   requires: (module: string) => readonly string[],

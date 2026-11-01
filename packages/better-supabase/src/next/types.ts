@@ -502,7 +502,7 @@ export interface BetterNext<
   ): RecordServer<T, RB, N>;
   /**
    * One record's server verbs: `can`, `copyTo`, `trash` and `restore`. It is
-   * named `recordAt` because `bsb.record` is the whole record type (ADR 0177).
+   * named `recordAt` because `bsb.record` is the whole record type (ADR 0196).
    *
    * ```ts
    * const copied = await bsb.recordAt(customerRecord, id).copyTo(newId);

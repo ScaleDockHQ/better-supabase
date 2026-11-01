@@ -118,6 +118,7 @@ describe("blocks.<name>.entities in the SQL", () => {
       "'invoice_party'",
       "'invoiceId'",
     ],
+    appraisals: ["'competencies'", "'ratings'", "'appraisalsCreated'"],
     medications: ["'medication'", "'medicationId'"],
     meetings: ["'meetingId'"],
     memory: ["'/memories'", "'/memories{}'"],
@@ -125,7 +126,19 @@ describe("blocks.<name>.entities in the SQL", () => {
     promotions: ['"promotions"', "'promotionId'"],
     tax: ["'taxCodeId'"],
     tills: ["'tillId'"],
+    incidents: ["'incidentId'", "'filings'"],
+    compliance: [
+      "'reviewed-controls'",
+      "'include-controls'",
+      "'Evidence collected for the applicable controls of '",
+    ],
     "clinical-decision-support": ["'careAlertId'"],
+    "e-prescribing": ["'prescriptionId'"],
+    advisories: [
+      "'vulnerabilityId'",
+      "'vulnerabilityIds'",
+      "'vulnerabilities'",
+    ],
   };
 
   const renamable = Object.entries(SQL_MODULES).flatMap(([name, module]) => {

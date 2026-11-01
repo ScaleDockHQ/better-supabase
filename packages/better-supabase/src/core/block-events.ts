@@ -1042,3 +1042,14 @@ export type {
   SlaEventData,
   WorkItemEventData,
 } from "./block-events-records.ts";
+
+/** `guardrail.blocked`, written to the outbox by the ai-guardrails module. */
+export interface GuardrailEventData {
+  readonly organizationId?: string | null;
+  readonly decisionId: string;
+  readonly agent: string;
+  /** `input` or `output`. */
+  readonly stage: string;
+  /** The reasons the check blocked, such as `injection:ignore_instructions`. */
+  readonly reasons: readonly unknown[];
+}

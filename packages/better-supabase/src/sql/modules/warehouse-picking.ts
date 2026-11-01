@@ -15,7 +15,7 @@ function visible(q: WarehouseSql, row: string): string {
  * Whether the caller may pick from the list: a picker it is assigned to, or a
  * manager.
  */
-function pickable(q: WarehouseSql, row: string): string {
+export function pickable(q: WarehouseSql, row: string): string {
   return `(${q.allowed(`${row}.${q.p("tenant")}`, q.manage)} or (${q.allowed(`${row}.${q.p("tenant")}`, q.pick)} and coalesce(${row}.${q.p("assignee")} is null or ${row}.${q.p("assignee")} = auth.uid(), false)))`;
 }
 
@@ -38,10 +38,10 @@ as $$
     'pickedAt', x.${p("pickedAt")}, 'createdAt', x.${p("createdAt")},
     'lines', coalesce((
       select jsonb_agg(jsonb_build_object('id', y.${l("id")}, 'allocationId', y.${l("allocation")}, 'variantId', y.${l("variant")},
-        'binId', y.${l("bin")}, 'lotId', y.${l("lot")}, 'serials', to_jsonb(y.${l("serials")}),
+        'binId', y.${l("bin")}, 'routePosition', y.${l("route")}, 'lotId', y.${l("lot")}, 'serials', to_jsonb(y.${l("serials")}),
         'quantity', y.${l("quantity")}::text, 'picked', y.${l("picked")}::text, 'status', y.${l("status")},
         'pickedAt', y.${l("pickedAt")}, 'pickedBy', y.${l("pickedBy")})
-        order by y.${l("variant")}, y.${l("id")})
+        order by y.${l("route")} nulls last, y.${l("variant")}, y.${l("id")})
       from ${lines} y where y.${l("list")} = x.${p("id")}
     ), '[]'::jsonb))
   from ${lists} x where x.${p("id")} = pick_list_json.pick_list_id
@@ -107,6 +107,28 @@ end;
 $$;
 revoke execute on function ${fn("pick_list_task")}(uuid) from public, anon, authenticated;
 `;
+}
+
+/**
+ * Moves the picker's work item to done. A task the picker or someone else
+ * already closed stays as it is. Empty without the tasks block.
+ */
+function closeTask(q: WarehouseSql, list: string): string {
+  const { tasks, p } = q;
+
+  if (tasks === undefined || !tasks.has("items", "state")) {
+    return "";
+  }
+
+  const [done] = tasks.appValues("items", "state", "completed");
+  const target = sqlString(done ?? "completed");
+  const state = tasks.col("items", "state");
+
+  return `if ${list}.${p("task")} is not null then
+    update ${tasks.table("items")} i set ${state} = ${target}
+    where i.${tasks.col("items", "id")} = ${list}.${p("task")}
+      and ${tasks.is("items", "state", `i.${state}`, ["completed", "canceled"], true)};
+  end if;`;
 }
 
 function createFunctions(ctx: BlockSqlContext, q: WarehouseSql): string {
@@ -438,6 +460,7 @@ begin
   update ${lists} x set ${p("status")} = 'picked', ${p("pickedAt")} = now()
   where x.${p("id")} = v_list.${p("id")}
   returning * into v_list;
+  ${closeTask(q, "v_list")}
   ${q.recordList("pick_list.picked", "v_list", "pick list completed", ", 'short', v_short")}
   if v_list.${p("wave")} is not null and not exists (select 1 from ${lists} x where x.${p("wave")} = v_list.${p("wave")} and x.${p("status")} = 'open') then
     update ${waves} x set ${w("status")} = 'completed', ${w("completedAt")} = now()

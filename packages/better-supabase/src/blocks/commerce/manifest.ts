@@ -23,7 +23,7 @@ export const commerceParts: {
 export type CommerceParts = typeof commerceParts;
 
 /**
- * The `commerce` composite (ADR 0177): a catalog, stock, orders and promotions.
+ * The `commerce` composite (ADR 0196): a catalog, stock, orders and promotions.
  * It installs its parts and sets their defaults; the parts stay ordinary blocks
  * in the config.
  */

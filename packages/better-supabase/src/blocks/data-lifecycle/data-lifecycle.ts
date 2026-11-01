@@ -118,6 +118,63 @@ export interface DataLifecycleOptions extends BlockTemporalOptions {
   readonly logger?: Logger;
 }
 
+/** The kind of a data subject request (GDPR Arts. 15 to 20). */
+export type DataSubjectRequestKind =
+  | "access"
+  | "erasure"
+  | "rectification"
+  | "portability";
+
+/** Where a data subject request stands. */
+export type DataSubjectRequestStatus =
+  | "received"
+  | "verified"
+  | "fulfilled"
+  | "refused";
+
+const REQUEST_KINDS: readonly DataSubjectRequestKind[] = [
+  "access",
+  "erasure",
+  "rectification",
+  "portability",
+];
+
+const REQUEST_STATUSES: readonly DataSubjectRequestStatus[] = [
+  "received",
+  "verified",
+  "fulfilled",
+  "refused",
+];
+
+/** One data subject request with its deadline. */
+export interface DataSubjectRequest {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly kind: DataSubjectRequestKind;
+  /** Who asked: an email address or a name. */
+  readonly requester: string;
+  /** The record the request is about, when it names one. */
+  readonly subjectType: string | undefined;
+  readonly subjectId: string | undefined;
+  readonly details: string | undefined;
+  readonly status: DataSubjectRequestStatus;
+  readonly receivedAt: Temporal.Instant;
+  /** 30 days after receipt, or three months after it once extended. */
+  readonly dueAt: Temporal.Instant;
+  readonly extendedAt: Temporal.Instant | undefined;
+  readonly extensionReason: string | undefined;
+  readonly verifiedAt: Temporal.Instant | undefined;
+  readonly verifiedBy: string | undefined;
+  readonly verificationMethod: string | undefined;
+  /** The record export an access or portability request started. */
+  readonly exportId: string | undefined;
+  /** What was done, or why the request was refused. */
+  readonly resolution: string | undefined;
+  readonly closedAt: Temporal.Instant | undefined;
+  /** Only on `dataSubjectRequests()`: open and past its due date. */
+  readonly overdue: boolean | undefined;
+}
+
 export interface DataLifecycle {
   /**
    * Exports the caller's data, or a tenant's with `organizationId` (needs
@@ -171,6 +228,48 @@ export interface DataLifecycle {
   organizationDeletion(
     organizationId: string,
   ): AsyncResult<OrganizationDeletion | undefined>;
+  /**
+   * Opens a data subject request with a due date 30 days out. Needs
+   * `data_lifecycle.export`. Name the record in `subject` for an access or
+   * portability request, which is fulfilled through its record export.
+   */
+  openDataSubjectRequest(request: {
+    readonly organizationId: string;
+    readonly kind: DataSubjectRequestKind;
+    readonly requester: string;
+    readonly subject?: { readonly type: string; readonly id: string };
+    readonly details?: string;
+  }): AsyncResult<DataSubjectRequest>;
+  /** Records how the requester's identity was checked. */
+  verifyDataSubjectRequest(input: {
+    requestId: string;
+    method: string;
+  }): AsyncResult<DataSubjectRequest>;
+  /** Extends the due date to three months after receipt; once per request. */
+  extendDataSubjectRequest(input: {
+    requestId: string;
+    reason: string;
+  }): AsyncResult<DataSubjectRequest>;
+  /**
+   * Fulfils a verified request. Access and portability start the NDJSON export
+   * of the named record. Erasure and rectification need a `resolution`, and an
+   * erasure fails while a legal hold covers every kind of record.
+   */
+  fulfilDataSubjectRequest(input: {
+    requestId: string;
+    resolution?: string | undefined;
+  }): AsyncResult<DataSubjectRequest>;
+  /** Refuses a request with the reason the requester receives. */
+  refuseDataSubjectRequest(input: {
+    requestId: string;
+    reason: string;
+  }): AsyncResult<DataSubjectRequest>;
+  /** The organization's requests, the nearest due date first. */
+  dataSubjectRequests(input: {
+    readonly organizationId: string;
+    readonly status?: DataSubjectRequestStatus | undefined;
+    readonly openOnly?: boolean | undefined;
+  }): AsyncResult<readonly DataSubjectRequest[]>;
 }
 
 const EXPORT_SUBJECTS: readonly DataExport["subject"][] = [
@@ -232,6 +331,46 @@ export function deletionOf(value: unknown): OrganizationDeletion {
     purgeAfter: toInstant(textOf(row["purge_after"])),
     cancelledAt: optionalInstant(row["cancelled_at"]),
     purgedAt: optionalInstant(row["purged_at"]),
+  };
+}
+
+function enumOf<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  what: string,
+): T {
+  const found = allowed.find((candidate) => candidate === value);
+
+  if (found === undefined) {
+    throw new TypeError(`Unknown ${what} ${JSON.stringify(value)}`);
+  }
+
+  return found;
+}
+
+function requestOf(value: unknown): DataSubjectRequest {
+  const row = recordOf(value, "data_subject_requests");
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organization_id"]),
+    kind: enumOf(row["kind"], REQUEST_KINDS, "request kind"),
+    requester: textOf(row["requester"]),
+    subjectType: optionalText(row["subject_type"]),
+    subjectId: optionalText(row["subject_id"]),
+    details: optionalText(row["details"]),
+    status: enumOf(row["status"], REQUEST_STATUSES, "request status"),
+    receivedAt: toInstant(textOf(row["received_at"])),
+    dueAt: toInstant(textOf(row["due_at"])),
+    extendedAt: optionalInstant(row["extended_at"]),
+    extensionReason: optionalText(row["extension_reason"]),
+    verifiedAt: optionalInstant(row["verified_at"]),
+    verifiedBy: optionalText(row["verified_by"]),
+    verificationMethod: optionalText(row["verification_method"]),
+    exportId: optionalText(row["export_id"]),
+    resolution: optionalText(row["resolution"]),
+    closedAt: optionalInstant(row["closed_at"]),
+    overdue: typeof row["overdue"] === "boolean" ? row["overdue"] : undefined,
   };
 }
 
@@ -412,6 +551,42 @@ export function createDataLifecycle(
           await sleep(intervalMs);
         }
       }),
+    openDataSubjectRequest: (request) =>
+      call(
+        "open_data_subject_request",
+        {
+          tenant: request.organizationId,
+          kind: request.kind,
+          requester: request.requester,
+          subject_type: request.subject?.type ?? null,
+          subject_id: request.subject?.id ?? null,
+          details: request.details ?? null,
+        },
+        requestOf,
+      ),
+    verifyDataSubjectRequest: ({ requestId, method }) =>
+      call("verify_data_subject_request", { id: requestId, method }, requestOf),
+    extendDataSubjectRequest: ({ requestId, reason }) =>
+      call("extend_data_subject_request", { id: requestId, reason }, requestOf),
+    fulfilDataSubjectRequest: ({ requestId, resolution }) =>
+      call(
+        "fulfil_data_subject_request",
+        { id: requestId, resolution: resolution ?? null },
+        requestOf,
+      ),
+    refuseDataSubjectRequest: ({ requestId, reason }) =>
+      call("refuse_data_subject_request", { id: requestId, reason }, requestOf),
+    dataSubjectRequests: ({ organizationId, ...filter }) =>
+      call(
+        "list_data_subject_requests",
+        {
+          tenant: organizationId,
+          status: filter.status ?? null,
+          open_only: filter.openOnly ?? false,
+        },
+        (value) =>
+          recordsOf(value, "list_data_subject_requests").map(requestOf),
+      ),
   };
 
   // Helpers call the hooked client, so app hooks see each step.

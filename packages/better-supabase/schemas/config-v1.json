@@ -1632,10 +1632,14 @@
               "accounting",
               "acknowledgements",
               "activities",
+              "advisories",
+              "agent-checkout",
               "agents",
               "ai-cache",
               "ai-chat",
+              "ai-evals",
               "ai-files",
+              "ai-guardrails",
               "ai-keys",
               "ai-schedules",
               "announcements",
@@ -1681,6 +1685,7 @@
               "donations",
               "drive",
               "drive-files",
+              "e-prescribing",
               "employees",
               "enrichment",
               "enrollments",
@@ -1741,6 +1746,7 @@
               "posts",
               "profiles",
               "promotions",
+              "prompts",
               "push",
               "qualifications",
               "queue",
@@ -1814,10 +1820,14 @@
                   "accounting",
                   "acknowledgements",
                   "activities",
+                  "advisories",
+                  "agent-checkout",
                   "agents",
                   "ai-cache",
                   "ai-chat",
+                  "ai-evals",
                   "ai-files",
+                  "ai-guardrails",
                   "ai-keys",
                   "ai-schedules",
                   "announcements",
@@ -1863,6 +1873,7 @@
                   "donations",
                   "drive",
                   "drive-files",
+                  "e-prescribing",
                   "employees",
                   "enrichment",
                   "enrollments",
@@ -1923,6 +1934,7 @@
                   "posts",
                   "profiles",
                   "promotions",
+                  "prompts",
                   "push",
                   "qualifications",
                   "queue",
@@ -1997,6 +2009,12 @@
             "activities": {
               "$ref": "#/$defs/blocks/activities"
             },
+            "advisories": {
+              "$ref": "#/$defs/blocks/advisories"
+            },
+            "agent-checkout": {
+              "$ref": "#/$defs/blocks/agent-checkout"
+            },
             "agents": {
               "$ref": "#/$defs/blocks/agents"
             },
@@ -2006,8 +2024,14 @@
             "ai-chat": {
               "$ref": "#/$defs/blocks/ai-chat"
             },
+            "ai-evals": {
+              "$ref": "#/$defs/blocks/ai-evals"
+            },
             "ai-files": {
               "$ref": "#/$defs/blocks/ai-files"
+            },
+            "ai-guardrails": {
+              "$ref": "#/$defs/blocks/ai-guardrails"
             },
             "ai-keys": {
               "$ref": "#/$defs/blocks/ai-keys"
@@ -2143,6 +2167,9 @@
             },
             "drive-files": {
               "$ref": "#/$defs/blocks/drive-files"
+            },
+            "e-prescribing": {
+              "$ref": "#/$defs/blocks/e-prescribing"
             },
             "employees": {
               "$ref": "#/$defs/blocks/employees"
@@ -2323,6 +2350,9 @@
             },
             "promotions": {
               "$ref": "#/$defs/blocks/promotions"
+            },
+            "prompts": {
+              "$ref": "#/$defs/blocks/prompts"
             },
             "push": {
               "$ref": "#/$defs/blocks/push"
@@ -3822,6 +3852,28 @@
           }
         }
       },
+      "advisories": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "agent-checkout": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
       "agents": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4001,6 +4053,21 @@
           }
         }
       },
+      "ai-evals": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxItems": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
       "ai-files": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4032,6 +4099,21 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              }
+            }
+          }
+        }
+      },
+      "ai-guardrails": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "retention": {
+                "type": "string"
               }
             }
           }
@@ -5252,6 +5334,17 @@
         }
       },
       "drive-files": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "e-prescribing": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -6830,6 +6923,21 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              }
+            }
+          }
+        }
+      },
+      "prompts": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxBytes": {
+                "type": "number"
               }
             }
           }

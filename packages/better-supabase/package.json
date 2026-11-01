@@ -260,6 +260,11 @@
       "types": "./dist/mcp/sdk/index.d.ts",
       "default": "./dist/mcp/sdk/index.js"
     },
+    "./webmcp": {
+      "@better-supabase/source": "./src/webmcp/index.ts",
+      "types": "./dist/webmcp/index.d.ts",
+      "default": "./dist/webmcp/index.js"
+    },
     "./blocks/queue": {
       "@better-supabase/source": "./src/blocks/queue/index.ts",
       "types": "./dist/blocks/queue/index.d.ts",
@@ -490,6 +495,11 @@
       "types": "./dist/audit-files/index.d.ts",
       "default": "./dist/audit-files/index.js"
     },
+    "./verifiable-credentials": {
+      "@better-supabase/source": "./src/verifiable-credentials/index.ts",
+      "types": "./dist/verifiable-credentials/index.d.ts",
+      "default": "./dist/verifiable-credentials/index.js"
+    },
     "./e-invoicing": {
       "@better-supabase/source": "./src/e-invoicing/index.ts",
       "types": "./dist/e-invoicing/index.d.ts",
@@ -594,6 +604,21 @@
       "@better-supabase/source": "./src/blocks/ai-cache/index.ts",
       "types": "./dist/blocks/ai-cache/index.d.ts",
       "default": "./dist/blocks/ai-cache/index.js"
+    },
+    "./blocks/prompts": {
+      "@better-supabase/source": "./src/blocks/prompts/index.ts",
+      "types": "./dist/blocks/prompts/index.d.ts",
+      "default": "./dist/blocks/prompts/index.js"
+    },
+    "./blocks/ai-evals": {
+      "@better-supabase/source": "./src/blocks/ai-evals/index.ts",
+      "types": "./dist/blocks/ai-evals/index.d.ts",
+      "default": "./dist/blocks/ai-evals/index.js"
+    },
+    "./blocks/ai-guardrails": {
+      "@better-supabase/source": "./src/blocks/ai-guardrails/index.ts",
+      "types": "./dist/blocks/ai-guardrails/index.d.ts",
+      "default": "./dist/blocks/ai-guardrails/index.js"
     },
     "./blocks/ai-keys": {
       "@better-supabase/source": "./src/blocks/ai-keys/index.ts",
@@ -1215,10 +1240,25 @@
       "types": "./dist/blocks/clinical-decision-support/index.d.ts",
       "default": "./dist/blocks/clinical-decision-support/index.js"
     },
+    "./blocks/e-prescribing": {
+      "@better-supabase/source": "./src/blocks/e-prescribing/index.ts",
+      "types": "./dist/blocks/e-prescribing/index.d.ts",
+      "default": "./dist/blocks/e-prescribing/index.js"
+    },
+    "./blocks/advisories": {
+      "@better-supabase/source": "./src/blocks/advisories/index.ts",
+      "types": "./dist/blocks/advisories/index.d.ts",
+      "default": "./dist/blocks/advisories/index.js"
+    },
     "./blocks/tills": {
       "@better-supabase/source": "./src/blocks/tills/index.ts",
       "types": "./dist/blocks/tills/index.d.ts",
       "default": "./dist/blocks/tills/index.js"
+    },
+    "./blocks/agent-checkout": {
+      "@better-supabase/source": "./src/blocks/agent-checkout/index.ts",
+      "types": "./dist/blocks/agent-checkout/index.d.ts",
+      "default": "./dist/blocks/agent-checkout/index.js"
     },
     "./blocks/lims": {
       "@better-supabase/source": "./src/blocks/lims/index.ts",
@@ -1512,6 +1552,10 @@
         "types": "./dist/mcp/sdk/index.d.ts",
         "default": "./dist/mcp/sdk/index.js"
       },
+      "./webmcp": {
+        "types": "./dist/webmcp/index.d.ts",
+        "default": "./dist/webmcp/index.js"
+      },
       "./blocks/queue": {
         "types": "./dist/blocks/queue/index.d.ts",
         "default": "./dist/blocks/queue/index.js"
@@ -1696,6 +1740,10 @@
         "types": "./dist/audit-files/index.d.ts",
         "default": "./dist/audit-files/index.js"
       },
+      "./verifiable-credentials": {
+        "types": "./dist/verifiable-credentials/index.d.ts",
+        "default": "./dist/verifiable-credentials/index.js"
+      },
       "./e-invoicing": {
         "types": "./dist/e-invoicing/index.d.ts",
         "default": "./dist/e-invoicing/index.js"
@@ -1779,6 +1827,18 @@
       "./blocks/ai-cache": {
         "types": "./dist/blocks/ai-cache/index.d.ts",
         "default": "./dist/blocks/ai-cache/index.js"
+      },
+      "./blocks/prompts": {
+        "types": "./dist/blocks/prompts/index.d.ts",
+        "default": "./dist/blocks/prompts/index.js"
+      },
+      "./blocks/ai-evals": {
+        "types": "./dist/blocks/ai-evals/index.d.ts",
+        "default": "./dist/blocks/ai-evals/index.js"
+      },
+      "./blocks/ai-guardrails": {
+        "types": "./dist/blocks/ai-guardrails/index.d.ts",
+        "default": "./dist/blocks/ai-guardrails/index.js"
       },
       "./blocks/ai-keys": {
         "types": "./dist/blocks/ai-keys/index.d.ts",
@@ -2277,9 +2337,21 @@
         "types": "./dist/blocks/clinical-decision-support/index.d.ts",
         "default": "./dist/blocks/clinical-decision-support/index.js"
       },
+      "./blocks/e-prescribing": {
+        "types": "./dist/blocks/e-prescribing/index.d.ts",
+        "default": "./dist/blocks/e-prescribing/index.js"
+      },
+      "./blocks/advisories": {
+        "types": "./dist/blocks/advisories/index.d.ts",
+        "default": "./dist/blocks/advisories/index.js"
+      },
       "./blocks/tills": {
         "types": "./dist/blocks/tills/index.d.ts",
         "default": "./dist/blocks/tills/index.js"
+      },
+      "./blocks/agent-checkout": {
+        "types": "./dist/blocks/agent-checkout/index.d.ts",
+        "default": "./dist/blocks/agent-checkout/index.js"
       },
       "./blocks/lims": {
         "types": "./dist/blocks/lims/index.d.ts",

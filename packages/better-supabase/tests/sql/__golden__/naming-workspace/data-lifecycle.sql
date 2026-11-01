@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
--- @bsb-block data-lifecycle@8 managed
--- @bsb-hash sha256:0af4e126e59abcfc4ffdf97cf24de0d2cab919e7fe57b1e86d42d434a4184d39
+-- @bsb-block data-lifecycle@9 managed
+-- @bsb-hash sha256:675783410550262656c417b31497d7fdf848e268661619f3483f411a7767de71
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -50,6 +50,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."retention_policies";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."retention_policies";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."retention_policies";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."data_subject_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."data_subject_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."data_subject_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."data_subject_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."data_subject_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -362,6 +370,278 @@ grant execute on function "better_supabase"."place_legal_hold"(text, uuid, text)
 grant execute on function "better_supabase"."release_legal_hold"(uuid) to service_role;
 grant execute on function "better_supabase"."list_legal_holds"(boolean) to service_role;
 
+-- One row per data subject request (GDPR Arts. 15 to 20). due_at is 30 days
+-- after receipt; extended_at records the single extension of two months.
+create table if not exists "better_supabase"."data_subject_requests" (
+  "id" uuid primary key default gen_random_uuid(),
+  "workspace_id" uuid not null,
+  "kind" text not null check ("kind" in ('access', 'erasure', 'rectification', 'portability')),
+  "requester" text not null check (length("requester") between 1 and 320),
+  "subject_type" text,
+  "subject_id" text,
+  "details" text check ("details" is null or length("details") <= 5000),
+  "status" text not null default 'received' check ("status" in ('received', 'verified', 'fulfilled', 'refused')),
+  "received_at" timestamptz not null default now(),
+  "received_by" uuid,
+  "due_at" timestamptz not null,
+  "extended_at" timestamptz,
+  "extension_reason" text,
+  "verified_at" timestamptz,
+  "verified_by" uuid,
+  "verification_method" text,
+  "export_id" uuid,
+  "resolution" text,
+  "closed_at" timestamptz,
+  "closed_by" uuid,
+  check (("subject_type" is null) = ("subject_id" is null))
+);
+create index if not exists data_subject_requests_open_idx on "better_supabase"."data_subject_requests" ("workspace_id", "due_at") where "closed_at" is null;
+alter table "better_supabase"."data_subject_requests" enable row level security;
+revoke all on "better_supabase"."data_subject_requests" from public, anon, authenticated;
+grant all on "better_supabase"."data_subject_requests" to service_role;
+
+-- Opens a request: kind is access, erasure, rectification or portability;
+-- requester says who asked (an email address or a name). A request about a
+-- record names it with subject_type and subject_id, which an access or
+-- portability request needs to be fulfilled through the record export.
+create or replace function "better_supabase"."open_data_subject_request"(tenant uuid, kind text, requester text, subject_type text default null, subject_id text default null, details text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."data_subject_requests";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_data_subject_request.tenant, 'data_lifecycle.export'), false)) then
+    raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
+  end if;
+  if open_data_subject_request.kind is null or open_data_subject_request.kind not in ('access', 'erasure', 'rectification', 'portability') then
+    raise exception 'kind must be access, erasure, rectification or portability' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+  if open_data_subject_request.requester is null or length(trim(open_data_subject_request.requester)) = 0 then
+    raise exception 'requester is required' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+  if (open_data_subject_request.subject_type is null) <> (open_data_subject_request.subject_id is null) then
+    raise exception 'subject_type and subject_id go together' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+  insert into "better_supabase"."data_subject_requests" ("workspace_id", "kind", "requester", "subject_type", "subject_id", "details", "received_by", "due_at")
+  values (open_data_subject_request.tenant, open_data_subject_request.kind, trim(open_data_subject_request.requester), open_data_subject_request.subject_type, open_data_subject_request.subject_id, open_data_subject_request.details, auth.uid(), now() + interval '30 days')
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Records that the requester's identity was checked (Art. 12(6)); method says
+-- how, for example "signed in" or "ID document".
+create or replace function "better_supabase"."verify_data_subject_request"(id uuid, method text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."data_subject_requests";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."data_subject_requests" x where x."id" = verify_data_subject_request.id for update;
+  if v_row."id" is null then
+    raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'data_lifecycle.export'), false)) then
+    raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
+  end if;
+  if v_row."closed_at" is not null then
+    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+  end if;
+  if verify_data_subject_request.method is null or length(trim(verify_data_subject_request.method)) = 0 then
+    raise exception 'method is required' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+  update "better_supabase"."data_subject_requests" x set "status" = 'verified', "verified_at" = now(), "verified_by" = auth.uid(), "verification_method" = trim(verify_data_subject_request.method)
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Extends the due date by two months, once, when the request is complex or
+-- there are many of them (Art. 12(3)). The reason is kept for the requester.
+create or replace function "better_supabase"."extend_data_subject_request"(id uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."data_subject_requests";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."data_subject_requests" x where x."id" = extend_data_subject_request.id for update;
+  if v_row."id" is null then
+    raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'data_lifecycle.export'), false)) then
+    raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
+  end if;
+  if v_row."closed_at" is not null then
+    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+  end if;
+  if v_row."extended_at" is not null then
+    raise exception 'the due date was already extended once' using errcode = '55000', hint = 'DSAR_EXTENDED';
+  end if;
+  if extend_data_subject_request.reason is null or length(trim(extend_data_subject_request.reason)) = 0 then
+    raise exception 'reason is required' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+  update "better_supabase"."data_subject_requests" x set "due_at" = x."received_at" + interval '3 months', "extended_at" = now(), "extension_reason" = trim(extend_data_subject_request.reason)
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Fulfils a verified request. Access and portability start the NDJSON export
+-- of the named record (request_subject_export) and keep its id; the export job
+-- writes the files. Erasure refuses while a legal hold covers every kind of
+-- record and otherwise records that the app deleted or anonymized the data;
+-- rectification records what changed. resolution is required for both.
+create or replace function "better_supabase"."fulfil_data_subject_request"(id uuid, resolution text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."data_subject_requests";
+  v_export jsonb;
+  v_export_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."data_subject_requests" x where x."id" = fulfil_data_subject_request.id for update;
+  if v_row."id" is null then
+    raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'data_lifecycle.export'), false)) then
+    raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
+  end if;
+  if v_row."closed_at" is not null then
+    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+  end if;
+  if v_row."verified_at" is null then
+    raise exception 'verify the requester''s identity first' using errcode = '55000', hint = 'DSAR_UNVERIFIED';
+  end if;
+  if v_row."kind" in ('access', 'portability') then
+    if v_row."subject_type" is null then
+      raise exception 'an access or portability request names the record to export' using errcode = '22023', hint = 'DSAR_INVALID';
+    end if;
+    v_export := "better_supabase"."request_subject_export"(v_row."subject_type", v_row."subject_id", 'ndjson');
+    v_export_id := (v_export ->> 'id')::uuid;
+  else
+    if fulfil_data_subject_request.resolution is null or length(trim(fulfil_data_subject_request.resolution)) = 0 then
+      raise exception 'resolution is required' using errcode = '22023', hint = 'DSAR_INVALID';
+    end if;
+    if v_row."kind" = 'erasure' and "better_supabase"."is_held"('data_subject_request', v_row."workspace_id"::text) then
+      raise exception 'a legal hold stops the erasure; refuse the request with its reason' using errcode = '55000', hint = 'DSAR_HELD';
+    end if;
+  end if;
+  update "better_supabase"."data_subject_requests" x set "status" = 'fulfilled', "closed_at" = now(), "closed_by" = auth.uid(), "export_id" = v_export_id, "resolution" = nullif(trim(fulfil_data_subject_request.resolution), '')
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Refuses a request with its reason (Art. 12(4)): the requester gets it with
+-- the right to complain to the supervisory authority.
+create or replace function "better_supabase"."refuse_data_subject_request"(id uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."data_subject_requests";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."data_subject_requests" x where x."id" = refuse_data_subject_request.id for update;
+  if v_row."id" is null then
+    raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'data_lifecycle.export'), false)) then
+    raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
+  end if;
+  if v_row."closed_at" is not null then
+    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+  end if;
+  if refuse_data_subject_request.reason is null or length(trim(refuse_data_subject_request.reason)) = 0 then
+    raise exception 'reason is required' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+  update "better_supabase"."data_subject_requests" x set "status" = 'refused', "closed_at" = now(), "closed_by" = auth.uid(), "resolution" = trim(refuse_data_subject_request.reason)
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- The organization's requests, the nearest due date first. status filters by
+-- status; open_only leaves out fulfilled and refused ones. overdue is true for
+-- an open request past its due date.
+create or replace function "better_supabase"."list_data_subject_requests"(tenant uuid, status text default null, open_only boolean default false)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_data_subject_requests.tenant, 'data_lifecycle.export'), false)) then
+    raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(to_jsonb(x.*) || jsonb_build_object('overdue', x."closed_at" is null and x."due_at" < now()) order by x."due_at", x."id")
+    from "better_supabase"."data_subject_requests" x
+    where x."workspace_id" = list_data_subject_requests.tenant
+      and (list_data_subject_requests.status is null or x."status" = list_data_subject_requests.status)
+      and (not list_data_subject_requests.open_only or x."closed_at" is null)
+  ), '[]'::jsonb);
+end;
+$$;
+
+revoke execute on function "better_supabase"."open_data_subject_request"(uuid, text, text, text, text, text) from public, anon;
+revoke execute on function "better_supabase"."verify_data_subject_request"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."extend_data_subject_request"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."fulfil_data_subject_request"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."refuse_data_subject_request"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."list_data_subject_requests"(uuid, text, boolean) from public, anon;
+grant execute on function "better_supabase"."open_data_subject_request"(uuid, text, text, text, text, text) to authenticated, service_role;
+grant execute on function "better_supabase"."verify_data_subject_request"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."extend_data_subject_request"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."fulfil_data_subject_request"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."refuse_data_subject_request"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."list_data_subject_requests"(uuid, text, boolean) to authenticated, service_role;
+
+
 
 -- The tables a restore may write, from the same list an export reads. Each
 -- entry: name, tenantColumn, columns (writable and not omitted from exports),
@@ -512,7 +792,8 @@ as $$
     ('user', 'better_supabase.platform_roles', '"better_supabase"."platform_roles"', 'user_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.memberships', '"better_supabase"."memberships"', 'workspace_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.permission_overrides', '"better_supabase"."permission_overrides"', 'workspace_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.retention_policies', '"better_supabase"."retention_policies"', 'workspace_id', true, '{}'::text[], false)
+    ('organization', 'better_supabase.retention_policies', '"better_supabase"."retention_policies"', 'workspace_id', true, '{}'::text[], false),
+    ('organization', 'better_supabase.data_subject_requests', '"better_supabase"."data_subject_requests"', 'workspace_id', true, '{}'::text[], false)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 
@@ -1193,7 +1474,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block-data data-lifecycle
--- @bsb-hash sha256:91b1ecf37bdadc8a3837d47fa1a7dddb9d1dac6e489fc3acc79652fa7b1103b6
+-- @bsb-hash sha256:454bffec4b7e024f75d25fd323bc740cda249507fe6ed6669359a9e5e508588c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1204,6 +1485,6 @@ values ('data-exports', 'data-exports', false)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('data-lifecycle', 8, 'managed')
+values ('data-lifecycle', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

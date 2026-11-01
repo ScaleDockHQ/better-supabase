@@ -1,6 +1,6 @@
 -- better-supabase module: compliance
--- @bsb-block compliance@3 managed
--- @bsb-hash sha256:5fc0ab4c1827e0a7bbfbe413714cd277723ac053bd7292e2665036d6091c2066
+-- @bsb-block compliance@4 managed
+-- @bsb-hash sha256:2327e89bf80e0c329a880ef8da2a2eb4c1b35a7f3cd65ddfe2fe70e6030f1d56
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -878,6 +878,232 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) to authenticated, service_role;
+-- Imports an OSCAL catalog (1.2.3) as a framework and its controls. The
+-- framework key defaults to the catalog uuid. Groups and nested controls
+-- flatten into controls by id; the statement prose becomes the description.
+-- Importing the same catalog again updates titles and descriptions only.
+create or replace function "better_supabase"."import_oscal_catalog"(tenant uuid, document jsonb, key text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid := import_oscal_catalog.tenant;
+  v_catalog jsonb;
+  v_key text;
+  v_title text;
+  v_version text;
+  v_framework "better_supabase"."control_frameworks"%rowtype;
+  v_ctl jsonb;
+  v_code text;
+  v_ctl_title text;
+  v_prose text;
+  v_count integer := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'compliance.manage'), false)) then
+    raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
+  end if;
+  if import_oscal_catalog.document is null or jsonb_typeof(import_oscal_catalog.document -> 'catalog') is distinct from 'object' then
+    raise exception 'the document needs a catalog object' using errcode = '22023', hint = 'OSCAL_INVALID';
+  end if;
+  v_catalog := import_oscal_catalog.document -> 'catalog';
+  v_title := nullif(trim(v_catalog #>> '{metadata,title}'), '');
+  if v_title is null then
+    raise exception 'the catalog needs a metadata title' using errcode = '22023', hint = 'OSCAL_INVALID';
+  end if;
+  v_version := nullif(trim(v_catalog #>> '{metadata,version}'), '');
+  v_key := coalesce(nullif(trim(import_oscal_catalog.key), ''), 'oscal-' || lower(left(replace(coalesce(v_catalog ->> 'uuid', ''), '-', ''), 12)));
+  if v_key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
+    raise exception 'key must be lowercase letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'OSCAL_INVALID';
+  end if;
+  insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "kind", "version")
+  values (v_tenant, v_key, v_title, 'standard', v_version)
+  on conflict ("tenant_id", "key") do update set "name" = excluded."name", "version" = excluded."version", "updated_at" = now()
+  returning * into v_framework;
+  for v_ctl in
+    select c from jsonb_path_query(v_catalog, 'strict $.**.controls[*]') c
+  loop
+    v_code := left(trim(v_ctl ->> 'id'), 50);
+    v_ctl_title := left(trim(v_ctl ->> 'title'), 200);
+    if v_code is null or v_code = '' or v_ctl_title is null or v_ctl_title = '' then
+      raise exception 'every control needs an id and a title' using errcode = '22023', hint = 'OSCAL_INVALID';
+    end if;
+    v_prose := left(nullif(trim(jsonb_path_query_first(v_ctl, 'lax $.parts[*] ? (@.name == "statement").prose') #>> '{}'), ''), 10000);
+    insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "source")
+    values (v_tenant, v_framework."id", v_code, v_ctl_title, v_prose, 'oscal')
+    on conflict ("framework_id", "code") do update set "title" = excluded."title", "description" = excluded."description", "updated_at" = now();
+    v_count := v_count + 1;
+  end loop;
+  perform "better_supabase".emit_event('control_framework.imported', jsonb_build_object('organizationId', v_framework."tenant_id"::text, 'frameworkId', v_framework."id", 'format', 'oscal-catalog', 'controls', v_count), 'controls/' || v_framework."id"::text, (v_framework."tenant_id")::text, null, 'better-supabase/compliance');
+  perform better_supabase.audit_event(
+    event_type => 'control_framework.imported',
+    category => 'data',
+    target_type => 'control_framework',
+    record_id => v_framework."id"::text,
+    tenant => (v_framework."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_framework."tenant_id"::text, 'frameworkId', v_framework."id", 'format', 'oscal-catalog', 'controls', v_count)
+  );
+  return jsonb_build_object('frameworkId', v_framework."id", 'key', v_framework."key", 'controls', v_count);
+end;
+$$;
+revoke execute on function "better_supabase"."import_oscal_catalog"(uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."import_oscal_catalog"(uuid, jsonb, text) to authenticated, service_role;
+
+-- Applies an OSCAL profile to a framework: the controls it includes apply and
+-- the others do not (the statement of applicability). A profile includes
+-- controls with include-all or include-controls with-ids, minus
+-- exclude-controls with-ids, across its imports. Its import href is not
+-- followed; the profile applies to the framework you name. Returns the counts
+-- and the ids the framework has no control for.
+create or replace function "better_supabase"."apply_oscal_profile"(framework_id uuid, document jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_framework "better_supabase"."control_frameworks"%rowtype;
+  v_import jsonb;
+  v_all boolean := false;
+  v_included text[] := '{}';
+  v_excluded text[] := '{}';
+  v_codes text[];
+  v_applicable integer;
+  v_other integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_framework from "better_supabase"."control_frameworks" x where x."id" = apply_oscal_profile.framework_id;
+  if not found then
+    raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'compliance.manage'), false)) then
+    raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
+  end if;
+  if apply_oscal_profile.document is null or jsonb_typeof(apply_oscal_profile.document -> 'profile') is distinct from 'object' then
+    raise exception 'the document needs a profile object' using errcode = '22023', hint = 'OSCAL_INVALID';
+  end if;
+  if jsonb_typeof(apply_oscal_profile.document #> '{profile,imports}') is distinct from 'array' then
+    raise exception 'the profile needs imports' using errcode = '22023', hint = 'OSCAL_INVALID';
+  end if;
+  for v_import in select i from jsonb_array_elements(apply_oscal_profile.document #> '{profile,imports}') i loop
+    if v_import ? 'include-all' then
+      v_all := true;
+    end if;
+    v_included := v_included || coalesce(array(select jsonb_array_elements_text(jsonb_path_query_array(v_import, 'lax $."include-controls"[*]."with-ids"[*]'))), '{}');
+    v_excluded := v_excluded || coalesce(array(select jsonb_array_elements_text(jsonb_path_query_array(v_import, 'lax $."exclude-controls"[*]."with-ids"[*]'))), '{}');
+  end loop;
+  if not v_all and cardinality(v_included) = 0 then
+    raise exception 'the profile includes no controls' using errcode = '22023', hint = 'OSCAL_INVALID';
+  end if;
+  select coalesce(array_agg(c."code"), '{}') into v_codes from "better_supabase"."controls" c where c."framework_id" = v_framework."id";
+  update "better_supabase"."controls" c set "applicable" = (v_all or c."code" = any(v_included)) and not (c."code" = any(v_excluded)), "updated_at" = now()
+  where c."framework_id" = v_framework."id"
+    and c."applicable" is distinct from ((v_all or c."code" = any(v_included)) and not (c."code" = any(v_excluded)));
+  select count(*) filter (where c."applicable"), count(*) filter (where not c."applicable") into v_applicable, v_other
+  from "better_supabase"."controls" c where c."framework_id" = v_framework."id";
+  return jsonb_build_object(
+    'frameworkId', v_framework."id",
+    'applicable', v_applicable,
+    'notApplicable', v_other,
+    'unknownIds', to_jsonb(array(select distinct i from unnest(v_included || v_excluded) i where not (i = any(v_codes)) order by i))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."apply_oscal_profile"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."apply_oscal_profile"(uuid, jsonb) to authenticated, service_role;
+
+-- An OSCAL assessment-results document (1.2.3) for a framework: one
+-- result with an observation per piece of evidence and a finding per applicable
+-- control, satisfied when the control has evidence that is still valid. The
+-- import-ap href is the framework's urn, as no assessment plan exists.
+create or replace function "better_supabase"."export_oscal_assessment_results"(framework_id uuid, title text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_framework "better_supabase"."control_frameworks"%rowtype;
+  v_now text := to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
+  v_title text;
+begin
+  select * into v_framework from "better_supabase"."control_frameworks" x where x."id" = export_oscal_assessment_results.framework_id;
+  if not found then
+    raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'compliance.read'), false)) then
+    raise exception 'not allowed to read controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
+  end if;
+  v_title := coalesce(nullif(trim(export_oscal_assessment_results.title), ''), v_framework."name" || ' assessment results');
+  return jsonb_build_object('assessment-results', jsonb_build_object(
+    'uuid', gen_random_uuid(),
+    'metadata', jsonb_build_object(
+      'title', v_title,
+      'last-modified', v_now,
+      'version', coalesce(v_framework."version", '1'),
+      'oscal-version', '1.2.3'
+    ),
+    'import-ap', jsonb_build_object('href', 'urn:uuid:' || v_framework."id"::text),
+    'results', jsonb_build_array(jsonb_build_object(
+      'uuid', gen_random_uuid(),
+      'title', v_title,
+      'description', 'Evidence collected for the applicable controls of ' || v_framework."name" || '.',
+      'start', v_now,
+      'reviewed-controls', jsonb_build_object('control-selections', jsonb_build_array(jsonb_build_object(
+        'include-controls', coalesce((
+          select jsonb_agg(jsonb_build_object('control-id', c."code") order by c."code")
+          from "better_supabase"."controls" c where c."framework_id" = v_framework."id" and c."applicable"
+        ), '[]'::jsonb)
+      ))),
+      'observations', coalesce((
+        select jsonb_agg(jsonb_build_object(
+          'uuid', ev."id",
+          'description', coalesce(ev."note", 'Evidence for control ' || c."code"),
+          'methods', jsonb_build_array('EXAMINE'),
+          'collected', to_char(ev."collected_at" at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+          'relevant-evidence', jsonb_build_array(jsonb_strip_nulls(jsonb_build_object(
+            'description', coalesce(ev."note", 'Attachment'),
+            'href', case when ev."attachment_id" is null then null else 'urn:uuid:' || ev."attachment_id"::text end
+          )))
+        ) order by c."code", ev."collected_at", ev."id")
+        from "better_supabase"."control_evidence" ev
+        join "better_supabase"."controls" c on c."id" = ev."control_id"
+        where c."framework_id" = v_framework."id" and c."applicable"
+      ), '[]'::jsonb),
+      'findings', coalesce((
+        select jsonb_agg(jsonb_build_object(
+          'uuid', gen_random_uuid(),
+          'title', c."code" || ' ' || c."title",
+          'description', c."title",
+          'target', jsonb_build_object(
+            'type', 'objective-id',
+            'target-id', c."code",
+            'status', jsonb_build_object('state', case when exists (
+              select 1 from "better_supabase"."control_evidence" ev where ev."control_id" = c."id" and (ev."valid_until" is null or ev."valid_until" >= current_date)
+            ) then 'satisfied' else 'not-satisfied' end)
+          ),
+          'related-observations', coalesce((
+            select jsonb_agg(jsonb_build_object('observation-uuid', ev."id") order by ev."collected_at", ev."id")
+            from "better_supabase"."control_evidence" ev where ev."control_id" = c."id"
+          ), '[]'::jsonb)
+        ) order by c."code")
+        from "better_supabase"."controls" c where c."framework_id" = v_framework."id" and c."applicable"
+      ), '[]'::jsonb)
+    ))
+  ));
+end;
+$$;
+revoke execute on function "better_supabase"."export_oscal_assessment_results"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."export_oscal_assessment_results"(uuid, text) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1170,6 +1396,33 @@ set search_path = ''
 as $$ select "better_supabase"."list_compliance_policies"($1, $2) $$;
 revoke execute on function "api"."list_compliance_policies"(uuid, boolean) from public, anon;
 grant execute on function "api"."list_compliance_policies"(uuid, boolean) to authenticated, service_role;
+
+create or replace function "api"."import_oscal_catalog"(tenant uuid, document jsonb, key text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_oscal_catalog"($1, $2, $3) $$;
+revoke execute on function "api"."import_oscal_catalog"(uuid, jsonb, text) from public, anon;
+grant execute on function "api"."import_oscal_catalog"(uuid, jsonb, text) to authenticated, service_role;
+
+create or replace function "api"."apply_oscal_profile"(framework_id uuid, document jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."apply_oscal_profile"($1, $2) $$;
+revoke execute on function "api"."apply_oscal_profile"(uuid, jsonb) from public, anon;
+grant execute on function "api"."apply_oscal_profile"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."export_oscal_assessment_results"(framework_id uuid, title text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."export_oscal_assessment_results"($1, $2) $$;
+revoke execute on function "api"."export_oscal_assessment_results"(uuid, text) from public, anon;
+grant execute on function "api"."export_oscal_assessment_results"(uuid, text) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

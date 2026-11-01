@@ -2,10 +2,14 @@ import type { accessRequestsBlock } from "../../src/blocks/access-requests/manif
 import type { accountingBlock } from "../../src/blocks/accounting/manifest.ts";
 import type { acknowledgementsBlock } from "../../src/blocks/acknowledgements/manifest.ts";
 import type { activitiesBlock } from "../../src/blocks/activities/manifest.ts";
+import type { advisoriesBlock } from "../../src/blocks/advisories/manifest.ts";
+import type { agentCheckoutBlock } from "../../src/blocks/agent-checkout/manifest.ts";
 import type { agentsBlock } from "../../src/blocks/agents/manifest.ts";
 import type { aiCacheBlock } from "../../src/blocks/ai-cache/manifest.ts";
 import type { aiChatBlock } from "../../src/blocks/ai-chat/manifest.ts";
+import type { aiEvalsBlock } from "../../src/blocks/ai-evals/manifest.ts";
 import type { aiFilesBlock } from "../../src/blocks/ai-files/manifest.ts";
+import type { aiGuardrailsBlock } from "../../src/blocks/ai-guardrails/manifest.ts";
 import type { aiKeysBlock } from "../../src/blocks/ai-keys/manifest.ts";
 import type { aiSchedulesBlock } from "../../src/blocks/ai-schedules/manifest.ts";
 import type { announcementsBlock } from "../../src/blocks/announcements/manifest.ts";
@@ -55,6 +59,7 @@ import type { documentsBlock } from "../../src/blocks/documents/manifest.ts";
 import type { domainsBlock } from "../../src/blocks/domains/manifest.ts";
 import type { donationsBlock } from "../../src/blocks/donations/manifest.ts";
 import type { driveBlock } from "../../src/blocks/drive/manifest.ts";
+import type { ePrescribingBlock } from "../../src/blocks/e-prescribing/manifest.ts";
 import type { employeesBlock } from "../../src/blocks/employees/manifest.ts";
 import type { enrichmentBlock } from "../../src/blocks/enrichment/manifest.ts";
 import type { enrollmentsBlock } from "../../src/blocks/enrollments/manifest.ts";
@@ -121,6 +126,7 @@ import type { procurementBlock } from "../../src/blocks/procurement/manifest.ts"
 import type { profilesBlock } from "../../src/blocks/profiles/manifest.ts";
 import type { projectsBlock } from "../../src/blocks/projects/manifest.ts";
 import type { promotionsBlock } from "../../src/blocks/promotions/manifest.ts";
+import type { promptsBlock } from "../../src/blocks/prompts/manifest.ts";
 import type { pushBlock } from "../../src/blocks/push/manifest.ts";
 import type { qualificationsBlock } from "../../src/blocks/qualifications/manifest.ts";
 import type {
@@ -199,8 +205,11 @@ export type AllBlocks = {
   readonly actor: typeof createdByBlock;
   readonly agents: typeof agentsBlock;
   readonly aiCache: typeof aiCacheBlock;
+  readonly prompts: typeof promptsBlock;
   readonly aiChat: typeof aiChatBlock;
+  readonly aiEvals: typeof aiEvalsBlock;
   readonly aiFiles: typeof aiFilesBlock;
+  readonly aiGuardrails: typeof aiGuardrailsBlock;
   readonly aiProviders: typeof aiKeysBlock;
   readonly aiTasks: typeof aiSchedulesBlock;
   readonly announcements: typeof announcementsBlock;
@@ -292,7 +301,10 @@ export type AllBlocks = {
   readonly filespace: typeof filespaceBlock;
   readonly crm: typeof crmBlock;
   readonly tills: typeof tillsBlock;
+  readonly "agent-checkout": typeof agentCheckoutBlock;
   readonly "clinical-decision-support": typeof clinicalDecisionSupportBlock;
+  readonly "e-prescribing": typeof ePrescribingBlock;
+  readonly advisories: typeof advisoriesBlock;
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
   readonly tax: typeof taxBlock;

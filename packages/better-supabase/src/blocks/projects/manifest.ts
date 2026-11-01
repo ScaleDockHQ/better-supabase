@@ -29,7 +29,7 @@ export const projectsParts: {
 export type ProjectsParts = typeof projectsParts;
 
 /**
- * The `projects` composite (ADR 0177): tasks, time tracking, billable time,
+ * The `projects` composite (ADR 0196): tasks, time tracking, billable time,
  * approvals, invoices and meetings. It installs its parts and sets their
  * defaults; the parts stay ordinary blocks in the config.
  */

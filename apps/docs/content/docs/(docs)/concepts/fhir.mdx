@@ -30,17 +30,18 @@ asks for.
 Each exporter takes a row as the block returns it and gives one resource. It
 reads only the fields it maps, so a `Pick` of the row is enough.
 
-| Function                                                | Returns                                                                                      |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `toFhirPatient(person)`                                 | A `Patient` with name, telecom, gender, birth date and identifiers; `active` unless archived |
-| `toFhirRelatedPerson(representative, patientId)`        | A `RelatedPerson` with its role as a v3 RoleCode or v2 0131 code, and its valid period       |
-| `toFhirCarePlan(plan)`                                  | A `CarePlan` from `db.carePlans.get`, its problems and goals as contained resources          |
-| `toFhirGoal(goal, subjectId)`                           | A standalone `Goal`, addressing `Condition/<problemId>`                                      |
-| `toFhirObservation(observation, { definition })`        | An `Observation` with its code, value, components and reference range                        |
-| `toFhirMedicationRequest(order)`                        | A `MedicationRequest` with its medication code, dosage and timing                            |
-| `toFhirMedicationAdministration(administration, order)` | A `MedicationAdministration` for one given, skipped or refused dose                          |
-| `toFhirConsent(consent)`                                | A `Consent`: a permit provision for a grant and a deny provision for a refusal               |
-| `toFhirBundle(resources, { type })`                     | A `collection`, `searchset`, `transaction` or `batch` Bundle                                 |
+| Function                                                | Returns                                                                                           |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `toFhirPatient(person)`                                 | A `Patient` with name, telecom, gender, birth date and identifiers; `active` unless archived      |
+| `toFhirRelatedPerson(representative, patientId)`        | A `RelatedPerson` with its role as a v3 RoleCode or v2 0131 code, and its valid period            |
+| `toFhirCarePlan(plan)`                                  | A `CarePlan` from `db.carePlans.get`, its problems and goals as contained resources               |
+| `toFhirGoal(goal, subjectId)`                           | A standalone `Goal`, addressing `Condition/<problemId>`                                           |
+| `toFhirObservation(observation, { definition })`        | An `Observation` with its code, value, components and reference range                             |
+| `toFhirMedicationRequest(order)`                        | A `MedicationRequest` with its medication code, dosage and timing                                 |
+| `toFhirPrescription(prescription)`                      | The same `MedicationRequest` for a signed prescription, with its identifier, status and requester |
+| `toFhirMedicationAdministration(administration, order)` | A `MedicationAdministration` for one given, skipped or refused dose                               |
+| `toFhirConsent(consent)`                                | A `Consent`: a permit provision for a grant and a deny provision for a refusal                    |
+| `toFhirBundle(resources, { type })`                     | A `collection`, `searchset`, `transaction` or `batch` Bundle                                      |
 
 The subject of a resource is `Patient/<subjectId>` unless you pass
 `subject`. Users, such as the performer of an observation or the prescriber
@@ -116,3 +117,75 @@ if (item.ok) {
 Both need an id or identifier on the resource, which becomes the
 `externalId`, so importing the same resource twice records it once. The
 subject id comes from `subject.reference` unless you pass `subjectId`.
+
+## SMART App Launch
+
+`createSmartLaunch` runs the client side of a SMART App Launch 2.2 EHR or
+standalone launch: it reads `.well-known/smart-configuration`, builds the
+authorization URL with `aud`, `launch` and a PKCE S256 challenge, and
+exchanges the code at the redirect. A server without `S256` is refused. It
+keeps nothing itself: a `SmartLaunchStore` (versioned, `apiVersion: 1`) holds
+the verifier between the two requests, and its `take` must delete what it
+returns so a callback works once.
+
+```ts
+import { createSmartLaunch } from "better-supabase/fhir";
+
+const smart = createSmartLaunch({
+  clientId: "my-app",
+  redirectUri: "https://app.example.com/smart/callback",
+  scope: "launch openid fhirUser patient/Observation.rs",
+  allowedIssuers: ["https://ehr.example.com/fhir"],
+  store, // your SmartLaunchStore: a cookie, a table or a cache
+});
+
+// GET /smart/launch?iss=...&launch=...
+const url = await smart.begin({ iss, launch });
+
+// GET /smart/callback?code=...&state=...
+const tokens = await smart.complete({ code, state });
+```
+
+Both return a `Result`. `tokens.data.patient` is the patient in context when
+the server granted `launch/patient`. Backend services (client credentials
+with a signed JWT) and token refresh are not covered.
+
+## CDS Hooks
+
+`createCdsHooksServer` is a Fetch handler for the CDS Hooks 2.0 service API:
+`GET /cds-services` lists the services and `POST /cds-services/<id>` runs
+one. A service implements `CdsService` (versioned, `apiVersion: 1`) and
+returns cards. `cdsCardOfAlert` turns a care alert from the
+[clinical decision support](/docs/blocks/clinical-decision-support) block into
+a card.
+
+```ts
+import { cdsCardOfAlert, createCdsHooksServer } from "better-supabase/fhir";
+
+export const POST = createCdsHooksServer({
+  authorize: async (request) => verifyEhrJwt(request),
+  services: [
+    {
+      apiVersion: 1,
+      id: "medication-alerts",
+      hook: "order-sign",
+      description: "Dose range, duplicate therapy and interactions",
+      async handle(request) {
+        const alerts = await alertsFor(request.context["patientId"]);
+
+        return {
+          cards: alerts.map((alert) =>
+            cdsCardOfAlert(alert, { label: "Medication safety" }),
+          ),
+        };
+      },
+    },
+  ],
+});
+```
+
+Set `authorize`: CDS Hooks expects the EHR to sign each request with a JWT
+that you verify, and the helper leaves that check to you. A failing service
+answers 500 with no detail, and a request for another hook or with a
+malformed body answers 400. Both helpers follow the versions in
+`SPEC_PINS.smartAppLaunch` and `SPEC_PINS.cdsHooks`.

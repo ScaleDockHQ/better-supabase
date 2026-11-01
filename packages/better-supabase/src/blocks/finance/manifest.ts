@@ -23,7 +23,7 @@ export const financeParts: {
 export type FinanceParts = typeof financeParts;
 
 /**
- * The `finance` composite (ADR 0177): the books, tax, bank reconciliation and
+ * The `finance` composite (ADR 0196): the books, tax, bank reconciliation and
  * invoices. It installs its parts and sets their defaults; the parts stay
  * ordinary blocks in the config.
  */

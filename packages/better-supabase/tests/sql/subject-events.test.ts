@@ -51,6 +51,10 @@ const SUBJECT_EVENTS = [
   "invoice.unallocated",
   "invoice.discount_applied",
   "invoice.approved",
+  "invoice.e_invoice_sent",
+  "invoice.e_invoice_delivered",
+  "invoice.e_invoice_rejected",
+  "invoice.e_invoice_received",
   "invoice.collection_started",
   "task.created",
   "task.updated",
@@ -177,6 +181,9 @@ const SUBJECT_EVENTS = [
   "score.changed",
   "moderation_report.created",
   "moderation_item.decided",
+  "moderation_notice.received",
+  "consent_signal.recorded",
+  "consent_receipt.issued",
   "enrollment.created",
   "enrollment.step_completed",
   "enrollment.paused",
@@ -244,6 +251,12 @@ const SUBJECT_EVENTS = [
   "care_alert.raised",
   "care_alert.decided",
   "care_alert.resolved",
+  "prescription.created",
+  "prescription.signed",
+  "prescription.sent",
+  "prescription.delivery_failed",
+  "prescription.dispensed",
+  "prescription.cancelled",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**

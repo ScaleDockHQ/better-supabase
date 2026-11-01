@@ -20,7 +20,7 @@ export const schedulingParts: {
 export type SchedulingParts = typeof schedulingParts;
 
 /**
- * The `scheduling` composite (ADR 0177): bookings on the calendar, with
+ * The `scheduling` composite (ADR 0196): bookings on the calendar, with
  * reminders. It installs its parts and sets their defaults; the parts stay
  * ordinary blocks in the config.
  */

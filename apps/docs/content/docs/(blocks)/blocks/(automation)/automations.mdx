@@ -194,16 +194,20 @@ Each takes `clients`, which returns the block clients for one organization, such
 
 A block that feeds another ships default automations: rows its SQL module writes to `automation_defaults`, which every organization gets its own copy of the first time its rules run or are listed. The organization turns them off or edits them like any rule. `resetDefault(id)` puts the shipped version back, and removing one fails with the hint `AUTOMATION_DEFAULT`.
 
+{/* prettier-ignore-start */}
+
 {/* default-automations:start, written by `pnpm catalog` */}
 
-| Default                                      | Block    | Trigger                     | Action                       | Ships when               |
-| -------------------------------------------- | -------- | --------------------------- | ---------------------------- | ------------------------ |
-| Preboard each hired candidate                | `hiring` | `application.hired`         | `employees.from_application` | `employees` is installed |
-| Open a task for each new conversation        | `inbox`  | `inbox_conversation.opened` | `tasks.from_conversation`    | `tasks` is installed     |
-| Order each accepted quote (turned off)       | `quotes` | `quote.accepted`            | `orders.from_quote`          | `orders` is installed    |
-| Draft a quote for each won deal (turned off) | `quotes` | `deal.closed`               | `quotes.from_deal`           | `deals` is installed     |
+| Default | Block | Trigger | Action | Ships when |
+| --- | --- | --- | --- | --- |
+| Preboard each hired candidate | `hiring` | `application.hired` | `employees.from_application` | `employees` is installed |
+| Open a task for each new conversation | `inbox` | `inbox_conversation.opened` | `tasks.from_conversation` | `tasks` is installed |
+| Order each accepted quote (turned off) | `quotes` | `quote.accepted` | `orders.from_quote` | `orders` is installed |
+| Draft a quote for each won deal (turned off) | `quotes` | `deal.closed` | `quotes.from_deal` | `deals` is installed |
 
 {/* default-automations:end */}
+
+{/* prettier-ignore-end */}
 
 A rule copied from a default carries its `defaultKey`. Register the matching conversion action in the registry, and the sink's `eventTarget` fallback runs the default without a `load` for its event.
 

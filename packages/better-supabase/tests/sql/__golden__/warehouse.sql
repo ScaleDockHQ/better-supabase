@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:c508507796398dbe41d2a4200183fc2e4aec203ae882e622d49f3c3a4ded5721
+-- @bsb-hash sha256:8b657181636030e35f9c262fc7daeea4b62dc0ee3bed8be66b7a8db6333c9a77
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,6 +74,30 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."count_plans";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."count_plans";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."count_plans";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."putaway_rules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bin_slots";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."variant_sizes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -154,6 +178,7 @@ create table if not exists "better_supabase"."pick_lines" (
   "lot_id" uuid,
   "serials" text[],
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "route_position" integer check ("route_position" > 0),
   "picked" numeric(20, 6) not null default 0 check ("picked" >= 0 and "picked" <= "quantity"),
   "status" text not null default 'open' check ("status" in ('open', 'picked', 'short', 'cancelled')),
   "picked_at" timestamptz,
@@ -203,6 +228,72 @@ create policy count_plans_read on "better_supabase"."count_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
+-- Where a receipt's stock goes: the bin to suggest for a variant (or for any
+-- variant), first by priority, up to max_quantity of that variant in the bin.
+create table if not exists "better_supabase"."putaway_rules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "bin_id" uuid not null references "better_supabase"."stock_bins" ("id") on delete cascade,
+  "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade,
+  "priority" integer not null default 100 check ("priority" between 0 and 10000),
+  "max_quantity" numeric(20, 6) check ("max_quantity" > 0),
+  "active" boolean not null default true,
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "id")
+);
+create index if not exists "putaway_rules_lookup_idx" on "better_supabase"."putaway_rules" ("tenant_id", "location_id", "variant_id", "priority") where "active";
+create index if not exists "putaway_rules_bin_idx" on "better_supabase"."putaway_rules" ("bin_id");
+create index if not exists "putaway_rules_location_idx" on "better_supabase"."putaway_rules" ("location_id");
+create index if not exists "putaway_rules_variant_idx" on "better_supabase"."putaway_rules" ("variant_id");
+alter table "better_supabase"."putaway_rules" enable row level security;
+revoke all on "better_supabase"."putaway_rules" from public, anon, authenticated;
+grant select on "better_supabase"."putaway_rules" to authenticated;
+grant all on "better_supabase"."putaway_rules" to service_role;
+drop policy if exists putaway_rules_read on "better_supabase"."putaway_rules";
+create policy putaway_rules_read on "better_supabase"."putaway_rules"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
+-- How far a bin is from the dispatch area (walk_rank, lowest is closest) and
+-- how much it holds, in the same unit as variant_sizes.size.
+create table if not exists "better_supabase"."bin_slots" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "bin_id" uuid not null unique references "better_supabase"."stock_bins" ("id") on delete cascade,
+  "walk_rank" integer not null default 0 check ("walk_rank" between 0 and 100000),
+  "capacity" numeric(20, 6) check ("capacity" > 0),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "id")
+);
+alter table "better_supabase"."bin_slots" enable row level security;
+revoke all on "better_supabase"."bin_slots" from public, anon, authenticated;
+grant select on "better_supabase"."bin_slots" to authenticated;
+grant all on "better_supabase"."bin_slots" to service_role;
+drop policy if exists bin_slots_read on "better_supabase"."bin_slots";
+create policy bin_slots_read on "better_supabase"."bin_slots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
+-- The space one unit of a variant takes in a bin; a variant without a row
+-- takes 1.
+create table if not exists "better_supabase"."variant_sizes" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null unique references "better_supabase"."product_variants" ("id") on delete cascade,
+  "size" numeric(20, 6) not null check ("size" > 0),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "id")
+);
+alter table "better_supabase"."variant_sizes" enable row level security;
+revoke all on "better_supabase"."variant_sizes" from public, anon, authenticated;
+grant select on "better_supabase"."variant_sizes" to authenticated;
+grant all on "better_supabase"."variant_sizes" to service_role;
+drop policy if exists variant_sizes_read on "better_supabase"."variant_sizes";
+create policy variant_sizes_read on "better_supabase"."variant_sizes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
 
 -- The pick list as json, with its lines.
 create or replace function "better_supabase"."pick_list_json"(pick_list_id uuid)
@@ -218,10 +309,10 @@ as $$
     'pickedAt', x."picked_at", 'createdAt', x."created_at",
     'lines', coalesce((
       select jsonb_agg(jsonb_build_object('id', y."id", 'allocationId', y."allocation_id", 'variantId', y."variant_id",
-        'binId', y."bin_id", 'lotId', y."lot_id", 'serials', to_jsonb(y."serials"),
+        'binId', y."bin_id", 'routePosition', y."route_position", 'lotId', y."lot_id", 'serials', to_jsonb(y."serials"),
         'quantity', y."quantity"::text, 'picked', y."picked"::text, 'status', y."status",
         'pickedAt', y."picked_at", 'pickedBy', y."picked_by")
-        order by y."variant_id", y."id")
+        order by y."route_position" nulls last, y."variant_id", y."id")
       from "better_supabase"."pick_lines" y where y."pick_list_id" = x."id"
     ), '[]'::jsonb))
   from "better_supabase"."pick_lists" x where x."id" = pick_list_json.pick_list_id
@@ -585,6 +676,7 @@ begin
   update "better_supabase"."pick_lists" x set "status" = 'picked', "picked_at" = now()
   where x."id" = v_list."id"
   returning * into v_list;
+  
   null;
   if v_list."wave_id" is not null and not exists (select 1 from "better_supabase"."pick_lists" x where x."wave_id" = v_list."wave_id" and x."status" = 'open') then
     update "better_supabase"."pick_waves" x set "status" = 'completed', "completed_at" = now()
@@ -951,6 +1043,634 @@ $$;
 revoke execute on function "better_supabase"."post_cycle_count"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."post_cycle_count"(uuid, boolean) to authenticated, service_role;
 
+
+-- One rule as json.
+create or replace function "better_supabase"."putaway_rule_json"(rule_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id",
+    'binId', x."bin_id", 'variantId', x."variant_id", 'priority', x."priority",
+    'maxQuantity', x."max_quantity"::text, 'active', x."active", 'createdAt', x."created_at")
+  from "better_supabase"."putaway_rules" x where x."id" = putaway_rule_json.rule_id
+$$;
+revoke execute on function "better_supabase"."putaway_rule_json"(uuid) from public, anon, authenticated;
+
+-- Creates a putaway rule, or changes the one named by input.id. input is
+-- { id, locationId, binId, variantId, priority, maxQuantity, active }: stock of
+-- variantId (any variant when absent) goes to binId, lowest priority first,
+-- until the bin holds maxQuantity of it. Needs warehouse.manage.
+create or replace function "better_supabase"."save_putaway_rule"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."putaway_rules";
+  v_id uuid;
+  v_location uuid;
+  v_bin uuid;
+  v_variant uuid;
+  v_priority integer;
+  v_max numeric;
+  v_active boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_putaway_rule.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_putaway_rule.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_id := nullif(save_putaway_rule.input ->> 'id', '')::uuid;
+    v_location := nullif(save_putaway_rule.input ->> 'locationId', '')::uuid;
+    v_bin := nullif(save_putaway_rule.input ->> 'binId', '')::uuid;
+    v_variant := nullif(save_putaway_rule.input ->> 'variantId', '')::uuid;
+    v_priority := (save_putaway_rule.input ->> 'priority')::integer;
+    v_max := (save_putaway_rule.input ->> 'maxQuantity')::numeric;
+    v_active := (save_putaway_rule.input ->> 'active')::boolean;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'ids are uuids, priority is an integer, maxQuantity a number and active a boolean' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_id is not null then
+    select * into v_row from "better_supabase"."putaway_rules" x
+    where x."id" = v_id and x."tenant_id" = save_putaway_rule.tenant for update;
+    if not found then
+      raise exception 'no such putaway rule' using errcode = 'P0002', hint = 'WAREHOUSE_RULE_NOT_FOUND';
+    end if;
+    v_location := coalesce(v_location, v_row."location_id");
+    v_bin := coalesce(v_bin, v_row."bin_id");
+    if not (save_putaway_rule.input ? 'variantId') then
+      v_variant := v_row."variant_id";
+    end if;
+    if not (save_putaway_rule.input ? 'maxQuantity') then
+      v_max := v_row."max_quantity";
+    end if;
+    v_priority := coalesce(v_priority, v_row."priority");
+    v_active := coalesce(v_active, v_row."active");
+  end if;
+  if v_location is null or v_bin is null then
+    raise exception 'a rule needs a locationId and a binId' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."stock_bins" x
+    where x."id" = v_bin and x."tenant_id" = save_putaway_rule.tenant and x."location_id" = v_location
+  ) then
+    raise exception 'the bin has to be in the rule''s location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_variant is not null and not exists (
+    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_putaway_rule.tenant
+  ) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if coalesce(v_priority, 100) not between 0 and 10000 or coalesce(v_max, 1) <= 0 then
+    raise exception 'priority is between 0 and 10000 and maxQuantity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."putaway_rules" ("tenant_id", "location_id", "bin_id", "variant_id", "priority", "max_quantity", "active")
+    values (save_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
+    returning * into v_row;
+  else
+    update "better_supabase"."putaway_rules" x set "location_id" = v_location, "bin_id" = v_bin, "variant_id" = v_variant,
+      "priority" = v_priority, "max_quantity" = v_max, "active" = v_active
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  return "better_supabase"."putaway_rule_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a putaway rule. Returns false when it was already gone. Needs
+-- warehouse.manage.
+create or replace function "better_supabase"."delete_putaway_rule"(rule_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."putaway_rules";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."putaway_rules" x where x."id" = delete_putaway_rule.rule_id for update;
+  if not found then
+    return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."putaway_rules" x where x."id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_putaway_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_putaway_rule"(uuid) to authenticated, service_role;
+
+-- The putaway rules of a location, lowest priority first. filters is
+-- { locationId, variantId }, both optional. Needs warehouse.read.
+create or replace function "better_supabase"."list_putaway_rules"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_variant uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_putaway_rules.tenant is not null and coalesce(better_supabase.can('tenant', list_putaway_rules.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  begin
+    v_location := nullif(list_putaway_rules.filters ->> 'locationId', '')::uuid;
+    v_variant := nullif(list_putaway_rules.filters ->> 'variantId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId and variantId are uuids' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  return coalesce((
+    select jsonb_agg("better_supabase"."putaway_rule_json"(y.id) order by y.priority, y.id)
+    from (
+      select x."id" as id, x."priority" as priority from "better_supabase"."putaway_rules" x
+      where x."tenant_id" = list_putaway_rules.tenant
+        and (v_location is null or x."location_id" = v_location)
+        and (v_variant is null or x."variant_id" = v_variant)
+      order by x."priority", x."id"
+      limit 1000
+    ) y
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_putaway_rules"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_putaway_rules"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets how far a bin is from the dispatch area and how much it holds. input is
+-- { binId, walkRank, capacity }: the lowest walkRank is the closest, and
+-- capacity is in the unit of variant sizes (no limit when absent). Needs
+-- warehouse.manage.
+create or replace function "better_supabase"."save_bin_slot"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_bin uuid;
+  v_rank integer;
+  v_capacity numeric;
+  v_row "better_supabase"."bin_slots";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', save_bin_slot.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_bin_slot.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_bin := (save_bin_slot.input ->> 'binId')::uuid;
+    v_rank := coalesce((save_bin_slot.input ->> 'walkRank')::integer, 0);
+    v_capacity := (save_bin_slot.input ->> 'capacity')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'binId is a uuid, walkRank an integer and capacity a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_rank not between 0 and 100000 or coalesce(v_capacity, 1) <= 0 then
+    raise exception 'walkRank is between 0 and 100000 and capacity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = save_bin_slot.tenant) then
+    raise exception 'no such bin in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  insert into "better_supabase"."bin_slots" ("tenant_id", "bin_id", "walk_rank", "capacity")
+  values (save_bin_slot.tenant, v_bin, v_rank, v_capacity)
+  on conflict ("bin_id") do update set "walk_rank" = excluded."walk_rank",
+    "capacity" = excluded."capacity", "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('binId', v_row."bin_id", 'walkRank', v_row."walk_rank",
+    'capacity', v_row."capacity"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets the space one unit of a variant takes in a bin. input is
+-- { variantId, size }. Needs warehouse.manage.
+create or replace function "better_supabase"."save_variant_size"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_variant uuid;
+  v_size numeric;
+  v_row "better_supabase"."variant_sizes";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', save_variant_size.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage variant sizes' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_variant_size.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_variant := (save_variant_size.input ->> 'variantId')::uuid;
+    v_size := (save_variant_size.input ->> 'size')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'variantId is a uuid and size a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_size is null or v_size <= 0 then
+    raise exception 'size is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_variant_size.tenant) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  insert into "better_supabase"."variant_sizes" ("tenant_id", "variant_id", "size")
+  values (save_variant_size.tenant, v_variant, v_size)
+  on conflict ("variant_id") do update set "size" = excluded."size", "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('variantId', v_row."variant_id", 'size', v_row."size"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."save_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+
+-- The bins of a location with their slot and how full they are. filters is
+-- { locationId }. used is the stock in the bin times the variant sizes.
+-- Needs warehouse.read.
+create or replace function "better_supabase"."list_bin_slots"(tenant uuid, filters jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_bin_slots.tenant is not null and coalesce(better_supabase.can('tenant', list_bin_slots.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  begin
+    v_location := (list_bin_slots.filters ->> 'locationId')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId is a uuid' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_location is null then
+    raise exception 'filters needs a locationId' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('binId', y.bin, 'code', y.code, 'locationId', v_location, 'hold', y.hold,
+      'active', y.active, 'walkRank', y.walk_rank, 'capacity', y.capacity::text, 'used', y.used::text)
+      order by y.walk_rank nulls last, y.code)
+    from (
+      select x."id" as bin, x."code" as code, x."hold" as hold, x."active" as active,
+        sl."walk_rank" as walk_rank, sl."capacity" as capacity,
+        coalesce((
+          select sum(c."on_hand" * coalesce(sz."size", 1))
+          from "better_supabase"."stock_buckets" c left join "better_supabase"."variant_sizes" sz on sz."variant_id" = c."variant_id"
+          where c."bin_id" = x."id"
+        ), 0) as used
+      from "better_supabase"."stock_bins" x left join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+      where x."tenant_id" = list_bin_slots.tenant and x."location_id" = v_location
+      order by sl."walk_rank" nulls last, x."code"
+      limit 1000
+    ) y
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_bin_slots"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_bin_slots"(uuid, jsonb) to authenticated, service_role;
+
+-- Where stock of a variant goes in a location. Rule bins come first (a rule for
+-- the variant before one for any variant, then by priority), then bins that
+-- already hold it, then the other active bins by walk rank and how empty they
+-- are. Bins on hold or inactive are skipped; a bin takes no more than its
+-- rule's maxQuantity of the variant or its slot capacity. Not granted to
+-- anyone.
+create or replace function "better_supabase"."putaway_plan"(plan_tenant uuid, plan_location uuid, plan_variant uuid, plan_quantity numeric)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_left numeric := plan_quantity;
+  v_size numeric;
+  v_room numeric;
+  v_take numeric;
+  v_placements jsonb := '[]'::jsonb;
+  rec record;
+begin
+  select coalesce((select x."size" from "better_supabase"."variant_sizes" x where x."variant_id" = plan_variant), 1) into v_size;
+  for rec in
+    with held as (
+      select c."bin_id" as bin,
+        coalesce(sum(c."on_hand") filter (where c."variant_id" = plan_variant), 0) as of_variant,
+        sum(c."on_hand" * coalesce(sz."size", 1)) as used
+      from "better_supabase"."stock_buckets" c left join "better_supabase"."variant_sizes" sz on sz."variant_id" = c."variant_id"
+      where c."tenant_id" = plan_tenant and c."location_id" = plan_location and c."bin_id" is not null
+      group by c."bin_id"
+    ),
+    cand as (
+      select distinct on (y.bin) y.bin, y.tier, y.rank, y.rule_id, y.max_quantity
+      from (
+        select x."bin_id" as bin, case when x."variant_id" is null then 1 else 0 end as tier,
+          x."priority" as rank, x."id" as rule_id, x."max_quantity" as max_quantity
+        from "better_supabase"."putaway_rules" x
+        where x."tenant_id" = plan_tenant and x."location_id" = plan_location and x."active"
+          and (x."variant_id" is null or x."variant_id" = plan_variant)
+        union all
+        select h.bin, 2, 0, null::uuid, null::numeric from held h where h.of_variant > 0
+        union all
+        select x."id", 3, coalesce(sl."walk_rank", 100001), null::uuid, null::numeric
+        from "better_supabase"."stock_bins" x left join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+        where x."tenant_id" = plan_tenant and x."location_id" = plan_location
+      ) y
+      order by y.bin, y.tier, y.rank
+    )
+    select c.bin, bn."code" as code, c.tier, c.rank, c.rule_id, c.max_quantity,
+      coalesce(h.of_variant, 0) as of_variant, coalesce(h.used, 0) as used, sl."capacity" as capacity
+    from cand c
+    join "better_supabase"."stock_bins" bn on bn."id" = c.bin
+    left join held h on h.bin = c.bin
+    left join "better_supabase"."bin_slots" sl on sl."bin_id" = c.bin
+    where bn."active" and not bn."hold" and bn."location_id" = plan_location and bn."tenant_id" = plan_tenant
+    order by c.tier, c.rank, case when c.tier = 2 then -coalesce(h.of_variant, 0) else coalesce(h.used, 0) end, bn."code"
+  loop
+    exit when v_left <= 0;
+    v_room := least(
+      case when rec.max_quantity is null then 'Infinity'::numeric else rec.max_quantity - rec.of_variant end,
+      case when rec.capacity is null then 'Infinity'::numeric else (rec.capacity - rec.used) / v_size end
+    );
+    continue when v_room <= 0;
+    v_take := least(v_left, trunc(v_room, 6));
+    continue when v_take <= 0;
+    v_placements := v_placements || jsonb_build_object('binId', rec.bin, 'binCode', rec.code,
+      'quantity', v_take::text, 'source', case when rec.tier < 2 then 'rule' when rec.tier = 2 then 'stock' else 'free' end,
+      'ruleId', rec.rule_id);
+    v_left := v_left - v_take;
+  end loop;
+  return jsonb_build_object('locationId', plan_location, 'variantId', plan_variant, 'quantity', plan_quantity::text,
+    'placements', v_placements, 'unassigned', v_left::text);
+end;
+$$;
+revoke execute on function "better_supabase"."putaway_plan"(uuid, uuid, uuid, numeric) from public, anon, authenticated;
+
+-- Suggests bins for stock about to be put away. input is { locationId,
+-- variantId, quantity }. Nothing moves: the suggestion lists each bin with the
+-- quantity it takes, why (rule, stock or free), and what is left over when no
+-- bin has room. Needs warehouse.read or warehouse.pick.
+create or replace function "better_supabase"."suggest_putaway"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_variant uuid;
+  v_quantity numeric;
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_putaway.tenant is not null and coalesce(better_supabase.can('tenant', suggest_putaway.tenant, 'warehouse.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_putaway.tenant is not null and coalesce(better_supabase.can('tenant', suggest_putaway.tenant, 'warehouse.pick'), false)))) then
+    raise exception 'not allowed to read putaway suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(suggest_putaway.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_location := (suggest_putaway.input ->> 'locationId')::uuid;
+    v_variant := (suggest_putaway.input ->> 'variantId')::uuid;
+    v_quantity := (suggest_putaway.input ->> 'quantity')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'locationId and variantId are uuids and quantity is a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_quantity is null or v_quantity <= 0 then
+    raise exception 'quantity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = suggest_putaway.tenant) then
+    raise exception 'no such location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = suggest_putaway.tenant) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  return "better_supabase"."putaway_plan"(suggest_putaway.tenant, v_location, v_variant, v_quantity);
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_putaway"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."suggest_putaway"(uuid, jsonb) to authenticated, service_role;
+
+-- Suggests bins for every variant of a goods receipt, at the receipt's
+-- location. Lines of one variant are planned together. Variants are planned
+-- one by one, so two variants can be suggested the same bin when it has room
+-- for each but not both. Needs warehouse.read or warehouse.pick.
+create or replace function "better_supabase"."suggest_receipt_putaway"(receipt_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_receipt "better_supabase"."inventory_receipts";
+  v_out jsonb := '[]'::jsonb;
+  rec record;
+begin
+  select * into v_receipt from "better_supabase"."inventory_receipts" x where x."id" = suggest_receipt_putaway.receipt_id;
+  if not found then
+    raise exception 'no such goods receipt' using errcode = 'P0002', hint = 'WAREHOUSE_RECEIPT_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_receipt."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_receipt."tenant_id", 'warehouse.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_receipt."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_receipt."tenant_id", 'warehouse.pick'), false)))) then
+    raise exception 'not allowed to read putaway suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if v_receipt."location_id" is null then
+    raise exception 'the receipt has no location' using errcode = '55000', hint = 'WAREHOUSE_STATE';
+  end if;
+  for rec in
+    select x."variant_id" as variant, sum(x."quantity") as quantity
+    from "better_supabase"."inventory_receipt_lines" x
+    where x."receipt_id" = v_receipt."id" and x."quantity" > 0
+    group by x."variant_id"
+    order by x."variant_id"
+  loop
+    v_out := v_out || "better_supabase"."putaway_plan"(v_receipt."tenant_id", v_receipt."location_id", rec.variant, rec.quantity);
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_receipt_putaway"(uuid) from public, anon;
+grant execute on function "better_supabase"."suggest_receipt_putaway"(uuid) to authenticated, service_role;
+
+-- Suggests where the fastest movers of a location should live. input is
+-- { locationId, days, limit }: the variants most picked in the last days
+-- (default 30), at most limit of them (default 50), each get the closest bin
+-- with a slot that holds their stock, fastest first. A variant already in a bin
+-- as close or closer stays (action keep). Nothing moves. Needs warehouse.read.
+create or replace function "better_supabase"."suggest_slotting"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_days integer;
+  v_limit integer;
+  v_taken uuid[] := '{}';
+  v_bin uuid;
+  v_rank integer;
+  v_current_rank integer;
+  v_action text;
+  v_suggested uuid;
+  v_out jsonb := '[]'::jsonb;
+  rec record;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_slotting.tenant is not null and coalesce(better_supabase.can('tenant', suggest_slotting.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read slotting suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(suggest_slotting.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_location := (suggest_slotting.input ->> 'locationId')::uuid;
+    v_days := coalesce((suggest_slotting.input ->> 'days')::integer, 30);
+    v_limit := coalesce((suggest_slotting.input ->> 'limit')::integer, 50);
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'locationId is a uuid, days and limit are integers' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_days not between 1 and 365 or v_limit not between 1 and 500 then
+    raise exception 'days is between 1 and 365 and limit between 1 and 500' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = suggest_slotting.tenant) then
+    raise exception 'no such location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  for rec in
+    with moves as (
+      select y."variant_id" as variant, sum(y."picked") as velocity, count(*) as picks
+      from "better_supabase"."pick_lines" y join "better_supabase"."pick_lists" x on x."id" = y."pick_list_id"
+      where x."tenant_id" = suggest_slotting.tenant and x."location_id" = v_location
+        and y."picked" > 0 and y."picked_at" >= now() - make_interval(days => v_days)
+      group by y."variant_id"
+      order by sum(y."picked") desc, y."variant_id"
+      limit v_limit
+    )
+    select m.variant, m.velocity, m.picks,
+      coalesce((select sum(c."on_hand") from "better_supabase"."stock_buckets" c
+        where c."tenant_id" = suggest_slotting.tenant and c."location_id" = v_location
+          and c."variant_id" = m.variant and c."bin_id" is not null), 0) as on_hand,
+      (select c."bin_id" from "better_supabase"."stock_buckets" c
+        where c."tenant_id" = suggest_slotting.tenant and c."location_id" = v_location
+          and c."variant_id" = m.variant and c."bin_id" is not null
+        order by c."on_hand" desc, c."bin_id" limit 1) as current_bin,
+      coalesce((select sz."size" from "better_supabase"."variant_sizes" sz where sz."variant_id" = m.variant), 1) as size
+    from moves m
+    order by m.velocity desc, m.variant
+  loop
+    v_current_rank := (select sl."walk_rank" from "better_supabase"."bin_slots" sl where sl."bin_id" = rec.current_bin);
+    v_bin := null;
+    v_rank := null;
+    select x."id", sl."walk_rank" into v_bin, v_rank
+    from "better_supabase"."stock_bins" x join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+    where x."tenant_id" = suggest_slotting.tenant and x."location_id" = v_location
+      and x."active" and not x."hold" and not (x."id" = any(v_taken))
+      and (sl."capacity" is null or sl."capacity" >= rec.on_hand * rec.size)
+    order by sl."walk_rank", x."code"
+    limit 1;
+    if v_bin is null or (v_current_rank is not null and v_current_rank <= v_rank) or v_bin = rec.current_bin then
+      v_action := 'keep';
+      v_suggested := rec.current_bin;
+    else
+      v_action := 'move';
+      v_suggested := v_bin;
+    end if;
+    if v_suggested is not null then
+      v_taken := v_taken || v_suggested;
+    end if;
+    v_out := v_out || jsonb_build_object('variantId', rec.variant, 'velocity', rec.velocity::text, 'picks', rec.picks,
+      'onHand', rec.on_hand::text, 'currentBinId', rec.current_bin, 'suggestedBinId', v_suggested, 'action', v_action);
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_slotting"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."suggest_slotting"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets the order a picker walks an open pick list. line_ids lists open lines of
+-- the list in walking order; open lines left out follow in variant order.
+-- Picked lines keep no position. Needs the same permission as record_pick.
+create or replace function "better_supabase"."set_pick_route"(pick_list_id uuid, line_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_list "better_supabase"."pick_lists";
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_list from "better_supabase"."pick_lists" x where x."id" = set_pick_route.pick_list_id for update;
+  if not found then
+    raise exception 'no such pick list' using errcode = 'P0002', hint = 'WAREHOUSE_PICK_LIST_NOT_FOUND';
+  end if;
+  if not coalesce(((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_list."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_list."tenant_id", 'warehouse.manage'), false))) or ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_list."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_list."tenant_id", 'warehouse.pick'), false))) and coalesce(v_list."assignee_id" is null or v_list."assignee_id" = auth.uid(), false))), false) then
+    raise exception 'not allowed to pick from this list' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if v_list."status" <> 'open' then
+    raise exception 'only an open pick list has a route' using errcode = '55000', hint = 'WAREHOUSE_STATE';
+  end if;
+  if (select count(distinct t) from unnest(set_pick_route.line_ids) t) <> coalesce(cardinality(set_pick_route.line_ids), 0) then
+    raise exception 'a line is on the route once' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select count(*) into v_count from "better_supabase"."pick_lines" y
+  where y."pick_list_id" = v_list."id" and y."status" = 'open' and y."id" = any(coalesce(set_pick_route.line_ids, '{}'));
+  if v_count <> coalesce(cardinality(set_pick_route.line_ids), 0) then
+    raise exception 'the route lists open lines of this pick list' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  update "better_supabase"."pick_lines" y set "route_position" = o.position
+  from (
+    select y2."id" as id, row_number() over (
+      order by coalesce(array_position(coalesce(set_pick_route.line_ids, '{}'), y2."id"), 1000000), y2."variant_id", y2."id"
+    ) as position
+    from "better_supabase"."pick_lines" y2 where y2."pick_list_id" = v_list."id" and y2."status" = 'open'
+  ) o
+  where y."id" = o.id;
+  return "better_supabase"."pick_list_json"(v_list."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_pick_route"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."set_pick_route"(uuid, uuid[]) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1050,6 +1770,69 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."count_plans"
 create policy bsb_tenant_scope_delete on "better_supabase"."count_plans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."putaway_rules";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_select on "better_supabase"."putaway_rules" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_insert on "better_supabase"."putaway_rules" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_update on "better_supabase"."putaway_rules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_delete on "better_supabase"."putaway_rules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."bin_slots";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_select on "better_supabase"."bin_slots" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_insert on "better_supabase"."bin_slots" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_update on "better_supabase"."bin_slots" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_delete on "better_supabase"."bin_slots" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."variant_sizes";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_select on "better_supabase"."variant_sizes" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_insert on "better_supabase"."variant_sizes" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_update on "better_supabase"."variant_sizes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_delete on "better_supabase"."variant_sizes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1081,7 +1864,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:7d911308cd0d2625266c9e29539ffb1c19946eb316cb068daad062a5b62d35a3
+-- @bsb-hash sha256:b6ee5b4e64b129f74d7bb0c4e0aa23bfeea38a4617889f97fc32f2e7762dfba0
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1154,6 +1937,30 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."count_plans";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."count_plans";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."count_plans";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."putaway_rules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bin_slots";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."variant_sizes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1234,6 +2041,7 @@ create table if not exists "better_supabase"."pick_lines" (
   "lot_id" uuid,
   "serials" text[],
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "route_position" integer check ("route_position" > 0),
   "picked" numeric(20, 6) not null default 0 check ("picked" >= 0 and "picked" <= "quantity"),
   "status" text not null default 'open' check ("status" in ('open', 'picked', 'short', 'cancelled')),
   "picked_at" timestamptz,
@@ -1283,6 +2091,72 @@ create policy count_plans_read on "better_supabase"."count_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
+-- Where a receipt's stock goes: the bin to suggest for a variant (or for any
+-- variant), first by priority, up to max_quantity of that variant in the bin.
+create table if not exists "better_supabase"."putaway_rules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "bin_id" uuid not null references "better_supabase"."stock_bins" ("id") on delete cascade,
+  "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade,
+  "priority" integer not null default 100 check ("priority" between 0 and 10000),
+  "max_quantity" numeric(20, 6) check ("max_quantity" > 0),
+  "active" boolean not null default true,
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "id")
+);
+create index if not exists "putaway_rules_lookup_idx" on "better_supabase"."putaway_rules" ("tenant_id", "location_id", "variant_id", "priority") where "active";
+create index if not exists "putaway_rules_bin_idx" on "better_supabase"."putaway_rules" ("bin_id");
+create index if not exists "putaway_rules_location_idx" on "better_supabase"."putaway_rules" ("location_id");
+create index if not exists "putaway_rules_variant_idx" on "better_supabase"."putaway_rules" ("variant_id");
+alter table "better_supabase"."putaway_rules" enable row level security;
+revoke all on "better_supabase"."putaway_rules" from public, anon, authenticated;
+grant select on "better_supabase"."putaway_rules" to authenticated;
+grant all on "better_supabase"."putaway_rules" to service_role;
+drop policy if exists putaway_rules_read on "better_supabase"."putaway_rules";
+create policy putaway_rules_read on "better_supabase"."putaway_rules"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
+-- How far a bin is from the dispatch area (walk_rank, lowest is closest) and
+-- how much it holds, in the same unit as variant_sizes.size.
+create table if not exists "better_supabase"."bin_slots" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "bin_id" uuid not null unique references "better_supabase"."stock_bins" ("id") on delete cascade,
+  "walk_rank" integer not null default 0 check ("walk_rank" between 0 and 100000),
+  "capacity" numeric(20, 6) check ("capacity" > 0),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "id")
+);
+alter table "better_supabase"."bin_slots" enable row level security;
+revoke all on "better_supabase"."bin_slots" from public, anon, authenticated;
+grant select on "better_supabase"."bin_slots" to authenticated;
+grant all on "better_supabase"."bin_slots" to service_role;
+drop policy if exists bin_slots_read on "better_supabase"."bin_slots";
+create policy bin_slots_read on "better_supabase"."bin_slots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
+-- The space one unit of a variant takes in a bin; a variant without a row
+-- takes 1.
+create table if not exists "better_supabase"."variant_sizes" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null unique references "better_supabase"."product_variants" ("id") on delete cascade,
+  "size" numeric(20, 6) not null check ("size" > 0),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "id")
+);
+alter table "better_supabase"."variant_sizes" enable row level security;
+revoke all on "better_supabase"."variant_sizes" from public, anon, authenticated;
+grant select on "better_supabase"."variant_sizes" to authenticated;
+grant all on "better_supabase"."variant_sizes" to service_role;
+drop policy if exists variant_sizes_read on "better_supabase"."variant_sizes";
+create policy variant_sizes_read on "better_supabase"."variant_sizes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
 
 -- The pick list as json, with its lines.
 create or replace function "better_supabase"."pick_list_json"(pick_list_id uuid)
@@ -1298,10 +2172,10 @@ as $$
     'pickedAt', x."picked_at", 'createdAt', x."created_at",
     'lines', coalesce((
       select jsonb_agg(jsonb_build_object('id', y."id", 'allocationId', y."allocation_id", 'variantId', y."variant_id",
-        'binId', y."bin_id", 'lotId', y."lot_id", 'serials', to_jsonb(y."serials"),
+        'binId', y."bin_id", 'routePosition', y."route_position", 'lotId', y."lot_id", 'serials', to_jsonb(y."serials"),
         'quantity', y."quantity"::text, 'picked', y."picked"::text, 'status', y."status",
         'pickedAt', y."picked_at", 'pickedBy', y."picked_by")
-        order by y."variant_id", y."id")
+        order by y."route_position" nulls last, y."variant_id", y."id")
       from "better_supabase"."pick_lines" y where y."pick_list_id" = x."id"
     ), '[]'::jsonb))
   from "better_supabase"."pick_lists" x where x."id" = pick_list_json.pick_list_id
@@ -1713,6 +2587,11 @@ begin
   update "better_supabase"."pick_lists" x set "status" = 'picked', "picked_at" = now()
   where x."id" = v_list."id"
   returning * into v_list;
+  if v_list."task_id" is not null then
+    update "better_supabase"."tasks" i set "state" = 'completed'
+    where i."id" = v_list."task_id"
+      and i."state" not in ('completed', 'canceled');
+  end if;
   perform "better_supabase".emit_event('pick_list.picked', jsonb_build_object('organizationId', v_list."tenant_id", 'id', v_list."id", 'waveId', v_list."wave_id", 'locationId', v_list."location_id", 'documentType', v_list."document_type", 'documentId', v_list."document_id", 'status', v_list."status", 'short', v_short), 'pick-lists/' || v_list."id"::text, (v_list."tenant_id")::text, null, 'better-supabase/warehouse');
   perform better_supabase.audit_event(
     event_type => 'pick_list.picked',
@@ -2118,6 +2997,634 @@ $$;
 revoke execute on function "better_supabase"."post_cycle_count"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."post_cycle_count"(uuid, boolean) to authenticated, service_role;
 
+
+-- One rule as json.
+create or replace function "better_supabase"."putaway_rule_json"(rule_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id",
+    'binId', x."bin_id", 'variantId', x."variant_id", 'priority', x."priority",
+    'maxQuantity', x."max_quantity"::text, 'active', x."active", 'createdAt', x."created_at")
+  from "better_supabase"."putaway_rules" x where x."id" = putaway_rule_json.rule_id
+$$;
+revoke execute on function "better_supabase"."putaway_rule_json"(uuid) from public, anon, authenticated;
+
+-- Creates a putaway rule, or changes the one named by input.id. input is
+-- { id, locationId, binId, variantId, priority, maxQuantity, active }: stock of
+-- variantId (any variant when absent) goes to binId, lowest priority first,
+-- until the bin holds maxQuantity of it. Needs warehouse.manage.
+create or replace function "better_supabase"."save_putaway_rule"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."putaway_rules";
+  v_id uuid;
+  v_location uuid;
+  v_bin uuid;
+  v_variant uuid;
+  v_priority integer;
+  v_max numeric;
+  v_active boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_putaway_rule.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_putaway_rule.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_id := nullif(save_putaway_rule.input ->> 'id', '')::uuid;
+    v_location := nullif(save_putaway_rule.input ->> 'locationId', '')::uuid;
+    v_bin := nullif(save_putaway_rule.input ->> 'binId', '')::uuid;
+    v_variant := nullif(save_putaway_rule.input ->> 'variantId', '')::uuid;
+    v_priority := (save_putaway_rule.input ->> 'priority')::integer;
+    v_max := (save_putaway_rule.input ->> 'maxQuantity')::numeric;
+    v_active := (save_putaway_rule.input ->> 'active')::boolean;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'ids are uuids, priority is an integer, maxQuantity a number and active a boolean' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_id is not null then
+    select * into v_row from "better_supabase"."putaway_rules" x
+    where x."id" = v_id and x."tenant_id" = save_putaway_rule.tenant for update;
+    if not found then
+      raise exception 'no such putaway rule' using errcode = 'P0002', hint = 'WAREHOUSE_RULE_NOT_FOUND';
+    end if;
+    v_location := coalesce(v_location, v_row."location_id");
+    v_bin := coalesce(v_bin, v_row."bin_id");
+    if not (save_putaway_rule.input ? 'variantId') then
+      v_variant := v_row."variant_id";
+    end if;
+    if not (save_putaway_rule.input ? 'maxQuantity') then
+      v_max := v_row."max_quantity";
+    end if;
+    v_priority := coalesce(v_priority, v_row."priority");
+    v_active := coalesce(v_active, v_row."active");
+  end if;
+  if v_location is null or v_bin is null then
+    raise exception 'a rule needs a locationId and a binId' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."stock_bins" x
+    where x."id" = v_bin and x."tenant_id" = save_putaway_rule.tenant and x."location_id" = v_location
+  ) then
+    raise exception 'the bin has to be in the rule''s location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_variant is not null and not exists (
+    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_putaway_rule.tenant
+  ) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if coalesce(v_priority, 100) not between 0 and 10000 or coalesce(v_max, 1) <= 0 then
+    raise exception 'priority is between 0 and 10000 and maxQuantity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."putaway_rules" ("tenant_id", "location_id", "bin_id", "variant_id", "priority", "max_quantity", "active")
+    values (save_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
+    returning * into v_row;
+  else
+    update "better_supabase"."putaway_rules" x set "location_id" = v_location, "bin_id" = v_bin, "variant_id" = v_variant,
+      "priority" = v_priority, "max_quantity" = v_max, "active" = v_active
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  return "better_supabase"."putaway_rule_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a putaway rule. Returns false when it was already gone. Needs
+-- warehouse.manage.
+create or replace function "better_supabase"."delete_putaway_rule"(rule_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."putaway_rules";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."putaway_rules" x where x."id" = delete_putaway_rule.rule_id for update;
+  if not found then
+    return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."putaway_rules" x where x."id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_putaway_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_putaway_rule"(uuid) to authenticated, service_role;
+
+-- The putaway rules of a location, lowest priority first. filters is
+-- { locationId, variantId }, both optional. Needs warehouse.read.
+create or replace function "better_supabase"."list_putaway_rules"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_variant uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_putaway_rules.tenant is not null and coalesce(better_supabase.can('tenant', list_putaway_rules.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  begin
+    v_location := nullif(list_putaway_rules.filters ->> 'locationId', '')::uuid;
+    v_variant := nullif(list_putaway_rules.filters ->> 'variantId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId and variantId are uuids' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  return coalesce((
+    select jsonb_agg("better_supabase"."putaway_rule_json"(y.id) order by y.priority, y.id)
+    from (
+      select x."id" as id, x."priority" as priority from "better_supabase"."putaway_rules" x
+      where x."tenant_id" = list_putaway_rules.tenant
+        and (v_location is null or x."location_id" = v_location)
+        and (v_variant is null or x."variant_id" = v_variant)
+      order by x."priority", x."id"
+      limit 1000
+    ) y
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_putaway_rules"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_putaway_rules"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets how far a bin is from the dispatch area and how much it holds. input is
+-- { binId, walkRank, capacity }: the lowest walkRank is the closest, and
+-- capacity is in the unit of variant sizes (no limit when absent). Needs
+-- warehouse.manage.
+create or replace function "better_supabase"."save_bin_slot"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_bin uuid;
+  v_rank integer;
+  v_capacity numeric;
+  v_row "better_supabase"."bin_slots";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', save_bin_slot.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_bin_slot.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_bin := (save_bin_slot.input ->> 'binId')::uuid;
+    v_rank := coalesce((save_bin_slot.input ->> 'walkRank')::integer, 0);
+    v_capacity := (save_bin_slot.input ->> 'capacity')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'binId is a uuid, walkRank an integer and capacity a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_rank not between 0 and 100000 or coalesce(v_capacity, 1) <= 0 then
+    raise exception 'walkRank is between 0 and 100000 and capacity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = save_bin_slot.tenant) then
+    raise exception 'no such bin in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  insert into "better_supabase"."bin_slots" ("tenant_id", "bin_id", "walk_rank", "capacity")
+  values (save_bin_slot.tenant, v_bin, v_rank, v_capacity)
+  on conflict ("bin_id") do update set "walk_rank" = excluded."walk_rank",
+    "capacity" = excluded."capacity", "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('binId', v_row."bin_id", 'walkRank', v_row."walk_rank",
+    'capacity', v_row."capacity"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets the space one unit of a variant takes in a bin. input is
+-- { variantId, size }. Needs warehouse.manage.
+create or replace function "better_supabase"."save_variant_size"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_variant uuid;
+  v_size numeric;
+  v_row "better_supabase"."variant_sizes";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', save_variant_size.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage variant sizes' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_variant_size.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_variant := (save_variant_size.input ->> 'variantId')::uuid;
+    v_size := (save_variant_size.input ->> 'size')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'variantId is a uuid and size a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_size is null or v_size <= 0 then
+    raise exception 'size is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_variant_size.tenant) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  insert into "better_supabase"."variant_sizes" ("tenant_id", "variant_id", "size")
+  values (save_variant_size.tenant, v_variant, v_size)
+  on conflict ("variant_id") do update set "size" = excluded."size", "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('variantId', v_row."variant_id", 'size', v_row."size"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."save_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+
+-- The bins of a location with their slot and how full they are. filters is
+-- { locationId }. used is the stock in the bin times the variant sizes.
+-- Needs warehouse.read.
+create or replace function "better_supabase"."list_bin_slots"(tenant uuid, filters jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_bin_slots.tenant is not null and coalesce(better_supabase.can('tenant', list_bin_slots.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  begin
+    v_location := (list_bin_slots.filters ->> 'locationId')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId is a uuid' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_location is null then
+    raise exception 'filters needs a locationId' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('binId', y.bin, 'code', y.code, 'locationId', v_location, 'hold', y.hold,
+      'active', y.active, 'walkRank', y.walk_rank, 'capacity', y.capacity::text, 'used', y.used::text)
+      order by y.walk_rank nulls last, y.code)
+    from (
+      select x."id" as bin, x."code" as code, x."hold" as hold, x."active" as active,
+        sl."walk_rank" as walk_rank, sl."capacity" as capacity,
+        coalesce((
+          select sum(c."on_hand" * coalesce(sz."size", 1))
+          from "better_supabase"."stock_buckets" c left join "better_supabase"."variant_sizes" sz on sz."variant_id" = c."variant_id"
+          where c."bin_id" = x."id"
+        ), 0) as used
+      from "better_supabase"."stock_bins" x left join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+      where x."tenant_id" = list_bin_slots.tenant and x."location_id" = v_location
+      order by sl."walk_rank" nulls last, x."code"
+      limit 1000
+    ) y
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_bin_slots"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_bin_slots"(uuid, jsonb) to authenticated, service_role;
+
+-- Where stock of a variant goes in a location. Rule bins come first (a rule for
+-- the variant before one for any variant, then by priority), then bins that
+-- already hold it, then the other active bins by walk rank and how empty they
+-- are. Bins on hold or inactive are skipped; a bin takes no more than its
+-- rule's maxQuantity of the variant or its slot capacity. Not granted to
+-- anyone.
+create or replace function "better_supabase"."putaway_plan"(plan_tenant uuid, plan_location uuid, plan_variant uuid, plan_quantity numeric)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_left numeric := plan_quantity;
+  v_size numeric;
+  v_room numeric;
+  v_take numeric;
+  v_placements jsonb := '[]'::jsonb;
+  rec record;
+begin
+  select coalesce((select x."size" from "better_supabase"."variant_sizes" x where x."variant_id" = plan_variant), 1) into v_size;
+  for rec in
+    with held as (
+      select c."bin_id" as bin,
+        coalesce(sum(c."on_hand") filter (where c."variant_id" = plan_variant), 0) as of_variant,
+        sum(c."on_hand" * coalesce(sz."size", 1)) as used
+      from "better_supabase"."stock_buckets" c left join "better_supabase"."variant_sizes" sz on sz."variant_id" = c."variant_id"
+      where c."tenant_id" = plan_tenant and c."location_id" = plan_location and c."bin_id" is not null
+      group by c."bin_id"
+    ),
+    cand as (
+      select distinct on (y.bin) y.bin, y.tier, y.rank, y.rule_id, y.max_quantity
+      from (
+        select x."bin_id" as bin, case when x."variant_id" is null then 1 else 0 end as tier,
+          x."priority" as rank, x."id" as rule_id, x."max_quantity" as max_quantity
+        from "better_supabase"."putaway_rules" x
+        where x."tenant_id" = plan_tenant and x."location_id" = plan_location and x."active"
+          and (x."variant_id" is null or x."variant_id" = plan_variant)
+        union all
+        select h.bin, 2, 0, null::uuid, null::numeric from held h where h.of_variant > 0
+        union all
+        select x."id", 3, coalesce(sl."walk_rank", 100001), null::uuid, null::numeric
+        from "better_supabase"."stock_bins" x left join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+        where x."tenant_id" = plan_tenant and x."location_id" = plan_location
+      ) y
+      order by y.bin, y.tier, y.rank
+    )
+    select c.bin, bn."code" as code, c.tier, c.rank, c.rule_id, c.max_quantity,
+      coalesce(h.of_variant, 0) as of_variant, coalesce(h.used, 0) as used, sl."capacity" as capacity
+    from cand c
+    join "better_supabase"."stock_bins" bn on bn."id" = c.bin
+    left join held h on h.bin = c.bin
+    left join "better_supabase"."bin_slots" sl on sl."bin_id" = c.bin
+    where bn."active" and not bn."hold" and bn."location_id" = plan_location and bn."tenant_id" = plan_tenant
+    order by c.tier, c.rank, case when c.tier = 2 then -coalesce(h.of_variant, 0) else coalesce(h.used, 0) end, bn."code"
+  loop
+    exit when v_left <= 0;
+    v_room := least(
+      case when rec.max_quantity is null then 'Infinity'::numeric else rec.max_quantity - rec.of_variant end,
+      case when rec.capacity is null then 'Infinity'::numeric else (rec.capacity - rec.used) / v_size end
+    );
+    continue when v_room <= 0;
+    v_take := least(v_left, trunc(v_room, 6));
+    continue when v_take <= 0;
+    v_placements := v_placements || jsonb_build_object('binId', rec.bin, 'binCode', rec.code,
+      'quantity', v_take::text, 'source', case when rec.tier < 2 then 'rule' when rec.tier = 2 then 'stock' else 'free' end,
+      'ruleId', rec.rule_id);
+    v_left := v_left - v_take;
+  end loop;
+  return jsonb_build_object('locationId', plan_location, 'variantId', plan_variant, 'quantity', plan_quantity::text,
+    'placements', v_placements, 'unassigned', v_left::text);
+end;
+$$;
+revoke execute on function "better_supabase"."putaway_plan"(uuid, uuid, uuid, numeric) from public, anon, authenticated;
+
+-- Suggests bins for stock about to be put away. input is { locationId,
+-- variantId, quantity }. Nothing moves: the suggestion lists each bin with the
+-- quantity it takes, why (rule, stock or free), and what is left over when no
+-- bin has room. Needs warehouse.read or warehouse.pick.
+create or replace function "better_supabase"."suggest_putaway"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_variant uuid;
+  v_quantity numeric;
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_putaway.tenant is not null and coalesce(better_supabase.can('tenant', suggest_putaway.tenant, 'warehouse.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_putaway.tenant is not null and coalesce(better_supabase.can('tenant', suggest_putaway.tenant, 'warehouse.pick'), false)))) then
+    raise exception 'not allowed to read putaway suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(suggest_putaway.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_location := (suggest_putaway.input ->> 'locationId')::uuid;
+    v_variant := (suggest_putaway.input ->> 'variantId')::uuid;
+    v_quantity := (suggest_putaway.input ->> 'quantity')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'locationId and variantId are uuids and quantity is a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_quantity is null or v_quantity <= 0 then
+    raise exception 'quantity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = suggest_putaway.tenant) then
+    raise exception 'no such location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = suggest_putaway.tenant) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  return "better_supabase"."putaway_plan"(suggest_putaway.tenant, v_location, v_variant, v_quantity);
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_putaway"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."suggest_putaway"(uuid, jsonb) to authenticated, service_role;
+
+-- Suggests bins for every variant of a goods receipt, at the receipt's
+-- location. Lines of one variant are planned together. Variants are planned
+-- one by one, so two variants can be suggested the same bin when it has room
+-- for each but not both. Needs warehouse.read or warehouse.pick.
+create or replace function "better_supabase"."suggest_receipt_putaway"(receipt_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_receipt "better_supabase"."inventory_receipts";
+  v_out jsonb := '[]'::jsonb;
+  rec record;
+begin
+  select * into v_receipt from "better_supabase"."inventory_receipts" x where x."id" = suggest_receipt_putaway.receipt_id;
+  if not found then
+    raise exception 'no such goods receipt' using errcode = 'P0002', hint = 'WAREHOUSE_RECEIPT_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_receipt."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_receipt."tenant_id", 'warehouse.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_receipt."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_receipt."tenant_id", 'warehouse.pick'), false)))) then
+    raise exception 'not allowed to read putaway suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if v_receipt."location_id" is null then
+    raise exception 'the receipt has no location' using errcode = '55000', hint = 'WAREHOUSE_STATE';
+  end if;
+  for rec in
+    select x."variant_id" as variant, sum(x."quantity") as quantity
+    from "better_supabase"."inventory_receipt_lines" x
+    where x."receipt_id" = v_receipt."id" and x."quantity" > 0
+    group by x."variant_id"
+    order by x."variant_id"
+  loop
+    v_out := v_out || "better_supabase"."putaway_plan"(v_receipt."tenant_id", v_receipt."location_id", rec.variant, rec.quantity);
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_receipt_putaway"(uuid) from public, anon;
+grant execute on function "better_supabase"."suggest_receipt_putaway"(uuid) to authenticated, service_role;
+
+-- Suggests where the fastest movers of a location should live. input is
+-- { locationId, days, limit }: the variants most picked in the last days
+-- (default 30), at most limit of them (default 50), each get the closest bin
+-- with a slot that holds their stock, fastest first. A variant already in a bin
+-- as close or closer stays (action keep). Nothing moves. Needs warehouse.read.
+create or replace function "better_supabase"."suggest_slotting"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_days integer;
+  v_limit integer;
+  v_taken uuid[] := '{}';
+  v_bin uuid;
+  v_rank integer;
+  v_current_rank integer;
+  v_action text;
+  v_suggested uuid;
+  v_out jsonb := '[]'::jsonb;
+  rec record;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_slotting.tenant is not null and coalesce(better_supabase.can('tenant', suggest_slotting.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read slotting suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(suggest_slotting.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_location := (suggest_slotting.input ->> 'locationId')::uuid;
+    v_days := coalesce((suggest_slotting.input ->> 'days')::integer, 30);
+    v_limit := coalesce((suggest_slotting.input ->> 'limit')::integer, 50);
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'locationId is a uuid, days and limit are integers' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_days not between 1 and 365 or v_limit not between 1 and 500 then
+    raise exception 'days is between 1 and 365 and limit between 1 and 500' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = suggest_slotting.tenant) then
+    raise exception 'no such location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  for rec in
+    with moves as (
+      select y."variant_id" as variant, sum(y."picked") as velocity, count(*) as picks
+      from "better_supabase"."pick_lines" y join "better_supabase"."pick_lists" x on x."id" = y."pick_list_id"
+      where x."tenant_id" = suggest_slotting.tenant and x."location_id" = v_location
+        and y."picked" > 0 and y."picked_at" >= now() - make_interval(days => v_days)
+      group by y."variant_id"
+      order by sum(y."picked") desc, y."variant_id"
+      limit v_limit
+    )
+    select m.variant, m.velocity, m.picks,
+      coalesce((select sum(c."on_hand") from "better_supabase"."stock_buckets" c
+        where c."tenant_id" = suggest_slotting.tenant and c."location_id" = v_location
+          and c."variant_id" = m.variant and c."bin_id" is not null), 0) as on_hand,
+      (select c."bin_id" from "better_supabase"."stock_buckets" c
+        where c."tenant_id" = suggest_slotting.tenant and c."location_id" = v_location
+          and c."variant_id" = m.variant and c."bin_id" is not null
+        order by c."on_hand" desc, c."bin_id" limit 1) as current_bin,
+      coalesce((select sz."size" from "better_supabase"."variant_sizes" sz where sz."variant_id" = m.variant), 1) as size
+    from moves m
+    order by m.velocity desc, m.variant
+  loop
+    v_current_rank := (select sl."walk_rank" from "better_supabase"."bin_slots" sl where sl."bin_id" = rec.current_bin);
+    v_bin := null;
+    v_rank := null;
+    select x."id", sl."walk_rank" into v_bin, v_rank
+    from "better_supabase"."stock_bins" x join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+    where x."tenant_id" = suggest_slotting.tenant and x."location_id" = v_location
+      and x."active" and not x."hold" and not (x."id" = any(v_taken))
+      and (sl."capacity" is null or sl."capacity" >= rec.on_hand * rec.size)
+    order by sl."walk_rank", x."code"
+    limit 1;
+    if v_bin is null or (v_current_rank is not null and v_current_rank <= v_rank) or v_bin = rec.current_bin then
+      v_action := 'keep';
+      v_suggested := rec.current_bin;
+    else
+      v_action := 'move';
+      v_suggested := v_bin;
+    end if;
+    if v_suggested is not null then
+      v_taken := v_taken || v_suggested;
+    end if;
+    v_out := v_out || jsonb_build_object('variantId', rec.variant, 'velocity', rec.velocity::text, 'picks', rec.picks,
+      'onHand', rec.on_hand::text, 'currentBinId', rec.current_bin, 'suggestedBinId', v_suggested, 'action', v_action);
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_slotting"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."suggest_slotting"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets the order a picker walks an open pick list. line_ids lists open lines of
+-- the list in walking order; open lines left out follow in variant order.
+-- Picked lines keep no position. Needs the same permission as record_pick.
+create or replace function "better_supabase"."set_pick_route"(pick_list_id uuid, line_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_list "better_supabase"."pick_lists";
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_list from "better_supabase"."pick_lists" x where x."id" = set_pick_route.pick_list_id for update;
+  if not found then
+    raise exception 'no such pick list' using errcode = 'P0002', hint = 'WAREHOUSE_PICK_LIST_NOT_FOUND';
+  end if;
+  if not coalesce(((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_list."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_list."tenant_id", 'warehouse.manage'), false))) or ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_list."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_list."tenant_id", 'warehouse.pick'), false))) and coalesce(v_list."assignee_id" is null or v_list."assignee_id" = auth.uid(), false))), false) then
+    raise exception 'not allowed to pick from this list' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if v_list."status" <> 'open' then
+    raise exception 'only an open pick list has a route' using errcode = '55000', hint = 'WAREHOUSE_STATE';
+  end if;
+  if (select count(distinct t) from unnest(set_pick_route.line_ids) t) <> coalesce(cardinality(set_pick_route.line_ids), 0) then
+    raise exception 'a line is on the route once' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select count(*) into v_count from "better_supabase"."pick_lines" y
+  where y."pick_list_id" = v_list."id" and y."status" = 'open' and y."id" = any(coalesce(set_pick_route.line_ids, '{}'));
+  if v_count <> coalesce(cardinality(set_pick_route.line_ids), 0) then
+    raise exception 'the route lists open lines of this pick list' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  update "better_supabase"."pick_lines" y set "route_position" = o.position
+  from (
+    select y2."id" as id, row_number() over (
+      order by coalesce(array_position(coalesce(set_pick_route.line_ids, '{}'), y2."id"), 1000000), y2."variant_id", y2."id"
+    ) as position
+    from "better_supabase"."pick_lines" y2 where y2."pick_list_id" = v_list."id" and y2."status" = 'open'
+  ) o
+  where y."id" = o.id;
+  return "better_supabase"."pick_list_json"(v_list."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_pick_route"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."set_pick_route"(uuid, uuid[]) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2217,6 +3724,69 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."count_plans"
 create policy bsb_tenant_scope_delete on "better_supabase"."count_plans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."putaway_rules";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_select on "better_supabase"."putaway_rules" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_insert on "better_supabase"."putaway_rules" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_update on "better_supabase"."putaway_rules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_delete on "better_supabase"."putaway_rules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."bin_slots";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_select on "better_supabase"."bin_slots" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_insert on "better_supabase"."bin_slots" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_update on "better_supabase"."bin_slots" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_delete on "better_supabase"."bin_slots" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."variant_sizes";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_select on "better_supabase"."variant_sizes" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_insert on "better_supabase"."variant_sizes" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_update on "better_supabase"."variant_sizes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_delete on "better_supabase"."variant_sizes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2234,7 +3804,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block-data warehouse
--- @bsb-hash sha256:7bfcff651ed4466f4db9481e0cce08a425a25213fcc8aafe7c86520749cb3602
+-- @bsb-hash sha256:7eb84d3df10db098cffb1c8894901dc9a88b541c7746e636e271130607d3750e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2245,6 +3815,9 @@ select better_supabase.audit('better_supabase.pick_lists', target_type => 'pick_
 select better_supabase.audit('better_supabase.pick_waves', target_type => 'pick_wave', event_prefix => 'pick_wave', deferred => true);
 select better_supabase.audit('better_supabase.pick_lines', target_type => 'pick_line', event_prefix => 'pick_line', deferred => true);
 select better_supabase.audit('better_supabase.count_plans', target_type => 'count_plan', event_prefix => 'count_plan', deferred => true);
+select better_supabase.audit('better_supabase.putaway_rules', target_type => 'putaway_rule', event_prefix => 'putaway_rule', deferred => true);
+select better_supabase.audit('better_supabase.bin_slots', target_type => 'bin_slot', event_prefix => 'bin_slot', deferred => true);
+select better_supabase.audit('better_supabase.variant_sizes', target_type => 'variant_size', event_prefix => 'variant_size', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('warehouse', 1, 'managed')
@@ -2254,7 +3827,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:a77e2c7426fc18694315ad2b5512fa4399b0a9b602be5c8cb1e68720bca46956
+-- @bsb-hash sha256:c875c80ae0a43812425791aea9e9c65f32576a15f8173a8b7e1ae96fd2086079
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2327,6 +3900,30 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "app_private"."count_plans";
     drop policy if exists bsb_tenant_scope_update on "app_private"."count_plans";
     drop policy if exists bsb_tenant_scope_delete on "app_private"."count_plans";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."putaway_rules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."bin_slots";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."bin_slots";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."bin_slots";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."bin_slots";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."bin_slots";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."variant_sizes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2412,6 +4009,7 @@ create table if not exists "app_private"."pick_lines" (
   "lot_id" uuid,
   "serials" text[],
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "route_position" integer check ("route_position" > 0),
   "picked" numeric(20, 6) not null default 0 check ("picked" >= 0 and "picked" <= "quantity"),
   "status" text not null default 'open' check ("status" in ('open', 'picked', 'short', 'cancelled')),
   "picked_at" timestamptz,
@@ -2461,6 +4059,72 @@ create policy count_plans_read on "app_private"."count_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
+-- Where a receipt's stock goes: the bin to suggest for a variant (or for any
+-- variant), first by priority, up to max_quantity of that variant in the bin.
+create table if not exists "app_private"."putaway_rules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "bin_id" uuid not null references "better_supabase"."stock_bins" ("id") on delete cascade,
+  "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade,
+  "priority" integer not null default 100 check ("priority" between 0 and 10000),
+  "max_quantity" numeric(20, 6) check ("max_quantity" > 0),
+  "active" boolean not null default true,
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "id")
+);
+create index if not exists "putaway_rules_lookup_idx" on "app_private"."putaway_rules" ("tenant_id", "location_id", "variant_id", "priority") where "active";
+create index if not exists "putaway_rules_bin_idx" on "app_private"."putaway_rules" ("bin_id");
+create index if not exists "putaway_rules_location_idx" on "app_private"."putaway_rules" ("location_id");
+create index if not exists "putaway_rules_variant_idx" on "app_private"."putaway_rules" ("variant_id");
+alter table "app_private"."putaway_rules" enable row level security;
+revoke all on "app_private"."putaway_rules" from public, anon, authenticated;
+grant select on "app_private"."putaway_rules" to authenticated;
+grant all on "app_private"."putaway_rules" to service_role;
+drop policy if exists putaway_rules_read on "app_private"."putaway_rules";
+create policy putaway_rules_read on "app_private"."putaway_rules"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
+-- How far a bin is from the dispatch area (walk_rank, lowest is closest) and
+-- how much it holds, in the same unit as variant_sizes.size.
+create table if not exists "app_private"."bin_slots" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "bin_id" uuid not null unique references "better_supabase"."stock_bins" ("id") on delete cascade,
+  "walk_rank" integer not null default 0 check ("walk_rank" between 0 and 100000),
+  "capacity" numeric(20, 6) check ("capacity" > 0),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "id")
+);
+alter table "app_private"."bin_slots" enable row level security;
+revoke all on "app_private"."bin_slots" from public, anon, authenticated;
+grant select on "app_private"."bin_slots" to authenticated;
+grant all on "app_private"."bin_slots" to service_role;
+drop policy if exists bin_slots_read on "app_private"."bin_slots";
+create policy bin_slots_read on "app_private"."bin_slots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
+-- The space one unit of a variant takes in a bin; a variant without a row
+-- takes 1.
+create table if not exists "app_private"."variant_sizes" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null unique references "better_supabase"."product_variants" ("id") on delete cascade,
+  "size" numeric(20, 6) not null check ("size" > 0),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "id")
+);
+alter table "app_private"."variant_sizes" enable row level security;
+revoke all on "app_private"."variant_sizes" from public, anon, authenticated;
+grant select on "app_private"."variant_sizes" to authenticated;
+grant all on "app_private"."variant_sizes" to service_role;
+drop policy if exists variant_sizes_read on "app_private"."variant_sizes";
+create policy variant_sizes_read on "app_private"."variant_sizes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
 
 -- The pick list as json, with its lines.
 create or replace function "app_private"."pick_list_json"(pick_list_id uuid)
@@ -2476,10 +4140,10 @@ as $$
     'pickedAt', x."picked_at", 'createdAt', x."created_at",
     'lines', coalesce((
       select jsonb_agg(jsonb_build_object('id', y."id", 'allocationId', y."allocation_id", 'variantId', y."variant_id",
-        'binId', y."bin_id", 'lotId', y."lot_id", 'serials', to_jsonb(y."serials"),
+        'binId', y."bin_id", 'routePosition', y."route_position", 'lotId', y."lot_id", 'serials', to_jsonb(y."serials"),
         'quantity', y."quantity"::text, 'picked', y."picked"::text, 'status', y."status",
         'pickedAt', y."picked_at", 'pickedBy', y."picked_by")
-        order by y."variant_id", y."id")
+        order by y."route_position" nulls last, y."variant_id", y."id")
       from "app_private"."pick_lines" y where y."pick_list_id" = x."id"
     ), '[]'::jsonb))
   from "app_private"."pick_lists" x where x."id" = pick_list_json.pick_list_id
@@ -2843,6 +4507,7 @@ begin
   update "app_private"."pick_lists" x set "status" = 'picked', "picked_at" = now()
   where x."id" = v_list."id"
   returning * into v_list;
+  
   null;
   if v_list."wave_id" is not null and not exists (select 1 from "app_private"."pick_lists" x where x."wave_id" = v_list."wave_id" and x."status" = 'open') then
     update "app_private"."pick_waves" x set "status" = 'completed', "completed_at" = now()
@@ -3209,6 +4874,634 @@ $$;
 revoke execute on function "app_private"."post_cycle_count"(uuid, boolean) from public, anon;
 grant execute on function "app_private"."post_cycle_count"(uuid, boolean) to authenticated, service_role;
 
+
+-- One rule as json.
+create or replace function "app_private"."putaway_rule_json"(rule_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id",
+    'binId', x."bin_id", 'variantId', x."variant_id", 'priority', x."priority",
+    'maxQuantity', x."max_quantity"::text, 'active', x."active", 'createdAt', x."created_at")
+  from "app_private"."putaway_rules" x where x."id" = putaway_rule_json.rule_id
+$$;
+revoke execute on function "app_private"."putaway_rule_json"(uuid) from public, anon, authenticated;
+
+-- Creates a putaway rule, or changes the one named by input.id. input is
+-- { id, locationId, binId, variantId, priority, maxQuantity, active }: stock of
+-- variantId (any variant when absent) goes to binId, lowest priority first,
+-- until the bin holds maxQuantity of it. Needs warehouse.manage.
+create or replace function "app_private"."save_putaway_rule"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."putaway_rules";
+  v_id uuid;
+  v_location uuid;
+  v_bin uuid;
+  v_variant uuid;
+  v_priority integer;
+  v_max numeric;
+  v_active boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_putaway_rule.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_putaway_rule.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_id := nullif(save_putaway_rule.input ->> 'id', '')::uuid;
+    v_location := nullif(save_putaway_rule.input ->> 'locationId', '')::uuid;
+    v_bin := nullif(save_putaway_rule.input ->> 'binId', '')::uuid;
+    v_variant := nullif(save_putaway_rule.input ->> 'variantId', '')::uuid;
+    v_priority := (save_putaway_rule.input ->> 'priority')::integer;
+    v_max := (save_putaway_rule.input ->> 'maxQuantity')::numeric;
+    v_active := (save_putaway_rule.input ->> 'active')::boolean;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'ids are uuids, priority is an integer, maxQuantity a number and active a boolean' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_id is not null then
+    select * into v_row from "app_private"."putaway_rules" x
+    where x."id" = v_id and x."tenant_id" = save_putaway_rule.tenant for update;
+    if not found then
+      raise exception 'no such putaway rule' using errcode = 'P0002', hint = 'WAREHOUSE_RULE_NOT_FOUND';
+    end if;
+    v_location := coalesce(v_location, v_row."location_id");
+    v_bin := coalesce(v_bin, v_row."bin_id");
+    if not (save_putaway_rule.input ? 'variantId') then
+      v_variant := v_row."variant_id";
+    end if;
+    if not (save_putaway_rule.input ? 'maxQuantity') then
+      v_max := v_row."max_quantity";
+    end if;
+    v_priority := coalesce(v_priority, v_row."priority");
+    v_active := coalesce(v_active, v_row."active");
+  end if;
+  if v_location is null or v_bin is null then
+    raise exception 'a rule needs a locationId and a binId' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."stock_bins" x
+    where x."id" = v_bin and x."tenant_id" = save_putaway_rule.tenant and x."location_id" = v_location
+  ) then
+    raise exception 'the bin has to be in the rule''s location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_variant is not null and not exists (
+    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_putaway_rule.tenant
+  ) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if coalesce(v_priority, 100) not between 0 and 10000 or coalesce(v_max, 1) <= 0 then
+    raise exception 'priority is between 0 and 10000 and maxQuantity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_id is null then
+    insert into "app_private"."putaway_rules" ("tenant_id", "location_id", "bin_id", "variant_id", "priority", "max_quantity", "active")
+    values (save_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
+    returning * into v_row;
+  else
+    update "app_private"."putaway_rules" x set "location_id" = v_location, "bin_id" = v_bin, "variant_id" = v_variant,
+      "priority" = v_priority, "max_quantity" = v_max, "active" = v_active
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  return "app_private"."putaway_rule_json"(v_row."id");
+end;
+$$;
+revoke execute on function "app_private"."save_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a putaway rule. Returns false when it was already gone. Needs
+-- warehouse.manage.
+create or replace function "app_private"."delete_putaway_rule"(rule_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."putaway_rules";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."putaway_rules" x where x."id" = delete_putaway_rule.rule_id for update;
+  if not found then
+    return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  delete from "app_private"."putaway_rules" x where x."id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."delete_putaway_rule"(uuid) from public, anon;
+grant execute on function "app_private"."delete_putaway_rule"(uuid) to authenticated, service_role;
+
+-- The putaway rules of a location, lowest priority first. filters is
+-- { locationId, variantId }, both optional. Needs warehouse.read.
+create or replace function "app_private"."list_putaway_rules"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_variant uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_putaway_rules.tenant is not null and coalesce(better_supabase.can('tenant', list_putaway_rules.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  begin
+    v_location := nullif(list_putaway_rules.filters ->> 'locationId', '')::uuid;
+    v_variant := nullif(list_putaway_rules.filters ->> 'variantId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId and variantId are uuids' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  return coalesce((
+    select jsonb_agg("app_private"."putaway_rule_json"(y.id) order by y.priority, y.id)
+    from (
+      select x."id" as id, x."priority" as priority from "app_private"."putaway_rules" x
+      where x."tenant_id" = list_putaway_rules.tenant
+        and (v_location is null or x."location_id" = v_location)
+        and (v_variant is null or x."variant_id" = v_variant)
+      order by x."priority", x."id"
+      limit 1000
+    ) y
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."list_putaway_rules"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."list_putaway_rules"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets how far a bin is from the dispatch area and how much it holds. input is
+-- { binId, walkRank, capacity }: the lowest walkRank is the closest, and
+-- capacity is in the unit of variant sizes (no limit when absent). Needs
+-- warehouse.manage.
+create or replace function "app_private"."save_bin_slot"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_bin uuid;
+  v_rank integer;
+  v_capacity numeric;
+  v_row "app_private"."bin_slots";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', save_bin_slot.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_bin_slot.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_bin := (save_bin_slot.input ->> 'binId')::uuid;
+    v_rank := coalesce((save_bin_slot.input ->> 'walkRank')::integer, 0);
+    v_capacity := (save_bin_slot.input ->> 'capacity')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'binId is a uuid, walkRank an integer and capacity a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_rank not between 0 and 100000 or coalesce(v_capacity, 1) <= 0 then
+    raise exception 'walkRank is between 0 and 100000 and capacity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = save_bin_slot.tenant) then
+    raise exception 'no such bin in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  insert into "app_private"."bin_slots" ("tenant_id", "bin_id", "walk_rank", "capacity")
+  values (save_bin_slot.tenant, v_bin, v_rank, v_capacity)
+  on conflict ("bin_id") do update set "walk_rank" = excluded."walk_rank",
+    "capacity" = excluded."capacity", "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('binId', v_row."bin_id", 'walkRank', v_row."walk_rank",
+    'capacity', v_row."capacity"::text);
+end;
+$$;
+revoke execute on function "app_private"."save_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets the space one unit of a variant takes in a bin. input is
+-- { variantId, size }. Needs warehouse.manage.
+create or replace function "app_private"."save_variant_size"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_variant uuid;
+  v_size numeric;
+  v_row "app_private"."variant_sizes";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', save_variant_size.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage variant sizes' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_variant_size.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_variant := (save_variant_size.input ->> 'variantId')::uuid;
+    v_size := (save_variant_size.input ->> 'size')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'variantId is a uuid and size a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_size is null or v_size <= 0 then
+    raise exception 'size is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_variant_size.tenant) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  insert into "app_private"."variant_sizes" ("tenant_id", "variant_id", "size")
+  values (save_variant_size.tenant, v_variant, v_size)
+  on conflict ("variant_id") do update set "size" = excluded."size", "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('variantId', v_row."variant_id", 'size', v_row."size"::text);
+end;
+$$;
+revoke execute on function "app_private"."save_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+
+-- The bins of a location with their slot and how full they are. filters is
+-- { locationId }. used is the stock in the bin times the variant sizes.
+-- Needs warehouse.read.
+create or replace function "app_private"."list_bin_slots"(tenant uuid, filters jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_bin_slots.tenant is not null and coalesce(better_supabase.can('tenant', list_bin_slots.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  begin
+    v_location := (list_bin_slots.filters ->> 'locationId')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId is a uuid' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_location is null then
+    raise exception 'filters needs a locationId' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('binId', y.bin, 'code', y.code, 'locationId', v_location, 'hold', y.hold,
+      'active', y.active, 'walkRank', y.walk_rank, 'capacity', y.capacity::text, 'used', y.used::text)
+      order by y.walk_rank nulls last, y.code)
+    from (
+      select x."id" as bin, x."code" as code, x."hold" as hold, x."active" as active,
+        sl."walk_rank" as walk_rank, sl."capacity" as capacity,
+        coalesce((
+          select sum(c."on_hand" * coalesce(sz."size", 1))
+          from "better_supabase"."stock_buckets" c left join "app_private"."variant_sizes" sz on sz."variant_id" = c."variant_id"
+          where c."bin_id" = x."id"
+        ), 0) as used
+      from "better_supabase"."stock_bins" x left join "app_private"."bin_slots" sl on sl."bin_id" = x."id"
+      where x."tenant_id" = list_bin_slots.tenant and x."location_id" = v_location
+      order by sl."walk_rank" nulls last, x."code"
+      limit 1000
+    ) y
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."list_bin_slots"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."list_bin_slots"(uuid, jsonb) to authenticated, service_role;
+
+-- Where stock of a variant goes in a location. Rule bins come first (a rule for
+-- the variant before one for any variant, then by priority), then bins that
+-- already hold it, then the other active bins by walk rank and how empty they
+-- are. Bins on hold or inactive are skipped; a bin takes no more than its
+-- rule's maxQuantity of the variant or its slot capacity. Not granted to
+-- anyone.
+create or replace function "app_private"."putaway_plan"(plan_tenant uuid, plan_location uuid, plan_variant uuid, plan_quantity numeric)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_left numeric := plan_quantity;
+  v_size numeric;
+  v_room numeric;
+  v_take numeric;
+  v_placements jsonb := '[]'::jsonb;
+  rec record;
+begin
+  select coalesce((select x."size" from "app_private"."variant_sizes" x where x."variant_id" = plan_variant), 1) into v_size;
+  for rec in
+    with held as (
+      select c."bin_id" as bin,
+        coalesce(sum(c."on_hand") filter (where c."variant_id" = plan_variant), 0) as of_variant,
+        sum(c."on_hand" * coalesce(sz."size", 1)) as used
+      from "better_supabase"."stock_buckets" c left join "app_private"."variant_sizes" sz on sz."variant_id" = c."variant_id"
+      where c."tenant_id" = plan_tenant and c."location_id" = plan_location and c."bin_id" is not null
+      group by c."bin_id"
+    ),
+    cand as (
+      select distinct on (y.bin) y.bin, y.tier, y.rank, y.rule_id, y.max_quantity
+      from (
+        select x."bin_id" as bin, case when x."variant_id" is null then 1 else 0 end as tier,
+          x."priority" as rank, x."id" as rule_id, x."max_quantity" as max_quantity
+        from "app_private"."putaway_rules" x
+        where x."tenant_id" = plan_tenant and x."location_id" = plan_location and x."active"
+          and (x."variant_id" is null or x."variant_id" = plan_variant)
+        union all
+        select h.bin, 2, 0, null::uuid, null::numeric from held h where h.of_variant > 0
+        union all
+        select x."id", 3, coalesce(sl."walk_rank", 100001), null::uuid, null::numeric
+        from "better_supabase"."stock_bins" x left join "app_private"."bin_slots" sl on sl."bin_id" = x."id"
+        where x."tenant_id" = plan_tenant and x."location_id" = plan_location
+      ) y
+      order by y.bin, y.tier, y.rank
+    )
+    select c.bin, bn."code" as code, c.tier, c.rank, c.rule_id, c.max_quantity,
+      coalesce(h.of_variant, 0) as of_variant, coalesce(h.used, 0) as used, sl."capacity" as capacity
+    from cand c
+    join "better_supabase"."stock_bins" bn on bn."id" = c.bin
+    left join held h on h.bin = c.bin
+    left join "app_private"."bin_slots" sl on sl."bin_id" = c.bin
+    where bn."active" and not bn."hold" and bn."location_id" = plan_location and bn."tenant_id" = plan_tenant
+    order by c.tier, c.rank, case when c.tier = 2 then -coalesce(h.of_variant, 0) else coalesce(h.used, 0) end, bn."code"
+  loop
+    exit when v_left <= 0;
+    v_room := least(
+      case when rec.max_quantity is null then 'Infinity'::numeric else rec.max_quantity - rec.of_variant end,
+      case when rec.capacity is null then 'Infinity'::numeric else (rec.capacity - rec.used) / v_size end
+    );
+    continue when v_room <= 0;
+    v_take := least(v_left, trunc(v_room, 6));
+    continue when v_take <= 0;
+    v_placements := v_placements || jsonb_build_object('binId', rec.bin, 'binCode', rec.code,
+      'quantity', v_take::text, 'source', case when rec.tier < 2 then 'rule' when rec.tier = 2 then 'stock' else 'free' end,
+      'ruleId', rec.rule_id);
+    v_left := v_left - v_take;
+  end loop;
+  return jsonb_build_object('locationId', plan_location, 'variantId', plan_variant, 'quantity', plan_quantity::text,
+    'placements', v_placements, 'unassigned', v_left::text);
+end;
+$$;
+revoke execute on function "app_private"."putaway_plan"(uuid, uuid, uuid, numeric) from public, anon, authenticated;
+
+-- Suggests bins for stock about to be put away. input is { locationId,
+-- variantId, quantity }. Nothing moves: the suggestion lists each bin with the
+-- quantity it takes, why (rule, stock or free), and what is left over when no
+-- bin has room. Needs warehouse.read or warehouse.pick.
+create or replace function "app_private"."suggest_putaway"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_variant uuid;
+  v_quantity numeric;
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_putaway.tenant is not null and coalesce(better_supabase.can('tenant', suggest_putaway.tenant, 'warehouse.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_putaway.tenant is not null and coalesce(better_supabase.can('tenant', suggest_putaway.tenant, 'warehouse.pick'), false)))) then
+    raise exception 'not allowed to read putaway suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(suggest_putaway.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_location := (suggest_putaway.input ->> 'locationId')::uuid;
+    v_variant := (suggest_putaway.input ->> 'variantId')::uuid;
+    v_quantity := (suggest_putaway.input ->> 'quantity')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'locationId and variantId are uuids and quantity is a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_quantity is null or v_quantity <= 0 then
+    raise exception 'quantity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = suggest_putaway.tenant) then
+    raise exception 'no such location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = suggest_putaway.tenant) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  return "app_private"."putaway_plan"(suggest_putaway.tenant, v_location, v_variant, v_quantity);
+end;
+$$;
+revoke execute on function "app_private"."suggest_putaway"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."suggest_putaway"(uuid, jsonb) to authenticated, service_role;
+
+-- Suggests bins for every variant of a goods receipt, at the receipt's
+-- location. Lines of one variant are planned together. Variants are planned
+-- one by one, so two variants can be suggested the same bin when it has room
+-- for each but not both. Needs warehouse.read or warehouse.pick.
+create or replace function "app_private"."suggest_receipt_putaway"(receipt_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_receipt "better_supabase"."inventory_receipts";
+  v_out jsonb := '[]'::jsonb;
+  rec record;
+begin
+  select * into v_receipt from "better_supabase"."inventory_receipts" x where x."id" = suggest_receipt_putaway.receipt_id;
+  if not found then
+    raise exception 'no such goods receipt' using errcode = 'P0002', hint = 'WAREHOUSE_RECEIPT_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_receipt."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_receipt."tenant_id", 'warehouse.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_receipt."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_receipt."tenant_id", 'warehouse.pick'), false)))) then
+    raise exception 'not allowed to read putaway suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if v_receipt."location_id" is null then
+    raise exception 'the receipt has no location' using errcode = '55000', hint = 'WAREHOUSE_STATE';
+  end if;
+  for rec in
+    select x."variant_id" as variant, sum(x."quantity") as quantity
+    from "better_supabase"."inventory_receipt_lines" x
+    where x."receipt_id" = v_receipt."id" and x."quantity" > 0
+    group by x."variant_id"
+    order by x."variant_id"
+  loop
+    v_out := v_out || "app_private"."putaway_plan"(v_receipt."tenant_id", v_receipt."location_id", rec.variant, rec.quantity);
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "app_private"."suggest_receipt_putaway"(uuid) from public, anon;
+grant execute on function "app_private"."suggest_receipt_putaway"(uuid) to authenticated, service_role;
+
+-- Suggests where the fastest movers of a location should live. input is
+-- { locationId, days, limit }: the variants most picked in the last days
+-- (default 30), at most limit of them (default 50), each get the closest bin
+-- with a slot that holds their stock, fastest first. A variant already in a bin
+-- as close or closer stays (action keep). Nothing moves. Needs warehouse.read.
+create or replace function "app_private"."suggest_slotting"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_days integer;
+  v_limit integer;
+  v_taken uuid[] := '{}';
+  v_bin uuid;
+  v_rank integer;
+  v_current_rank integer;
+  v_action text;
+  v_suggested uuid;
+  v_out jsonb := '[]'::jsonb;
+  rec record;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_slotting.tenant is not null and coalesce(better_supabase.can('tenant', suggest_slotting.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read slotting suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(suggest_slotting.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_location := (suggest_slotting.input ->> 'locationId')::uuid;
+    v_days := coalesce((suggest_slotting.input ->> 'days')::integer, 30);
+    v_limit := coalesce((suggest_slotting.input ->> 'limit')::integer, 50);
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'locationId is a uuid, days and limit are integers' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_days not between 1 and 365 or v_limit not between 1 and 500 then
+    raise exception 'days is between 1 and 365 and limit between 1 and 500' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = suggest_slotting.tenant) then
+    raise exception 'no such location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  for rec in
+    with moves as (
+      select y."variant_id" as variant, sum(y."picked") as velocity, count(*) as picks
+      from "app_private"."pick_lines" y join "app_private"."pick_lists" x on x."id" = y."pick_list_id"
+      where x."tenant_id" = suggest_slotting.tenant and x."location_id" = v_location
+        and y."picked" > 0 and y."picked_at" >= now() - make_interval(days => v_days)
+      group by y."variant_id"
+      order by sum(y."picked") desc, y."variant_id"
+      limit v_limit
+    )
+    select m.variant, m.velocity, m.picks,
+      coalesce((select sum(c."on_hand") from "better_supabase"."stock_buckets" c
+        where c."tenant_id" = suggest_slotting.tenant and c."location_id" = v_location
+          and c."variant_id" = m.variant and c."bin_id" is not null), 0) as on_hand,
+      (select c."bin_id" from "better_supabase"."stock_buckets" c
+        where c."tenant_id" = suggest_slotting.tenant and c."location_id" = v_location
+          and c."variant_id" = m.variant and c."bin_id" is not null
+        order by c."on_hand" desc, c."bin_id" limit 1) as current_bin,
+      coalesce((select sz."size" from "app_private"."variant_sizes" sz where sz."variant_id" = m.variant), 1) as size
+    from moves m
+    order by m.velocity desc, m.variant
+  loop
+    v_current_rank := (select sl."walk_rank" from "app_private"."bin_slots" sl where sl."bin_id" = rec.current_bin);
+    v_bin := null;
+    v_rank := null;
+    select x."id", sl."walk_rank" into v_bin, v_rank
+    from "better_supabase"."stock_bins" x join "app_private"."bin_slots" sl on sl."bin_id" = x."id"
+    where x."tenant_id" = suggest_slotting.tenant and x."location_id" = v_location
+      and x."active" and not x."hold" and not (x."id" = any(v_taken))
+      and (sl."capacity" is null or sl."capacity" >= rec.on_hand * rec.size)
+    order by sl."walk_rank", x."code"
+    limit 1;
+    if v_bin is null or (v_current_rank is not null and v_current_rank <= v_rank) or v_bin = rec.current_bin then
+      v_action := 'keep';
+      v_suggested := rec.current_bin;
+    else
+      v_action := 'move';
+      v_suggested := v_bin;
+    end if;
+    if v_suggested is not null then
+      v_taken := v_taken || v_suggested;
+    end if;
+    v_out := v_out || jsonb_build_object('variantId', rec.variant, 'velocity', rec.velocity::text, 'picks', rec.picks,
+      'onHand', rec.on_hand::text, 'currentBinId', rec.current_bin, 'suggestedBinId', v_suggested, 'action', v_action);
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "app_private"."suggest_slotting"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."suggest_slotting"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets the order a picker walks an open pick list. line_ids lists open lines of
+-- the list in walking order; open lines left out follow in variant order.
+-- Picked lines keep no position. Needs the same permission as record_pick.
+create or replace function "app_private"."set_pick_route"(pick_list_id uuid, line_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_list "app_private"."pick_lists";
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_list from "app_private"."pick_lists" x where x."id" = set_pick_route.pick_list_id for update;
+  if not found then
+    raise exception 'no such pick list' using errcode = 'P0002', hint = 'WAREHOUSE_PICK_LIST_NOT_FOUND';
+  end if;
+  if not coalesce(((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_list."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_list."tenant_id", 'warehouse.manage'), false))) or ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_list."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_list."tenant_id", 'warehouse.pick'), false))) and coalesce(v_list."assignee_id" is null or v_list."assignee_id" = auth.uid(), false))), false) then
+    raise exception 'not allowed to pick from this list' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if v_list."status" <> 'open' then
+    raise exception 'only an open pick list has a route' using errcode = '55000', hint = 'WAREHOUSE_STATE';
+  end if;
+  if (select count(distinct t) from unnest(set_pick_route.line_ids) t) <> coalesce(cardinality(set_pick_route.line_ids), 0) then
+    raise exception 'a line is on the route once' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select count(*) into v_count from "app_private"."pick_lines" y
+  where y."pick_list_id" = v_list."id" and y."status" = 'open' and y."id" = any(coalesce(set_pick_route.line_ids, '{}'));
+  if v_count <> coalesce(cardinality(set_pick_route.line_ids), 0) then
+    raise exception 'the route lists open lines of this pick list' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  update "app_private"."pick_lines" y set "route_position" = o.position
+  from (
+    select y2."id" as id, row_number() over (
+      order by coalesce(array_position(coalesce(set_pick_route.line_ids, '{}'), y2."id"), 1000000), y2."variant_id", y2."id"
+    ) as position
+    from "app_private"."pick_lines" y2 where y2."pick_list_id" = v_list."id" and y2."status" = 'open'
+  ) o
+  where y."id" = o.id;
+  return "app_private"."pick_list_json"(v_list."id");
+end;
+$$;
+revoke execute on function "app_private"."set_pick_route"(uuid, uuid[]) from public, anon;
+grant execute on function "app_private"."set_pick_route"(uuid, uuid[]) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3308,6 +5601,69 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."count_plans";
 create policy bsb_tenant_scope_delete on "app_private"."count_plans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."putaway_rules";
+drop policy if exists bsb_tenant_scope_select on "app_private"."putaway_rules";
+create policy bsb_tenant_scope_select on "app_private"."putaway_rules" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."putaway_rules";
+create policy bsb_tenant_scope_insert on "app_private"."putaway_rules" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."putaway_rules";
+create policy bsb_tenant_scope_update on "app_private"."putaway_rules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."putaway_rules";
+create policy bsb_tenant_scope_delete on "app_private"."putaway_rules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."bin_slots";
+drop policy if exists bsb_tenant_scope_select on "app_private"."bin_slots";
+create policy bsb_tenant_scope_select on "app_private"."bin_slots" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."bin_slots";
+create policy bsb_tenant_scope_insert on "app_private"."bin_slots" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."bin_slots";
+create policy bsb_tenant_scope_update on "app_private"."bin_slots" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."bin_slots";
+create policy bsb_tenant_scope_delete on "app_private"."bin_slots" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."variant_sizes";
+drop policy if exists bsb_tenant_scope_select on "app_private"."variant_sizes";
+create policy bsb_tenant_scope_select on "app_private"."variant_sizes" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."variant_sizes";
+create policy bsb_tenant_scope_insert on "app_private"."variant_sizes" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."variant_sizes";
+create policy bsb_tenant_scope_update on "app_private"."variant_sizes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."variant_sizes";
+create policy bsb_tenant_scope_delete on "app_private"."variant_sizes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3339,7 +5695,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:999c89de355f23fd3a57fa53f6d7214408016f9d0ca7121849e9d875a5bb0e7d
+-- @bsb-hash sha256:65ef5008d80972e07a06299f3f8239a5d5122ef04db86bffec6f78199a09075d
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3412,6 +5768,30 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."count_plans";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."count_plans";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."count_plans";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."putaway_rules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bin_slots";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."variant_sizes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3492,6 +5872,7 @@ create table if not exists "better_supabase"."pick_lines" (
   "lot_id" uuid,
   "serials" text[],
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "route_position" integer check ("route_position" > 0),
   "picked" numeric(20, 6) not null default 0 check ("picked" >= 0 and "picked" <= "quantity"),
   "status" text not null default 'open' check ("status" in ('open', 'picked', 'short', 'cancelled')),
   "picked_at" timestamptz,
@@ -3541,6 +5922,72 @@ create policy count_plans_read on "better_supabase"."count_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
+-- Where a receipt's stock goes: the bin to suggest for a variant (or for any
+-- variant), first by priority, up to max_quantity of that variant in the bin.
+create table if not exists "better_supabase"."putaway_rules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "bin_id" uuid not null references "better_supabase"."stock_bins" ("id") on delete cascade,
+  "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade,
+  "priority" integer not null default 100 check ("priority" between 0 and 10000),
+  "max_quantity" numeric(20, 6) check ("max_quantity" > 0),
+  "active" boolean not null default true,
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "id")
+);
+create index if not exists "putaway_rules_lookup_idx" on "better_supabase"."putaway_rules" ("tenant_id", "location_id", "variant_id", "priority") where "active";
+create index if not exists "putaway_rules_bin_idx" on "better_supabase"."putaway_rules" ("bin_id");
+create index if not exists "putaway_rules_location_idx" on "better_supabase"."putaway_rules" ("location_id");
+create index if not exists "putaway_rules_variant_idx" on "better_supabase"."putaway_rules" ("variant_id");
+alter table "better_supabase"."putaway_rules" enable row level security;
+revoke all on "better_supabase"."putaway_rules" from public, anon, authenticated;
+grant select on "better_supabase"."putaway_rules" to authenticated;
+grant all on "better_supabase"."putaway_rules" to service_role;
+drop policy if exists putaway_rules_read on "better_supabase"."putaway_rules";
+create policy putaway_rules_read on "better_supabase"."putaway_rules"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
+-- How far a bin is from the dispatch area (walk_rank, lowest is closest) and
+-- how much it holds, in the same unit as variant_sizes.size.
+create table if not exists "better_supabase"."bin_slots" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "bin_id" uuid not null unique references "better_supabase"."stock_bins" ("id") on delete cascade,
+  "walk_rank" integer not null default 0 check ("walk_rank" between 0 and 100000),
+  "capacity" numeric(20, 6) check ("capacity" > 0),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "id")
+);
+alter table "better_supabase"."bin_slots" enable row level security;
+revoke all on "better_supabase"."bin_slots" from public, anon, authenticated;
+grant select on "better_supabase"."bin_slots" to authenticated;
+grant all on "better_supabase"."bin_slots" to service_role;
+drop policy if exists bin_slots_read on "better_supabase"."bin_slots";
+create policy bin_slots_read on "better_supabase"."bin_slots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
+-- The space one unit of a variant takes in a bin; a variant without a row
+-- takes 1.
+create table if not exists "better_supabase"."variant_sizes" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null unique references "better_supabase"."product_variants" ("id") on delete cascade,
+  "size" numeric(20, 6) not null check ("size" > 0),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "id")
+);
+alter table "better_supabase"."variant_sizes" enable row level security;
+revoke all on "better_supabase"."variant_sizes" from public, anon, authenticated;
+grant select on "better_supabase"."variant_sizes" to authenticated;
+grant all on "better_supabase"."variant_sizes" to service_role;
+drop policy if exists variant_sizes_read on "better_supabase"."variant_sizes";
+create policy variant_sizes_read on "better_supabase"."variant_sizes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
 
 -- The pick list as json, with its lines.
 create or replace function "better_supabase"."pick_list_json"(pick_list_id uuid)
@@ -3556,10 +6003,10 @@ as $$
     'pickedAt', x."picked_at", 'createdAt', x."created_at",
     'lines', coalesce((
       select jsonb_agg(jsonb_build_object('id', y."id", 'allocationId', y."allocation_id", 'variantId', y."variant_id",
-        'binId', y."bin_id", 'lotId', y."lot_id", 'serials', to_jsonb(y."serials"),
+        'binId', y."bin_id", 'routePosition', y."route_position", 'lotId', y."lot_id", 'serials', to_jsonb(y."serials"),
         'quantity', y."quantity"::text, 'picked', y."picked"::text, 'status', y."status",
         'pickedAt', y."picked_at", 'pickedBy', y."picked_by")
-        order by y."variant_id", y."id")
+        order by y."route_position" nulls last, y."variant_id", y."id")
       from "better_supabase"."pick_lines" y where y."pick_list_id" = x."id"
     ), '[]'::jsonb))
   from "better_supabase"."pick_lists" x where x."id" = pick_list_json.pick_list_id
@@ -3923,6 +6370,7 @@ begin
   update "better_supabase"."pick_lists" x set "status" = 'picked', "picked_at" = now()
   where x."id" = v_list."id"
   returning * into v_list;
+  
   null;
   if v_list."wave_id" is not null and not exists (select 1 from "better_supabase"."pick_lists" x where x."wave_id" = v_list."wave_id" and x."status" = 'open') then
     update "better_supabase"."pick_waves" x set "status" = 'completed', "completed_at" = now()
@@ -4289,6 +6737,634 @@ $$;
 revoke execute on function "better_supabase"."post_cycle_count"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."post_cycle_count"(uuid, boolean) to authenticated, service_role;
 
+
+-- One rule as json.
+create or replace function "better_supabase"."putaway_rule_json"(rule_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id",
+    'binId', x."bin_id", 'variantId', x."variant_id", 'priority', x."priority",
+    'maxQuantity', x."max_quantity"::text, 'active', x."active", 'createdAt', x."created_at")
+  from "better_supabase"."putaway_rules" x where x."id" = putaway_rule_json.rule_id
+$$;
+revoke execute on function "better_supabase"."putaway_rule_json"(uuid) from public, anon, authenticated;
+
+-- Creates a putaway rule, or changes the one named by input.id. input is
+-- { id, locationId, binId, variantId, priority, maxQuantity, active }: stock of
+-- variantId (any variant when absent) goes to binId, lowest priority first,
+-- until the bin holds maxQuantity of it. Needs warehouse.manage.
+create or replace function "better_supabase"."save_putaway_rule"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."putaway_rules";
+  v_id uuid;
+  v_location uuid;
+  v_bin uuid;
+  v_variant uuid;
+  v_priority integer;
+  v_max numeric;
+  v_active boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_putaway_rule.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_putaway_rule.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_id := nullif(save_putaway_rule.input ->> 'id', '')::uuid;
+    v_location := nullif(save_putaway_rule.input ->> 'locationId', '')::uuid;
+    v_bin := nullif(save_putaway_rule.input ->> 'binId', '')::uuid;
+    v_variant := nullif(save_putaway_rule.input ->> 'variantId', '')::uuid;
+    v_priority := (save_putaway_rule.input ->> 'priority')::integer;
+    v_max := (save_putaway_rule.input ->> 'maxQuantity')::numeric;
+    v_active := (save_putaway_rule.input ->> 'active')::boolean;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'ids are uuids, priority is an integer, maxQuantity a number and active a boolean' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_id is not null then
+    select * into v_row from "better_supabase"."putaway_rules" x
+    where x."id" = v_id and x."tenant_id" = save_putaway_rule.tenant for update;
+    if not found then
+      raise exception 'no such putaway rule' using errcode = 'P0002', hint = 'WAREHOUSE_RULE_NOT_FOUND';
+    end if;
+    v_location := coalesce(v_location, v_row."location_id");
+    v_bin := coalesce(v_bin, v_row."bin_id");
+    if not (save_putaway_rule.input ? 'variantId') then
+      v_variant := v_row."variant_id";
+    end if;
+    if not (save_putaway_rule.input ? 'maxQuantity') then
+      v_max := v_row."max_quantity";
+    end if;
+    v_priority := coalesce(v_priority, v_row."priority");
+    v_active := coalesce(v_active, v_row."active");
+  end if;
+  if v_location is null or v_bin is null then
+    raise exception 'a rule needs a locationId and a binId' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."stock_bins" x
+    where x."id" = v_bin and x."tenant_id" = save_putaway_rule.tenant and x."location_id" = v_location
+  ) then
+    raise exception 'the bin has to be in the rule''s location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_variant is not null and not exists (
+    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_putaway_rule.tenant
+  ) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if coalesce(v_priority, 100) not between 0 and 10000 or coalesce(v_max, 1) <= 0 then
+    raise exception 'priority is between 0 and 10000 and maxQuantity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."putaway_rules" ("tenant_id", "location_id", "bin_id", "variant_id", "priority", "max_quantity", "active")
+    values (save_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
+    returning * into v_row;
+  else
+    update "better_supabase"."putaway_rules" x set "location_id" = v_location, "bin_id" = v_bin, "variant_id" = v_variant,
+      "priority" = v_priority, "max_quantity" = v_max, "active" = v_active
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  return "better_supabase"."putaway_rule_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a putaway rule. Returns false when it was already gone. Needs
+-- warehouse.manage.
+create or replace function "better_supabase"."delete_putaway_rule"(rule_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."putaway_rules";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."putaway_rules" x where x."id" = delete_putaway_rule.rule_id for update;
+  if not found then
+    return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."putaway_rules" x where x."id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_putaway_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_putaway_rule"(uuid) to authenticated, service_role;
+
+-- The putaway rules of a location, lowest priority first. filters is
+-- { locationId, variantId }, both optional. Needs warehouse.read.
+create or replace function "better_supabase"."list_putaway_rules"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_variant uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_putaway_rules.tenant is not null and coalesce(better_supabase.can('tenant', list_putaway_rules.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  begin
+    v_location := nullif(list_putaway_rules.filters ->> 'locationId', '')::uuid;
+    v_variant := nullif(list_putaway_rules.filters ->> 'variantId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId and variantId are uuids' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  return coalesce((
+    select jsonb_agg("better_supabase"."putaway_rule_json"(y.id) order by y.priority, y.id)
+    from (
+      select x."id" as id, x."priority" as priority from "better_supabase"."putaway_rules" x
+      where x."tenant_id" = list_putaway_rules.tenant
+        and (v_location is null or x."location_id" = v_location)
+        and (v_variant is null or x."variant_id" = v_variant)
+      order by x."priority", x."id"
+      limit 1000
+    ) y
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_putaway_rules"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_putaway_rules"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets how far a bin is from the dispatch area and how much it holds. input is
+-- { binId, walkRank, capacity }: the lowest walkRank is the closest, and
+-- capacity is in the unit of variant sizes (no limit when absent). Needs
+-- warehouse.manage.
+create or replace function "better_supabase"."save_bin_slot"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_bin uuid;
+  v_rank integer;
+  v_capacity numeric;
+  v_row "better_supabase"."bin_slots";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', save_bin_slot.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_bin_slot.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_bin := (save_bin_slot.input ->> 'binId')::uuid;
+    v_rank := coalesce((save_bin_slot.input ->> 'walkRank')::integer, 0);
+    v_capacity := (save_bin_slot.input ->> 'capacity')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'binId is a uuid, walkRank an integer and capacity a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_rank not between 0 and 100000 or coalesce(v_capacity, 1) <= 0 then
+    raise exception 'walkRank is between 0 and 100000 and capacity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = save_bin_slot.tenant) then
+    raise exception 'no such bin in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  insert into "better_supabase"."bin_slots" ("tenant_id", "bin_id", "walk_rank", "capacity")
+  values (save_bin_slot.tenant, v_bin, v_rank, v_capacity)
+  on conflict ("bin_id") do update set "walk_rank" = excluded."walk_rank",
+    "capacity" = excluded."capacity", "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('binId', v_row."bin_id", 'walkRank', v_row."walk_rank",
+    'capacity', v_row."capacity"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets the space one unit of a variant takes in a bin. input is
+-- { variantId, size }. Needs warehouse.manage.
+create or replace function "better_supabase"."save_variant_size"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_variant uuid;
+  v_size numeric;
+  v_row "better_supabase"."variant_sizes";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', save_variant_size.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage variant sizes' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_variant_size.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_variant := (save_variant_size.input ->> 'variantId')::uuid;
+    v_size := (save_variant_size.input ->> 'size')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'variantId is a uuid and size a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_size is null or v_size <= 0 then
+    raise exception 'size is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_variant_size.tenant) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  insert into "better_supabase"."variant_sizes" ("tenant_id", "variant_id", "size")
+  values (save_variant_size.tenant, v_variant, v_size)
+  on conflict ("variant_id") do update set "size" = excluded."size", "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('variantId', v_row."variant_id", 'size', v_row."size"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."save_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+
+-- The bins of a location with their slot and how full they are. filters is
+-- { locationId }. used is the stock in the bin times the variant sizes.
+-- Needs warehouse.read.
+create or replace function "better_supabase"."list_bin_slots"(tenant uuid, filters jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_bin_slots.tenant is not null and coalesce(better_supabase.can('tenant', list_bin_slots.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  begin
+    v_location := (list_bin_slots.filters ->> 'locationId')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId is a uuid' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_location is null then
+    raise exception 'filters needs a locationId' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('binId', y.bin, 'code', y.code, 'locationId', v_location, 'hold', y.hold,
+      'active', y.active, 'walkRank', y.walk_rank, 'capacity', y.capacity::text, 'used', y.used::text)
+      order by y.walk_rank nulls last, y.code)
+    from (
+      select x."id" as bin, x."code" as code, x."hold" as hold, x."active" as active,
+        sl."walk_rank" as walk_rank, sl."capacity" as capacity,
+        coalesce((
+          select sum(c."on_hand" * coalesce(sz."size", 1))
+          from "better_supabase"."stock_buckets" c left join "better_supabase"."variant_sizes" sz on sz."variant_id" = c."variant_id"
+          where c."bin_id" = x."id"
+        ), 0) as used
+      from "better_supabase"."stock_bins" x left join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+      where x."tenant_id" = list_bin_slots.tenant and x."location_id" = v_location
+      order by sl."walk_rank" nulls last, x."code"
+      limit 1000
+    ) y
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_bin_slots"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_bin_slots"(uuid, jsonb) to authenticated, service_role;
+
+-- Where stock of a variant goes in a location. Rule bins come first (a rule for
+-- the variant before one for any variant, then by priority), then bins that
+-- already hold it, then the other active bins by walk rank and how empty they
+-- are. Bins on hold or inactive are skipped; a bin takes no more than its
+-- rule's maxQuantity of the variant or its slot capacity. Not granted to
+-- anyone.
+create or replace function "better_supabase"."putaway_plan"(plan_tenant uuid, plan_location uuid, plan_variant uuid, plan_quantity numeric)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_left numeric := plan_quantity;
+  v_size numeric;
+  v_room numeric;
+  v_take numeric;
+  v_placements jsonb := '[]'::jsonb;
+  rec record;
+begin
+  select coalesce((select x."size" from "better_supabase"."variant_sizes" x where x."variant_id" = plan_variant), 1) into v_size;
+  for rec in
+    with held as (
+      select c."bin_id" as bin,
+        coalesce(sum(c."on_hand") filter (where c."variant_id" = plan_variant), 0) as of_variant,
+        sum(c."on_hand" * coalesce(sz."size", 1)) as used
+      from "better_supabase"."stock_buckets" c left join "better_supabase"."variant_sizes" sz on sz."variant_id" = c."variant_id"
+      where c."tenant_id" = plan_tenant and c."location_id" = plan_location and c."bin_id" is not null
+      group by c."bin_id"
+    ),
+    cand as (
+      select distinct on (y.bin) y.bin, y.tier, y.rank, y.rule_id, y.max_quantity
+      from (
+        select x."bin_id" as bin, case when x."variant_id" is null then 1 else 0 end as tier,
+          x."priority" as rank, x."id" as rule_id, x."max_quantity" as max_quantity
+        from "better_supabase"."putaway_rules" x
+        where x."tenant_id" = plan_tenant and x."location_id" = plan_location and x."active"
+          and (x."variant_id" is null or x."variant_id" = plan_variant)
+        union all
+        select h.bin, 2, 0, null::uuid, null::numeric from held h where h.of_variant > 0
+        union all
+        select x."id", 3, coalesce(sl."walk_rank", 100001), null::uuid, null::numeric
+        from "better_supabase"."stock_bins" x left join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+        where x."tenant_id" = plan_tenant and x."location_id" = plan_location
+      ) y
+      order by y.bin, y.tier, y.rank
+    )
+    select c.bin, bn."code" as code, c.tier, c.rank, c.rule_id, c.max_quantity,
+      coalesce(h.of_variant, 0) as of_variant, coalesce(h.used, 0) as used, sl."capacity" as capacity
+    from cand c
+    join "better_supabase"."stock_bins" bn on bn."id" = c.bin
+    left join held h on h.bin = c.bin
+    left join "better_supabase"."bin_slots" sl on sl."bin_id" = c.bin
+    where bn."active" and not bn."hold" and bn."location_id" = plan_location and bn."tenant_id" = plan_tenant
+    order by c.tier, c.rank, case when c.tier = 2 then -coalesce(h.of_variant, 0) else coalesce(h.used, 0) end, bn."code"
+  loop
+    exit when v_left <= 0;
+    v_room := least(
+      case when rec.max_quantity is null then 'Infinity'::numeric else rec.max_quantity - rec.of_variant end,
+      case when rec.capacity is null then 'Infinity'::numeric else (rec.capacity - rec.used) / v_size end
+    );
+    continue when v_room <= 0;
+    v_take := least(v_left, trunc(v_room, 6));
+    continue when v_take <= 0;
+    v_placements := v_placements || jsonb_build_object('binId', rec.bin, 'binCode', rec.code,
+      'quantity', v_take::text, 'source', case when rec.tier < 2 then 'rule' when rec.tier = 2 then 'stock' else 'free' end,
+      'ruleId', rec.rule_id);
+    v_left := v_left - v_take;
+  end loop;
+  return jsonb_build_object('locationId', plan_location, 'variantId', plan_variant, 'quantity', plan_quantity::text,
+    'placements', v_placements, 'unassigned', v_left::text);
+end;
+$$;
+revoke execute on function "better_supabase"."putaway_plan"(uuid, uuid, uuid, numeric) from public, anon, authenticated;
+
+-- Suggests bins for stock about to be put away. input is { locationId,
+-- variantId, quantity }. Nothing moves: the suggestion lists each bin with the
+-- quantity it takes, why (rule, stock or free), and what is left over when no
+-- bin has room. Needs warehouse.read or warehouse.pick.
+create or replace function "better_supabase"."suggest_putaway"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_variant uuid;
+  v_quantity numeric;
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_putaway.tenant is not null and coalesce(better_supabase.can('tenant', suggest_putaway.tenant, 'warehouse.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_putaway.tenant is not null and coalesce(better_supabase.can('tenant', suggest_putaway.tenant, 'warehouse.pick'), false)))) then
+    raise exception 'not allowed to read putaway suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(suggest_putaway.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_location := (suggest_putaway.input ->> 'locationId')::uuid;
+    v_variant := (suggest_putaway.input ->> 'variantId')::uuid;
+    v_quantity := (suggest_putaway.input ->> 'quantity')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'locationId and variantId are uuids and quantity is a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_quantity is null or v_quantity <= 0 then
+    raise exception 'quantity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = suggest_putaway.tenant) then
+    raise exception 'no such location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = suggest_putaway.tenant) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  return "better_supabase"."putaway_plan"(suggest_putaway.tenant, v_location, v_variant, v_quantity);
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_putaway"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."suggest_putaway"(uuid, jsonb) to authenticated, service_role;
+
+-- Suggests bins for every variant of a goods receipt, at the receipt's
+-- location. Lines of one variant are planned together. Variants are planned
+-- one by one, so two variants can be suggested the same bin when it has room
+-- for each but not both. Needs warehouse.read or warehouse.pick.
+create or replace function "better_supabase"."suggest_receipt_putaway"(receipt_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_receipt "better_supabase"."inventory_receipts";
+  v_out jsonb := '[]'::jsonb;
+  rec record;
+begin
+  select * into v_receipt from "better_supabase"."inventory_receipts" x where x."id" = suggest_receipt_putaway.receipt_id;
+  if not found then
+    raise exception 'no such goods receipt' using errcode = 'P0002', hint = 'WAREHOUSE_RECEIPT_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_receipt."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_receipt."tenant_id", 'warehouse.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_receipt."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_receipt."tenant_id", 'warehouse.pick'), false)))) then
+    raise exception 'not allowed to read putaway suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if v_receipt."location_id" is null then
+    raise exception 'the receipt has no location' using errcode = '55000', hint = 'WAREHOUSE_STATE';
+  end if;
+  for rec in
+    select x."variant_id" as variant, sum(x."quantity") as quantity
+    from "better_supabase"."inventory_receipt_lines" x
+    where x."receipt_id" = v_receipt."id" and x."quantity" > 0
+    group by x."variant_id"
+    order by x."variant_id"
+  loop
+    v_out := v_out || "better_supabase"."putaway_plan"(v_receipt."tenant_id", v_receipt."location_id", rec.variant, rec.quantity);
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_receipt_putaway"(uuid) from public, anon;
+grant execute on function "better_supabase"."suggest_receipt_putaway"(uuid) to authenticated, service_role;
+
+-- Suggests where the fastest movers of a location should live. input is
+-- { locationId, days, limit }: the variants most picked in the last days
+-- (default 30), at most limit of them (default 50), each get the closest bin
+-- with a slot that holds their stock, fastest first. A variant already in a bin
+-- as close or closer stays (action keep). Nothing moves. Needs warehouse.read.
+create or replace function "better_supabase"."suggest_slotting"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_days integer;
+  v_limit integer;
+  v_taken uuid[] := '{}';
+  v_bin uuid;
+  v_rank integer;
+  v_current_rank integer;
+  v_action text;
+  v_suggested uuid;
+  v_out jsonb := '[]'::jsonb;
+  rec record;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_slotting.tenant is not null and coalesce(better_supabase.can('tenant', suggest_slotting.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read slotting suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(suggest_slotting.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_location := (suggest_slotting.input ->> 'locationId')::uuid;
+    v_days := coalesce((suggest_slotting.input ->> 'days')::integer, 30);
+    v_limit := coalesce((suggest_slotting.input ->> 'limit')::integer, 50);
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'locationId is a uuid, days and limit are integers' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_days not between 1 and 365 or v_limit not between 1 and 500 then
+    raise exception 'days is between 1 and 365 and limit between 1 and 500' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = suggest_slotting.tenant) then
+    raise exception 'no such location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  for rec in
+    with moves as (
+      select y."variant_id" as variant, sum(y."picked") as velocity, count(*) as picks
+      from "better_supabase"."pick_lines" y join "better_supabase"."pick_lists" x on x."id" = y."pick_list_id"
+      where x."tenant_id" = suggest_slotting.tenant and x."location_id" = v_location
+        and y."picked" > 0 and y."picked_at" >= now() - make_interval(days => v_days)
+      group by y."variant_id"
+      order by sum(y."picked") desc, y."variant_id"
+      limit v_limit
+    )
+    select m.variant, m.velocity, m.picks,
+      coalesce((select sum(c."on_hand") from "better_supabase"."stock_buckets" c
+        where c."tenant_id" = suggest_slotting.tenant and c."location_id" = v_location
+          and c."variant_id" = m.variant and c."bin_id" is not null), 0) as on_hand,
+      (select c."bin_id" from "better_supabase"."stock_buckets" c
+        where c."tenant_id" = suggest_slotting.tenant and c."location_id" = v_location
+          and c."variant_id" = m.variant and c."bin_id" is not null
+        order by c."on_hand" desc, c."bin_id" limit 1) as current_bin,
+      coalesce((select sz."size" from "better_supabase"."variant_sizes" sz where sz."variant_id" = m.variant), 1) as size
+    from moves m
+    order by m.velocity desc, m.variant
+  loop
+    v_current_rank := (select sl."walk_rank" from "better_supabase"."bin_slots" sl where sl."bin_id" = rec.current_bin);
+    v_bin := null;
+    v_rank := null;
+    select x."id", sl."walk_rank" into v_bin, v_rank
+    from "better_supabase"."stock_bins" x join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+    where x."tenant_id" = suggest_slotting.tenant and x."location_id" = v_location
+      and x."active" and not x."hold" and not (x."id" = any(v_taken))
+      and (sl."capacity" is null or sl."capacity" >= rec.on_hand * rec.size)
+    order by sl."walk_rank", x."code"
+    limit 1;
+    if v_bin is null or (v_current_rank is not null and v_current_rank <= v_rank) or v_bin = rec.current_bin then
+      v_action := 'keep';
+      v_suggested := rec.current_bin;
+    else
+      v_action := 'move';
+      v_suggested := v_bin;
+    end if;
+    if v_suggested is not null then
+      v_taken := v_taken || v_suggested;
+    end if;
+    v_out := v_out || jsonb_build_object('variantId', rec.variant, 'velocity', rec.velocity::text, 'picks', rec.picks,
+      'onHand', rec.on_hand::text, 'currentBinId', rec.current_bin, 'suggestedBinId', v_suggested, 'action', v_action);
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_slotting"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."suggest_slotting"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets the order a picker walks an open pick list. line_ids lists open lines of
+-- the list in walking order; open lines left out follow in variant order.
+-- Picked lines keep no position. Needs the same permission as record_pick.
+create or replace function "better_supabase"."set_pick_route"(pick_list_id uuid, line_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_list "better_supabase"."pick_lists";
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_list from "better_supabase"."pick_lists" x where x."id" = set_pick_route.pick_list_id for update;
+  if not found then
+    raise exception 'no such pick list' using errcode = 'P0002', hint = 'WAREHOUSE_PICK_LIST_NOT_FOUND';
+  end if;
+  if not coalesce(((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_list."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_list."tenant_id", 'warehouse.manage'), false))) or ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_list."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_list."tenant_id", 'warehouse.pick'), false))) and coalesce(v_list."assignee_id" is null or v_list."assignee_id" = auth.uid(), false))), false) then
+    raise exception 'not allowed to pick from this list' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if v_list."status" <> 'open' then
+    raise exception 'only an open pick list has a route' using errcode = '55000', hint = 'WAREHOUSE_STATE';
+  end if;
+  if (select count(distinct t) from unnest(set_pick_route.line_ids) t) <> coalesce(cardinality(set_pick_route.line_ids), 0) then
+    raise exception 'a line is on the route once' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select count(*) into v_count from "better_supabase"."pick_lines" y
+  where y."pick_list_id" = v_list."id" and y."status" = 'open' and y."id" = any(coalesce(set_pick_route.line_ids, '{}'));
+  if v_count <> coalesce(cardinality(set_pick_route.line_ids), 0) then
+    raise exception 'the route lists open lines of this pick list' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  update "better_supabase"."pick_lines" y set "route_position" = o.position
+  from (
+    select y2."id" as id, row_number() over (
+      order by coalesce(array_position(coalesce(set_pick_route.line_ids, '{}'), y2."id"), 1000000), y2."variant_id", y2."id"
+    ) as position
+    from "better_supabase"."pick_lines" y2 where y2."pick_list_id" = v_list."id" and y2."status" = 'open'
+  ) o
+  where y."id" = o.id;
+  return "better_supabase"."pick_list_json"(v_list."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_pick_route"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."set_pick_route"(uuid, uuid[]) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -4386,6 +7462,69 @@ create policy bsb_tenant_scope_update on "better_supabase"."count_plans" as rest
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."count_plans";
 create policy bsb_tenant_scope_delete on "better_supabase"."count_plans" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."putaway_rules";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_select on "better_supabase"."putaway_rules" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_insert on "better_supabase"."putaway_rules" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_update on "better_supabase"."putaway_rules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_delete on "better_supabase"."putaway_rules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."bin_slots";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_select on "better_supabase"."bin_slots" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_insert on "better_supabase"."bin_slots" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_update on "better_supabase"."bin_slots" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_delete on "better_supabase"."bin_slots" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."variant_sizes";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_select on "better_supabase"."variant_sizes" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_insert on "better_supabase"."variant_sizes" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_update on "better_supabase"."variant_sizes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_delete on "better_supabase"."variant_sizes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -4546,6 +7685,96 @@ as $$ select "better_supabase"."post_cycle_count"($1, $2) $$;
 revoke execute on function "api"."post_cycle_count"(uuid, boolean) from public, anon;
 grant execute on function "api"."post_cycle_count"(uuid, boolean) to authenticated, service_role;
 
+create or replace function "api"."save_putaway_rule"(tenant uuid, input jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_putaway_rule"($1, $2) $$;
+revoke execute on function "api"."save_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "api"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."delete_putaway_rule"(rule_id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_putaway_rule"($1) $$;
+revoke execute on function "api"."delete_putaway_rule"(uuid) from public, anon;
+grant execute on function "api"."delete_putaway_rule"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_putaway_rules"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_putaway_rules"($1, $2) $$;
+revoke execute on function "api"."list_putaway_rules"(uuid, jsonb) from public, anon;
+grant execute on function "api"."list_putaway_rules"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."save_bin_slot"(tenant uuid, input jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_bin_slot"($1, $2) $$;
+revoke execute on function "api"."save_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "api"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."save_variant_size"(tenant uuid, input jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_variant_size"($1, $2) $$;
+revoke execute on function "api"."save_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "api"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."list_bin_slots"(tenant uuid, filters jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_bin_slots"($1, $2) $$;
+revoke execute on function "api"."list_bin_slots"(uuid, jsonb) from public, anon;
+grant execute on function "api"."list_bin_slots"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."suggest_putaway"(tenant uuid, input jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."suggest_putaway"($1, $2) $$;
+revoke execute on function "api"."suggest_putaway"(uuid, jsonb) from public, anon;
+grant execute on function "api"."suggest_putaway"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."suggest_receipt_putaway"(receipt_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."suggest_receipt_putaway"($1) $$;
+revoke execute on function "api"."suggest_receipt_putaway"(uuid) from public, anon;
+grant execute on function "api"."suggest_receipt_putaway"(uuid) to authenticated, service_role;
+
+create or replace function "api"."suggest_slotting"(tenant uuid, input jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."suggest_slotting"($1, $2) $$;
+revoke execute on function "api"."suggest_slotting"(uuid, jsonb) from public, anon;
+grant execute on function "api"."suggest_slotting"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."set_pick_route"(pick_list_id uuid, line_ids uuid[])
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_pick_route"($1, $2) $$;
+revoke execute on function "api"."set_pick_route"(uuid, uuid[]) from public, anon;
+grant execute on function "api"."set_pick_route"(uuid, uuid[]) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -4576,7 +7805,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:1510b2d08f1bf58a5b7d4defeba3a47deee40e9624976527bd47e08234e3d407
+-- @bsb-hash sha256:7f0f63ce0b05198b6240c2e2559a4ba2d13fae0c3e5269a52306e4dc306f5e2b
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4651,6 +7880,30 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."count_plans";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."putaway_rules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bin_slots";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."variant_sizes";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -4722,6 +7975,7 @@ alter table "better_supabase"."pick_lines" add column if not exists "bin_id" uui
 alter table "better_supabase"."pick_lines" add column if not exists "lot_id" uuid;
 alter table "better_supabase"."pick_lines" add column if not exists "serials" text[];
 alter table "better_supabase"."pick_lines" add column if not exists "quantity" numeric(20, 6) check ("quantity" > 0);
+alter table "better_supabase"."pick_lines" add column if not exists "route_position" integer check ("route_position" > 0);
 alter table "better_supabase"."pick_lines" add column if not exists "picked" numeric(20, 6) not null default 0 check ("picked" >= 0 and "picked" <= "quantity");
 alter table "better_supabase"."pick_lines" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'picked', 'short', 'cancelled'));
 alter table "better_supabase"."pick_lines" add column if not exists "picked_at" timestamptz;
@@ -4766,6 +8020,68 @@ create policy bsb_count_plans_read on "better_supabase"."count_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
+-- Where a receipt's stock goes: the bin to suggest for a variant (or for any
+-- variant), first by priority, up to max_quantity of that variant in the bin.
+-- better_supabase.putaway_rules is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."putaway_rules" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."putaway_rules" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."putaway_rules" add column if not exists "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete cascade;
+alter table "better_supabase"."putaway_rules" add column if not exists "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete cascade;
+alter table "better_supabase"."putaway_rules" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
+alter table "better_supabase"."putaway_rules" add column if not exists "priority" integer not null default 100 check ("priority" between 0 and 10000);
+alter table "better_supabase"."putaway_rules" add column if not exists "max_quantity" numeric(20, 6) check ("max_quantity" > 0);
+alter table "better_supabase"."putaway_rules" add column if not exists "active" boolean not null default true;
+alter table "better_supabase"."putaway_rules" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "bsb_putaway_rules_tenant_id_key" on "better_supabase"."putaway_rules" ("tenant_id", "id");
+create index if not exists "putaway_rules_lookup_idx" on "better_supabase"."putaway_rules" ("tenant_id", "location_id", "variant_id", "priority") where "active";
+create index if not exists "putaway_rules_bin_idx" on "better_supabase"."putaway_rules" ("bin_id");
+create index if not exists "putaway_rules_location_idx" on "better_supabase"."putaway_rules" ("location_id");
+create index if not exists "putaway_rules_variant_idx" on "better_supabase"."putaway_rules" ("variant_id");
+alter table "better_supabase"."putaway_rules" enable row level security;
+grant select on "better_supabase"."putaway_rules" to authenticated;
+grant all on "better_supabase"."putaway_rules" to service_role;
+drop policy if exists bsb_putaway_rules_read on "better_supabase"."putaway_rules";
+create policy bsb_putaway_rules_read on "better_supabase"."putaway_rules"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
+-- How far a bin is from the dispatch area (walk_rank, lowest is closest) and
+-- how much it holds, in the same unit as variant_sizes.size.
+-- better_supabase.bin_slots is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."bin_slots" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."bin_slots" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."bin_slots" add column if not exists "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete cascade;
+alter table "better_supabase"."bin_slots" add column if not exists "walk_rank" integer not null default 0 check ("walk_rank" between 0 and 100000);
+alter table "better_supabase"."bin_slots" add column if not exists "capacity" numeric(20, 6) check ("capacity" > 0);
+alter table "better_supabase"."bin_slots" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "bsb_bin_slots_tenant_id_key" on "better_supabase"."bin_slots" ("tenant_id", "id");
+create unique index if not exists "bsb_bin_slots_bin_key" on "better_supabase"."bin_slots" ("bin_id");
+alter table "better_supabase"."bin_slots" enable row level security;
+grant select on "better_supabase"."bin_slots" to authenticated;
+grant all on "better_supabase"."bin_slots" to service_role;
+drop policy if exists bsb_bin_slots_read on "better_supabase"."bin_slots";
+create policy bsb_bin_slots_read on "better_supabase"."bin_slots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
+-- The space one unit of a variant takes in a bin; a variant without a row
+-- takes 1.
+-- better_supabase.variant_sizes is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."variant_sizes" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."variant_sizes" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."variant_sizes" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
+alter table "better_supabase"."variant_sizes" add column if not exists "size" numeric(20, 6) check ("size" > 0);
+alter table "better_supabase"."variant_sizes" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "bsb_variant_sizes_tenant_id_key" on "better_supabase"."variant_sizes" ("tenant_id", "id");
+create unique index if not exists "bsb_variant_sizes_variant_key" on "better_supabase"."variant_sizes" ("variant_id");
+alter table "better_supabase"."variant_sizes" enable row level security;
+grant select on "better_supabase"."variant_sizes" to authenticated;
+grant all on "better_supabase"."variant_sizes" to service_role;
+drop policy if exists bsb_variant_sizes_read on "better_supabase"."variant_sizes";
+create policy bsb_variant_sizes_read on "better_supabase"."variant_sizes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
 
 -- The pick list as json, with its lines.
 create or replace function "better_supabase"."pick_list_json"(pick_list_id uuid)
@@ -4781,10 +8097,10 @@ as $$
     'pickedAt', x."picked_at", 'createdAt', x."created_at",
     'lines', coalesce((
       select jsonb_agg(jsonb_build_object('id', y."id", 'allocationId', y."allocation_id", 'variantId', y."variant_id",
-        'binId', y."bin_id", 'lotId', y."lot_id", 'serials', to_jsonb(y."serials"),
+        'binId', y."bin_id", 'routePosition', y."route_position", 'lotId', y."lot_id", 'serials', to_jsonb(y."serials"),
         'quantity', y."quantity"::text, 'picked', y."picked"::text, 'status', y."status",
         'pickedAt', y."picked_at", 'pickedBy', y."picked_by")
-        order by y."variant_id", y."id")
+        order by y."route_position" nulls last, y."variant_id", y."id")
       from "better_supabase"."pick_lines" y where y."pick_list_id" = x."id"
     ), '[]'::jsonb))
   from "better_supabase"."pick_lists" x where x."id" = pick_list_json.pick_list_id
@@ -5148,6 +8464,7 @@ begin
   update "better_supabase"."pick_lists" x set "status" = 'picked', "picked_at" = now()
   where x."id" = v_list."id"
   returning * into v_list;
+  
   null;
   if v_list."wave_id" is not null and not exists (select 1 from "better_supabase"."pick_lists" x where x."wave_id" = v_list."wave_id" and x."status" = 'open') then
     update "better_supabase"."pick_waves" x set "status" = 'completed', "completed_at" = now()
@@ -5514,6 +8831,634 @@ $$;
 revoke execute on function "better_supabase"."post_cycle_count"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."post_cycle_count"(uuid, boolean) to authenticated, service_role;
 
+
+-- One rule as json.
+create or replace function "better_supabase"."putaway_rule_json"(rule_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id",
+    'binId', x."bin_id", 'variantId', x."variant_id", 'priority', x."priority",
+    'maxQuantity', x."max_quantity"::text, 'active', x."active", 'createdAt', x."created_at")
+  from "better_supabase"."putaway_rules" x where x."id" = putaway_rule_json.rule_id
+$$;
+revoke execute on function "better_supabase"."putaway_rule_json"(uuid) from public, anon, authenticated;
+
+-- Creates a putaway rule, or changes the one named by input.id. input is
+-- { id, locationId, binId, variantId, priority, maxQuantity, active }: stock of
+-- variantId (any variant when absent) goes to binId, lowest priority first,
+-- until the bin holds maxQuantity of it. Needs warehouse.manage.
+create or replace function "better_supabase"."save_putaway_rule"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."putaway_rules";
+  v_id uuid;
+  v_location uuid;
+  v_bin uuid;
+  v_variant uuid;
+  v_priority integer;
+  v_max numeric;
+  v_active boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_putaway_rule.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_putaway_rule.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_id := nullif(save_putaway_rule.input ->> 'id', '')::uuid;
+    v_location := nullif(save_putaway_rule.input ->> 'locationId', '')::uuid;
+    v_bin := nullif(save_putaway_rule.input ->> 'binId', '')::uuid;
+    v_variant := nullif(save_putaway_rule.input ->> 'variantId', '')::uuid;
+    v_priority := (save_putaway_rule.input ->> 'priority')::integer;
+    v_max := (save_putaway_rule.input ->> 'maxQuantity')::numeric;
+    v_active := (save_putaway_rule.input ->> 'active')::boolean;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'ids are uuids, priority is an integer, maxQuantity a number and active a boolean' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_id is not null then
+    select * into v_row from "better_supabase"."putaway_rules" x
+    where x."id" = v_id and x."tenant_id" = save_putaway_rule.tenant for update;
+    if not found then
+      raise exception 'no such putaway rule' using errcode = 'P0002', hint = 'WAREHOUSE_RULE_NOT_FOUND';
+    end if;
+    v_location := coalesce(v_location, v_row."location_id");
+    v_bin := coalesce(v_bin, v_row."bin_id");
+    if not (save_putaway_rule.input ? 'variantId') then
+      v_variant := v_row."variant_id";
+    end if;
+    if not (save_putaway_rule.input ? 'maxQuantity') then
+      v_max := v_row."max_quantity";
+    end if;
+    v_priority := coalesce(v_priority, v_row."priority");
+    v_active := coalesce(v_active, v_row."active");
+  end if;
+  if v_location is null or v_bin is null then
+    raise exception 'a rule needs a locationId and a binId' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."stock_bins" x
+    where x."id" = v_bin and x."tenant_id" = save_putaway_rule.tenant and x."location_id" = v_location
+  ) then
+    raise exception 'the bin has to be in the rule''s location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_variant is not null and not exists (
+    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_putaway_rule.tenant
+  ) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if coalesce(v_priority, 100) not between 0 and 10000 or coalesce(v_max, 1) <= 0 then
+    raise exception 'priority is between 0 and 10000 and maxQuantity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."putaway_rules" ("tenant_id", "location_id", "bin_id", "variant_id", "priority", "max_quantity", "active")
+    values (save_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
+    returning * into v_row;
+  else
+    update "better_supabase"."putaway_rules" x set "location_id" = v_location, "bin_id" = v_bin, "variant_id" = v_variant,
+      "priority" = v_priority, "max_quantity" = v_max, "active" = v_active
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  return "better_supabase"."putaway_rule_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a putaway rule. Returns false when it was already gone. Needs
+-- warehouse.manage.
+create or replace function "better_supabase"."delete_putaway_rule"(rule_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."putaway_rules";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."putaway_rules" x where x."id" = delete_putaway_rule.rule_id for update;
+  if not found then
+    return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."putaway_rules" x where x."id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_putaway_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_putaway_rule"(uuid) to authenticated, service_role;
+
+-- The putaway rules of a location, lowest priority first. filters is
+-- { locationId, variantId }, both optional. Needs warehouse.read.
+create or replace function "better_supabase"."list_putaway_rules"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_variant uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_putaway_rules.tenant is not null and coalesce(better_supabase.can('tenant', list_putaway_rules.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  begin
+    v_location := nullif(list_putaway_rules.filters ->> 'locationId', '')::uuid;
+    v_variant := nullif(list_putaway_rules.filters ->> 'variantId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId and variantId are uuids' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  return coalesce((
+    select jsonb_agg("better_supabase"."putaway_rule_json"(y.id) order by y.priority, y.id)
+    from (
+      select x."id" as id, x."priority" as priority from "better_supabase"."putaway_rules" x
+      where x."tenant_id" = list_putaway_rules.tenant
+        and (v_location is null or x."location_id" = v_location)
+        and (v_variant is null or x."variant_id" = v_variant)
+      order by x."priority", x."id"
+      limit 1000
+    ) y
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_putaway_rules"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_putaway_rules"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets how far a bin is from the dispatch area and how much it holds. input is
+-- { binId, walkRank, capacity }: the lowest walkRank is the closest, and
+-- capacity is in the unit of variant sizes (no limit when absent). Needs
+-- warehouse.manage.
+create or replace function "better_supabase"."save_bin_slot"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_bin uuid;
+  v_rank integer;
+  v_capacity numeric;
+  v_row "better_supabase"."bin_slots";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', save_bin_slot.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_bin_slot.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_bin := (save_bin_slot.input ->> 'binId')::uuid;
+    v_rank := coalesce((save_bin_slot.input ->> 'walkRank')::integer, 0);
+    v_capacity := (save_bin_slot.input ->> 'capacity')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'binId is a uuid, walkRank an integer and capacity a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_rank not between 0 and 100000 or coalesce(v_capacity, 1) <= 0 then
+    raise exception 'walkRank is between 0 and 100000 and capacity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = save_bin_slot.tenant) then
+    raise exception 'no such bin in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  insert into "better_supabase"."bin_slots" ("tenant_id", "bin_id", "walk_rank", "capacity")
+  values (save_bin_slot.tenant, v_bin, v_rank, v_capacity)
+  on conflict ("bin_id") do update set "walk_rank" = excluded."walk_rank",
+    "capacity" = excluded."capacity", "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('binId', v_row."bin_id", 'walkRank', v_row."walk_rank",
+    'capacity', v_row."capacity"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets the space one unit of a variant takes in a bin. input is
+-- { variantId, size }. Needs warehouse.manage.
+create or replace function "better_supabase"."save_variant_size"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_variant uuid;
+  v_size numeric;
+  v_row "better_supabase"."variant_sizes";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', save_variant_size.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage variant sizes' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_variant_size.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_variant := (save_variant_size.input ->> 'variantId')::uuid;
+    v_size := (save_variant_size.input ->> 'size')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'variantId is a uuid and size a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_size is null or v_size <= 0 then
+    raise exception 'size is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_variant_size.tenant) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  insert into "better_supabase"."variant_sizes" ("tenant_id", "variant_id", "size")
+  values (save_variant_size.tenant, v_variant, v_size)
+  on conflict ("variant_id") do update set "size" = excluded."size", "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('variantId', v_row."variant_id", 'size', v_row."size"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."save_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+
+-- The bins of a location with their slot and how full they are. filters is
+-- { locationId }. used is the stock in the bin times the variant sizes.
+-- Needs warehouse.read.
+create or replace function "better_supabase"."list_bin_slots"(tenant uuid, filters jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_bin_slots.tenant is not null and coalesce(better_supabase.can('tenant', list_bin_slots.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  begin
+    v_location := (list_bin_slots.filters ->> 'locationId')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId is a uuid' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_location is null then
+    raise exception 'filters needs a locationId' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('binId', y.bin, 'code', y.code, 'locationId', v_location, 'hold', y.hold,
+      'active', y.active, 'walkRank', y.walk_rank, 'capacity', y.capacity::text, 'used', y.used::text)
+      order by y.walk_rank nulls last, y.code)
+    from (
+      select x."id" as bin, x."code" as code, x."hold" as hold, x."active" as active,
+        sl."walk_rank" as walk_rank, sl."capacity" as capacity,
+        coalesce((
+          select sum(c."on_hand" * coalesce(sz."size", 1))
+          from "better_supabase"."stock_buckets" c left join "better_supabase"."variant_sizes" sz on sz."variant_id" = c."variant_id"
+          where c."bin_id" = x."id"
+        ), 0) as used
+      from "better_supabase"."stock_bins" x left join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+      where x."tenant_id" = list_bin_slots.tenant and x."location_id" = v_location
+      order by sl."walk_rank" nulls last, x."code"
+      limit 1000
+    ) y
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_bin_slots"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_bin_slots"(uuid, jsonb) to authenticated, service_role;
+
+-- Where stock of a variant goes in a location. Rule bins come first (a rule for
+-- the variant before one for any variant, then by priority), then bins that
+-- already hold it, then the other active bins by walk rank and how empty they
+-- are. Bins on hold or inactive are skipped; a bin takes no more than its
+-- rule's maxQuantity of the variant or its slot capacity. Not granted to
+-- anyone.
+create or replace function "better_supabase"."putaway_plan"(plan_tenant uuid, plan_location uuid, plan_variant uuid, plan_quantity numeric)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_left numeric := plan_quantity;
+  v_size numeric;
+  v_room numeric;
+  v_take numeric;
+  v_placements jsonb := '[]'::jsonb;
+  rec record;
+begin
+  select coalesce((select x."size" from "better_supabase"."variant_sizes" x where x."variant_id" = plan_variant), 1) into v_size;
+  for rec in
+    with held as (
+      select c."bin_id" as bin,
+        coalesce(sum(c."on_hand") filter (where c."variant_id" = plan_variant), 0) as of_variant,
+        sum(c."on_hand" * coalesce(sz."size", 1)) as used
+      from "better_supabase"."stock_buckets" c left join "better_supabase"."variant_sizes" sz on sz."variant_id" = c."variant_id"
+      where c."tenant_id" = plan_tenant and c."location_id" = plan_location and c."bin_id" is not null
+      group by c."bin_id"
+    ),
+    cand as (
+      select distinct on (y.bin) y.bin, y.tier, y.rank, y.rule_id, y.max_quantity
+      from (
+        select x."bin_id" as bin, case when x."variant_id" is null then 1 else 0 end as tier,
+          x."priority" as rank, x."id" as rule_id, x."max_quantity" as max_quantity
+        from "better_supabase"."putaway_rules" x
+        where x."tenant_id" = plan_tenant and x."location_id" = plan_location and x."active"
+          and (x."variant_id" is null or x."variant_id" = plan_variant)
+        union all
+        select h.bin, 2, 0, null::uuid, null::numeric from held h where h.of_variant > 0
+        union all
+        select x."id", 3, coalesce(sl."walk_rank", 100001), null::uuid, null::numeric
+        from "better_supabase"."stock_bins" x left join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+        where x."tenant_id" = plan_tenant and x."location_id" = plan_location
+      ) y
+      order by y.bin, y.tier, y.rank
+    )
+    select c.bin, bn."code" as code, c.tier, c.rank, c.rule_id, c.max_quantity,
+      coalesce(h.of_variant, 0) as of_variant, coalesce(h.used, 0) as used, sl."capacity" as capacity
+    from cand c
+    join "better_supabase"."stock_bins" bn on bn."id" = c.bin
+    left join held h on h.bin = c.bin
+    left join "better_supabase"."bin_slots" sl on sl."bin_id" = c.bin
+    where bn."active" and not bn."hold" and bn."location_id" = plan_location and bn."tenant_id" = plan_tenant
+    order by c.tier, c.rank, case when c.tier = 2 then -coalesce(h.of_variant, 0) else coalesce(h.used, 0) end, bn."code"
+  loop
+    exit when v_left <= 0;
+    v_room := least(
+      case when rec.max_quantity is null then 'Infinity'::numeric else rec.max_quantity - rec.of_variant end,
+      case when rec.capacity is null then 'Infinity'::numeric else (rec.capacity - rec.used) / v_size end
+    );
+    continue when v_room <= 0;
+    v_take := least(v_left, trunc(v_room, 6));
+    continue when v_take <= 0;
+    v_placements := v_placements || jsonb_build_object('binId', rec.bin, 'binCode', rec.code,
+      'quantity', v_take::text, 'source', case when rec.tier < 2 then 'rule' when rec.tier = 2 then 'stock' else 'free' end,
+      'ruleId', rec.rule_id);
+    v_left := v_left - v_take;
+  end loop;
+  return jsonb_build_object('locationId', plan_location, 'variantId', plan_variant, 'quantity', plan_quantity::text,
+    'placements', v_placements, 'unassigned', v_left::text);
+end;
+$$;
+revoke execute on function "better_supabase"."putaway_plan"(uuid, uuid, uuid, numeric) from public, anon, authenticated;
+
+-- Suggests bins for stock about to be put away. input is { locationId,
+-- variantId, quantity }. Nothing moves: the suggestion lists each bin with the
+-- quantity it takes, why (rule, stock or free), and what is left over when no
+-- bin has room. Needs warehouse.read or warehouse.pick.
+create or replace function "better_supabase"."suggest_putaway"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_variant uuid;
+  v_quantity numeric;
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_putaway.tenant is not null and coalesce(better_supabase.can('tenant', suggest_putaway.tenant, 'warehouse.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_putaway.tenant is not null and coalesce(better_supabase.can('tenant', suggest_putaway.tenant, 'warehouse.pick'), false)))) then
+    raise exception 'not allowed to read putaway suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(suggest_putaway.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_location := (suggest_putaway.input ->> 'locationId')::uuid;
+    v_variant := (suggest_putaway.input ->> 'variantId')::uuid;
+    v_quantity := (suggest_putaway.input ->> 'quantity')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'locationId and variantId are uuids and quantity is a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_quantity is null or v_quantity <= 0 then
+    raise exception 'quantity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = suggest_putaway.tenant) then
+    raise exception 'no such location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = suggest_putaway.tenant) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  return "better_supabase"."putaway_plan"(suggest_putaway.tenant, v_location, v_variant, v_quantity);
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_putaway"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."suggest_putaway"(uuid, jsonb) to authenticated, service_role;
+
+-- Suggests bins for every variant of a goods receipt, at the receipt's
+-- location. Lines of one variant are planned together. Variants are planned
+-- one by one, so two variants can be suggested the same bin when it has room
+-- for each but not both. Needs warehouse.read or warehouse.pick.
+create or replace function "better_supabase"."suggest_receipt_putaway"(receipt_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_receipt "better_supabase"."inventory_receipts";
+  v_out jsonb := '[]'::jsonb;
+  rec record;
+begin
+  select * into v_receipt from "better_supabase"."inventory_receipts" x where x."id" = suggest_receipt_putaway.receipt_id;
+  if not found then
+    raise exception 'no such goods receipt' using errcode = 'P0002', hint = 'WAREHOUSE_RECEIPT_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_receipt."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_receipt."tenant_id", 'warehouse.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_receipt."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_receipt."tenant_id", 'warehouse.pick'), false)))) then
+    raise exception 'not allowed to read putaway suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if v_receipt."location_id" is null then
+    raise exception 'the receipt has no location' using errcode = '55000', hint = 'WAREHOUSE_STATE';
+  end if;
+  for rec in
+    select x."variant_id" as variant, sum(x."quantity") as quantity
+    from "better_supabase"."inventory_receipt_lines" x
+    where x."receipt_id" = v_receipt."id" and x."quantity" > 0
+    group by x."variant_id"
+    order by x."variant_id"
+  loop
+    v_out := v_out || "better_supabase"."putaway_plan"(v_receipt."tenant_id", v_receipt."location_id", rec.variant, rec.quantity);
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_receipt_putaway"(uuid) from public, anon;
+grant execute on function "better_supabase"."suggest_receipt_putaway"(uuid) to authenticated, service_role;
+
+-- Suggests where the fastest movers of a location should live. input is
+-- { locationId, days, limit }: the variants most picked in the last days
+-- (default 30), at most limit of them (default 50), each get the closest bin
+-- with a slot that holds their stock, fastest first. A variant already in a bin
+-- as close or closer stays (action keep). Nothing moves. Needs warehouse.read.
+create or replace function "better_supabase"."suggest_slotting"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_days integer;
+  v_limit integer;
+  v_taken uuid[] := '{}';
+  v_bin uuid;
+  v_rank integer;
+  v_current_rank integer;
+  v_action text;
+  v_suggested uuid;
+  v_out jsonb := '[]'::jsonb;
+  rec record;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_slotting.tenant is not null and coalesce(better_supabase.can('tenant', suggest_slotting.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read slotting suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(suggest_slotting.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_location := (suggest_slotting.input ->> 'locationId')::uuid;
+    v_days := coalesce((suggest_slotting.input ->> 'days')::integer, 30);
+    v_limit := coalesce((suggest_slotting.input ->> 'limit')::integer, 50);
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'locationId is a uuid, days and limit are integers' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_days not between 1 and 365 or v_limit not between 1 and 500 then
+    raise exception 'days is between 1 and 365 and limit between 1 and 500' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = suggest_slotting.tenant) then
+    raise exception 'no such location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  for rec in
+    with moves as (
+      select y."variant_id" as variant, sum(y."picked") as velocity, count(*) as picks
+      from "better_supabase"."pick_lines" y join "better_supabase"."pick_lists" x on x."id" = y."pick_list_id"
+      where x."tenant_id" = suggest_slotting.tenant and x."location_id" = v_location
+        and y."picked" > 0 and y."picked_at" >= now() - make_interval(days => v_days)
+      group by y."variant_id"
+      order by sum(y."picked") desc, y."variant_id"
+      limit v_limit
+    )
+    select m.variant, m.velocity, m.picks,
+      coalesce((select sum(c."on_hand") from "better_supabase"."stock_buckets" c
+        where c."tenant_id" = suggest_slotting.tenant and c."location_id" = v_location
+          and c."variant_id" = m.variant and c."bin_id" is not null), 0) as on_hand,
+      (select c."bin_id" from "better_supabase"."stock_buckets" c
+        where c."tenant_id" = suggest_slotting.tenant and c."location_id" = v_location
+          and c."variant_id" = m.variant and c."bin_id" is not null
+        order by c."on_hand" desc, c."bin_id" limit 1) as current_bin,
+      coalesce((select sz."size" from "better_supabase"."variant_sizes" sz where sz."variant_id" = m.variant), 1) as size
+    from moves m
+    order by m.velocity desc, m.variant
+  loop
+    v_current_rank := (select sl."walk_rank" from "better_supabase"."bin_slots" sl where sl."bin_id" = rec.current_bin);
+    v_bin := null;
+    v_rank := null;
+    select x."id", sl."walk_rank" into v_bin, v_rank
+    from "better_supabase"."stock_bins" x join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+    where x."tenant_id" = suggest_slotting.tenant and x."location_id" = v_location
+      and x."active" and not x."hold" and not (x."id" = any(v_taken))
+      and (sl."capacity" is null or sl."capacity" >= rec.on_hand * rec.size)
+    order by sl."walk_rank", x."code"
+    limit 1;
+    if v_bin is null or (v_current_rank is not null and v_current_rank <= v_rank) or v_bin = rec.current_bin then
+      v_action := 'keep';
+      v_suggested := rec.current_bin;
+    else
+      v_action := 'move';
+      v_suggested := v_bin;
+    end if;
+    if v_suggested is not null then
+      v_taken := v_taken || v_suggested;
+    end if;
+    v_out := v_out || jsonb_build_object('variantId', rec.variant, 'velocity', rec.velocity::text, 'picks', rec.picks,
+      'onHand', rec.on_hand::text, 'currentBinId', rec.current_bin, 'suggestedBinId', v_suggested, 'action', v_action);
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_slotting"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."suggest_slotting"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets the order a picker walks an open pick list. line_ids lists open lines of
+-- the list in walking order; open lines left out follow in variant order.
+-- Picked lines keep no position. Needs the same permission as record_pick.
+create or replace function "better_supabase"."set_pick_route"(pick_list_id uuid, line_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_list "better_supabase"."pick_lists";
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_list from "better_supabase"."pick_lists" x where x."id" = set_pick_route.pick_list_id for update;
+  if not found then
+    raise exception 'no such pick list' using errcode = 'P0002', hint = 'WAREHOUSE_PICK_LIST_NOT_FOUND';
+  end if;
+  if not coalesce(((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_list."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_list."tenant_id", 'warehouse.manage'), false))) or ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_list."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_list."tenant_id", 'warehouse.pick'), false))) and coalesce(v_list."assignee_id" is null or v_list."assignee_id" = auth.uid(), false))), false) then
+    raise exception 'not allowed to pick from this list' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if v_list."status" <> 'open' then
+    raise exception 'only an open pick list has a route' using errcode = '55000', hint = 'WAREHOUSE_STATE';
+  end if;
+  if (select count(distinct t) from unnest(set_pick_route.line_ids) t) <> coalesce(cardinality(set_pick_route.line_ids), 0) then
+    raise exception 'a line is on the route once' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select count(*) into v_count from "better_supabase"."pick_lines" y
+  where y."pick_list_id" = v_list."id" and y."status" = 'open' and y."id" = any(coalesce(set_pick_route.line_ids, '{}'));
+  if v_count <> coalesce(cardinality(set_pick_route.line_ids), 0) then
+    raise exception 'the route lists open lines of this pick list' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  update "better_supabase"."pick_lines" y set "route_position" = o.position
+  from (
+    select y2."id" as id, row_number() over (
+      order by coalesce(array_position(coalesce(set_pick_route.line_ids, '{}'), y2."id"), 1000000), y2."variant_id", y2."id"
+    ) as position
+    from "better_supabase"."pick_lines" y2 where y2."pick_list_id" = v_list."id" and y2."status" = 'open'
+  ) o
+  where y."id" = o.id;
+  return "better_supabase"."pick_list_json"(v_list."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_pick_route"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."set_pick_route"(uuid, uuid[]) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -5613,6 +9558,69 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."count_plans"
 create policy bsb_tenant_scope_delete on "better_supabase"."count_plans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."putaway_rules";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_select on "better_supabase"."putaway_rules" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_insert on "better_supabase"."putaway_rules" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_update on "better_supabase"."putaway_rules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_delete on "better_supabase"."putaway_rules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."bin_slots";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_select on "better_supabase"."bin_slots" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_insert on "better_supabase"."bin_slots" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_update on "better_supabase"."bin_slots" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_delete on "better_supabase"."bin_slots" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."variant_sizes";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_select on "better_supabase"."variant_sizes" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_insert on "better_supabase"."variant_sizes" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_update on "better_supabase"."variant_sizes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_delete on "better_supabase"."variant_sizes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -5644,7 +9652,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:919bb9a9b0cbb2740f8077d0382040020ec0e6b8ed8f8f21853effecaf09b86f
+-- @bsb-hash sha256:6d5ce0ed9ea0d8ba2f795d6e210045868850483eb66d6d0751c2d69562d3ca86
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5717,6 +9725,30 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."count_plans";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."count_plans";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."count_plans";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."putaway_rules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."putaway_rules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bin_slots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bin_slots";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."variant_sizes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."variant_sizes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5797,6 +9829,7 @@ create table if not exists "better_supabase"."pick_lines" (
   "lot_id" uuid,
   "serials" text[],
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "route_position" integer check ("route_position" > 0),
   "picked" numeric(20, 6) not null default 0 check ("picked" >= 0 and "picked" <= "quantity"),
   "status" text not null default 'open' check ("status" in ('open', 'picked', 'short', 'cancelled')),
   "picked_at" timestamptz,
@@ -5846,6 +9879,72 @@ create policy count_plans_read on "better_supabase"."count_plans"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
+-- Where a receipt's stock goes: the bin to suggest for a variant (or for any
+-- variant), first by priority, up to max_quantity of that variant in the bin.
+create table if not exists "better_supabase"."putaway_rules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "bin_id" uuid not null references "better_supabase"."stock_bins" ("id") on delete cascade,
+  "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade,
+  "priority" integer not null default 100 check ("priority" between 0 and 10000),
+  "max_quantity" numeric(20, 6) check ("max_quantity" > 0),
+  "active" boolean not null default true,
+  "created_at" timestamptz not null default now(),
+  unique ("org_id", "id")
+);
+create index if not exists "putaway_rules_lookup_idx" on "better_supabase"."putaway_rules" ("org_id", "location_id", "variant_id", "priority") where "active";
+create index if not exists "putaway_rules_bin_idx" on "better_supabase"."putaway_rules" ("bin_id");
+create index if not exists "putaway_rules_location_idx" on "better_supabase"."putaway_rules" ("location_id");
+create index if not exists "putaway_rules_variant_idx" on "better_supabase"."putaway_rules" ("variant_id");
+alter table "better_supabase"."putaway_rules" enable row level security;
+revoke all on "better_supabase"."putaway_rules" from public, anon, authenticated;
+grant select on "better_supabase"."putaway_rules" to authenticated;
+grant all on "better_supabase"."putaway_rules" to service_role;
+drop policy if exists putaway_rules_read on "better_supabase"."putaway_rules";
+create policy putaway_rules_read on "better_supabase"."putaway_rules"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
+-- How far a bin is from the dispatch area (walk_rank, lowest is closest) and
+-- how much it holds, in the same unit as variant_sizes.size.
+create table if not exists "better_supabase"."bin_slots" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "bin_id" uuid not null unique references "better_supabase"."stock_bins" ("id") on delete cascade,
+  "walk_rank" integer not null default 0 check ("walk_rank" between 0 and 100000),
+  "capacity" numeric(20, 6) check ("capacity" > 0),
+  "updated_at" timestamptz not null default now(),
+  unique ("org_id", "id")
+);
+alter table "better_supabase"."bin_slots" enable row level security;
+revoke all on "better_supabase"."bin_slots" from public, anon, authenticated;
+grant select on "better_supabase"."bin_slots" to authenticated;
+grant all on "better_supabase"."bin_slots" to service_role;
+drop policy if exists bin_slots_read on "better_supabase"."bin_slots";
+create policy bin_slots_read on "better_supabase"."bin_slots"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
+-- The space one unit of a variant takes in a bin; a variant without a row
+-- takes 1.
+create table if not exists "better_supabase"."variant_sizes" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "variant_id" uuid not null unique references "better_supabase"."product_variants" ("id") on delete cascade,
+  "size" numeric(20, 6) not null check ("size" > 0),
+  "updated_at" timestamptz not null default now(),
+  unique ("org_id", "id")
+);
+alter table "better_supabase"."variant_sizes" enable row level security;
+revoke all on "better_supabase"."variant_sizes" from public, anon, authenticated;
+grant select on "better_supabase"."variant_sizes" to authenticated;
+grant all on "better_supabase"."variant_sizes" to service_role;
+drop policy if exists variant_sizes_read on "better_supabase"."variant_sizes";
+create policy variant_sizes_read on "better_supabase"."variant_sizes"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
+
 
 -- The pick list as json, with its lines.
 create or replace function "better_supabase"."pick_list_json"(pick_list_id uuid)
@@ -5861,10 +9960,10 @@ as $$
     'pickedAt', x."picked_at", 'createdAt', x."created_at",
     'lines', coalesce((
       select jsonb_agg(jsonb_build_object('id', y."id", 'allocationId', y."allocation_id", 'variantId', y."variant_id",
-        'binId', y."bin_id", 'lotId', y."lot_id", 'serials', to_jsonb(y."serials"),
+        'binId', y."bin_id", 'routePosition', y."route_position", 'lotId', y."lot_id", 'serials', to_jsonb(y."serials"),
         'quantity', y."quantity"::text, 'picked', y."picked"::text, 'status', y."status",
         'pickedAt', y."picked_at", 'pickedBy', y."picked_by")
-        order by y."variant_id", y."id")
+        order by y."route_position" nulls last, y."variant_id", y."id")
       from "better_supabase"."pick_lines" y where y."pick_list_id" = x."id"
     ), '[]'::jsonb))
   from "better_supabase"."pick_lists" x where x."id" = pick_list_json.pick_list_id
@@ -6228,6 +10327,7 @@ begin
   update "better_supabase"."pick_lists" x set "status" = 'picked', "picked_at" = now()
   where x."id" = v_list."id"
   returning * into v_list;
+  
   null;
   if v_list."wave_id" is not null and not exists (select 1 from "better_supabase"."pick_lists" x where x."wave_id" = v_list."wave_id" and x."status" = 'open') then
     update "better_supabase"."pick_waves" x set "status" = 'completed', "completed_at" = now()
@@ -6594,6 +10694,634 @@ $$;
 revoke execute on function "better_supabase"."post_cycle_count"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."post_cycle_count"(uuid, boolean) to authenticated, service_role;
 
+
+-- One rule as json.
+create or replace function "better_supabase"."putaway_rule_json"(rule_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'locationId', x."location_id",
+    'binId', x."bin_id", 'variantId', x."variant_id", 'priority', x."priority",
+    'maxQuantity', x."max_quantity"::text, 'active', x."active", 'createdAt', x."created_at")
+  from "better_supabase"."putaway_rules" x where x."id" = putaway_rule_json.rule_id
+$$;
+revoke execute on function "better_supabase"."putaway_rule_json"(uuid) from public, anon, authenticated;
+
+-- Creates a putaway rule, or changes the one named by input.id. input is
+-- { id, locationId, binId, variantId, priority, maxQuantity, active }: stock of
+-- variantId (any variant when absent) goes to binId, lowest priority first,
+-- until the bin holds maxQuantity of it. Needs warehouse.manage.
+create or replace function "better_supabase"."save_putaway_rule"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."putaway_rules";
+  v_id uuid;
+  v_location uuid;
+  v_bin uuid;
+  v_variant uuid;
+  v_priority integer;
+  v_max numeric;
+  v_active boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_putaway_rule.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_putaway_rule.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_id := nullif(save_putaway_rule.input ->> 'id', '')::uuid;
+    v_location := nullif(save_putaway_rule.input ->> 'locationId', '')::uuid;
+    v_bin := nullif(save_putaway_rule.input ->> 'binId', '')::uuid;
+    v_variant := nullif(save_putaway_rule.input ->> 'variantId', '')::uuid;
+    v_priority := (save_putaway_rule.input ->> 'priority')::integer;
+    v_max := (save_putaway_rule.input ->> 'maxQuantity')::numeric;
+    v_active := (save_putaway_rule.input ->> 'active')::boolean;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'ids are uuids, priority is an integer, maxQuantity a number and active a boolean' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_id is not null then
+    select * into v_row from "better_supabase"."putaway_rules" x
+    where x."id" = v_id and x."org_id" = save_putaway_rule.tenant for update;
+    if not found then
+      raise exception 'no such putaway rule' using errcode = 'P0002', hint = 'WAREHOUSE_RULE_NOT_FOUND';
+    end if;
+    v_location := coalesce(v_location, v_row."location_id");
+    v_bin := coalesce(v_bin, v_row."bin_id");
+    if not (save_putaway_rule.input ? 'variantId') then
+      v_variant := v_row."variant_id";
+    end if;
+    if not (save_putaway_rule.input ? 'maxQuantity') then
+      v_max := v_row."max_quantity";
+    end if;
+    v_priority := coalesce(v_priority, v_row."priority");
+    v_active := coalesce(v_active, v_row."active");
+  end if;
+  if v_location is null or v_bin is null then
+    raise exception 'a rule needs a locationId and a binId' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."stock_bins" x
+    where x."id" = v_bin and x."org_id" = save_putaway_rule.tenant and x."location_id" = v_location
+  ) then
+    raise exception 'the bin has to be in the rule''s location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_variant is not null and not exists (
+    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."org_id" = save_putaway_rule.tenant
+  ) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if coalesce(v_priority, 100) not between 0 and 10000 or coalesce(v_max, 1) <= 0 then
+    raise exception 'priority is between 0 and 10000 and maxQuantity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."putaway_rules" ("org_id", "location_id", "bin_id", "variant_id", "priority", "max_quantity", "active")
+    values (save_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
+    returning * into v_row;
+  else
+    update "better_supabase"."putaway_rules" x set "location_id" = v_location, "bin_id" = v_bin, "variant_id" = v_variant,
+      "priority" = v_priority, "max_quantity" = v_max, "active" = v_active
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  return "better_supabase"."putaway_rule_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a putaway rule. Returns false when it was already gone. Needs
+-- warehouse.manage.
+create or replace function "better_supabase"."delete_putaway_rule"(rule_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."putaway_rules";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."putaway_rules" x where x."id" = delete_putaway_rule.rule_id for update;
+  if not found then
+    return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."putaway_rules" x where x."id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_putaway_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_putaway_rule"(uuid) to authenticated, service_role;
+
+-- The putaway rules of a location, lowest priority first. filters is
+-- { locationId, variantId }, both optional. Needs warehouse.read.
+create or replace function "better_supabase"."list_putaway_rules"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_variant uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_putaway_rules.tenant is not null and coalesce(better_supabase.can('tenant', list_putaway_rules.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  begin
+    v_location := nullif(list_putaway_rules.filters ->> 'locationId', '')::uuid;
+    v_variant := nullif(list_putaway_rules.filters ->> 'variantId', '')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId and variantId are uuids' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  return coalesce((
+    select jsonb_agg("better_supabase"."putaway_rule_json"(y.id) order by y.priority, y.id)
+    from (
+      select x."id" as id, x."priority" as priority from "better_supabase"."putaway_rules" x
+      where x."org_id" = list_putaway_rules.tenant
+        and (v_location is null or x."location_id" = v_location)
+        and (v_variant is null or x."variant_id" = v_variant)
+      order by x."priority", x."id"
+      limit 1000
+    ) y
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_putaway_rules"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_putaway_rules"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets how far a bin is from the dispatch area and how much it holds. input is
+-- { binId, walkRank, capacity }: the lowest walkRank is the closest, and
+-- capacity is in the unit of variant sizes (no limit when absent). Needs
+-- warehouse.manage.
+create or replace function "better_supabase"."save_bin_slot"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_bin uuid;
+  v_rank integer;
+  v_capacity numeric;
+  v_row "better_supabase"."bin_slots";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', save_bin_slot.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_bin_slot.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_bin := (save_bin_slot.input ->> 'binId')::uuid;
+    v_rank := coalesce((save_bin_slot.input ->> 'walkRank')::integer, 0);
+    v_capacity := (save_bin_slot.input ->> 'capacity')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'binId is a uuid, walkRank an integer and capacity a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_rank not between 0 and 100000 or coalesce(v_capacity, 1) <= 0 then
+    raise exception 'walkRank is between 0 and 100000 and capacity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."org_id" = save_bin_slot.tenant) then
+    raise exception 'no such bin in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  insert into "better_supabase"."bin_slots" ("org_id", "bin_id", "walk_rank", "capacity")
+  values (save_bin_slot.tenant, v_bin, v_rank, v_capacity)
+  on conflict ("bin_id") do update set "walk_rank" = excluded."walk_rank",
+    "capacity" = excluded."capacity", "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('binId', v_row."bin_id", 'walkRank', v_row."walk_rank",
+    'capacity', v_row."capacity"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets the space one unit of a variant takes in a bin. input is
+-- { variantId, size }. Needs warehouse.manage.
+create or replace function "better_supabase"."save_variant_size"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_variant uuid;
+  v_size numeric;
+  v_row "better_supabase"."variant_sizes";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', save_variant_size.tenant, 'warehouse.manage'), false))) then
+    raise exception 'not allowed to manage variant sizes' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_variant_size.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_variant := (save_variant_size.input ->> 'variantId')::uuid;
+    v_size := (save_variant_size.input ->> 'size')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'variantId is a uuid and size a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_size is null or v_size <= 0 then
+    raise exception 'size is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."org_id" = save_variant_size.tenant) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  insert into "better_supabase"."variant_sizes" ("org_id", "variant_id", "size")
+  values (save_variant_size.tenant, v_variant, v_size)
+  on conflict ("variant_id") do update set "size" = excluded."size", "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('variantId', v_row."variant_id", 'size', v_row."size"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."save_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+
+-- The bins of a location with their slot and how full they are. filters is
+-- { locationId }. used is the stock in the bin times the variant sizes.
+-- Needs warehouse.read.
+create or replace function "better_supabase"."list_bin_slots"(tenant uuid, filters jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_bin_slots.tenant is not null and coalesce(better_supabase.can('tenant', list_bin_slots.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  begin
+    v_location := (list_bin_slots.filters ->> 'locationId')::uuid;
+  exception when invalid_text_representation then
+    raise exception 'locationId is a uuid' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_location is null then
+    raise exception 'filters needs a locationId' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('binId', y.bin, 'code', y.code, 'locationId', v_location, 'hold', y.hold,
+      'active', y.active, 'walkRank', y.walk_rank, 'capacity', y.capacity::text, 'used', y.used::text)
+      order by y.walk_rank nulls last, y.code)
+    from (
+      select x."id" as bin, x."code" as code, x."hold" as hold, x."active" as active,
+        sl."walk_rank" as walk_rank, sl."capacity" as capacity,
+        coalesce((
+          select sum(c."on_hand" * coalesce(sz."size", 1))
+          from "better_supabase"."stock_buckets" c left join "better_supabase"."variant_sizes" sz on sz."variant_id" = c."variant_id"
+          where c."bin_id" = x."id"
+        ), 0) as used
+      from "better_supabase"."stock_bins" x left join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+      where x."org_id" = list_bin_slots.tenant and x."location_id" = v_location
+      order by sl."walk_rank" nulls last, x."code"
+      limit 1000
+    ) y
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_bin_slots"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_bin_slots"(uuid, jsonb) to authenticated, service_role;
+
+-- Where stock of a variant goes in a location. Rule bins come first (a rule for
+-- the variant before one for any variant, then by priority), then bins that
+-- already hold it, then the other active bins by walk rank and how empty they
+-- are. Bins on hold or inactive are skipped; a bin takes no more than its
+-- rule's maxQuantity of the variant or its slot capacity. Not granted to
+-- anyone.
+create or replace function "better_supabase"."putaway_plan"(plan_tenant uuid, plan_location uuid, plan_variant uuid, plan_quantity numeric)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_left numeric := plan_quantity;
+  v_size numeric;
+  v_room numeric;
+  v_take numeric;
+  v_placements jsonb := '[]'::jsonb;
+  rec record;
+begin
+  select coalesce((select x."size" from "better_supabase"."variant_sizes" x where x."variant_id" = plan_variant), 1) into v_size;
+  for rec in
+    with held as (
+      select c."bin_id" as bin,
+        coalesce(sum(c."on_hand") filter (where c."variant_id" = plan_variant), 0) as of_variant,
+        sum(c."on_hand" * coalesce(sz."size", 1)) as used
+      from "better_supabase"."stock_buckets" c left join "better_supabase"."variant_sizes" sz on sz."variant_id" = c."variant_id"
+      where c."org_id" = plan_tenant and c."location_id" = plan_location and c."bin_id" is not null
+      group by c."bin_id"
+    ),
+    cand as (
+      select distinct on (y.bin) y.bin, y.tier, y.rank, y.rule_id, y.max_quantity
+      from (
+        select x."bin_id" as bin, case when x."variant_id" is null then 1 else 0 end as tier,
+          x."priority" as rank, x."id" as rule_id, x."max_quantity" as max_quantity
+        from "better_supabase"."putaway_rules" x
+        where x."org_id" = plan_tenant and x."location_id" = plan_location and x."active"
+          and (x."variant_id" is null or x."variant_id" = plan_variant)
+        union all
+        select h.bin, 2, 0, null::uuid, null::numeric from held h where h.of_variant > 0
+        union all
+        select x."id", 3, coalesce(sl."walk_rank", 100001), null::uuid, null::numeric
+        from "better_supabase"."stock_bins" x left join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+        where x."org_id" = plan_tenant and x."location_id" = plan_location
+      ) y
+      order by y.bin, y.tier, y.rank
+    )
+    select c.bin, bn."code" as code, c.tier, c.rank, c.rule_id, c.max_quantity,
+      coalesce(h.of_variant, 0) as of_variant, coalesce(h.used, 0) as used, sl."capacity" as capacity
+    from cand c
+    join "better_supabase"."stock_bins" bn on bn."id" = c.bin
+    left join held h on h.bin = c.bin
+    left join "better_supabase"."bin_slots" sl on sl."bin_id" = c.bin
+    where bn."active" and not bn."hold" and bn."location_id" = plan_location and bn."org_id" = plan_tenant
+    order by c.tier, c.rank, case when c.tier = 2 then -coalesce(h.of_variant, 0) else coalesce(h.used, 0) end, bn."code"
+  loop
+    exit when v_left <= 0;
+    v_room := least(
+      case when rec.max_quantity is null then 'Infinity'::numeric else rec.max_quantity - rec.of_variant end,
+      case when rec.capacity is null then 'Infinity'::numeric else (rec.capacity - rec.used) / v_size end
+    );
+    continue when v_room <= 0;
+    v_take := least(v_left, trunc(v_room, 6));
+    continue when v_take <= 0;
+    v_placements := v_placements || jsonb_build_object('binId', rec.bin, 'binCode', rec.code,
+      'quantity', v_take::text, 'source', case when rec.tier < 2 then 'rule' when rec.tier = 2 then 'stock' else 'free' end,
+      'ruleId', rec.rule_id);
+    v_left := v_left - v_take;
+  end loop;
+  return jsonb_build_object('locationId', plan_location, 'variantId', plan_variant, 'quantity', plan_quantity::text,
+    'placements', v_placements, 'unassigned', v_left::text);
+end;
+$$;
+revoke execute on function "better_supabase"."putaway_plan"(uuid, uuid, uuid, numeric) from public, anon, authenticated;
+
+-- Suggests bins for stock about to be put away. input is { locationId,
+-- variantId, quantity }. Nothing moves: the suggestion lists each bin with the
+-- quantity it takes, why (rule, stock or free), and what is left over when no
+-- bin has room. Needs warehouse.read or warehouse.pick.
+create or replace function "better_supabase"."suggest_putaway"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_variant uuid;
+  v_quantity numeric;
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_putaway.tenant is not null and coalesce(better_supabase.can('tenant', suggest_putaway.tenant, 'warehouse.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_putaway.tenant is not null and coalesce(better_supabase.can('tenant', suggest_putaway.tenant, 'warehouse.pick'), false)))) then
+    raise exception 'not allowed to read putaway suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(suggest_putaway.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_location := (suggest_putaway.input ->> 'locationId')::uuid;
+    v_variant := (suggest_putaway.input ->> 'variantId')::uuid;
+    v_quantity := (suggest_putaway.input ->> 'quantity')::numeric;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'locationId and variantId are uuids and quantity is a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_quantity is null or v_quantity <= 0 then
+    raise exception 'quantity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."org_id" = suggest_putaway.tenant) then
+    raise exception 'no such location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."org_id" = suggest_putaway.tenant) then
+    raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  return "better_supabase"."putaway_plan"(suggest_putaway.tenant, v_location, v_variant, v_quantity);
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_putaway"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."suggest_putaway"(uuid, jsonb) to authenticated, service_role;
+
+-- Suggests bins for every variant of a goods receipt, at the receipt's
+-- location. Lines of one variant are planned together. Variants are planned
+-- one by one, so two variants can be suggested the same bin when it has room
+-- for each but not both. Needs warehouse.read or warehouse.pick.
+create or replace function "better_supabase"."suggest_receipt_putaway"(receipt_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_receipt "better_supabase"."inventory_receipts";
+  v_out jsonb := '[]'::jsonb;
+  rec record;
+begin
+  select * into v_receipt from "better_supabase"."inventory_receipts" x where x."id" = suggest_receipt_putaway.receipt_id;
+  if not found then
+    raise exception 'no such goods receipt' using errcode = 'P0002', hint = 'WAREHOUSE_RECEIPT_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_receipt."org_id" is not null and coalesce(better_supabase.can('tenant', v_receipt."org_id", 'warehouse.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_receipt."org_id" is not null and coalesce(better_supabase.can('tenant', v_receipt."org_id", 'warehouse.pick'), false)))) then
+    raise exception 'not allowed to read putaway suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if v_receipt."location_id" is null then
+    raise exception 'the receipt has no location' using errcode = '55000', hint = 'WAREHOUSE_STATE';
+  end if;
+  for rec in
+    select x."variant_id" as variant, sum(x."quantity") as quantity
+    from "better_supabase"."inventory_receipt_lines" x
+    where x."receipt_id" = v_receipt."id" and x."quantity" > 0
+    group by x."variant_id"
+    order by x."variant_id"
+  loop
+    v_out := v_out || "better_supabase"."putaway_plan"(v_receipt."org_id", v_receipt."location_id", rec.variant, rec.quantity);
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_receipt_putaway"(uuid) from public, anon;
+grant execute on function "better_supabase"."suggest_receipt_putaway"(uuid) to authenticated, service_role;
+
+-- Suggests where the fastest movers of a location should live. input is
+-- { locationId, days, limit }: the variants most picked in the last days
+-- (default 30), at most limit of them (default 50), each get the closest bin
+-- with a slot that holds their stock, fastest first. A variant already in a bin
+-- as close or closer stays (action keep). Nothing moves. Needs warehouse.read.
+create or replace function "better_supabase"."suggest_slotting"(tenant uuid, input jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_location uuid;
+  v_days integer;
+  v_limit integer;
+  v_taken uuid[] := '{}';
+  v_bin uuid;
+  v_rank integer;
+  v_current_rank integer;
+  v_action text;
+  v_suggested uuid;
+  v_out jsonb := '[]'::jsonb;
+  rec record;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (suggest_slotting.tenant is not null and coalesce(better_supabase.can('tenant', suggest_slotting.tenant, 'warehouse.read'), false))) then
+    raise exception 'not allowed to read slotting suggestions' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(suggest_slotting.input) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  begin
+    v_location := (suggest_slotting.input ->> 'locationId')::uuid;
+    v_days := coalesce((suggest_slotting.input ->> 'days')::integer, 30);
+    v_limit := coalesce((suggest_slotting.input ->> 'limit')::integer, 50);
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'locationId is a uuid, days and limit are integers' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end;
+  if v_days not between 1 and 365 or v_limit not between 1 and 500 then
+    raise exception 'days is between 1 and 365 and limit between 1 and 500' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."org_id" = suggest_slotting.tenant) then
+    raise exception 'no such location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  for rec in
+    with moves as (
+      select y."variant_id" as variant, sum(y."picked") as velocity, count(*) as picks
+      from "better_supabase"."pick_lines" y join "better_supabase"."pick_lists" x on x."id" = y."pick_list_id"
+      where x."org_id" = suggest_slotting.tenant and x."location_id" = v_location
+        and y."picked" > 0 and y."picked_at" >= now() - make_interval(days => v_days)
+      group by y."variant_id"
+      order by sum(y."picked") desc, y."variant_id"
+      limit v_limit
+    )
+    select m.variant, m.velocity, m.picks,
+      coalesce((select sum(c."on_hand") from "better_supabase"."stock_buckets" c
+        where c."org_id" = suggest_slotting.tenant and c."location_id" = v_location
+          and c."variant_id" = m.variant and c."bin_id" is not null), 0) as on_hand,
+      (select c."bin_id" from "better_supabase"."stock_buckets" c
+        where c."org_id" = suggest_slotting.tenant and c."location_id" = v_location
+          and c."variant_id" = m.variant and c."bin_id" is not null
+        order by c."on_hand" desc, c."bin_id" limit 1) as current_bin,
+      coalesce((select sz."size" from "better_supabase"."variant_sizes" sz where sz."variant_id" = m.variant), 1) as size
+    from moves m
+    order by m.velocity desc, m.variant
+  loop
+    v_current_rank := (select sl."walk_rank" from "better_supabase"."bin_slots" sl where sl."bin_id" = rec.current_bin);
+    v_bin := null;
+    v_rank := null;
+    select x."id", sl."walk_rank" into v_bin, v_rank
+    from "better_supabase"."stock_bins" x join "better_supabase"."bin_slots" sl on sl."bin_id" = x."id"
+    where x."org_id" = suggest_slotting.tenant and x."location_id" = v_location
+      and x."active" and not x."hold" and not (x."id" = any(v_taken))
+      and (sl."capacity" is null or sl."capacity" >= rec.on_hand * rec.size)
+    order by sl."walk_rank", x."code"
+    limit 1;
+    if v_bin is null or (v_current_rank is not null and v_current_rank <= v_rank) or v_bin = rec.current_bin then
+      v_action := 'keep';
+      v_suggested := rec.current_bin;
+    else
+      v_action := 'move';
+      v_suggested := v_bin;
+    end if;
+    if v_suggested is not null then
+      v_taken := v_taken || v_suggested;
+    end if;
+    v_out := v_out || jsonb_build_object('variantId', rec.variant, 'velocity', rec.velocity::text, 'picks', rec.picks,
+      'onHand', rec.on_hand::text, 'currentBinId', rec.current_bin, 'suggestedBinId', v_suggested, 'action', v_action);
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_slotting"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."suggest_slotting"(uuid, jsonb) to authenticated, service_role;
+
+-- Sets the order a picker walks an open pick list. line_ids lists open lines of
+-- the list in walking order; open lines left out follow in variant order.
+-- Picked lines keep no position. Needs the same permission as record_pick.
+create or replace function "better_supabase"."set_pick_route"(pick_list_id uuid, line_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_list "better_supabase"."pick_lists";
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_list from "better_supabase"."pick_lists" x where x."id" = set_pick_route.pick_list_id for update;
+  if not found then
+    raise exception 'no such pick list' using errcode = 'P0002', hint = 'WAREHOUSE_PICK_LIST_NOT_FOUND';
+  end if;
+  if not coalesce(((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_list."org_id" is not null and coalesce(better_supabase.can('tenant', v_list."org_id", 'warehouse.manage'), false))) or ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_list."org_id" is not null and coalesce(better_supabase.can('tenant', v_list."org_id", 'warehouse.pick'), false))) and coalesce(v_list."assignee_id" is null or v_list."assignee_id" = auth.uid(), false))), false) then
+    raise exception 'not allowed to pick from this list' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
+  end if;
+  if v_list."status" <> 'open' then
+    raise exception 'only an open pick list has a route' using errcode = '55000', hint = 'WAREHOUSE_STATE';
+  end if;
+  if (select count(distinct t) from unnest(set_pick_route.line_ids) t) <> coalesce(cardinality(set_pick_route.line_ids), 0) then
+    raise exception 'a line is on the route once' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select count(*) into v_count from "better_supabase"."pick_lines" y
+  where y."pick_list_id" = v_list."id" and y."status" = 'open' and y."id" = any(coalesce(set_pick_route.line_ids, '{}'));
+  if v_count <> coalesce(cardinality(set_pick_route.line_ids), 0) then
+    raise exception 'the route lists open lines of this pick list' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  update "better_supabase"."pick_lines" y set "route_position" = o.position
+  from (
+    select y2."id" as id, row_number() over (
+      order by coalesce(array_position(coalesce(set_pick_route.line_ids, '{}'), y2."id"), 1000000), y2."variant_id", y2."id"
+    ) as position
+    from "better_supabase"."pick_lines" y2 where y2."pick_list_id" = v_list."id" and y2."status" = 'open'
+  ) o
+  where y."id" = o.id;
+  return "better_supabase"."pick_list_json"(v_list."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_pick_route"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."set_pick_route"(uuid, uuid[]) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -6691,6 +11419,69 @@ create policy bsb_tenant_scope_update on "better_supabase"."count_plans" as rest
   with check ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."count_plans";
 create policy bsb_tenant_scope_delete on "better_supabase"."count_plans" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."putaway_rules";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_select on "better_supabase"."putaway_rules" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_insert on "better_supabase"."putaway_rules" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_update on "better_supabase"."putaway_rules" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."putaway_rules";
+create policy bsb_tenant_scope_delete on "better_supabase"."putaway_rules" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."bin_slots";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_select on "better_supabase"."bin_slots" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_insert on "better_supabase"."bin_slots" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_update on "better_supabase"."bin_slots" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bin_slots";
+create policy bsb_tenant_scope_delete on "better_supabase"."bin_slots" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."variant_sizes";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_select on "better_supabase"."variant_sizes" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_insert on "better_supabase"."variant_sizes" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_update on "better_supabase"."variant_sizes" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."variant_sizes";
+create policy bsb_tenant_scope_delete on "better_supabase"."variant_sizes" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 

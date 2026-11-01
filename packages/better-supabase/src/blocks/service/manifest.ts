@@ -29,7 +29,7 @@ export const serviceParts: {
 export type ServiceParts = typeof serviceParts;
 
 /**
- * The `service` composite (ADR 0177): dispatch, maintenance plans, assets,
+ * The `service` composite (ADR 0196): dispatch, maintenance plans, assets,
  * cases, stock and SLAs for field service. It installs its parts and sets their
  * defaults; the parts stay ordinary blocks in the config.
  */

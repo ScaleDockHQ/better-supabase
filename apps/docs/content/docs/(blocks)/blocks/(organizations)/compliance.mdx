@@ -224,6 +224,48 @@ policy's current version is the one members acknowledge.
 | `archivePolicy(policyId)`              | the archived policy                      |
 | `policies(organizationId, options)`    | the policies with acknowledgement counts |
 
+## OSCAL
+
+The block imports [OSCAL](https://pages.nist.gov/OSCAL/) catalogs and profiles
+and exports assessment results (OSCAL 1.2.3).
+
+```ts
+const imported = await db.compliance
+  .importOscalCatalog({
+    organizationId,
+    catalog: catalogJson,
+    key: "nist-800-53",
+  })
+  .orThrow();
+
+await db.compliance
+  .applyOscalProfile({
+    frameworkId: imported.frameworkId,
+    profile: profileJson,
+  })
+  .orThrow();
+
+const results = await db.compliance
+  .exportOscalAssessmentResults({
+    frameworkId: imported.frameworkId,
+    title: "Q3 review",
+  })
+  .orThrow();
+```
+
+`importOscalCatalog` creates or updates a framework and one control for each
+control in the catalog, groups and nested controls included. The control code
+is its OSCAL `id` and the description is the `statement` part's prose.
+`applyOscalProfile` reads `include-all`, `include-controls` and
+`exclude-controls` from each import and marks the controls applicable or not.
+It does not follow the import `href`, so import the catalog first. Ids the
+profile names that the framework doesn't have come back in `unknownIds`.
+
+`exportOscalAssessmentResults` returns an `assessment-results` document. Each
+evidence row is an observation, and each applicable control has a finding that
+is `satisfied` when it has valid evidence and `not-satisfied` otherwise.
+Import needs `compliance.manage`, export needs `compliance.read`.
+
 ## Errors
 
 | Hint                          | Cause                                                                       |

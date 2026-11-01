@@ -12,6 +12,10 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { consentsFunctions } from "./consents-functions.ts";
 import {
+  consentsSignalFunctions,
+  consentsSignalTables,
+} from "./consents-signals.ts";
+import {
   CONSENT_STATUSES,
   consentsSql,
   GIVEN_BY,
@@ -50,6 +54,21 @@ const EVENTS: BlockSqlEvents<ConsentsEvents> = {
   "consent.expired": consent,
   "consent_purpose.created": purpose,
   "consent_purpose.updated": purpose,
+  "consent_signal.recorded": {
+    subject: "consent-signals",
+    payload: ["organizationId", "signalId", "kind", "subjectType", "subjectId"],
+  },
+  "consent_receipt.issued": {
+    subject: "consent-receipts",
+    payload: [
+      "organizationId",
+      "receiptId",
+      "consentId",
+      "status",
+      "subjectType",
+      "subjectId",
+    ],
+  },
 };
 
 const NAMES: BlockSqlNames = {
@@ -121,6 +140,39 @@ const NAMES: BlockSqlNames = {
         "createdBy",
       ],
       typed: ["givenBy", "status"],
+    },
+    signals: {
+      name: "consent_signals",
+      lifecycle: { tenant: "tenant", user: "createdBy", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        subjectType: "subject_type",
+        subjectId: "subject_id",
+        kind: "kind",
+        raw: "raw",
+        parsed: "parsed",
+        consents: "consent_ids",
+        createdBy: "created_by",
+        receivedAt: "received_at",
+      },
+      app: {},
+    },
+    receipts: {
+      name: "consent_receipts",
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        subjectType: "subject_type",
+        subjectId: "subject_id",
+        consent: "consent_id",
+        status: "status",
+        receipt: "receipt",
+        digest: "digest",
+        issuedAt: "issued_at",
+      },
+      app: {},
     },
   },
 };
@@ -198,7 +250,9 @@ function build(ctx: BlockSqlContext): string {
 -- Consent per record and purpose: what an organization asks consent for, each
 -- decision with who made it and its evidence, withdrawals and expiry.
 ${tables(ctx)}
-${consentsFunctions(ctx)}`;
+${consentsSignalTables(ctx, consentsSql(ctx))}
+${consentsFunctions(ctx)}
+${consentsSignalFunctions(ctx)}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
@@ -250,10 +304,19 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "expire_consents", args: [], returns: "integer" },
+    {
+      name: "record_consent_signal",
+      args: ["text", "text", "text", "text", "text[]", "uuid"],
+      returns: "jsonb",
+    },
+    { name: "list_consent_signals", args: ["text", "text"], returns: "jsonb" },
+    { name: "issue_consent_receipt", args: ["uuid"], returns: "jsonb" },
+    { name: "list_consent_receipts", args: ["text", "text"], returns: "jsonb" },
   ];
 }
 
 export const CONSENTS: BlockSqlDefinition = {
+  internal: ["parse_tc_string", "parse_gpp_string"],
   name: "consents",
   scopes: ["tenant"],
   title: "Consents",
@@ -272,6 +335,15 @@ export const CONSENTS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Consent signals (Sec-GPC, TCF v2.2, GPP) and consent receipts. New tables and functions only; the module file creates them.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

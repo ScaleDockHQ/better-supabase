@@ -1,6 +1,6 @@
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:4394c9ff386bb3b7bdba254f39844b9e6796de2595817774fbe313e28aa4b921
+-- @bsb-hash sha256:89194290dafe3620519d4e89fe96ce6b5f308a1bdd12e61479cdaa8bb4417595
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -11,6 +11,6 @@ select better_supabase.audit('better_supabase.consents', target_type => 'consent
 select better_supabase.audit('better_supabase.consent_purposes', target_type => 'consent_purpose', event_prefix => 'consent_purpose', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('consents', 1, 'managed')
+values ('consents', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -85,18 +85,15 @@ export { invoicesEvents } from "./events.ts";
 
 export type { InvoicesEvents } from "./events.ts";
 
-export {
-  eInvoiceChannelOf,
-  eInvoiceFormatOf,
-  sendEInvoice,
-  type EInvoiceChannel,
-  type EInvoiceContext,
-  type EInvoiceDelivery,
-  type EInvoiceDocument,
-  type EInvoiceFormat,
-  type EInvoiceStatus,
-  type InvoiceDelivery,
-  type InvoiceDeliveryInput,
-  type InvoiceEInvoices,
-  type SendEInvoiceOptions,
-} from "./e-invoice.ts";
+export type {
+  EInvoiceDelivery,
+  EInvoiceDeliveryRecord,
+  EInvoiceDeliveryState,
+  EInvoiceEndpoints,
+  EInvoicePartyKind,
+  EInvoiceReceipt,
+  EInvoiceSync,
+  InvoiceEDelivery,
+  ReceiveEInvoicesOptions,
+  SendEInvoiceOptions,
+} from "./e-delivery.ts";

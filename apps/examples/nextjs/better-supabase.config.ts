@@ -548,6 +548,7 @@ export default defineConfig({
     "care-plans": {},
     // Dose range, duplicate therapy and interaction alerts over medication orders.
     "clinical-decision-support": {},
+    "e-prescribing": {},
     incidents: {},
     reminders: {},
     "drive-files": {},

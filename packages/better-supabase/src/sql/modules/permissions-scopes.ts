@@ -185,6 +185,7 @@ export const MODULE_PERMISSION_SCOPES: {
     overrideMatch: "tenant",
     collect: "tenant",
     approve: "tenant",
+    send: "tenant",
   },
   sla: { read: "tenant", manage: "tenant" },
   goals: { read: "tenant", manage: "tenant" },
@@ -257,6 +258,7 @@ export const MODULE_PERMISSION_SCOPES: {
   "field-history": { read: "tenant" },
   content: { read: "tenant", write: "tenant", publish: "tenant" },
   qualifications: { read: "tenant", grant: "tenant", manage: "tenant" },
+  advisories: { read: "tenant", write: "tenant", publish: "tenant" },
   risks: {
     read: "tenant",
     write: "tenant",
@@ -303,9 +305,16 @@ export const MODULE_PERMISSION_SCOPES: {
   lims: { read: "tenant", write: "tenant", manage: "tenant" },
   rfqs: { read: "tenant", write: "tenant", manage: "tenant" },
   tills: { read: "tenant", write: "tenant", manage: "tenant" },
+  "agent-checkout": { read: "tenant", write: "tenant", manage: "tenant" },
   "clinical-decision-support": {
     read: "tenant",
     write: "tenant",
+    manage: "tenant",
+  },
+  "e-prescribing": {
+    read: "tenant",
+    write: "tenant",
+    sign: "tenant",
     manage: "tenant",
   },
   maintenance: { read: "tenant", record: "tenant", manage: "tenant" },

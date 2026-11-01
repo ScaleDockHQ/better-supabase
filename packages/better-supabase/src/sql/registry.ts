@@ -15,10 +15,14 @@ import { ACCESS_REQUESTS } from "./modules/access-requests.ts";
 import { ACCOUNTING } from "./modules/accounting.ts";
 import { ACKNOWLEDGEMENTS } from "./modules/acknowledgements.ts";
 import { ENGAGEMENTS } from "./modules/activities.ts";
+import { ADVISORIES } from "./modules/advisories.ts";
+import { AGENT_CHECKOUT } from "./modules/agent-checkout.ts";
 import { AGENTS_MODULE } from "./modules/agents.ts";
 import { AI_CACHE } from "./modules/ai-cache.ts";
 import { AI_CHAT } from "./modules/ai-chat.ts";
+import { AI_EVALS } from "./modules/ai-evals.ts";
 import { AI_FILES } from "./modules/ai-files.ts";
+import { AI_GUARDRAILS } from "./modules/ai-guardrails.ts";
 import { AI_PROVIDERS } from "./modules/ai-keys.ts";
 import { AI_TASKS } from "./modules/ai-schedules.ts";
 import { ANNOUNCEMENTS } from "./modules/announcements.ts";
@@ -63,6 +67,7 @@ import { DOCUMENTS } from "./modules/documents.ts";
 import { DOMAINS } from "./modules/domains.ts";
 import { DONATIONS } from "./modules/donations.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
+import { E_PRESCRIBING } from "./modules/e-prescribing.ts";
 import { EMPLOYEES } from "./modules/employees.ts";
 import { ENRICHMENT } from "./modules/enrichment.ts";
 import { ENROLLMENTS } from "./modules/enrollments.ts";
@@ -122,6 +127,7 @@ import { PIPELINES } from "./modules/pipelines.ts";
 import { POSTS } from "./modules/posts.ts";
 import { PROFILES } from "./modules/profiles.ts";
 import { PROMOTIONS } from "./modules/promotions.ts";
+import { PROMPTS } from "./modules/prompts.ts";
 import { PUSH } from "./modules/push.ts";
 import { QUALIFICATIONS } from "./modules/qualifications.ts";
 import { JOBS } from "./modules/queue.ts";
@@ -435,6 +441,12 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(RFQS),
       built(TILLS),
       built(CLINICAL_DECISION_SUPPORT),
+      built(E_PRESCRIBING),
+      built(AGENT_CHECKOUT),
+      built(ADVISORIES),
+      built(PROMPTS),
+      built(AI_EVALS),
+      built(AI_GUARDRAILS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

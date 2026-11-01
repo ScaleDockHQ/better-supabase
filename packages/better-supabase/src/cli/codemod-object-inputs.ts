@@ -1,6 +1,6 @@
 /**
  * The 0.47 codemod for block client calls that passed several positional
- * arguments and now pass one object (ADR 0177). The table is
+ * arguments and now pass one object (ADR 0196). The table is
  * `codemod-object-inputs-data.ts`. A call is rewritten only when its receiver
  * names the block or the method's own sub-client, and when exactly one
  * signature fits the arguments; every other candidate is listed for review.

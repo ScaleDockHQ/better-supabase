@@ -28,7 +28,7 @@ export function rowAuditScope(
 /**
  * `better_supabase.audit(...)` for each table of `ctx`'s module that the audit
  * module's `blockTables` option covers, so a write through the Data API that no
- * block function recorded still leaves an entry (ADR 0177). A row a function
+ * block function recorded still leaves an entry (ADR 0196). A row a function
  * already recorded is skipped by the trigger through the `bsb.recorded` marker
  * that `audit_event` sets.
  */

@@ -93,7 +93,7 @@ export const careParts: {
 export type CareParts = typeof careParts;
 
 /**
- * The `care` composite (ADR 0177): the client record with its team and read
+ * The `care` composite (ADR 0196): the client record with its team and read
  * log, clinical blocks, funding, staffing and quality. It installs its parts
  * and sets their defaults; the parts stay ordinary blocks in the config.
  */

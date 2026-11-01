@@ -43,9 +43,9 @@ export interface PresetCatalogBlock {
   readonly manifest: string;
   /** The generic blocks it adds contributions to (`BlockSql.contributes`). */
   readonly contributes?: readonly string[];
-  /** The links it declares to other blocks' entities (ADR 0177). */
+  /** The links it declares to other blocks' entities (ADR 0196). */
   readonly links?: readonly BlockSqlLink[];
-  /** The composed reads the block ships (ADR 0177). */
+  /** The composed reads the block ships (ADR 0196). */
   readonly reads?: readonly BlockSqlRead[];
 }
 
@@ -125,7 +125,7 @@ export interface PresetCatalogManifest {
   readonly schedules?: readonly BlockSchedule[];
   /** The automations it ships as default rows. */
   readonly automations?: readonly PresetCatalogAutomation[];
-  /** The blocks it is built from (a composite, ADR 0177). */
+  /** The blocks it is built from (a composite, ADR 0196). */
   readonly composes?: readonly string[];
   /** What a composite sets on each part until the app does. */
   readonly defaults?: Readonly<Record<string, PartDefaults>>;

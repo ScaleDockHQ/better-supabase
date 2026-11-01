@@ -29,7 +29,7 @@ export const peopleParts: {
 export type PeopleParts = typeof peopleParts;
 
 /**
- * The `people` composite (ADR 0177): employees, leave, shifts, payroll export,
+ * The `people` composite (ADR 0196): employees, leave, shifts, payroll export,
  * qualifications and enrollments. It installs its parts and sets their
  * defaults; the parts stay ordinary blocks in the config.
  */

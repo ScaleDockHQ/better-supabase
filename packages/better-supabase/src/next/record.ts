@@ -387,7 +387,7 @@ export interface RecordAt<N extends string> {
 /**
  * One record's server-side verbs: `can`, `copyTo`, `trash` and `restore`. It
  * reads the request like `recordServer(...).load`, so call it outside `"use
- * cache"` (ADR 0177).
+ * cache"` (ADR 0196).
  */
 export function recordAtServer<
   T extends string,

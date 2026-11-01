@@ -44,7 +44,7 @@ export const saasParts: {
 export type SaasParts = typeof saasParts;
 
 /**
- * The `saas` composite (ADR 0177): organizations with invitations and teams,
+ * The `saas` composite (ADR 0196): organizations with invitations and teams,
  * billing and entitlements, notifications, the audit log, API keys, settings
  * and onboarding. It installs its parts and sets their defaults; the parts stay
  * ordinary blocks in the config.

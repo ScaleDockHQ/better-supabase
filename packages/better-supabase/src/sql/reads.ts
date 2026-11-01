@@ -13,7 +13,7 @@ export interface BlockSqlReadArg {
 }
 
 /**
- * One composed read a module ships (ADR 0177): a `stable`, `security invoker`
+ * One composed read a module ships (ADR 0196): a `stable`, `security invoker`
  * function that returns `jsonb`, so a page loads a board, a queue or an
  * overview in one call. `gen` writes `reads` and a result type for each, and
  * the block's client exposes it as a method.
@@ -64,7 +64,7 @@ export function readArgSource(type: BlockSqlReadArgType): string {
   }[type];
 }
 
-/** What a module declares about how it composes with others (ADR 0177). */
+/** What a module declares about how it composes with others (ADR 0196). */
 export interface BlockSqlComposition {
   /** The links this module declares to other blocks' entities. */
   readonly links?: readonly BlockSqlLink[];

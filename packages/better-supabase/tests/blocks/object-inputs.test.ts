@@ -9,10 +9,21 @@ const BLOCKS = join(import.meta.dirname, "../../src/blocks");
 /**
  * Method signatures that keep several positional arguments on purpose, as
  * `<path under src/blocks>:<method>`: ports other libraries implement,
- * infrastructure backends, callbacks and standard APIs (ADR 0177). A new block
+ * infrastructure backends, callbacks and standard APIs (ADR 0196). A new block
  * client method takes one object, so this list does not grow.
  */
 const POSITIONAL = new Set<string>([
+  "advisories/feed.ts:epss",
+  "advisories/feed.ts:osv",
+  "agent-checkout/x402.ts:onVerified",
+  "agent-checkout/x402.ts:settle",
+  "agent-checkout/x402.ts:verify",
+  "ai-evals/job.ts:task",
+  "banking/berlin-group.ts:transactions",
+  "content/seo.ts:translationUrlFor",
+  "e-prescribing/e-prescribing.ts:cancel",
+  "e-prescribing/e-prescribing.ts:deliver",
+  "maintenance/telemetry.ts:meterFor",
   "activities/recordings.ts:summarize",
   "activities/recordings.ts:transcribe",
   "ai-files/types.ts:createSignedUrl",
@@ -106,9 +117,6 @@ const POSITIONAL = new Set<string>([
   "inbox/client.ts:onMessage",
   "inbox/client.ts:send",
   "invoices/collections.ts:invoice",
-  "invoices/e-invoice.ts:render",
-  "invoices/e-invoice.ts:send",
-  "invoices/e-invoice.ts:status",
   "invoices/open-items.ts:invoice",
   "knowledge/knowledge.ts:embed",
   "knowledge/knowledge.ts:extract",

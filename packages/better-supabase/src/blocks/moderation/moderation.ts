@@ -142,7 +142,165 @@ export interface ModerationQueueFilter {
   readonly before?: Temporal.Instant;
 }
 
+const RESTRICTIONS = [
+  "removal",
+  "disabled_access",
+  "demotion",
+  "visibility_suspension",
+  "monetary_suspension",
+  "service_suspension",
+  "service_termination",
+  "account_suspension",
+  "account_termination",
+] as const;
+
+/** The restrictions Article 17(1) of the Digital Services Act names. */
+export type ModerationRestriction = (typeof RESTRICTIONS)[number];
+
+const NOTICE_STATUSES = ["received", "actioned", "rejected"] as const;
+
+/** What a moderator does with a notice. */
+export type ModerationNoticeDecision = "hide" | "remove" | "reject";
+
+/** A notice of illegal content (Article 16). */
+export interface ModerationNotice {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly itemId?: string;
+  readonly subject: RecordRef;
+  readonly explanation: string;
+  readonly url?: string;
+  readonly notifierName?: string;
+  readonly notifierEmail?: string;
+  readonly notifierId?: string;
+  /** `true` when a trusted flagger sent it (Article 22). */
+  readonly trusted: boolean;
+  readonly status: (typeof NOTICE_STATUSES)[number];
+  readonly outcome?: string;
+  readonly decidedBy?: string;
+  readonly decidedAt?: Temporal.Instant;
+  readonly createdAt: Temporal.Instant;
+}
+
+/** A statement of reasons (Article 17). */
+export interface ModerationStatement {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly itemId: string;
+  readonly restriction: ModerationRestriction;
+  readonly facts: string;
+  readonly legalGround?: string;
+  readonly termsGround?: string;
+  readonly automatedDetection: boolean;
+  readonly automatedDecision: boolean;
+  readonly redress: readonly string[];
+  readonly issuedBy?: string;
+  readonly createdAt: Temporal.Instant;
+}
+
+/** The fields of a statement of reasons. It needs a legal or a terms ground. */
+export interface ModerationStatementInput {
+  readonly restriction: ModerationRestriction;
+  readonly facts: string;
+  readonly legalGround?: string;
+  readonly termsGround?: string;
+  readonly automatedDetection?: boolean;
+  readonly automatedDecision?: boolean;
+  /** Default: internal complaint, out-of-court settlement and judicial redress. */
+  readonly redress?: readonly string[];
+}
+
+export interface ModerationTrustedFlagger {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly userId: string;
+  readonly name: string;
+  readonly awardedBy?: string;
+  readonly revokedAt?: Temporal.Instant;
+  readonly createdAt: Temporal.Instant;
+}
+
+const APPEAL_STATUSES = ["open", "upheld", "reversed"] as const;
+
+/** How an appeal ends. */
+export type ModerationAppealOutcome = "upheld" | "reversed";
+
+/** An appeal against a statement of reasons or a rejected notice (Article 20). */
+export interface ModerationAppeal {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly statementId?: string;
+  readonly noticeId?: string;
+  readonly appellantId?: string;
+  readonly reasons: string;
+  readonly status: (typeof APPEAL_STATUSES)[number];
+  readonly outcome?: string;
+  readonly decidedBy?: string;
+  readonly decidedAt?: Temporal.Instant;
+  readonly createdAt: Temporal.Instant;
+}
+
 export interface Moderation {
+  /**
+   * Sends a notice of illegal content. A notice from an active trusted flagger
+   * is marked `trusted` and comes first in `notices()`.
+   */
+  submitNotice(input: {
+    subject: RecordRef;
+    notice: {
+      readonly explanation: string;
+      readonly url?: string;
+      readonly notifierName?: string;
+      readonly notifierEmail?: string;
+    };
+  }): AsyncResult<ModerationNotice>;
+  /** The notices that wait for a decision, trusted flaggers first. */
+  notices(filter?: {
+    readonly status?: (typeof NOTICE_STATUSES)[number];
+    readonly pageSize?: number;
+  }): AsyncResult<readonly ModerationNotice[]>;
+  /** Hides or removes the content, or rejects the notice. */
+  decideNotice(
+    input: { noticeId: string; decision: ModerationNoticeDecision } & {
+      readonly outcome?: string;
+    },
+  ): AsyncResult<ModerationNotice>;
+  /** Records the statement of reasons for a restricted item. */
+  issueStatement(input: {
+    itemId: string;
+    statement: ModerationStatementInput;
+  }): AsyncResult<ModerationStatement>;
+  /** An item's statements of reasons, newest first. Its author can read them. */
+  statements(itemId: string): AsyncResult<readonly ModerationStatement[]>;
+  /** Awards trusted flagger status, or updates its name. */
+  setTrustedFlagger(
+    input: { userId: string } & {
+      readonly name: string;
+      readonly awardedBy?: string;
+    },
+  ): AsyncResult<ModerationTrustedFlagger>;
+  /** Revokes trusted flagger status. */
+  revokeTrustedFlagger(userId: string): AsyncResult<ModerationTrustedFlagger>;
+  /** Appeals a statement of reasons, or a rejected notice you sent. */
+  appeal(input: {
+    target: { readonly statementId: string } | { readonly noticeId: string };
+    reasons: string;
+  }): AsyncResult<ModerationAppeal>;
+  /** Decides an appeal. Reversing it restores the content or reopens the notice. */
+  decideAppeal(
+    input: { appealId: string; outcome: ModerationAppealOutcome } & {
+      readonly reason?: string;
+    },
+  ): AsyncResult<ModerationAppeal>;
+  /**
+   * The transparency report for a period as CSV with the columns `metric`,
+   * `dimension` and `value` (Articles 15 and 24).
+   */
+  transparencyReport(period: {
+    readonly start: Temporal.Instant;
+    readonly end: Temporal.Instant;
+  }): AsyncResult<string>;
+
   /**
    * Reports a subject. Reporting it again while the first report is open
    * returns that report. `autoHidden` is true when this report reached the
@@ -274,6 +432,80 @@ function banOf(value: unknown, fn: string): ModerationBan {
   };
 }
 
+function noticeOf(value: unknown, fn: string): ModerationNotice {
+  const row = recordOf(value, fn);
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    subject: { type: textOf(row["subjectType"]), id: textOf(row["subjectId"]) },
+    explanation: textOf(row["explanation"]),
+    trusted: row["trusted"] === true,
+    status: enumOrThrow(row["status"], NOTICE_STATUSES, "notice status"),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    ...optional("itemId", optionalText(row["itemId"])),
+    ...optional("url", optionalText(row["url"])),
+    ...optional("notifierName", optionalText(row["notifierName"])),
+    ...optional("notifierEmail", optionalText(row["notifierEmail"])),
+    ...optional("notifierId", optionalText(row["notifierId"])),
+    ...optional("outcome", optionalText(row["outcome"])),
+    ...optional("decidedBy", optionalText(row["decidedBy"])),
+    ...optional("decidedAt", optionalInstant(row["decidedAt"])),
+  };
+}
+
+function statementOf(value: unknown, fn: string): ModerationStatement {
+  const row = recordOf(value, fn);
+  const redress = Array.isArray(row["redress"]) ? row["redress"] : [];
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    itemId: textOf(row["itemId"]),
+    restriction: enumOrThrow(row["restriction"], RESTRICTIONS, "restriction"),
+    facts: textOf(row["facts"]),
+    automatedDetection: row["automatedDetection"] === true,
+    automatedDecision: row["automatedDecision"] === true,
+    redress: redress.map((entry) => textOf(entry)),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    ...optional("legalGround", optionalText(row["legalGround"])),
+    ...optional("termsGround", optionalText(row["termsGround"])),
+    ...optional("issuedBy", optionalText(row["issuedBy"])),
+  };
+}
+
+function flaggerOf(value: unknown, fn: string): ModerationTrustedFlagger {
+  const row = recordOf(value, fn);
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    userId: textOf(row["userId"]),
+    name: textOf(row["name"]),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    ...optional("awardedBy", optionalText(row["awardedBy"])),
+    ...optional("revokedAt", optionalInstant(row["revokedAt"])),
+  };
+}
+
+function appealOf(value: unknown, fn: string): ModerationAppeal {
+  const row = recordOf(value, fn);
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    reasons: textOf(row["reasons"]),
+    status: enumOrThrow(row["status"], APPEAL_STATUSES, "appeal status"),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    ...optional("statementId", optionalText(row["statementId"])),
+    ...optional("noticeId", optionalText(row["noticeId"])),
+    ...optional("appellantId", optionalText(row["appellantId"])),
+    ...optional("outcome", optionalText(row["outcome"])),
+    ...optional("decidedBy", optionalText(row["decidedBy"])),
+    ...optional("decidedAt", optionalInstant(row["decidedAt"])),
+  };
+}
+
 function statusesOf(
   value: unknown,
 ): Readonly<Record<string, ModerationStatus>> {
@@ -387,6 +619,121 @@ export function createModeration(options: ModerationOptions): Moderation {
             expires_at: instantArg(ban.expiresAt) ?? null,
           },
           (value) => banOf(value, "ban_user"),
+        ),
+      ),
+    submitNotice: ({ subject, notice }) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "submit_notice",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            explanation: notice.explanation,
+            url: notice.url ?? null,
+            notifier_name: notice.notifierName ?? null,
+            notifier_email: notice.notifierEmail ?? null,
+          },
+          (value) => noticeOf(value, "submit_notice"),
+        ),
+      ),
+    notices: (filter = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_notices",
+          {
+            tenant: organizationId,
+            status: filter.status ?? null,
+            page_size: filter.pageSize ?? null,
+          },
+          (value) =>
+            recordsOf(value, "list_notices").map((row) =>
+              noticeOf(row, "list_notices"),
+            ),
+        ),
+      ),
+    decideNotice: ({ noticeId, decision, ...decide }) =>
+      call(
+        "decide_notice",
+        { notice_id: noticeId, decision, outcome: decide.outcome ?? null },
+        (value) => noticeOf(value, "decide_notice"),
+      ),
+    issueStatement: ({ itemId, statement }) =>
+      call(
+        "issue_statement",
+        {
+          item_id: itemId,
+          restriction: statement.restriction,
+          facts: statement.facts,
+          legal_ground: statement.legalGround ?? null,
+          terms_ground: statement.termsGround ?? null,
+          automated_detection: statement.automatedDetection ?? false,
+          automated_decision: statement.automatedDecision ?? false,
+          redress:
+            statement.redress === undefined ? null : [...statement.redress],
+        },
+        (value) => statementOf(value, "issue_statement"),
+      ),
+    statements: (itemId) =>
+      call("list_statements", { item_id: itemId }, (value) =>
+        recordsOf(value, "list_statements").map((row) =>
+          statementOf(row, "list_statements"),
+        ),
+      ),
+    setTrustedFlagger: ({ userId, ...flagger }) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "set_trusted_flagger",
+          {
+            tenant: organizationId,
+            user_id: userId,
+            name: flagger.name,
+            awarded_by: flagger.awardedBy ?? null,
+            active: true,
+          },
+          (value) => flaggerOf(value, "set_trusted_flagger"),
+        ),
+      ),
+    revokeTrustedFlagger: (userId) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "set_trusted_flagger",
+          {
+            tenant: organizationId,
+            user_id: userId,
+            name: null,
+            awarded_by: null,
+            active: false,
+          },
+          (value) => flaggerOf(value, "set_trusted_flagger"),
+        ),
+      ),
+    appeal: ({ target, reasons }) =>
+      call(
+        "file_appeal",
+        {
+          statement_id: "statementId" in target ? target.statementId : null,
+          notice_id: "noticeId" in target ? target.noticeId : null,
+          reasons,
+        },
+        (value) => appealOf(value, "file_appeal"),
+      ),
+    decideAppeal: ({ appealId, outcome, ...decide }) =>
+      call(
+        "decide_appeal",
+        { appeal_id: appealId, outcome, reason: decide.reason ?? null },
+        (value) => appealOf(value, "decide_appeal"),
+      ),
+    transparencyReport: (period) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "transparency_report",
+          {
+            tenant: organizationId,
+            period_start: instantArg(period.start),
+            period_end: instantArg(period.end),
+          },
+          (value) => textOf(value),
         ),
       ),
     unban: (banId) =>

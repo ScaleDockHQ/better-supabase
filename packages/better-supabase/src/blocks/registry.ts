@@ -4,10 +4,14 @@ import { accessRequestsBlock } from "./access-requests/manifest.ts";
 import { accountingBlock } from "./accounting/manifest.ts";
 import { acknowledgementsBlock } from "./acknowledgements/manifest.ts";
 import { activitiesBlock } from "./activities/manifest.ts";
+import { advisoriesBlock } from "./advisories/manifest.ts";
+import { agentCheckoutBlock } from "./agent-checkout/manifest.ts";
 import { agentsBlock } from "./agents/manifest.ts";
 import { aiCacheBlock } from "./ai-cache/manifest.ts";
 import { aiChatBlock } from "./ai-chat/manifest.ts";
+import { aiEvalsBlock } from "./ai-evals/manifest.ts";
 import { aiFilesBlock } from "./ai-files/manifest.ts";
+import { aiGuardrailsBlock } from "./ai-guardrails/manifest.ts";
 import { aiKeysBlock } from "./ai-keys/manifest.ts";
 import { aiSchedulesBlock } from "./ai-schedules/manifest.ts";
 import { announcementsBlock } from "./announcements/manifest.ts";
@@ -56,6 +60,7 @@ import { documentsBlock } from "./documents/manifest.ts";
 import { domainsBlock } from "./domains/manifest.ts";
 import { donationsBlock } from "./donations/manifest.ts";
 import { driveBlock } from "./drive/manifest.ts";
+import { ePrescribingBlock } from "./e-prescribing/manifest.ts";
 import { employeesBlock } from "./employees/manifest.ts";
 import { enrichmentBlock } from "./enrichment/manifest.ts";
 import { enrollmentsBlock } from "./enrollments/manifest.ts";
@@ -122,6 +127,7 @@ import { procurementBlock } from "./procurement/manifest.ts";
 import { profilesBlock } from "./profiles/manifest.ts";
 import { projectsBlock } from "./projects/manifest.ts";
 import { promotionsBlock } from "./promotions/manifest.ts";
+import { promptsBlock } from "./prompts/manifest.ts";
 import { pushBlock } from "./push/manifest.ts";
 import { qualificationsBlock } from "./qualifications/manifest.ts";
 import {
@@ -220,7 +226,9 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   agentsBlock,
   aiCacheBlock,
   aiChatBlock,
+  aiEvalsBlock,
   aiFilesBlock,
+  aiGuardrailsBlock,
   aiKeysBlock,
   aiSchedulesBlock,
   announcementsBlock,
@@ -279,7 +287,10 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   warehouseBlock,
   rfqsBlock,
   tillsBlock,
+  agentCheckoutBlock,
   clinicalDecisionSupportBlock,
+  ePrescribingBlock,
+  advisoriesBlock,
   manufacturingBlock,
   bankingBlock,
   legalEntitiesBlock,
@@ -308,6 +319,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   inventoryBlock,
   invoicesBlock,
   idempotencyBlock,
+  promptsBlock,
   queueBlock,
   rateLimitBlock,
   webhookInboxBlock,

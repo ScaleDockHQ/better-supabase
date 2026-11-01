@@ -307,6 +307,9 @@ export const BLOCK_ICONS = {
   "ai-schedules": CalendarClockIcon,
   "ai-cache": DatabaseZapIcon,
   "ai-keys": CpuIcon,
+  prompts: BracesIcon,
+  "ai-evals": FlaskConicalIcon,
+  "ai-guardrails": ShieldIcon,
   // Automation
   queue: ListTodoIcon,
   outbox: SendIcon,
@@ -347,7 +350,10 @@ export const BLOCK_ICONS = {
   warehouse: ClipboardListIcon,
   rfqs: FileQuestionMarkIcon,
   tills: CoinsIcon,
+  "agent-checkout": HandCoinsIcon,
   "clinical-decision-support": ShieldAlertIcon,
+  "e-prescribing": FileSignatureIcon,
+  advisories: ShieldAlertIcon,
   "care-plans": ClipboardPlusIcon,
   // Database primitives
   "updated-at": ClockIcon,

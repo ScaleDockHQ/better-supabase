@@ -138,6 +138,69 @@ export interface RecordConsentInput {
   readonly evidence?: ConsentEvidence;
 }
 
+/** What a consent signal carries: the Sec-GPC header, a TCF string or GPP. */
+export type ConsentSignalKind = "gpc" | "tcf" | "gpp";
+
+const SIGNAL_KINDS: readonly ConsentSignalKind[] = ["gpc", "tcf", "gpp"];
+
+/** A signal recorded for a record, with what the database parsed from it. */
+export interface ConsentSignal {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly subject: RecordRef;
+  readonly kind: ConsentSignalKind;
+  /** The value as received. */
+  readonly raw: string;
+  /**
+   * `gpc`: `{ header, optOut, purposeKeys }`. `tcf`: the core segment of the TC
+   * string (policy version, language, purposes, special features). `gpp`: the
+   * header type and version and the sections as given.
+   */
+  readonly parsed: Readonly<Record<string, unknown>>;
+  /** The consents the signal created or is evidence for. */
+  readonly consentIds: readonly string[];
+  readonly receivedAt: Temporal.Instant;
+}
+
+/** What `recordSignal` takes. */
+export interface ConsentSignalInput {
+  readonly subject: RecordRef;
+  readonly kind: ConsentSignalKind;
+  /** `1` for Sec-GPC, the TC string for `tcf`, the GPP string for `gpp`. */
+  readonly value: string;
+  /** Sec-GPC only: the purposes the signal opts out of. */
+  readonly purposeKeys?: readonly string[];
+  /** TCF and GPP: the consent the string is evidence for. */
+  readonly consentId?: string;
+}
+
+/** A consent receipt: the document handed to the person, with its digest. */
+export interface ConsentReceipt {
+  readonly receiptId: string;
+  readonly format: string;
+  readonly issuedAt: Temporal.Instant;
+  readonly organizationId: string;
+  readonly subject: RecordRef;
+  readonly purpose: {
+    readonly key: string;
+    readonly title: string;
+    readonly version: string;
+    readonly legalBasis: LegalBasis;
+  };
+  readonly consent: {
+    readonly id: string;
+    readonly status: ConsentStatus;
+    readonly givenBy: ConsentGivenBy;
+    readonly grantedAt: Temporal.Instant;
+    readonly validUntil?: Temporal.Instant;
+    readonly withdrawnAt?: Temporal.Instant;
+    readonly scope: Readonly<Record<string, unknown>>;
+  };
+  readonly evidence: Readonly<Record<string, unknown>>;
+  /** The SHA-256 of the receipt's text, in hex. */
+  readonly digest: string;
+}
+
 export interface Consents {
   /** Creates or changes a purpose version; needs `consents.manage`. */
   savePurpose(input: ConsentPurposeInput): AsyncResult<ConsentPurpose>;
@@ -178,6 +241,22 @@ export interface Consents {
    * `consent:<purposeKey>`.
    */
   require(input: { subject: RecordRef; purposeKey: string }): AsyncResult<true>;
+  /**
+   * Records a signal as consent evidence. A Sec-GPC signal (`value: "1"`)
+   * records a refused consent for each of `purposeKeys`, an opt-out. A TCF v2
+   * or GPP string is parsed and kept, optionally tied to a consent. Needs the
+   * same access as `record`.
+   */
+  recordSignal(input: ConsentSignalInput): AsyncResult<ConsentSignal>;
+  /** The signals recorded for a record, the newest first. */
+  signals(subject: RecordRef): AsyncResult<readonly ConsentSignal[]>;
+  /**
+   * Issues the receipt for a consent decision. The same consent and status give
+   * the same receipt back; a withdrawal gets its own.
+   */
+  issueReceipt(consentId: string): AsyncResult<ConsentReceipt>;
+  /** The receipts of a record's consents, the newest first. */
+  receipts(subject: RecordRef): AsyncResult<readonly ConsentReceipt[]>;
 }
 
 export interface ConsentsOptions extends BlockOptions {
@@ -240,6 +319,61 @@ function consentOf(value: unknown, fn: string): Consent {
     ...optional("submissionId", text("submissionId")),
     ...optional("attachmentId", text("attachmentId")),
     ...optional("createdBy", text("createdBy")),
+  };
+}
+
+function signalOf(value: unknown, fn: string): ConsentSignal {
+  const row = recordOf(value, fn);
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    subject: { type: textOf(row["subjectType"]), id: textOf(row["subjectId"]) },
+    kind: enumOrThrow(row["kind"], SIGNAL_KINDS, "consent signal kind"),
+    raw: textOf(row["raw"]),
+    parsed: isRecord(row["parsed"]) ? row["parsed"] : {},
+    consentIds: (Array.isArray(row["consentIds"]) ? row["consentIds"] : []).map(
+      textOf,
+    ),
+    receivedAt: requiredInstant(row["receivedAt"], "receivedAt"),
+  };
+}
+
+function receiptOf(value: unknown, fn: string): ConsentReceipt {
+  const row = recordOf(value, fn);
+  const subject = recordOf(row["subject"], fn);
+  const purpose = recordOf(row["purpose"], fn);
+  const consent = recordOf(row["consent"], fn);
+  const validUntil = optionalInstant(consent["validUntil"]);
+  const withdrawnAt = optionalInstant(consent["withdrawnAt"]);
+
+  return {
+    receiptId: textOf(row["receiptId"]),
+    format: textOf(row["format"]),
+    issuedAt: requiredInstant(row["issuedAt"], "issuedAt"),
+    organizationId: textOf(row["organizationId"]),
+    subject: { type: textOf(subject["type"]), id: textOf(subject["id"]) },
+    purpose: {
+      key: textOf(purpose["key"]),
+      title: textOf(purpose["title"]),
+      version: textOf(purpose["version"]),
+      legalBasis: enumOrThrow(
+        purpose["legalBasis"],
+        LEGAL_BASES,
+        "legal basis",
+      ),
+    },
+    consent: {
+      id: textOf(consent["id"]),
+      status: enumOrThrow(consent["status"], STATUSES, "consent status"),
+      givenBy: enumOrThrow(consent["givenBy"], GIVEN_BY, "consent giver"),
+      grantedAt: requiredInstant(consent["grantedAt"], "grantedAt"),
+      scope: isRecord(consent["scope"]) ? consent["scope"] : {},
+      ...(validUntil === undefined ? {} : { validUntil }),
+      ...(withdrawnAt === undefined ? {} : { withdrawnAt }),
+    },
+    evidence: isRecord(row["evidence"]) ? row["evidence"] : {},
+    digest: textOf(row["digest"]),
   };
 }
 
@@ -371,6 +505,41 @@ export function createConsents(options: ConsentsOptions): Consents {
                 ),
           ),
         ),
+    recordSignal: (input) =>
+      call(
+        "record_consent_signal",
+        {
+          subject_type: input.subject.type,
+          subject_id: input.subject.id,
+          kind: input.kind,
+          value: input.value,
+          purpose_keys: input.purposeKeys ?? [],
+          consent_id: input.consentId ?? null,
+        },
+        (value) => signalOf(value, "record_consent_signal"),
+      ),
+    signals: (subject) =>
+      call(
+        "list_consent_signals",
+        { subject_type: subject.type, subject_id: subject.id },
+        (value) =>
+          recordsOf(value, "list_consent_signals").map((row) =>
+            signalOf(row, "list_consent_signals"),
+          ),
+      ),
+    issueReceipt: (consentId) =>
+      call("issue_consent_receipt", { consent_id: consentId }, (value) =>
+        receiptOf(value, "issue_consent_receipt"),
+      ),
+    receipts: (subject) =>
+      call(
+        "list_consent_receipts",
+        { subject_type: subject.type, subject_id: subject.id },
+        (value) =>
+          recordsOf(value, "list_consent_receipts").map((row) =>
+            receiptOf(row, "list_consent_receipts"),
+          ),
+      ),
   };
 
   // Helpers call the hooked client, so app hooks see each step.

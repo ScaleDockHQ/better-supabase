@@ -16,9 +16,9 @@ import type {
 } from "./collections.ts";
 import type {
   EInvoiceDelivery,
-  InvoiceEInvoices,
+  InvoiceEDelivery,
   SendEInvoiceOptions,
-} from "./e-invoice.ts";
+} from "./e-delivery.ts";
 import type { InvoiceOpenItems } from "./open-items.ts";
 import type { InvoiceSources } from "./sources.ts";
 
@@ -54,7 +54,7 @@ import {
   invoiceCollections,
   paymentTermsOf,
 } from "./collections.ts";
-import { invoiceEInvoices, sendEInvoice } from "./e-invoice.ts";
+import { invoiceEDelivery } from "./e-delivery.ts";
 import { invoiceOpenItems } from "./open-items.ts";
 import { invoiceSources } from "./sources.ts";
 
@@ -298,8 +298,8 @@ export interface Invoices<F extends object = Record<never, never>>
   extends
     InvoiceCollections<Invoice<F>>,
     InvoiceOpenItems<Invoice<F>>,
-    InvoiceSources,
-    InvoiceEInvoices {
+    InvoiceEDelivery<Invoice<F>>,
+    InvoiceSources {
   create(input: {
     organizationId: string;
     input: InvoiceInput<F>;
@@ -933,18 +933,19 @@ export function createInvoices<
           ...(actor === undefined ? {} : { actor }),
         })
         .andThen((issued) =>
-          sendEInvoice({
-            invoice: issued,
-            format,
-            channel,
-            invoices: hooked,
-            ...(signal ? { signal } : {}),
-          }).map((delivery) => ({ invoice: issued, delivery })),
+          hooked
+            .sendEInvoice({
+              invoice: issued,
+              format,
+              channel,
+              ...(signal ? { signal } : {}),
+            })
+            .map((delivery) => ({ invoice: issued, delivery })),
         ),
     ...invoiceCollections(call, invoice),
     ...invoiceOpenItems(call, invoice),
+    ...invoiceEDelivery(call, (input) => client.create(input)),
     ...invoiceSources(call),
-    ...invoiceEInvoices(call),
     match: (invoiceId) =>
       call("purchase_bill_match", { invoice: invoiceId }, matchOf),
     payments: (invoiceId) =>

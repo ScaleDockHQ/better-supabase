@@ -1,0 +1,91 @@
+---
+title: Prompts
+description: Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version.
+---
+
+The `prompts` block stores prompt templates outside your code, so you can change
+a prompt, promote it and roll it back without a deploy. Every save creates a new
+version that never changes. A label such as `production` or `staging` points at
+one version, and your code reads the prompt by label.
+
+```bash
+better-supabase add prompts
+```
+
+| Table             | Holds                                                                        |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `prompt_versions` | The tenant (or none for a system prompt), name, version, template, variables |
+| `prompt_labels`   | The label and the version it points at, per tenant and name                  |
+
+Templates can hold instructions you do not want users to read, so only the
+service role reads or writes them. Create the block with a service transport.
+A prompt with no `organizationId` is a system prompt that every tenant reads. A
+tenant's own prompt of the same name wins over the system prompt.
+
+| Option     | Default           | Sets                                |
+| ---------- | ----------------- | ----------------------------------- |
+| `maxBytes` | 102,400 (100 KiB) | The longest template, in characters |
+
+## Create and promote
+
+```ts
+const version = await prompts
+  .create("support.reply", "Answer as {{persona}}. Question: {{question}}", {
+    organizationId,
+    label: "staging",
+  })
+  .orThrow();
+
+await prompts
+  .setLabel({
+    name: "support.reply",
+    label: "production",
+    version: version.version,
+    organizationId,
+  })
+  .orThrow();
+```
+
+`create` numbers the next version under a lock for the tenant and name, so two
+concurrent saves never share a number. The `variables` default to the
+`{{name}}` placeholders in the template. `setLabel` points a label at an
+existing version, which is also how you roll back.
+
+## Read and render
+
+```ts
+const prompt = await prompts.get("support.reply", { organizationId }).orThrow();
+
+if (prompt) {
+  const text = prompt.render({ persona: "a support agent", question });
+}
+```
+
+`get` reads the `production` label unless you pass another `label` or an exact
+`version`, and returns `undefined` when there is none. `render` inserts each
+value as text and never evaluates it. It throws when the template has a
+placeholder without a value or when you pass a value the template does not use,
+so a renamed variable fails in tests instead of sending a broken prompt.
+`renderPrompt(template, values)` does the same without the block.
+
+## Functions
+
+| Function                                                          | Who     |
+| ----------------------------------------------------------------- | ------- |
+| `create_prompt_version(name, template, tenant, variables, label)` | service |
+| `get_prompt(name, label, version, tenant)`                        | service |
+| `set_prompt_label(name, label, version, tenant)`                  | service |
+| `list_prompt_versions(name, tenant)`                              | service |
+
+## Without the client
+
+```ts title="lib/prompts.ts"
+import "server-only";
+
+import { createPrompts, rpcTransport } from "better-supabase/blocks/prompts";
+
+export const prompts = createPrompts({
+  transport: rpcTransport(bsb.admin().$client, { schema: "api" }),
+  schema: "api",
+});
+```
