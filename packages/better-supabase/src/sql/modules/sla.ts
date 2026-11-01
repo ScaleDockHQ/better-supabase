@@ -43,6 +43,10 @@ const EVENTS: BlockSqlEvents<SlaEvents> = {
   "sla.warned": { subject: "sla-clocks", payload: [...CLOCK] },
   "sla.breached": { subject: "sla-clocks", payload: [...CLOCK] },
   "sla.completed": { subject: "sla-clocks", payload: [...CLOCK, "late"] },
+  "sla.escalated": {
+    subject: "sla-clocks",
+    payload: [...CLOCK, "atPercent", "action", "target", "result"],
+  },
 };
 
 const NAMES: BlockSqlNames = {
@@ -73,6 +77,7 @@ const NAMES: BlockSqlNames = {
         resolution: "resolution_minutes",
         warnPercent: "warn_at_percent",
         businessHours: "business_hours",
+        escalations: "escalations",
         archivedAt: "archived_at",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -80,10 +85,26 @@ const NAMES: BlockSqlNames = {
       optional: [
         "warnPercent",
         "businessHours",
+        "escalations",
         "archivedAt",
         "createdAt",
         "updatedAt",
       ],
+    },
+    escalations: {
+      name: "sla_escalations",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        clock: "clock_id",
+        atPercent: "at_percent",
+        action: "action",
+        target: "target",
+        result: "result",
+        firedAt: "fired_at",
+      },
     },
     clocks: {
       name: "sla_clocks",
@@ -176,6 +197,11 @@ interface SlaBinding {
   readonly subject: RegisteredSubject;
   readonly status: string;
   readonly priority?: string;
+  /**
+   * The column holding the record's owner, notified and reassigned by the
+   * ladder.
+   */
+  readonly owner?: string;
   /** Statuses that pause the clocks, such as waiting on the customer. */
   readonly pause: readonly string[];
   /** Statuses that resolve the record. */
@@ -213,6 +239,15 @@ function bindings(ctx: BlockSqlContext): readonly SlaBinding[] {
       throw new TypeError(`${where}.priority must be a column name`);
     }
 
+    const owner = entry["owner"];
+
+    if (
+      owner !== undefined &&
+      (typeof owner !== "string" || !COLUMN.test(owner))
+    ) {
+      throw new TypeError(`${where}.owner must be a column name`);
+    }
+
     const list = (key: string): readonly string[] => {
       const value = entry[key] ?? [];
 
@@ -232,6 +267,7 @@ function bindings(ctx: BlockSqlContext): readonly SlaBinding[] {
       pause: list("pause"),
       resolve: list("resolve"),
       ...(typeof priority === "string" && { priority }),
+      ...(typeof owner === "string" && { owner }),
     };
   });
 }
@@ -312,6 +348,7 @@ function build(ctx: BlockSqlContext): string {
   const t = (table: string): string => ctx.table(table);
   const p = (column: string): string => ctx.col("policies", column);
   const k = (column: string): string => ctx.col("clocks", column);
+  const e = (column: string): string => ctx.col("escalations", column);
   const hours = businessHours(ctx);
   const service = "(auth.role() = 'service_role')";
   const policyHas = (column: string): boolean => ctx.has("policies", column);
@@ -346,6 +383,11 @@ function build(ctx: BlockSqlContext): string {
           `smallint not null default 80 check (${p("warnPercent")} between 1 and 99)`,
       ],
       ["businessHours", () => "boolean not null default false"],
+      [
+        "escalations",
+        () =>
+          `jsonb not null default '[]'::jsonb check (jsonb_typeof(${p("escalations")}) = 'array')`,
+      ],
       ["archivedAt", () => "timestamptz"],
       ["createdAt", () => "timestamptz not null default now()"],
       ["updatedAt", () => "timestamptz not null default now()"],
@@ -354,7 +396,9 @@ function build(ctx: BlockSqlContext): string {
     .filter(([logical]) => policyHas(logical))
     .map(([logical, definition]) => `${p(logical)} ${definition()}`);
 
-  const unsupported = (["warnAtPercent", "businessHours", "archived"] as const)
+  const unsupported = (
+    ["warnAtPercent", "businessHours", "escalations", "archived"] as const
+  )
     .filter(
       (key) =>
         !policyHas(
@@ -397,6 +441,11 @@ function build(ctx: BlockSqlContext): string {
           `coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x.${p("businessHours")})`,
       ],
       [
+        "escalations",
+        () =>
+          `case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x.${p("escalations")} end`,
+      ],
+      [
         "archivedAt",
         () =>
           `case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x.${p("archivedAt")}, now()) else x.${p("archivedAt")} end`,
@@ -436,6 +485,10 @@ function build(ctx: BlockSqlContext): string {
         "businessHours",
         "coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false)",
       ],
+      [
+        "escalations",
+        "coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb)",
+      ],
     ] as const
   ).filter(([logical]) => policyHas(logical));
 
@@ -452,7 +505,7 @@ function build(ctx: BlockSqlContext): string {
       audit: false,
     });
 
-  const notify = (kind: string): string =>
+  const notify = (kind: string, step?: string): string =>
     ctx.installed("notifications")
       ? ctx.notify(
           `jsonb_build_object(
@@ -461,8 +514,8 @@ function build(ctx: BlockSqlContext): string {
       'subject_type', v_clock.${k("subjectType")},
       'subject_id', v_clock.${k("subjectId")},
       'summary', v_clock.${k("metric")} || ' ' || ${sqlString(kind)},
-      'priority', 'high',
-      'key', ${sqlString(`sla.${kind}:`)} || v_clock.${k("id")}::text,
+      'priority', ${step === undefined ? "'high'" : `case ${step}.action when 'page' then 'urgent' else 'high' end`},
+      'key', ${sqlString(`sla.${kind}:`)} || v_clock.${k("id")}::text${step === undefined ? "" : ` || ':' || ${step}.at_percent::text || ':' || ${step}.action`},
       'data', jsonb_build_object('clockId', v_clock.${k("id")}, 'metric', v_clock.${k("metric")}, 'dueAt', v_clock.${k("dueAt")})
     )`,
           { indent: "      " },
@@ -470,6 +523,51 @@ function build(ctx: BlockSqlContext): string {
       : "";
 
   const list = bindings(ctx);
+
+  const reassign = list
+    .filter((binding) => binding.owner !== undefined)
+    .map(
+      (
+        binding,
+      ) => `if v_clock.${k("subjectType")} = ${sqlString(binding.subject.type)} then
+        update ${binding.subject.qualified} x set ${sqlIdent(binding.owner ?? "")} = v_step.target::${ctx.idType}
+        where x.${binding.subject.id}::text = v_clock.${k("subjectId")} and x.${sqlIdent(binding.owner ?? "")} is distinct from v_step.target::${ctx.idType};
+        v_result := case when found then 'done' else 'unchanged' end;
+      end if;`,
+    )
+    .join("\n      ");
+
+  // The ladder: each step fires once per clock when its share of the time has passed.
+  const ladder = policyHas("escalations")
+    ? `  for v_step in
+    select x.${k("id")} as clock_id, (s ->> 'at')::integer as at_percent, s ->> 'action' as action, nullif(s ->> 'target', '') as target
+    from ${t("clocks")} x
+    join ${t("policies")} y on y.${p("id")} = x.${k("policy")}
+    cross join lateral jsonb_array_elements(y.${p("escalations")}) s
+    where x.${k("metAt")} is null and x.${k("pausedAt")} is null
+      and now() >= x.${k("startedAt")} + (x.${k("dueAt")} - x.${k("startedAt")}) * (s ->> 'at')::integer / 100.0
+      and not exists (
+        select 1 from ${t("escalations")} f
+        where f.${e("clock")} = x.${k("id")} and f.${e("atPercent")} = (s ->> 'at')::integer and f.${e("action")} = s ->> 'action'
+      )
+    order by x.${k("id")}, (s ->> 'at')::integer
+  loop
+    select * into v_clock from ${t("clocks")} x where x.${k("id")} = v_step.clock_id;
+    v_result := case v_step.action when 'reassign' then 'skipped' else 'sent' end;
+    if v_step.action = 'reassign' then
+      ${reassign === "" ? "null;" : reassign}
+    end if;
+    insert into ${t("escalations")} (${e("tenant")}, ${e("clock")}, ${e("atPercent")}, ${e("action")}, ${e("target")}, ${e("result")})
+    values (v_clock.${k("tenant")}, v_clock.${k("id")}, v_step.at_percent, v_step.action, v_step.target, v_result)
+    on conflict do nothing;
+    if found then
+      ${record("sla.escalated", `, 'atPercent', v_step.at_percent, 'action', v_step.action, 'target', v_step.target, 'result', v_result`)}
+      ${notify("escalated", "v_step")}
+      v_count := v_count + 1;
+    end if;
+  end loop;`
+    : "";
+
   // The policy's extra columns: attrs.fields writes them, reads return them under fields.
   const extras = ctx.extraColumns("policies", ["fields"]);
 
@@ -505,6 +603,26 @@ create unique index if not exists sla_clocks_open_idx on ${t("clocks")} (${k("su
 create index if not exists sla_clocks_due_idx on ${t("clocks")} (${k("dueAt")}) where ${k("metAt")} is null and ${k("pausedAt")} is null;
 create index if not exists sla_clocks_policy_idx on ${t("clocks")} (${k("policy")});
 ${lockModuleTable(ctx, "clocks", { read: true })}
+${
+  policyHas("escalations")
+    ? `
+-- One row per fired ladder step, so a step runs once per clock.
+create table if not exists ${t("escalations")} (
+  ${e("id")} uuid primary key default gen_random_uuid(),
+  ${e("tenant")} ${ctx.idType} not null,
+  ${e("clock")} uuid not null references ${t("clocks")} (${k("id")}) on delete cascade,
+  ${e("atPercent")} integer not null,
+  ${e("action")} text not null check (${e("action")} in ('notify', 'reassign', 'page')),
+  ${e("target")} text,
+  ${e("result")} text not null,
+  ${e("firedAt")} timestamptz not null default now(),
+  unique (${e("clock")}, ${e("atPercent")}, ${e("action")})
+);
+${lockModuleTable(ctx, "escalations", { read: true })}
+${renderPolicy(makePolicy({ table: t("escalations"), name: "sla_escalations_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(e("tenant"), read) }), { drop: true, target: t("escalations") })}
+`
+    : ""
+}
 ${renderPolicy(makePolicy({ table: t("clocks"), name: "sla_clocks_read", command: "select", roles: ["authenticated"], using: `${ctx.scope.check(k("tenant"), read)} and ${ctx.of("subjects").fn("can_subject")}(${k("subjectType")}, ${k("subjectId")}, 'read')` }), { drop: true, target: t("clocks") })}
 `
     : ""
@@ -569,17 +687,26 @@ begin
     ${fail("SLA_POLICY_UNSUPPORTED", "this policies table doesn't keep every attribute passed", "0A000")}
   end if;`
   }
-  begin
+  ${
+    policyHas("escalations")
+      ? `if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+    or exists (
+      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      where jsonb_typeof(s) <> 'object'
+        or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
+        or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
+        or (s ->> 'action' = 'reassign' and coalesce(s ->> 'target', '') = '')
+    )
+  ) then
+    ${fail("SLA_ESCALATION_INVALID", "escalations are steps of at (1 to 500 percent), action (notify, reassign or page) and a target for reassign", "22023")}
+  end if;
+  `
+      : ""
+  }begin
     if v_id is null then
       insert into ${t("policies")} (${policyInsert.map(([logical]) => p(logical)).join(", ")})
-      values (${
-        policyInsert.length === 9
-          ? `save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority',
-        (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer,
-        (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80),
-        coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false)`
-          : policyInsert.map(([, value]) => value).join(", ")
-      })
+      values (${policyInsert.map(([, value]) => value).join(", ")})
       returning ${p("id")} into v_id;
     else
       update ${t("policies")} x set
@@ -756,7 +883,7 @@ as $$
 declare
   v_clock ${t("clocks")};
   v_count integer := 0;
-  v_claims text;
+  v_claims text;${policyHas("escalations") ? "\n  v_step record;\n  v_result text;" : ""}
 begin
   for v_clock in
     update ${t("clocks")} x set ${k("breachedAt")} = now()
@@ -779,6 +906,7 @@ begin
     ${notify("warned")}
     v_count := v_count + 1;
   end loop;
+${ladder}
   return v_count;
 end;
 $$;

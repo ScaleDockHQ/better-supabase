@@ -2231,14 +2231,15 @@ export interface BlockNameRegistry {
   };
   readonly "sla": {
     readonly tables: {
-      readonly "policies": "id" | "tenant" | "subjectType" | "name" | "priority" | "firstResponse" | "nextResponse" | "resolution" | "warnPercent" | "businessHours" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "policies": "id" | "tenant" | "subjectType" | "name" | "priority" | "firstResponse" | "nextResponse" | "resolution" | "warnPercent" | "businessHours" | "escalations" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "escalations": "id" | "tenant" | "clock" | "atPercent" | "action" | "target" | "result" | "firedAt";
       readonly "clocks": "id" | "tenant" | "subjectType" | "subjectId" | "policy" | "metric" | "startedAt" | "dueAt" | "pausedAt" | "pausedSeconds" | "warnedAt" | "breachedAt" | "metAt" | "createdAt";
     };
     readonly functions: "check_sla_clocks" | "record_sla_event" | "save_sla_policy" | "sla_clocks_of" | "sla_due_at" | "start_sla_clocks";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "sla_policy": "id" | "tenant_id" | "subject_type" | "name" | "priority" | "first_response_minutes" | "next_response_minutes" | "resolution_minutes" | "warn_at_percent" | "business_hours" | "archived_at" | "created_at" | "updated_at";
+      readonly "sla_policy": "id" | "tenant_id" | "subject_type" | "name" | "priority" | "first_response_minutes" | "next_response_minutes" | "resolution_minutes" | "warn_at_percent" | "business_hours" | "escalations" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "sla_policy";
     readonly formerKeys: "policy";

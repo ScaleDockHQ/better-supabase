@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:cfb9398ba0a1153df1cc677d952aa112c9c45ecdbd7f775739883742e6267fe5
+-- @bsb-hash sha256:986890e078303f2ec502272ba9d6c679f1daf8c4c087d7a18843baa9d3bc9c78
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -53,6 +53,14 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_escalations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_clocks";
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_clocks";
@@ -78,6 +86,7 @@ create table if not exists "better_supabase"."sla_policies" (
   "resolution_minutes" integer check ("resolution_minutes" > 0),
   "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99),
   "business_hours" boolean not null default false,
+  "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -115,6 +124,28 @@ alter table "better_supabase"."sla_clocks" enable row level security;
 revoke all on "better_supabase"."sla_clocks" from public, anon, authenticated;
 grant select on "better_supabase"."sla_clocks" to authenticated;
 grant all on "better_supabase"."sla_clocks" to service_role;
+
+-- One row per fired ladder step, so a step runs once per clock.
+create table if not exists "better_supabase"."sla_escalations" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "clock_id" uuid not null references "better_supabase"."sla_clocks" ("id") on delete cascade,
+  "at_percent" integer not null,
+  "action" text not null check ("action" in ('notify', 'reassign', 'page')),
+  "target" text,
+  "result" text not null,
+  "fired_at" timestamptz not null default now(),
+  unique ("clock_id", "at_percent", "action")
+);
+alter table "better_supabase"."sla_escalations" enable row level security;
+revoke all on "better_supabase"."sla_escalations" from public, anon, authenticated;
+grant select on "better_supabase"."sla_escalations" to authenticated;
+grant all on "better_supabase"."sla_escalations" to service_role;
+drop policy if exists sla_escalations_read on "better_supabase"."sla_escalations";
+create policy sla_escalations_read on "better_supabase"."sla_escalations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
+
 drop policy if exists sla_clocks_read on "better_supabase"."sla_clocks";
 create policy sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
@@ -176,13 +207,22 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_sla_policy.tenant, 'sla.manage'), false)) then
     raise exception 'not allowed to manage service levels' using errcode = '42501', hint = 'SLA_FORBIDDEN';
   end if;
+  if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+    or exists (
+      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      where jsonb_typeof(s) <> 'object'
+        or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
+        or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
+        or (s ->> 'action' = 'reassign' and coalesce(s ->> 'target', '') = '')
+    )
+  ) then
+    raise exception 'escalations are steps of at (1 to 500 percent), action (notify, reassign or page) and a target for reassign' using errcode = '22023', hint = 'SLA_ESCALATION_INVALID';
+  end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours")
-      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority',
-        (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer,
-        (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80),
-        coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false))
+      insert into "better_supabase"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours", "escalations")
+      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority', (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
       returning "id" into v_id;
     else
       update "better_supabase"."sla_policies" x set
@@ -193,6 +233,7 @@ begin
         "resolution_minutes" = case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
         "warn_at_percent" = coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
         "business_hours" = coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
+        "escalations" = case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
         "archived_at" = case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
       where x."id" = v_id and x."tenant_id" = save_sla_policy.tenant;
@@ -378,6 +419,8 @@ declare
   v_clock "better_supabase"."sla_clocks";
   v_count integer := 0;
   v_claims text;
+  v_step record;
+  v_result text;
 begin
   for v_clock in
     update "better_supabase"."sla_clocks" x set "breached_at" = now()
@@ -399,6 +442,33 @@ begin
     null;
     
     v_count := v_count + 1;
+  end loop;
+  for v_step in
+    select x."id" as clock_id, (s ->> 'at')::integer as at_percent, s ->> 'action' as action, nullif(s ->> 'target', '') as target
+    from "better_supabase"."sla_clocks" x
+    join "better_supabase"."sla_policies" y on y."id" = x."policy_id"
+    cross join lateral jsonb_array_elements(y."escalations") s
+    where x."met_at" is null and x."paused_at" is null
+      and now() >= x."started_at" + (x."due_at" - x."started_at") * (s ->> 'at')::integer / 100.0
+      and not exists (
+        select 1 from "better_supabase"."sla_escalations" f
+        where f."clock_id" = x."id" and f."at_percent" = (s ->> 'at')::integer and f."action" = s ->> 'action'
+      )
+    order by x."id", (s ->> 'at')::integer
+  loop
+    select * into v_clock from "better_supabase"."sla_clocks" x where x."id" = v_step.clock_id;
+    v_result := case v_step.action when 'reassign' then 'skipped' else 'sent' end;
+    if v_step.action = 'reassign' then
+      null;
+    end if;
+    insert into "better_supabase"."sla_escalations" ("tenant_id", "clock_id", "at_percent", "action", "target", "result")
+    values (v_clock."tenant_id", v_clock."id", v_step.at_percent, v_step.action, v_step.target, v_result)
+    on conflict do nothing;
+    if found then
+      null;
+      
+      v_count := v_count + 1;
+    end if;
   end loop;
   return v_count;
 end;
@@ -440,6 +510,27 @@ create policy bsb_tenant_scope_update on "better_supabase"."sla_policies" as res
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_policies";
 create policy bsb_tenant_scope_delete on "better_supabase"."sla_policies" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."sla_escalations";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_select on "better_supabase"."sla_escalations" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_insert on "better_supabase"."sla_escalations" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_update on "better_supabase"."sla_escalations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_delete on "better_supabase"."sla_escalations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
@@ -494,7 +585,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:e5eca262580ecd73c5e4ae6859f4eecb963b1201be6b46e3999ca778f08b3265
+-- @bsb-hash sha256:ef22915f5ee5cad8aedb20b7f579dd7a3ad2e16969c57f63d3ea14604607884d
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -563,6 +654,14 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_escalations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_clocks";
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_clocks";
@@ -588,6 +687,7 @@ create table if not exists "better_supabase"."sla_policies" (
   "resolution_minutes" integer check ("resolution_minutes" > 0),
   "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99),
   "business_hours" boolean not null default false,
+  "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -625,6 +725,28 @@ alter table "better_supabase"."sla_clocks" enable row level security;
 revoke all on "better_supabase"."sla_clocks" from public, anon, authenticated;
 grant select on "better_supabase"."sla_clocks" to authenticated;
 grant all on "better_supabase"."sla_clocks" to service_role;
+
+-- One row per fired ladder step, so a step runs once per clock.
+create table if not exists "better_supabase"."sla_escalations" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "clock_id" uuid not null references "better_supabase"."sla_clocks" ("id") on delete cascade,
+  "at_percent" integer not null,
+  "action" text not null check ("action" in ('notify', 'reassign', 'page')),
+  "target" text,
+  "result" text not null,
+  "fired_at" timestamptz not null default now(),
+  unique ("clock_id", "at_percent", "action")
+);
+alter table "better_supabase"."sla_escalations" enable row level security;
+revoke all on "better_supabase"."sla_escalations" from public, anon, authenticated;
+grant select on "better_supabase"."sla_escalations" to authenticated;
+grant all on "better_supabase"."sla_escalations" to service_role;
+drop policy if exists sla_escalations_read on "better_supabase"."sla_escalations";
+create policy sla_escalations_read on "better_supabase"."sla_escalations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
+
 drop policy if exists sla_clocks_read on "better_supabase"."sla_clocks";
 create policy sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
@@ -686,13 +808,22 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_sla_policy.tenant, 'sla.manage'), false)) then
     raise exception 'not allowed to manage service levels' using errcode = '42501', hint = 'SLA_FORBIDDEN';
   end if;
+  if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+    or exists (
+      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      where jsonb_typeof(s) <> 'object'
+        or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
+        or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
+        or (s ->> 'action' = 'reassign' and coalesce(s ->> 'target', '') = '')
+    )
+  ) then
+    raise exception 'escalations are steps of at (1 to 500 percent), action (notify, reassign or page) and a target for reassign' using errcode = '22023', hint = 'SLA_ESCALATION_INVALID';
+  end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours")
-      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority',
-        (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer,
-        (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80),
-        coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false))
+      insert into "better_supabase"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours", "escalations")
+      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority', (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
       returning "id" into v_id;
     else
       update "better_supabase"."sla_policies" x set
@@ -703,6 +834,7 @@ begin
         "resolution_minutes" = case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
         "warn_at_percent" = coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
         "business_hours" = coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
+        "escalations" = case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
         "archived_at" = case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
       where x."id" = v_id and x."tenant_id" = save_sla_policy.tenant;
@@ -888,6 +1020,8 @@ declare
   v_clock "better_supabase"."sla_clocks";
   v_count integer := 0;
   v_claims text;
+  v_step record;
+  v_result text;
 begin
   for v_clock in
     update "better_supabase"."sla_clocks" x set "breached_at" = now()
@@ -938,6 +1072,47 @@ begin
       end if;
     v_count := v_count + 1;
   end loop;
+  for v_step in
+    select x."id" as clock_id, (s ->> 'at')::integer as at_percent, s ->> 'action' as action, nullif(s ->> 'target', '') as target
+    from "better_supabase"."sla_clocks" x
+    join "better_supabase"."sla_policies" y on y."id" = x."policy_id"
+    cross join lateral jsonb_array_elements(y."escalations") s
+    where x."met_at" is null and x."paused_at" is null
+      and now() >= x."started_at" + (x."due_at" - x."started_at") * (s ->> 'at')::integer / 100.0
+      and not exists (
+        select 1 from "better_supabase"."sla_escalations" f
+        where f."clock_id" = x."id" and f."at_percent" = (s ->> 'at')::integer and f."action" = s ->> 'action'
+      )
+    order by x."id", (s ->> 'at')::integer
+  loop
+    select * into v_clock from "better_supabase"."sla_clocks" x where x."id" = v_step.clock_id;
+    v_result := case v_step.action when 'reassign' then 'skipped' else 'sent' end;
+    if v_step.action = 'reassign' then
+      null;
+    end if;
+    insert into "better_supabase"."sla_escalations" ("tenant_id", "clock_id", "at_percent", "action", "target", "result")
+    values (v_clock."tenant_id", v_clock."id", v_step.at_percent, v_step.action, v_step.target, v_result)
+    on conflict do nothing;
+    if found then
+      perform "better_supabase".emit_event('sla.escalated', jsonb_build_object('organizationId', v_clock."tenant_id", 'clockId', v_clock."id", 'subjectType', v_clock."subject_type", 'subjectId', v_clock."subject_id", 'metric', v_clock."metric", 'dueAt', v_clock."due_at", 'atPercent', v_step.at_percent, 'action', v_step.action, 'target', v_step.target, 'result', v_result), 'sla-clocks/' || v_clock."id"::text, (v_clock."tenant_id"::text)::text, null, 'better-supabase/sla');
+      if better_supabase.import_run() is null then
+        v_claims := current_setting('request.jwt.claims', true);
+        perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+        perform "better_supabase"."notify"(jsonb_build_object(
+      'type', 'sla.escalated',
+      'tenant', v_clock."tenant_id",
+      'subject_type', v_clock."subject_type",
+      'subject_id', v_clock."subject_id",
+      'summary', v_clock."metric" || ' ' || 'escalated',
+      'priority', case v_step.action when 'page' then 'urgent' else 'high' end,
+      'key', 'sla.escalated:' || v_clock."id"::text || ':' || v_step.at_percent::text || ':' || v_step.action,
+      'data', jsonb_build_object('clockId', v_clock."id", 'metric', v_clock."metric", 'dueAt', v_clock."due_at")
+    ));
+        perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+      end if;
+      v_count := v_count + 1;
+    end if;
+  end loop;
   return v_count;
 end;
 $$;
@@ -978,6 +1153,27 @@ create policy bsb_tenant_scope_update on "better_supabase"."sla_policies" as res
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_policies";
 create policy bsb_tenant_scope_delete on "better_supabase"."sla_policies" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."sla_escalations";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_select on "better_supabase"."sla_escalations" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_insert on "better_supabase"."sla_escalations" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_update on "better_supabase"."sla_escalations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_delete on "better_supabase"."sla_escalations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
@@ -1039,7 +1235,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:cb90c363ef140b4209c4871616e1da5e4fa1e28e50cb905f309e4aa595d033de
+-- @bsb-hash sha256:67b7c32bdc2a2afc242cc23bfbfa731ba008220bf4fc2e538274fa64977f6561
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1091,6 +1287,14 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "app_private"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."sla_escalations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "app_private"."sla_clocks";
     drop policy if exists bsb_tenant_scope_select on "app_private"."sla_clocks";
     drop policy if exists bsb_tenant_scope_insert on "app_private"."sla_clocks";
@@ -1121,6 +1325,7 @@ create table if not exists "app_private"."sla_policies" (
   "resolution_minutes" integer check ("resolution_minutes" > 0),
   "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99),
   "business_hours" boolean not null default false,
+  "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -1158,6 +1363,28 @@ alter table "app_private"."sla_clocks" enable row level security;
 revoke all on "app_private"."sla_clocks" from public, anon, authenticated;
 grant select on "app_private"."sla_clocks" to authenticated;
 grant all on "app_private"."sla_clocks" to service_role;
+
+-- One row per fired ladder step, so a step runs once per clock.
+create table if not exists "app_private"."sla_escalations" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "clock_id" uuid not null references "app_private"."sla_clocks" ("id") on delete cascade,
+  "at_percent" integer not null,
+  "action" text not null check ("action" in ('notify', 'reassign', 'page')),
+  "target" text,
+  "result" text not null,
+  "fired_at" timestamptz not null default now(),
+  unique ("clock_id", "at_percent", "action")
+);
+alter table "app_private"."sla_escalations" enable row level security;
+revoke all on "app_private"."sla_escalations" from public, anon, authenticated;
+grant select on "app_private"."sla_escalations" to authenticated;
+grant all on "app_private"."sla_escalations" to service_role;
+drop policy if exists sla_escalations_read on "app_private"."sla_escalations";
+create policy sla_escalations_read on "app_private"."sla_escalations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
+
 drop policy if exists sla_clocks_read on "app_private"."sla_clocks";
 create policy sla_clocks_read on "app_private"."sla_clocks"
   for select to authenticated
@@ -1219,13 +1446,22 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_sla_policy.tenant, 'sla.manage'), false)) then
     raise exception 'not allowed to manage service levels' using errcode = '42501', hint = 'SLA_FORBIDDEN';
   end if;
+  if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+    or exists (
+      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      where jsonb_typeof(s) <> 'object'
+        or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
+        or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
+        or (s ->> 'action' = 'reassign' and coalesce(s ->> 'target', '') = '')
+    )
+  ) then
+    raise exception 'escalations are steps of at (1 to 500 percent), action (notify, reassign or page) and a target for reassign' using errcode = '22023', hint = 'SLA_ESCALATION_INVALID';
+  end if;
   begin
     if v_id is null then
-      insert into "app_private"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours")
-      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority',
-        (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer,
-        (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80),
-        coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false))
+      insert into "app_private"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours", "escalations")
+      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority', (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
       returning "id" into v_id;
     else
       update "app_private"."sla_policies" x set
@@ -1236,6 +1472,7 @@ begin
         "resolution_minutes" = case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
         "warn_at_percent" = coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
         "business_hours" = coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
+        "escalations" = case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
         "archived_at" = case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
       where x."id" = v_id and x."tenant_id" = save_sla_policy.tenant;
@@ -1421,6 +1658,8 @@ declare
   v_clock "app_private"."sla_clocks";
   v_count integer := 0;
   v_claims text;
+  v_step record;
+  v_result text;
 begin
   for v_clock in
     update "app_private"."sla_clocks" x set "breached_at" = now()
@@ -1442,6 +1681,33 @@ begin
     null;
     
     v_count := v_count + 1;
+  end loop;
+  for v_step in
+    select x."id" as clock_id, (s ->> 'at')::integer as at_percent, s ->> 'action' as action, nullif(s ->> 'target', '') as target
+    from "app_private"."sla_clocks" x
+    join "app_private"."sla_policies" y on y."id" = x."policy_id"
+    cross join lateral jsonb_array_elements(y."escalations") s
+    where x."met_at" is null and x."paused_at" is null
+      and now() >= x."started_at" + (x."due_at" - x."started_at") * (s ->> 'at')::integer / 100.0
+      and not exists (
+        select 1 from "app_private"."sla_escalations" f
+        where f."clock_id" = x."id" and f."at_percent" = (s ->> 'at')::integer and f."action" = s ->> 'action'
+      )
+    order by x."id", (s ->> 'at')::integer
+  loop
+    select * into v_clock from "app_private"."sla_clocks" x where x."id" = v_step.clock_id;
+    v_result := case v_step.action when 'reassign' then 'skipped' else 'sent' end;
+    if v_step.action = 'reassign' then
+      null;
+    end if;
+    insert into "app_private"."sla_escalations" ("tenant_id", "clock_id", "at_percent", "action", "target", "result")
+    values (v_clock."tenant_id", v_clock."id", v_step.at_percent, v_step.action, v_step.target, v_result)
+    on conflict do nothing;
+    if found then
+      null;
+      
+      v_count := v_count + 1;
+    end if;
   end loop;
   return v_count;
 end;
@@ -1483,6 +1749,27 @@ create policy bsb_tenant_scope_update on "app_private"."sla_policies" as restric
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "app_private"."sla_policies";
 create policy bsb_tenant_scope_delete on "app_private"."sla_policies" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."sla_escalations";
+drop policy if exists bsb_tenant_scope_select on "app_private"."sla_escalations";
+create policy bsb_tenant_scope_select on "app_private"."sla_escalations" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."sla_escalations";
+create policy bsb_tenant_scope_insert on "app_private"."sla_escalations" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."sla_escalations";
+create policy bsb_tenant_scope_update on "app_private"."sla_escalations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."sla_escalations";
+create policy bsb_tenant_scope_delete on "app_private"."sla_escalations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."sla_clocks";
@@ -1537,7 +1824,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:53632524c5d253c167cdeb188a20a0b612c53c4c6a8ffd9a2684def484ee5123
+-- @bsb-hash sha256:1171526511503cac08055e703822f617daec25f1d105752d3e34aa2ba9156595
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1589,6 +1876,14 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_escalations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_clocks";
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_clocks";
@@ -1614,6 +1909,7 @@ create table if not exists "better_supabase"."sla_policies" (
   "resolution_minutes" integer check ("resolution_minutes" > 0),
   "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99),
   "business_hours" boolean not null default false,
+  "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -1651,6 +1947,28 @@ alter table "better_supabase"."sla_clocks" enable row level security;
 revoke all on "better_supabase"."sla_clocks" from public, anon, authenticated;
 grant select on "better_supabase"."sla_clocks" to authenticated;
 grant all on "better_supabase"."sla_clocks" to service_role;
+
+-- One row per fired ladder step, so a step runs once per clock.
+create table if not exists "better_supabase"."sla_escalations" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "clock_id" uuid not null references "better_supabase"."sla_clocks" ("id") on delete cascade,
+  "at_percent" integer not null,
+  "action" text not null check ("action" in ('notify', 'reassign', 'page')),
+  "target" text,
+  "result" text not null,
+  "fired_at" timestamptz not null default now(),
+  unique ("clock_id", "at_percent", "action")
+);
+alter table "better_supabase"."sla_escalations" enable row level security;
+revoke all on "better_supabase"."sla_escalations" from public, anon, authenticated;
+grant select on "better_supabase"."sla_escalations" to authenticated;
+grant all on "better_supabase"."sla_escalations" to service_role;
+drop policy if exists sla_escalations_read on "better_supabase"."sla_escalations";
+create policy sla_escalations_read on "better_supabase"."sla_escalations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
+
 drop policy if exists sla_clocks_read on "better_supabase"."sla_clocks";
 create policy sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
@@ -1712,13 +2030,22 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_sla_policy.tenant, 'sla.manage'), false)) then
     raise exception 'not allowed to manage service levels' using errcode = '42501', hint = 'SLA_FORBIDDEN';
   end if;
+  if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+    or exists (
+      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      where jsonb_typeof(s) <> 'object'
+        or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
+        or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
+        or (s ->> 'action' = 'reassign' and coalesce(s ->> 'target', '') = '')
+    )
+  ) then
+    raise exception 'escalations are steps of at (1 to 500 percent), action (notify, reassign or page) and a target for reassign' using errcode = '22023', hint = 'SLA_ESCALATION_INVALID';
+  end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours")
-      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority',
-        (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer,
-        (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80),
-        coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false))
+      insert into "better_supabase"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours", "escalations")
+      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority', (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
       returning "id" into v_id;
     else
       update "better_supabase"."sla_policies" x set
@@ -1729,6 +2056,7 @@ begin
         "resolution_minutes" = case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
         "warn_at_percent" = coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
         "business_hours" = coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
+        "escalations" = case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
         "archived_at" = case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
       where x."id" = v_id and x."tenant_id" = save_sla_policy.tenant;
@@ -1914,6 +2242,8 @@ declare
   v_clock "better_supabase"."sla_clocks";
   v_count integer := 0;
   v_claims text;
+  v_step record;
+  v_result text;
 begin
   for v_clock in
     update "better_supabase"."sla_clocks" x set "breached_at" = now()
@@ -1935,6 +2265,33 @@ begin
     null;
     
     v_count := v_count + 1;
+  end loop;
+  for v_step in
+    select x."id" as clock_id, (s ->> 'at')::integer as at_percent, s ->> 'action' as action, nullif(s ->> 'target', '') as target
+    from "better_supabase"."sla_clocks" x
+    join "better_supabase"."sla_policies" y on y."id" = x."policy_id"
+    cross join lateral jsonb_array_elements(y."escalations") s
+    where x."met_at" is null and x."paused_at" is null
+      and now() >= x."started_at" + (x."due_at" - x."started_at") * (s ->> 'at')::integer / 100.0
+      and not exists (
+        select 1 from "better_supabase"."sla_escalations" f
+        where f."clock_id" = x."id" and f."at_percent" = (s ->> 'at')::integer and f."action" = s ->> 'action'
+      )
+    order by x."id", (s ->> 'at')::integer
+  loop
+    select * into v_clock from "better_supabase"."sla_clocks" x where x."id" = v_step.clock_id;
+    v_result := case v_step.action when 'reassign' then 'skipped' else 'sent' end;
+    if v_step.action = 'reassign' then
+      null;
+    end if;
+    insert into "better_supabase"."sla_escalations" ("tenant_id", "clock_id", "at_percent", "action", "target", "result")
+    values (v_clock."tenant_id", v_clock."id", v_step.at_percent, v_step.action, v_step.target, v_result)
+    on conflict do nothing;
+    if found then
+      null;
+      
+      v_count := v_count + 1;
+    end if;
   end loop;
   return v_count;
 end;
@@ -1976,6 +2333,27 @@ create policy bsb_tenant_scope_update on "better_supabase"."sla_policies" as res
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_policies";
 create policy bsb_tenant_scope_delete on "better_supabase"."sla_policies" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."sla_escalations";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_select on "better_supabase"."sla_escalations" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_insert on "better_supabase"."sla_escalations" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_update on "better_supabase"."sla_escalations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_delete on "better_supabase"."sla_escalations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
@@ -2106,7 +2484,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:f6246f49e8aa3ab1036e88e96cbf97c8cda30b35a2ad2932c8c3238a23b259e1
+-- @bsb-hash sha256:3e32c51866185fa998c4dca19232b85c6f784432a5498d4418131aafa36e1067
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2174,6 +2552,14 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_escalations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_clocks";
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_clocks";
@@ -2199,6 +2585,7 @@ alter table "better_supabase"."sla_policies" add column if not exists "next_resp
 alter table "better_supabase"."sla_policies" add column if not exists "resolution_minutes" integer check ("resolution_minutes" > 0);
 alter table "better_supabase"."sla_policies" add column if not exists "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99);
 alter table "better_supabase"."sla_policies" add column if not exists "business_hours" boolean not null default false;
+alter table "better_supabase"."sla_policies" add column if not exists "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array');
 alter table "better_supabase"."sla_policies" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."sla_policies" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."sla_policies" add column if not exists "updated_at" timestamptz not null default now();
@@ -2232,6 +2619,25 @@ create index if not exists sla_clocks_policy_idx on "better_supabase"."sla_clock
 alter table "better_supabase"."sla_clocks" enable row level security;
 grant select on "better_supabase"."sla_clocks" to authenticated;
 grant all on "better_supabase"."sla_clocks" to service_role;
+
+-- One row per fired ladder step, so a step runs once per clock.
+-- better_supabase.sla_escalations is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."sla_escalations" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."sla_escalations" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."sla_escalations" add column if not exists "clock_id" uuid references "better_supabase"."sla_clocks" ("id") on delete cascade;
+alter table "better_supabase"."sla_escalations" add column if not exists "at_percent" integer;
+alter table "better_supabase"."sla_escalations" add column if not exists "action" text check ("action" in ('notify', 'reassign', 'page'));
+alter table "better_supabase"."sla_escalations" add column if not exists "target" text;
+alter table "better_supabase"."sla_escalations" add column if not exists "result" text;
+alter table "better_supabase"."sla_escalations" add column if not exists "fired_at" timestamptz not null default now();
+alter table "better_supabase"."sla_escalations" enable row level security;
+grant select on "better_supabase"."sla_escalations" to authenticated;
+grant all on "better_supabase"."sla_escalations" to service_role;
+drop policy if exists bsb_sla_escalations_select on "better_supabase"."sla_escalations";
+create policy bsb_sla_escalations_select on "better_supabase"."sla_escalations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
+
 drop policy if exists bsb_sla_clocks_select on "better_supabase"."sla_clocks";
 create policy bsb_sla_clocks_select on "better_supabase"."sla_clocks"
   for select to authenticated
@@ -2293,13 +2699,22 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_sla_policy.tenant, 'sla.manage'), false)) then
     raise exception 'not allowed to manage service levels' using errcode = '42501', hint = 'SLA_FORBIDDEN';
   end if;
+  if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+    or exists (
+      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      where jsonb_typeof(s) <> 'object'
+        or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
+        or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
+        or (s ->> 'action' = 'reassign' and coalesce(s ->> 'target', '') = '')
+    )
+  ) then
+    raise exception 'escalations are steps of at (1 to 500 percent), action (notify, reassign or page) and a target for reassign' using errcode = '22023', hint = 'SLA_ESCALATION_INVALID';
+  end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours")
-      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority',
-        (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer,
-        (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80),
-        coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false))
+      insert into "better_supabase"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours", "escalations")
+      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority', (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
       returning "id" into v_id;
     else
       update "better_supabase"."sla_policies" x set
@@ -2310,6 +2725,7 @@ begin
         "resolution_minutes" = case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
         "warn_at_percent" = coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
         "business_hours" = coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
+        "escalations" = case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
         "archived_at" = case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
       where x."id" = v_id and x."tenant_id" = save_sla_policy.tenant;
@@ -2495,6 +2911,8 @@ declare
   v_clock "better_supabase"."sla_clocks";
   v_count integer := 0;
   v_claims text;
+  v_step record;
+  v_result text;
 begin
   for v_clock in
     update "better_supabase"."sla_clocks" x set "breached_at" = now()
@@ -2516,6 +2934,33 @@ begin
     null;
     
     v_count := v_count + 1;
+  end loop;
+  for v_step in
+    select x."id" as clock_id, (s ->> 'at')::integer as at_percent, s ->> 'action' as action, nullif(s ->> 'target', '') as target
+    from "better_supabase"."sla_clocks" x
+    join "better_supabase"."sla_policies" y on y."id" = x."policy_id"
+    cross join lateral jsonb_array_elements(y."escalations") s
+    where x."met_at" is null and x."paused_at" is null
+      and now() >= x."started_at" + (x."due_at" - x."started_at") * (s ->> 'at')::integer / 100.0
+      and not exists (
+        select 1 from "better_supabase"."sla_escalations" f
+        where f."clock_id" = x."id" and f."at_percent" = (s ->> 'at')::integer and f."action" = s ->> 'action'
+      )
+    order by x."id", (s ->> 'at')::integer
+  loop
+    select * into v_clock from "better_supabase"."sla_clocks" x where x."id" = v_step.clock_id;
+    v_result := case v_step.action when 'reassign' then 'skipped' else 'sent' end;
+    if v_step.action = 'reassign' then
+      null;
+    end if;
+    insert into "better_supabase"."sla_escalations" ("tenant_id", "clock_id", "at_percent", "action", "target", "result")
+    values (v_clock."tenant_id", v_clock."id", v_step.at_percent, v_step.action, v_step.target, v_result)
+    on conflict do nothing;
+    if found then
+      null;
+      
+      v_count := v_count + 1;
+    end if;
   end loop;
   return v_count;
 end;
@@ -2557,6 +3002,27 @@ create policy bsb_tenant_scope_update on "better_supabase"."sla_policies" as res
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_policies";
 create policy bsb_tenant_scope_delete on "better_supabase"."sla_policies" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."sla_escalations";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_select on "better_supabase"."sla_escalations" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_insert on "better_supabase"."sla_escalations" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_update on "better_supabase"."sla_escalations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_delete on "better_supabase"."sla_escalations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
@@ -2611,7 +3077,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:2d086d4e74417c8248e1fc43829a710b4c123111f2be770e2aad398c793d60b0
+-- @bsb-hash sha256:adc79a0f06da2fcbd9f4de9ba48dbbbcea916d1031fb8f26e02dddecb9947049
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2663,6 +3129,14 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_escalations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_escalations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_clocks";
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_clocks";
@@ -2688,6 +3162,7 @@ create table if not exists "better_supabase"."sla_policies" (
   "resolution_minutes" integer check ("resolution_minutes" > 0),
   "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99),
   "business_hours" boolean not null default false,
+  "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -2725,6 +3200,28 @@ alter table "better_supabase"."sla_clocks" enable row level security;
 revoke all on "better_supabase"."sla_clocks" from public, anon, authenticated;
 grant select on "better_supabase"."sla_clocks" to authenticated;
 grant all on "better_supabase"."sla_clocks" to service_role;
+
+-- One row per fired ladder step, so a step runs once per clock.
+create table if not exists "better_supabase"."sla_escalations" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "clock_id" uuid not null references "better_supabase"."sla_clocks" ("id") on delete cascade,
+  "at_percent" integer not null,
+  "action" text not null check ("action" in ('notify', 'reassign', 'page')),
+  "target" text,
+  "result" text not null,
+  "fired_at" timestamptz not null default now(),
+  unique ("clock_id", "at_percent", "action")
+);
+alter table "better_supabase"."sla_escalations" enable row level security;
+revoke all on "better_supabase"."sla_escalations" from public, anon, authenticated;
+grant select on "better_supabase"."sla_escalations" to authenticated;
+grant all on "better_supabase"."sla_escalations" to service_role;
+drop policy if exists sla_escalations_read on "better_supabase"."sla_escalations";
+create policy sla_escalations_read on "better_supabase"."sla_escalations"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('sla.read')));
+
 drop policy if exists sla_clocks_read on "better_supabase"."sla_clocks";
 create policy sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
@@ -2786,13 +3283,22 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_sla_policy.tenant, 'sla.manage'), false)) then
     raise exception 'not allowed to manage service levels' using errcode = '42501', hint = 'SLA_FORBIDDEN';
   end if;
+  if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+    or exists (
+      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      where jsonb_typeof(s) <> 'object'
+        or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
+        or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
+        or (s ->> 'action' = 'reassign' and coalesce(s ->> 'target', '') = '')
+    )
+  ) then
+    raise exception 'escalations are steps of at (1 to 500 percent), action (notify, reassign or page) and a target for reassign' using errcode = '22023', hint = 'SLA_ESCALATION_INVALID';
+  end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."sla_policies" ("org_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours")
-      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority',
-        (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer,
-        (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80),
-        coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false))
+      insert into "better_supabase"."sla_policies" ("org_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours", "escalations")
+      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority', (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
       returning "id" into v_id;
     else
       update "better_supabase"."sla_policies" x set
@@ -2803,6 +3309,7 @@ begin
         "resolution_minutes" = case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
         "warn_at_percent" = coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
         "business_hours" = coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
+        "escalations" = case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
         "archived_at" = case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
       where x."id" = v_id and x."org_id" = save_sla_policy.tenant;
@@ -2988,6 +3495,8 @@ declare
   v_clock "better_supabase"."sla_clocks";
   v_count integer := 0;
   v_claims text;
+  v_step record;
+  v_result text;
 begin
   for v_clock in
     update "better_supabase"."sla_clocks" x set "breached_at" = now()
@@ -3009,6 +3518,33 @@ begin
     null;
     
     v_count := v_count + 1;
+  end loop;
+  for v_step in
+    select x."id" as clock_id, (s ->> 'at')::integer as at_percent, s ->> 'action' as action, nullif(s ->> 'target', '') as target
+    from "better_supabase"."sla_clocks" x
+    join "better_supabase"."sla_policies" y on y."id" = x."policy_id"
+    cross join lateral jsonb_array_elements(y."escalations") s
+    where x."met_at" is null and x."paused_at" is null
+      and now() >= x."started_at" + (x."due_at" - x."started_at") * (s ->> 'at')::integer / 100.0
+      and not exists (
+        select 1 from "better_supabase"."sla_escalations" f
+        where f."clock_id" = x."id" and f."at_percent" = (s ->> 'at')::integer and f."action" = s ->> 'action'
+      )
+    order by x."id", (s ->> 'at')::integer
+  loop
+    select * into v_clock from "better_supabase"."sla_clocks" x where x."id" = v_step.clock_id;
+    v_result := case v_step.action when 'reassign' then 'skipped' else 'sent' end;
+    if v_step.action = 'reassign' then
+      null;
+    end if;
+    insert into "better_supabase"."sla_escalations" ("org_id", "clock_id", "at_percent", "action", "target", "result")
+    values (v_clock."org_id", v_clock."id", v_step.at_percent, v_step.action, v_step.target, v_result)
+    on conflict do nothing;
+    if found then
+      null;
+      
+      v_count := v_count + 1;
+    end if;
   end loop;
   return v_count;
 end;
@@ -3050,6 +3586,27 @@ create policy bsb_tenant_scope_update on "better_supabase"."sla_policies" as res
   with check ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_policies";
 create policy bsb_tenant_scope_delete on "better_supabase"."sla_policies" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."sla_escalations";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_select on "better_supabase"."sla_escalations" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('sla.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_insert on "better_supabase"."sla_escalations" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_update on "better_supabase"."sla_escalations" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_escalations";
+create policy bsb_tenant_scope_delete on "better_supabase"."sla_escalations" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
