@@ -1,6 +1,6 @@
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:225ba5941a493e15959b9e86d40774d37869922f4118ad973fb6d655b70e9c88
+-- @bsb-hash sha256:ebd2fbcde416daf03e55b7666dd3f569a737a3922edf801643e5ce45cb95c052
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -191,6 +191,24 @@ as $$
   );
 $$;
 revoke execute on function "better_supabase"."time_week_locked"(uuid, uuid, timestamptz) from public, anon, authenticated;
+
+-- Whether the week an instant falls in has an approved timesheet. Payroll runs
+-- read only the entries of approved weeks.
+create or replace function "better_supabase"."time_week_approved"(tenant uuid, user_id uuid, at timestamptz)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."timesheets" s
+    where s."tenant_id" = time_week_approved.tenant and s."user_id" = time_week_approved.user_id
+      and s."week" = "better_supabase"."time_week"(time_week_approved.at)
+      and s."approved_at" is not null
+  );
+$$;
+revoke execute on function "better_supabase"."time_week_approved"(uuid, uuid, timestamptz) from public, anon, authenticated;
 
 create or replace function "better_supabase"."time_entry_guard"()
 returns trigger

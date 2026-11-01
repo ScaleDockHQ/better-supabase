@@ -48,6 +48,17 @@ describe("payroll-export module", () => {
     expect(sql).not.toContain("shift_assignments");
   });
 
+  it("collects only the entries of weeks with an approved timesheet", () => {
+    const sql = sqlOf({}, [
+      "memberships",
+      "permissions",
+      "time-tracking",
+      "payroll-export",
+    ]);
+
+    expect(sql).toContain(`"time_week_approved"(x."tenant_id", x."user_id"`);
+  });
+
   it("collects scheduled shifts only when asked to", () => {
     const modules = [
       "memberships",

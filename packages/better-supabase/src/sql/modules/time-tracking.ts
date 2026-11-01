@@ -30,6 +30,7 @@ import {
   TIME_TRACKING_CONTRIBUTES,
   TIMESHEET_SUBJECT,
 } from "./time-tracking-approvals.ts";
+import { approvedWeekFunction } from "./time-tracking-approved.ts";
 import {
   byEmployee,
   durationEntries,
@@ -596,6 +597,7 @@ as $$
 $$;
 revoke execute on function ${fn("time_week_locked")}(${ctx.idType}, uuid, timestamptz) from public, anon, authenticated;
 
+${approvedWeekFunction(ctx, { timesheets, t, tOwner, statusMode, weekOf })}
 create or replace function ${fn("time_entry_guard")}()
 returns trigger
 language plpgsql
