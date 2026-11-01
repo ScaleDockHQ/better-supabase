@@ -3,6 +3,8 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
+import { serviceBlock } from "better-supabase/blocks/service";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
@@ -13,6 +15,8 @@ import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { assetsBlock } from "better-supabase/blocks/assets";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { dispatchBlock } from "better-supabase/blocks/dispatch";
+import { casesBlock } from "better-supabase/blocks/cases";
+import { maintenanceBlock } from "better-supabase/blocks/maintenance";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { signaturesBlock } from "better-supabase/blocks/signatures";
@@ -23,9 +27,12 @@ import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { contactsBlock } from "better-supabase/blocks/contacts";
+import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { quotesBlock } from "better-supabase/blocks/quotes";
+import { relationsBlock } from "better-supabase/blocks/relations";
 import { settingsBlock } from "better-supabase/blocks/settings";
+import { slaBlock } from "better-supabase/blocks/sla";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { teamsBlock } from "better-supabase/blocks/teams";
 import { versionsBlock } from "better-supabase/blocks/versions";
@@ -34,6 +41,8 @@ import { blockConfig } from "./field-service.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
+  service: serviceBlock,
   permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   attachments: attachmentsBlock,
@@ -44,6 +53,8 @@ export const blockSet = defineBlocks(blockConfig, {
   assets: assetsBlock,
   enrollments: enrollmentsBlock,
   dispatch: dispatchBlock,
+  cases: casesBlock,
+  maintenance: maintenanceBlock,
   entitlements: entitlementsBlock,
   forms: formsBlock,
   signatures: signaturesBlock,
@@ -54,9 +65,12 @@ export const blockSet = defineBlocks(blockConfig, {
   organizations: organizationsBlock,
   outbox: outboxBlock,
   contacts: contactsBlock,
+  pipelines: pipelinesBlock,
   profiles: profilesBlock,
   quotes: quotesBlock,
+  relations: relationsBlock,
   settings: settingsBlock,
+  sla: slaBlock,
   subjects: subjectsBlock,
   teams: teamsBlock,
   versions: versionsBlock,

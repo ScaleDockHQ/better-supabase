@@ -3,6 +3,8 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
+import { filespaceBlock } from "better-supabase/blocks/filespace";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
@@ -28,6 +30,8 @@ import { blockConfig } from "./drive.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
+  filespace: filespaceBlock,
   permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   attachments: attachmentsBlock,

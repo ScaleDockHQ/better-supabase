@@ -1,6 +1,7 @@
 {
   "extends": "@better-supabase/typescript-config/base.json",
   "compilerOptions": {
+    "lib": ["ES2025", "ESNext.Disposable", "ESNext.Temporal", "DOM"],
     "types": ["node"]
   },
   "include": ["src"]

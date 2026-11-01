@@ -136,6 +136,7 @@ import { vercelMarketplaceBlock } from "better-supabase/blocks/vercel-marketplac
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { searchBlock } from "better-supabase/blocks/search";
 import { serviceAccountsBlock } from "better-supabase/blocks/service-accounts";
+import { sessionsBlock } from "better-supabase/blocks/sessions";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
 import { securityEventsBlock } from "better-supabase/blocks/security-events";
@@ -296,6 +297,7 @@ export const blockSet = defineBlocks(blockConfig, {
   savedViews: savedViewsBlock,
   search: searchBlock,
   serviceAccounts: serviceAccountsBlock,
+  sessions: sessionsBlock,
   settings: settingsBlock,
   shareLinks: shareLinksBlock,
   securityEvents: securityEventsBlock,

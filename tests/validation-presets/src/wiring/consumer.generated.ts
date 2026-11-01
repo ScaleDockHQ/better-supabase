@@ -7,6 +7,7 @@ import { identitiesBlock } from "better-supabase/blocks/identities";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { pushBlock } from "better-supabase/blocks/push";
+import { sessionsBlock } from "better-supabase/blocks/sessions";
 
 import { blockConfig } from "./consumer.blocks.generated.ts";
 
@@ -16,6 +17,7 @@ export const blockSet = defineBlocks(blockConfig, {
   notifications: notificationsBlock,
   profiles: profilesBlock,
   push: pushBlock,
+  sessions: sessionsBlock,
 });
 
 /**

@@ -3,6 +3,8 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
+import { commerceBlock } from "better-supabase/blocks/commerce";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { auditBlock } from "better-supabase/blocks/audit";
@@ -26,6 +28,8 @@ import { blockConfig } from "./commerce.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
+  commerce: commerceBlock,
   permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   audit: auditBlock,

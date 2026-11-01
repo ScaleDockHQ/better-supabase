@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { PRESET_CATALOG } from "../packages/better-supabase/src/preset/catalog.generated.ts";
 import {
   AUTOMATIONS_PAGE,
   defaultAutomations,
   MATRIX_PAGE,
   moduleMatrix,
-} from "../../../../scripts/composition-docs.ts";
-import { PRESET_CATALOG } from "../../src/preset/catalog.generated.ts";
+} from "./composition-docs.ts";
 
 describe("the docs tables generated from the catalog", () => {
   it("keeps the module matrix current", () => {
