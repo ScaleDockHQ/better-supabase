@@ -307,6 +307,7 @@ export const BLOCK_ICONS = {
   "ai-schedules": CalendarClockIcon,
   "ai-cache": DatabaseZapIcon,
   "ai-keys": CpuIcon,
+  prompts: BracesIcon,
   // Automation
   queue: ListTodoIcon,
   outbox: SendIcon,
