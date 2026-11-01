@@ -479,11 +479,11 @@ may be your own enum or domain.
   - `better_supabase.mail_tracking_events`: `id`, `tenant_id`, `message_id`, `kind`, `occurred_at`; typed: `kind`
   - `better_supabase.mail_thread_subjects`: `tenant_id`, `thread_id`, `subject_type`, `subject_id`; typed: `source`
 - `maintenance`
-  - `better_supabase.maintenance_plans`: `id`, `tenant_id`, `title`, `asset_id`, `kind`, `every_days`, `meter_id`, `every_value`, `priority`, `status`, `last_done_at`, `last_done_value`, `next_due_at`, `work_order_id`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.maintenance_plans`: `id`, `tenant_id`, `title`, `asset_id`, `kind`, `every_days`, `meter_id`, `every_value`, `priority`, `status`, `last_done_at`, `last_done_value`, `next_due_at`, `work_order_id`, `rrule`, `dtstart`, `tz`, `required_qualifications`, `created_by`, `created_at`, `updated_at`
   - `better_supabase.maintenance_plan_parts`: `id`, `tenant_id`, `plan_id`, `name`, `quantity`, `variant_id`
   - `better_supabase.maintenance_meters`: `id`, `tenant_id`, `name`, `unit`, `asset_id`, `reading`, `read_at`, `created_at`
   - `better_supabase.maintenance_meter_readings`: `id`, `tenant_id`, `meter_id`, `value`, `read_at`, `read_by`
-  - `better_supabase.maintenance_calibrations`: `id`, `tenant_id`, `asset_id`, `instrument`, `performed_at`, `due_at`, `result`, `reference`, `performed_by`
+  - `better_supabase.maintenance_calibrations`: `id`, `tenant_id`, `asset_id`, `instrument`, `performed_at`, `due_at`, `result`, `reference`, `performed_by`, `qualifications`
 - `manufacturing`
   - `better_supabase.boms`: `id`, `tenant_id`, `variant_id`, `version`, `status`, `quantity`, `note`, `activated_at`, `created_by`, `created_at`, `updated_at`
   - `better_supabase.work_centers`: `id`, `tenant_id`, `name`, `asset_id`, `hours_per_day`, `cost_rate`, `currency`, `archived_at`, `created_at`, `updated_at`

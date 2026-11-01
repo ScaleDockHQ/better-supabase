@@ -52,14 +52,19 @@ const MAX_DAYS = 62;
 const MAX_USERS = 100;
 
 /**
- * `calendar_rule_starts`: the occurrence starts of an RRULE in [range_start,
- * range_end), the same ones the reminders block's `expandRule` returns in
- * TypeScript (DAILY, WEEKLY, MONTHLY and YEARLY with INTERVAL, COUNT, UNTIL,
- * BYDAY with ordinals, BYMONTHDAY, BYMONTH, BYSETPOS and WKST, in the rule's
- * time zone). A rule it can't read counts as one occurrence at dtstart.
+ * `calendar_rule_starts` (or `name`, so another block can render its own copy
+ * without depending on calendar): the occurrence starts of an RRULE in
+ * [range_start, range_end), the same ones the reminders block's `expandRule`
+ * returns in TypeScript (DAILY, WEEKLY, MONTHLY and YEARLY with INTERVAL,
+ * COUNT, UNTIL, BYDAY with ordinals, BYMONTHDAY, BYMONTH, BYSETPOS and WKST, in
+ * the rule's time zone). A rule it can't read counts as one occurrence at
+ * dtstart.
  */
-function ruleStarts(ctx: BlockSqlContext): string {
-  const fn = ctx.fn("calendar_rule_starts");
+export function ruleStarts(
+  ctx: BlockSqlContext,
+  name = "calendar_rule_starts",
+): string {
+  const fn = ctx.fn(name);
 
   return `
 create or replace function ${fn}(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
@@ -105,20 +110,20 @@ declare
   v_i integer;
   v_names constant text[] := array['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
 begin
-  if calendar_rule_starts.dtstart is null or calendar_rule_starts.range_start is null or calendar_rule_starts.range_end is null then
+  if ${name}.dtstart is null or ${name}.range_start is null or ${name}.range_end is null then
     return;
   end if;
-  v_local := calendar_rule_starts.dtstart at time zone coalesce(calendar_rule_starts.tz, 'UTC');
+  v_local := ${name}.dtstart at time zone coalesce(${name}.tz, 'UTC');
   v_anchor := v_local::date;
   v_time := v_local::time;
   select coalesce(jsonb_object_agg(upper(btrim(split_part(p, '=', 1))), btrim(split_part(p, '=', 2))), '{}'::jsonb)
     into v_parts
-  from unnest(string_to_array(regexp_replace(btrim(coalesce(calendar_rule_starts.rrule, '')), '^RRULE:', '', 'i'), ';')) p
+  from unnest(string_to_array(regexp_replace(btrim(coalesce(${name}.rrule, '')), '^RRULE:', '', 'i'), ';')) p
   where p like '%=%';
   v_freq := upper(v_parts ->> 'FREQ');
   if v_freq is null or v_freq not in ('DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY') then
-    if calendar_rule_starts.dtstart >= calendar_rule_starts.range_start and calendar_rule_starts.dtstart < calendar_rule_starts.range_end then
-      return next calendar_rule_starts.dtstart;
+    if ${name}.dtstart >= ${name}.range_start and ${name}.dtstart < ${name}.range_end then
+      return next ${name}.dtstart;
     end if;
     return;
   end if;
@@ -131,7 +136,7 @@ begin
   if v_parts ->> 'UNTIL' ~ '^[0-9]{8}T[0-9]{6}Z$' then
     v_until := (regexp_replace(v_parts ->> 'UNTIL', '^([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z$', '\\1-\\2-\\3 \\4:\\5:\\6+00'))::timestamptz;
   elsif v_parts ->> 'UNTIL' ~ '^[0-9]{8}$' then
-    v_until := ((to_date(v_parts ->> 'UNTIL', 'YYYYMMDD') + 1)::timestamp at time zone coalesce(calendar_rule_starts.tz, 'UTC')) - interval '1 microsecond';
+    v_until := ((to_date(v_parts ->> 'UNTIL', 'YYYYMMDD') + 1)::timestamp at time zone coalesce(${name}.tz, 'UTC')) - interval '1 microsecond';
   end if;
   if upper(v_parts ->> 'WKST') = any (v_names) then
     v_wkst := array_position(v_names, upper(v_parts ->> 'WKST'));
@@ -162,7 +167,7 @@ begin
   end loop;
   -- Without COUNT, start a period before the window instead of at dtstart.
   if v_count is null then
-    v_target := (calendar_rule_starts.range_start at time zone coalesce(calendar_rule_starts.tz, 'UTC'))::date;
+    v_target := (${name}.range_start at time zone coalesce(${name}.tz, 'UTC'))::date;
     if v_target > v_anchor then
       v_periods := case v_freq
         when 'DAILY' then v_target - v_anchor
@@ -228,15 +233,15 @@ begin
       where (case when p > 0 then p else cardinality(v_sorted) + p + 1 end) between 1 and cardinality(v_sorted);
     end if;
     foreach v_date in array coalesce((select array_agg(d order by d) from unnest(v_dates) d), '{}') loop
-      v_when := (v_date + v_time) at time zone coalesce(calendar_rule_starts.tz, 'UTC');
+      v_when := (v_date + v_time) at time zone coalesce(${name}.tz, 'UTC');
       -- A wall time that happens twice (DST ends) takes the earlier instant,
       -- as Temporal's compatible disambiguation does; Postgres takes the later.
-      if ((v_when - interval '1 hour') at time zone coalesce(calendar_rule_starts.tz, 'UTC')) = v_date + v_time then
+      if ((v_when - interval '1 hour') at time zone coalesce(${name}.tz, 'UTC')) = v_date + v_time then
         v_when := v_when - interval '1 hour';
-      elsif ((v_when - interval '30 minutes') at time zone coalesce(calendar_rule_starts.tz, 'UTC')) = v_date + v_time then
+      elsif ((v_when - interval '30 minutes') at time zone coalesce(${name}.tz, 'UTC')) = v_date + v_time then
         v_when := v_when - interval '30 minutes';
       end if;
-      continue when v_when < calendar_rule_starts.dtstart;
+      continue when v_when < ${name}.dtstart;
       if v_until is not null and v_when > v_until then
         return;
       end if;
@@ -244,10 +249,10 @@ begin
       if v_count is not null and v_generated > v_count then
         return;
       end if;
-      if v_when >= calendar_rule_starts.range_end then
+      if v_when >= ${name}.range_end then
         return;
       end if;
-      continue when v_when < calendar_rule_starts.range_start;
+      continue when v_when < ${name}.range_start;
       return next v_when;
       v_found := v_found + 1;
       if v_found >= 1000 then
