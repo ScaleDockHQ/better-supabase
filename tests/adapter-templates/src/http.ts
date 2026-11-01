@@ -11,7 +11,7 @@ export interface HttpOptions {
 }
 
 /** Maps a failed response to the `DbError` a port's `Result` carries. */
-export function errorOfStatus(status: number, body: string): DbError {
+function errorOfStatus(status: number, body: string): DbError {
   const message = body.slice(0, 200) || `HTTP ${status}`;
 
   if (status === 401 || status === 403) {
