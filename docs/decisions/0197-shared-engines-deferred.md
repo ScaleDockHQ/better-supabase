@@ -49,3 +49,24 @@ contributes `leave_year`. The existing `close_accounting_period` and
 - Blocks do not check `period_is_open` before they write. Accounting still
   refuses posts into closed fiscal periods by its own status, and leave has no
   write guard for a closed year. Adding the guard per block is the follow-up.
+
+## Lifecycle engine (feat/engine-periods)
+
+Shipped: the SLA escalation ladder. `sla_policies.escalations` holds steps of `at` (share of the
+clock's time), `action` (`notify`, `reassign`, `page`) and a `target`. `check_sla_clocks` fires
+each step once per clock, records it in `sla_escalations` and emits `sla.escalated`. A binding's
+`owner` column is what `reassign` writes.
+
+### Deferred
+
+- The `@bsb lifecycle` table tag for status, transitions and history. The existing `lifecycle`
+  table feature is about retention, so the tag needs its own name and parser work in
+  `src/cli/gen/table-tags.ts` and `src/sql/table-features.ts`.
+- A `late` flag on state machine contributions. The `bsb_transition_<name>` trigger can't be
+  created from the state machine's build on tables of later modules (contracts 125, dispatch
+  123), so contracts and dispatch can't contribute machines until the trigger is created from
+  the contributing module.
+- Cases, inbox, tasks and orders transitions. Cases set their status from another trigger, and
+  the `UPDATE OF` transition trigger doesn't fire for it.
+- SLA clock start and stop per state from the tag. Bindings (`on.<type>.pause` and `resolve`)
+  keep doing this.
