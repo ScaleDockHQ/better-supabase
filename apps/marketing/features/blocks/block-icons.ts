@@ -348,6 +348,7 @@ export const BLOCK_ICONS = {
   rfqs: FileQuestionMarkIcon,
   tills: CoinsIcon,
   "clinical-decision-support": ShieldAlertIcon,
+  "e-prescribing": FileSignatureIcon,
   "care-plans": ClipboardPlusIcon,
   // Database primitives
   "updated-at": ClockIcon,

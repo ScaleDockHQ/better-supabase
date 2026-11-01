@@ -14,6 +14,11 @@ import type {
 } from "../blocks/clinical-decision-support/clinical-decision-support.ts";
 import type { DriveTextFile, TextExtractor } from "../blocks/drive/extract.ts";
 import type {
+  PrescribedOrder,
+  PrescriptionGateway,
+  Prescription,
+} from "../blocks/e-prescribing/e-prescribing.ts";
+import type {
   FundingClaim,
   FundingClaimChannel,
   FundingClaimFormat,
@@ -34,6 +39,7 @@ import type {
 import type { EveDocumentBackend } from "../eve/eve.ts";
 import type { Check, ConformanceReport } from "./conformance.ts";
 
+import { toFhirPrescription } from "../fhir/prescriptions.ts";
 import {
   CARE_ALERT_KINDS,
   CARE_ALERT_SEVERITIES,
@@ -835,4 +841,69 @@ export function testClinicalDecisionSupport(
   ];
 
   return conform(`ClinicalDecisionSupport "${engine.key}"`, checks);
+}
+
+export interface TestPrescriptionGatewayOptions {
+  /** A signed prescription the gateway delivers. */
+  readonly prescription: Prescription & { readonly order: PrescribedOrder };
+}
+
+/**
+ * Proves a `PrescriptionGateway` has a key the block accepts, delivers
+ * `options.prescription` with its FHIR R4 `MedicationRequest` and answers with
+ * a reference of at most 200 characters (or none), delivers it twice without
+ * throwing (a retry after a failure is normal), and, when it can cancel,
+ * cancels a prescription it took.
+ */
+export function testPrescriptionGateway(
+  gateway: PrescriptionGateway,
+  options: TestPrescriptionGatewayOptions,
+): Promise<ConformanceReport> {
+  const { prescription } = options;
+  const medicationRequest = toFhirPrescription(prescription);
+
+  const checks: Check[] = [
+    hasApiVersion(gateway),
+    [
+      "has a key the block accepts",
+      () => {
+        expect(
+          gateway.key.trim() !== "" && gateway.key.length <= 100,
+          `key "${gateway.key}" must be 1 to 100 characters`,
+        );
+      },
+    ],
+    [
+      "delivers a prescription and answers a bounded reference",
+      async () => {
+        const receipt = await gateway.deliver(
+          { prescription, medicationRequest },
+          {},
+        );
+
+        expect(
+          (receipt.reference ?? "").length <= 200,
+          "a reference has at most 200 characters",
+        );
+      },
+    ],
+    [
+      "delivers the same prescription twice",
+      async () => {
+        await gateway.deliver({ prescription, medicationRequest }, {});
+        await gateway.deliver({ prescription, medicationRequest }, {});
+      },
+    ],
+  ];
+
+  if (gateway.cancel !== undefined) {
+    checks.push([
+      "cancels a prescription it took",
+      async () => {
+        await gateway.cancel?.({ prescription, reason: "conformance" }, {});
+      },
+    ]);
+  }
+
+  return conform(`PrescriptionGateway "${gateway.key}"`, checks);
 }

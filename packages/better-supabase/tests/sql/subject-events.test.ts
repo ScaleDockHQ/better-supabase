@@ -244,6 +244,12 @@ const SUBJECT_EVENTS = [
   "care_alert.raised",
   "care_alert.decided",
   "care_alert.resolved",
+  "prescription.created",
+  "prescription.signed",
+  "prescription.sent",
+  "prescription.delivery_failed",
+  "prescription.dispensed",
+  "prescription.cancelled",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**
