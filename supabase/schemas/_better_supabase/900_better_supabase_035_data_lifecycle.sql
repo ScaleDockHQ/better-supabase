@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
--- @bsb-block data-lifecycle@8 managed
--- @bsb-hash sha256:1710cc7e5d8a921751d954dc2528a5f6d469f18fd12087d8226a8466d4bd5856
+-- @bsb-block data-lifecycle@9 managed
+-- @bsb-hash sha256:8ddeb15d8a28bbaf7283057bd3953be953946c62a0364ac073f47629f242196a
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -49,6 +49,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."retention_policies";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."retention_policies";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."retention_policies";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."data_subject_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."data_subject_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."data_subject_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."data_subject_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."data_subject_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -384,6 +392,318 @@ grant execute on function "better_supabase"."place_legal_hold"(text, uuid, text)
 grant execute on function "better_supabase"."release_legal_hold"(uuid) to service_role;
 grant execute on function "better_supabase"."list_legal_holds"(boolean) to service_role;
 
+-- One row per data subject request (GDPR Arts. 15 to 20). due_at is 30 days
+-- after receipt; extended_at records the single extension of two months.
+create table if not exists "better_supabase"."data_subject_requests" (
+  "id" uuid primary key default gen_random_uuid(),
+  "organization_id" uuid not null,
+  "kind" text not null check ("kind" in ('access', 'erasure', 'rectification', 'portability')),
+  "requester" text not null check (length("requester") between 1 and 320),
+  "subject_type" text,
+  "subject_id" text,
+  "details" text check ("details" is null or length("details") <= 5000),
+  "status" text not null default 'received' check ("status" in ('received', 'verified', 'fulfilled', 'refused')),
+  "received_at" timestamptz not null default now(),
+  "received_by" uuid,
+  "due_at" timestamptz not null,
+  "extended_at" timestamptz,
+  "extension_reason" text,
+  "verified_at" timestamptz,
+  "verified_by" uuid,
+  "verification_method" text,
+  "export_id" uuid,
+  "resolution" text,
+  "closed_at" timestamptz,
+  "closed_by" uuid,
+  check (("subject_type" is null) = ("subject_id" is null))
+);
+create index if not exists data_subject_requests_open_idx on "better_supabase"."data_subject_requests" ("organization_id", "due_at") where "closed_at" is null;
+alter table "better_supabase"."data_subject_requests" enable row level security;
+revoke all on "better_supabase"."data_subject_requests" from public, anon, authenticated;
+grant all on "better_supabase"."data_subject_requests" to service_role;
+
+-- Opens a request: kind is access, erasure, rectification or portability;
+-- requester says who asked (an email address or a name). A request about a
+-- record names it with subject_type and subject_id, which an access or
+-- portability request needs to be fulfilled through the record export.
+create or replace function "better_supabase"."open_data_subject_request"(tenant uuid, kind text, requester text, subject_type text default null, subject_id text default null, details text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."data_subject_requests";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_data_subject_request.tenant, 'data_lifecycle.export'), false)) then
+    raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
+  end if;
+  if open_data_subject_request.kind is null or open_data_subject_request.kind not in ('access', 'erasure', 'rectification', 'portability') then
+    raise exception 'kind must be access, erasure, rectification or portability' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+  if open_data_subject_request.requester is null or length(trim(open_data_subject_request.requester)) = 0 then
+    raise exception 'requester is required' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+  if (open_data_subject_request.subject_type is null) <> (open_data_subject_request.subject_id is null) then
+    raise exception 'subject_type and subject_id go together' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+  insert into "better_supabase"."data_subject_requests" ("organization_id", "kind", "requester", "subject_type", "subject_id", "details", "received_by", "due_at")
+  values (open_data_subject_request.tenant, open_data_subject_request.kind, trim(open_data_subject_request.requester), open_data_subject_request.subject_type, open_data_subject_request.subject_id, open_data_subject_request.details, auth.uid(), now() + interval '30 days')
+  returning * into v_row;
+  perform "better_supabase".emit_event('data_subject_request.received', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
+  perform better_supabase.audit_event(
+    event_type => 'data_subject_request.received',
+    category => 'data',
+    target_type => 'data_subject_request',
+    record_id => v_row."id"::text,
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
+  );
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Records that the requester's identity was checked (Art. 12(6)); method says
+-- how, for example "signed in" or "ID document".
+create or replace function "better_supabase"."verify_data_subject_request"(id uuid, method text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."data_subject_requests";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."data_subject_requests" x where x."id" = verify_data_subject_request.id for update;
+  if v_row."id" is null then
+    raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'data_lifecycle.export'), false)) then
+    raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
+  end if;
+  if v_row."closed_at" is not null then
+    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+  end if;
+  if verify_data_subject_request.method is null or length(trim(verify_data_subject_request.method)) = 0 then
+    raise exception 'method is required' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+  update "better_supabase"."data_subject_requests" x set "status" = 'verified', "verified_at" = now(), "verified_by" = auth.uid(), "verification_method" = trim(verify_data_subject_request.method)
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('data_subject_request.verified', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
+  perform better_supabase.audit_event(
+    event_type => 'data_subject_request.verified',
+    category => 'data',
+    target_type => 'data_subject_request',
+    record_id => v_row."id"::text,
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
+  );
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Extends the due date by two months, once, when the request is complex or
+-- there are many of them (Art. 12(3)). The reason is kept for the requester.
+create or replace function "better_supabase"."extend_data_subject_request"(id uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."data_subject_requests";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."data_subject_requests" x where x."id" = extend_data_subject_request.id for update;
+  if v_row."id" is null then
+    raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'data_lifecycle.export'), false)) then
+    raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
+  end if;
+  if v_row."closed_at" is not null then
+    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+  end if;
+  if v_row."extended_at" is not null then
+    raise exception 'the due date was already extended once' using errcode = '55000', hint = 'DSAR_EXTENDED';
+  end if;
+  if extend_data_subject_request.reason is null or length(trim(extend_data_subject_request.reason)) = 0 then
+    raise exception 'reason is required' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+  update "better_supabase"."data_subject_requests" x set "due_at" = x."received_at" + interval '3 months', "extended_at" = now(), "extension_reason" = trim(extend_data_subject_request.reason)
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('data_subject_request.extended', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
+  perform better_supabase.audit_event(
+    event_type => 'data_subject_request.extended',
+    category => 'data',
+    target_type => 'data_subject_request',
+    record_id => v_row."id"::text,
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
+  );
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Fulfils a verified request. Access and portability start the NDJSON export
+-- of the named record (request_subject_export) and keep its id; the export job
+-- writes the files. Erasure refuses while a legal hold covers every kind of
+-- record and otherwise records that the app deleted or anonymized the data;
+-- rectification records what changed. resolution is required for both.
+create or replace function "better_supabase"."fulfil_data_subject_request"(id uuid, resolution text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."data_subject_requests";
+  v_export jsonb;
+  v_export_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."data_subject_requests" x where x."id" = fulfil_data_subject_request.id for update;
+  if v_row."id" is null then
+    raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'data_lifecycle.export'), false)) then
+    raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
+  end if;
+  if v_row."closed_at" is not null then
+    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+  end if;
+  if v_row."verified_at" is null then
+    raise exception 'verify the requester''s identity first' using errcode = '55000', hint = 'DSAR_UNVERIFIED';
+  end if;
+  if v_row."kind" in ('access', 'portability') then
+    if v_row."subject_type" is null then
+      raise exception 'an access or portability request names the record to export' using errcode = '22023', hint = 'DSAR_INVALID';
+    end if;
+    v_export := "better_supabase"."request_subject_export"(v_row."subject_type", v_row."subject_id", 'ndjson');
+    v_export_id := (v_export ->> 'id')::uuid;
+  else
+    if fulfil_data_subject_request.resolution is null or length(trim(fulfil_data_subject_request.resolution)) = 0 then
+      raise exception 'resolution is required' using errcode = '22023', hint = 'DSAR_INVALID';
+    end if;
+    if v_row."kind" = 'erasure' and "better_supabase"."is_held"('data_subject_request', v_row."organization_id"::text) then
+      raise exception 'a legal hold stops the erasure; refuse the request with its reason' using errcode = '55000', hint = 'DSAR_HELD';
+    end if;
+  end if;
+  update "better_supabase"."data_subject_requests" x set "status" = 'fulfilled', "closed_at" = now(), "closed_by" = auth.uid(), "export_id" = v_export_id, "resolution" = nullif(trim(fulfil_data_subject_request.resolution), '')
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('data_subject_request.fulfilled', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
+  perform better_supabase.audit_event(
+    event_type => 'data_subject_request.fulfilled',
+    category => 'data',
+    target_type => 'data_subject_request',
+    record_id => v_row."id"::text,
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
+  );
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Refuses a request with its reason (Art. 12(4)): the requester gets it with
+-- the right to complain to the supervisory authority.
+create or replace function "better_supabase"."refuse_data_subject_request"(id uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."data_subject_requests";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."data_subject_requests" x where x."id" = refuse_data_subject_request.id for update;
+  if v_row."id" is null then
+    raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'data_lifecycle.export'), false)) then
+    raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
+  end if;
+  if v_row."closed_at" is not null then
+    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+  end if;
+  if refuse_data_subject_request.reason is null or length(trim(refuse_data_subject_request.reason)) = 0 then
+    raise exception 'reason is required' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+  update "better_supabase"."data_subject_requests" x set "status" = 'refused', "closed_at" = now(), "closed_by" = auth.uid(), "resolution" = trim(refuse_data_subject_request.reason)
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('data_subject_request.refused', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
+  perform better_supabase.audit_event(
+    event_type => 'data_subject_request.refused',
+    category => 'data',
+    target_type => 'data_subject_request',
+    record_id => v_row."id"::text,
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
+  );
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- The organization's requests, the nearest due date first. status filters by
+-- status; open_only leaves out fulfilled and refused ones. overdue is true for
+-- an open request past its due date.
+create or replace function "better_supabase"."list_data_subject_requests"(tenant uuid, status text default null, open_only boolean default false)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_data_subject_requests.tenant, 'data_lifecycle.export'), false)) then
+    raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(to_jsonb(x.*) || jsonb_build_object('overdue', x."closed_at" is null and x."due_at" < now()) order by x."due_at", x."id")
+    from "better_supabase"."data_subject_requests" x
+    where x."organization_id" = list_data_subject_requests.tenant
+      and (list_data_subject_requests.status is null or x."status" = list_data_subject_requests.status)
+      and (not list_data_subject_requests.open_only or x."closed_at" is null)
+  ), '[]'::jsonb);
+end;
+$$;
+
+revoke execute on function "better_supabase"."open_data_subject_request"(uuid, text, text, text, text, text) from public, anon;
+revoke execute on function "better_supabase"."verify_data_subject_request"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."extend_data_subject_request"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."fulfil_data_subject_request"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."refuse_data_subject_request"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."list_data_subject_requests"(uuid, text, boolean) from public, anon;
+grant execute on function "better_supabase"."open_data_subject_request"(uuid, text, text, text, text, text) to authenticated, service_role;
+grant execute on function "better_supabase"."verify_data_subject_request"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."extend_data_subject_request"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."fulfil_data_subject_request"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."refuse_data_subject_request"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."list_data_subject_requests"(uuid, text, boolean) to authenticated, service_role;
+
+
 
 -- The tables a restore may write, from the same list an export reads. Each
 -- entry: name, tenantColumn, columns (writable and not omitted from exports),
@@ -654,6 +974,9 @@ as $$
     ('user', 'better_supabase.employee_private_details', '"better_supabase"."employee_private_details"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.moderation_reports', '"better_supabase"."moderation_reports"', 'reporter_id', true, '{}'::text[], true),
     ('user', 'better_supabase.moderation_bans', '"better_supabase"."moderation_bans"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.moderation_notices', '"better_supabase"."moderation_notices"', 'notifier_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.moderation_flaggers', '"better_supabase"."moderation_flaggers"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.moderation_appeals', '"better_supabase"."moderation_appeals"', 'appellant_id', true, '{}'::text[], true),
     ('user', 'better_supabase.assets', '"better_supabase"."assets"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.score_models', '"better_supabase"."score_models"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.score_model_versions', '"better_supabase"."score_model_versions"', 'saved_by', true, '{}'::text[], true),
@@ -669,6 +992,7 @@ as $$
     ('user', 'better_supabase.contracts', '"better_supabase"."contracts"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.control_evidence', '"better_supabase"."control_evidence"', 'collected_by', true, '{}'::text[], true),
     ('user', 'better_supabase.incident_updates', '"better_supabase"."incident_updates"', 'author_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.incident_regulatory_filings', '"better_supabase"."incident_regulatory_filings"', 'submitted_by', true, '{}'::text[], true),
     ('user', 'better_supabase.courses', '"better_supabase"."courses"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.course_lesson_progress', '"better_supabase"."course_lesson_progress"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.course_certificates', '"better_supabase"."course_certificates"', 'user_id', true, '{}'::text[], true),
@@ -690,6 +1014,7 @@ as $$
     ('user', 'better_supabase.shift_availability', '"better_supabase"."shift_availability"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.acknowledgements', '"better_supabase"."acknowledgements"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.acknowledgement_notices', '"better_supabase"."acknowledgement_notices"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.consent_signals', '"better_supabase"."consent_signals"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.observations', '"better_supabase"."observations"', 'performer_id', true, '{}'::text[], true),
     ('user', 'better_supabase.care_plan_evaluations', '"better_supabase"."care_plan_evaluations"', 'author_id', true, '{}'::text[], true),
     ('user', 'better_supabase.inspection_members', '"better_supabase"."inspection_members"', 'user_id', true, '{}'::text[], true),
@@ -749,6 +1074,7 @@ as $$
     ('organization', 'better_supabase.attachment_document_types', '"better_supabase"."attachment_document_types"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.attachment_versions', '"better_supabase"."attachment_versions"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.retention_policies', '"better_supabase"."retention_policies"', 'organization_id', true, '{}'::text[], false),
+    ('organization', 'better_supabase.data_subject_requests', '"better_supabase"."data_subject_requests"', 'organization_id', true, '{}'::text[], false),
     ('organization', 'better_supabase.sso_domains', '"better_supabase"."sso_domains"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.sso_providers', '"better_supabase"."sso_providers"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.scim_users', '"better_supabase"."scim_users"', 'organization_id', true, '{}'::text[], true),
@@ -974,6 +1300,10 @@ as $$
     ('organization', 'better_supabase.moderation_reports', '"better_supabase"."moderation_reports"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.moderation_actions', '"better_supabase"."moderation_actions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.moderation_bans', '"better_supabase"."moderation_bans"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.moderation_statements', '"better_supabase"."moderation_statements"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.moderation_notices', '"better_supabase"."moderation_notices"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.moderation_flaggers', '"better_supabase"."moderation_flaggers"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.moderation_appeals', '"better_supabase"."moderation_appeals"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.automations', '"better_supabase"."automations"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.automation_versions', '"better_supabase"."automation_versions"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.automation_evaluations', '"better_supabase"."automation_evaluations"', 'organization_id', true, '{}'::text[], true),
@@ -1020,6 +1350,8 @@ as $$
     ('organization', 'better_supabase.incident_impacts', '"better_supabase"."incident_impacts"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.incident_postmortems', '"better_supabase"."incident_postmortems"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.incident_postmortem_actions', '"better_supabase"."incident_postmortem_actions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.incident_regulatory_profiles', '"better_supabase"."incident_regulatory_profiles"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.incident_regulatory_filings', '"better_supabase"."incident_regulatory_filings"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.incident_status_pages', '"better_supabase"."incident_status_pages"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.courses', '"better_supabase"."courses"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.course_modules', '"better_supabase"."course_modules"', 'tenant_id', true, '{}'::text[], true),
@@ -1089,6 +1421,8 @@ as $$
     ('organization', 'better_supabase.acknowledgement_notices', '"better_supabase"."acknowledgement_notices"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.consent_purposes', '"better_supabase"."consent_purposes"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.consents', '"better_supabase"."consents"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.consent_signals', '"better_supabase"."consent_signals"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.consent_receipts', '"better_supabase"."consent_receipts"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.observation_definitions', '"better_supabase"."observation_definitions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.observations', '"better_supabase"."observations"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.medications', '"better_supabase"."medications"', 'tenant_id', true, '{}'::text[], true),
@@ -1947,6 +2281,11 @@ begin
     v_parts := v_parts || jsonb_build_object('better_supabase.moderation_items', v_rows);
   end if;
   select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."moderation_notices" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.moderation_notices', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
   from "better_supabase"."automation_evaluations" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."organization_id"::text = v_tenant::text);
   if jsonb_array_length(v_rows) > 0 then
     v_parts := v_parts || jsonb_build_object('better_supabase.automation_evaluations', v_rows);
@@ -2030,6 +2369,16 @@ begin
   from "better_supabase"."consents" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
   if jsonb_array_length(v_rows) > 0 then
     v_parts := v_parts || jsonb_build_object('better_supabase.consents', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."consent_signals" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.consent_signals', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."consent_receipts" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.consent_receipts', v_rows);
   end if;
   select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
   from "better_supabase"."observations" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
@@ -2680,6 +3029,60 @@ set search_path = ''
 as $$ select "better_supabase"."list_legal_holds"($1) $$;
 revoke execute on function "api"."list_legal_holds"(boolean) from public, anon, authenticated;
 grant execute on function "api"."list_legal_holds"(boolean) to service_role;
+
+create or replace function "api"."open_data_subject_request"(tenant uuid, kind text, requester text, subject_type text default null, subject_id text default null, details text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."open_data_subject_request"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."open_data_subject_request"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "api"."open_data_subject_request"(uuid, text, text, text, text, text) to authenticated, service_role;
+
+create or replace function "api"."verify_data_subject_request"(id uuid, method text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."verify_data_subject_request"($1, $2) $$;
+revoke execute on function "api"."verify_data_subject_request"(uuid, text) from public, anon;
+grant execute on function "api"."verify_data_subject_request"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."extend_data_subject_request"(id uuid, reason text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."extend_data_subject_request"($1, $2) $$;
+revoke execute on function "api"."extend_data_subject_request"(uuid, text) from public, anon;
+grant execute on function "api"."extend_data_subject_request"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."fulfil_data_subject_request"(id uuid, resolution text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."fulfil_data_subject_request"($1, $2) $$;
+revoke execute on function "api"."fulfil_data_subject_request"(uuid, text) from public, anon;
+grant execute on function "api"."fulfil_data_subject_request"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."refuse_data_subject_request"(id uuid, reason text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."refuse_data_subject_request"($1, $2) $$;
+revoke execute on function "api"."refuse_data_subject_request"(uuid, text) from public, anon;
+grant execute on function "api"."refuse_data_subject_request"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."list_data_subject_requests"(tenant uuid, status text default null, open_only boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_data_subject_requests"($1, $2, $3) $$;
+revoke execute on function "api"."list_data_subject_requests"(uuid, text, boolean) from public, anon;
+grant execute on function "api"."list_data_subject_requests"(uuid, text, boolean) to authenticated, service_role;
 
 create or replace function "api"."data_restore_tables"()
 returns jsonb

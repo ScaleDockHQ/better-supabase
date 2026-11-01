@@ -208,6 +208,57 @@ incident never shows on the page.
 | `statusPage(organizationId)`               | the organization's page, or `undefined`       |
 | `publicStatusPage(slug, days)`             | the public page, or `undefined`               |
 
+## Regulatory reporting
+
+An incident can carry a reporting profile for the regimes that set deadlines
+for it: NIS2 (Directive (EU) 2022/2555), DORA (Regulation (EU) 2022/2554) and
+the Cyber Resilience Act (Regulation (EU) 2024/2847). The pins are in
+`SPEC_PINS.euNis2`, `SPEC_PINS.euDora` and `SPEC_PINS.euCra`.
+
+```ts
+const profile = await db.incidents
+  .saveRegulatoryProfile(incident.id, {
+    regimes: ["nis2", "cra"],
+    awareAt: Temporal.Instant.from("2026-11-01T09:00:00Z"),
+    activelyExploited: true,
+  })
+  .orThrow();
+
+await db.incidents
+  .submitFiling(incident.id, "nis2", "early_warning", {
+    reference: "CSIRT-2026-0412",
+  })
+  .orThrow();
+```
+
+`saveRegulatoryProfile` plans one filing per deadline from `awareAt`:
+
+| Regime | Stage         | Due                                                                            |
+| ------ | ------------- | ------------------------------------------------------------------------------ |
+| NIS2   | early_warning | 24 hours after awareness                                                       |
+| NIS2   | notification  | 72 hours after awareness                                                       |
+| NIS2   | final         | one month after the notification was submitted                                 |
+| DORA   | initial       | 24 hours after awareness, or 4 hours after a `major` classification, if sooner |
+| DORA   | intermediate  | 72 hours after the initial report                                              |
+| DORA   | final         | one month after the intermediate report                                        |
+| CRA    | early_warning | 24 hours after awareness of an actively exploited vulnerability                |
+| CRA    | notification  | 72 hours after awareness                                                       |
+| CRA    | final         | 14 days after `measureAvailableAt`, once you set it                            |
+
+`submitFiling` records when the report went out, who sent it and the
+reference the authority gave, and moves the next stage's deadline to count
+from the submission. `filings(organizationId)` lists the open deadlines, the
+earliest first.
+
+With the reminders block installed, each open deadline is also a reminder for
+the incident's commander (or the person who saved the profile), two hours
+before it is due. The incidents block does not require reminders: without it
+the deadlines are stored and listed, and nothing is scheduled. Reading needs
+`incidents.read`, and saving a profile or a submission needs `incidents.write`.
+
+The module plans the deadlines the regulations name. Whether an incident is
+significant, major or reportable is your decision, and the profile stores it.
+
 ## Errors
 
 | Hint                                   | Cause                                                                                      |
@@ -219,12 +270,14 @@ incident never shows on the page.
 | `INCIDENT_POSTMORTEM_NOT_FOUND`        | the incident has no postmortem                                                             |
 | `INCIDENT_POSTMORTEM_ACTION_NOT_FOUND` | no postmortem action item with this id                                                     |
 | `INCIDENT_NOT_RESOLVED`                | the postmortem of an unresolved incident can't be published                                |
+| `INCIDENT_FILING_NOT_FOUND`            | no filing is planned for this regime and stage                                             |
 | `STATUS_PAGE_SLUG_TAKEN`               | another organization uses this slug                                                        |
 
 ## Events
 
 `incident.opened`, `incident.updated`, `incident.resolved`,
-`incident_postmortem.published` and `status_component.changed`. The
+`incident_postmortem.published`, `incident_profile.updated`,
+`incident_filing.submitted` and `status_component.changed`. The
 [events page](/docs/extending/events) lists their payloads.
 
 ## Without the client

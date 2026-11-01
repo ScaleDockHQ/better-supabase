@@ -38,6 +38,27 @@ import {
 } from "better-supabase/blocks/mfa";
 ```
 
+## Passkeys
+
+Supabase Auth supports WebAuthn as a factor (`SPEC_PINS.webauthn`). When the
+client you pass to the controllers has `auth.mfa.webauthn`, `registerPasskey`
+registers a passkey and `verifyPasskey` asks for it during step-up. Both take
+`rpId`, `rpOrigins` and an abort `signal`, which default to the page's hostname
+and origin, and both return a `Result`.
+
+```ts
+const mfa = createMfaController(supabase);
+const result = await mfa.actions.registerPasskey({ name: "Laptop" });
+
+const stepUp = createStepUpController(supabase);
+await stepUp.actions.verifyPasskey();
+```
+
+A client without WebAuthn support returns the `MFA_PASSKEYS_UNSUPPORTED` error
+instead of throwing, and the TOTP actions keep working. The block's SQL does not
+change: a passkey that completes the challenge raises the session to `aal2`, which
+`mfa_satisfied()` already checks.
+
 The [MFA setup recipe](/docs/registry/ui-recipes/mfa-setup) renders
 enrollment with your shadcn components. [MFA and SSO](/docs/auth/mfa-sso)
 covers the Auth settings and step-up flows.

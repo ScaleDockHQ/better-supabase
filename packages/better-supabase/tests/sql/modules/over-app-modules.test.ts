@@ -120,6 +120,8 @@ const MODULES = [
   "tills",
   "clinical-decision-support",
   "e-prescribing",
+  "agent-checkout",
+  "advisories",
   "manufacturing",
   "legal-entities",
   "document-templates",

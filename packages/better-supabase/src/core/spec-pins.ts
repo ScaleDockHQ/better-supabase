@@ -71,6 +71,23 @@ export const SPEC_PINS: {
   /** FHIR R4 release whose base resources `better-supabase/fhir` maps to. */
   readonly fhirR4: "4.0.1";
   /**
+   * CycloneDX 1.4 to 1.7 JSON BOMs the advisories block imports; this is the
+   * newest.
+   */
+  readonly cyclonedx: "1.7";
+  /** OASIS CSAF release `renderCsaf` and the `/.well-known/csaf` handler write. */
+  readonly csaf: "2.0";
+  /** OpenVEX release `renderOpenVex` writes. */
+  readonly openvex: "0.2.0";
+  /** OSV schema release the public vulnerability feed reads. */
+  readonly osv: "1.9.0";
+  /** CVSS release `parseCvss` scores. */
+  readonly cvss: "3.1";
+  /** CVSS release `parseCvss` validates and parses without scoring. */
+  readonly cvss4: "4.0";
+  /** EPSS model release behind the scores the public feed reads. */
+  readonly epss: "v5";
+  /**
    * OASIS UBL release whose Invoice and CreditNote
    * `better-supabase/e-invoicing` writes and reads.
    */
@@ -154,11 +171,93 @@ export const SPEC_PINS: {
    * follow.
    */
   readonly shadcnRegistry: "4.21.4";
+  /** IMS LTI 1.3 core, the launch `verifyLtiLaunch` checks. */
+  readonly lti: "1.3";
+  /** IEEE 9274.1.1 xAPI, the statements the courses block writes. */
+  readonly xapi: "2.0.0";
+  /** 1EdTech Open Badges, the credential the courses export writes. */
+  readonly openBadges: "3.0.3";
+  /** HL7 SMART App Launch, the launch `createSmartLaunch` runs. */
+  readonly smartAppLaunch: "2.2.0";
+  /** HL7 CDS Hooks, the service API `createCdsHooksServer` serves. */
+  readonly cdsHooks: "2.0";
+  /** Berlin Group NextGenPSD2 XS2A framework, read by `berlinGroupFeed`. */
+  readonly berlinGroupXs2a: "1.3.12";
+  /** C2PA technical specification, the manifest a `C2paReader` reports on. */
+  readonly c2pa: "2.2";
+  /** W3C ODRL Information Model, the policy the DAM exports. */
+  readonly odrl: "2.2";
+  /** Sitemaps.org protocol, the sitemaps the content block writes. */
+  readonly sitemaps: "0.9";
+  /**
+   * RFC 9309 Robots Exclusion Protocol, the `robots.txt` the content block
+   * writes.
+   */
+  readonly rfc9309: "2022-09";
+  /** W3C JSON-LD, the structured data the content block writes. */
+  readonly jsonLd: "1.1";
+  /** RFC 6350 vCard 4.0 that the contacts block imports and exports. */
+  readonly rfc6350: "2011-08";
+  /**
+   * OpenID for Verifiable Credential Issuance, the verifiable-credentials
+   * issuer.
+   */
+  readonly openid4vci: "1.0";
+  /** OpenID for Verifiable Presentations, the verifiable-credentials verifier. */
+  readonly openid4vp: "1.0";
+  /**
+   * RFC 9901 Selective Disclosure for JWTs, as the verifiable-credentials block
+   * writes and reads.
+   */
+  readonly sdJwt: "RFC 9901";
+  /** SD-JWT-based Verifiable Credentials (`dc+sd-jwt`). */
+  readonly sdJwtVc: "draft-19";
+  /** IETF Token Status List the SD-JWT VC status reference points at. */
+  readonly tokenStatusList: "draft-21";
+  /** W3C Verifiable Credentials Data Model, the `jwt_vc_json` payload. */
+  readonly vcDataModel: "2.0";
+  /** W3C Bitstring Status List, the revocation list of a W3C credential. */
+  readonly bitstringStatusList: "1.0";
+  /** W3C Web Authentication Level 3, the passkey factor of the mfa block. */
+  readonly webauthn: "3";
   /**
    * The TypeScript 7.1 content mapper protocol version (7.1.0-beta) that
    * `better-supabase/mapper` speaks.
    */
   readonly typescriptContentMapper: "1";
+  /** Agentic Commerce Protocol revision the `agent-checkout` sessions follow. */
+  readonly acp: "2026-04-17";
+  /** Universal Commerce Protocol revision the `agent-checkout` sessions follow. */
+  readonly ucp: "2026-08-25";
+  /** Agent Payments Protocol release behind the `agent-checkout` mandates. */
+  readonly ap2: "0.2";
+  /** X402 protocol version of the `PAYMENT-REQUIRED` helpers. */
+  readonly x402: "2";
+  /** A2A protocol version of the Agent Card and the task endpoint. */
+  readonly a2a: "1.0";
+  /** WebMCP Draft Community Group Report (30 September 2026) behind `webmcp`. */
+  readonly webmcp: "CG-2026-09-30";
+  /** Regulation (EU) 2022/2065 (Digital Services Act), OJ L 277, 27.10.2022. */
+  readonly euDsa: "2022/2065";
+  /** Directive (EU) 2022/2555 (NIS2), OJ L 333, 27.12.2022. */
+  readonly euNis2: "2022/2555";
+  /** Regulation (EU) 2022/2554 (DORA), OJ L 333, 27.12.2022. */
+  readonly euDora: "2022/2554";
+  /** Regulation (EU) 2024/2847 (Cyber Resilience Act), OJ L, 20.11.2024. */
+  readonly euCra: "2024/2847";
+  /** Regulation (EU) 2016/679 (GDPR), OJ L 119, 4.5.2016. */
+  readonly euGdpr: "2016/679";
+  /** W3C Global Privacy Control, Working Draft of 24 September 2026. */
+  readonly gpc: "WD-20260924";
+  /** IAB Europe Transparency and Consent Framework release (TC String v2). */
+  readonly iabTcf: "2.2";
+  /** IAB Tech Lab Global Privacy Platform string specification. */
+  readonly iabGpp: "1.1";
+  /**
+   * NIST OSCAL release whose catalog, profile and assessment-results models are
+   * read and written.
+   */
+  readonly oscal: "1.2.3";
 } = {
   otelSemconv: "1.37.0",
   otlp: "1.7.0",
@@ -203,6 +302,13 @@ export const SPEC_PINS: {
   mt940: "SR2025",
   iso11649: "2009",
   fhirR4: "4.0.1",
+  cyclonedx: "1.7",
+  csaf: "2.0",
+  openvex: "0.2.0",
+  osv: "1.9.0",
+  cvss: "3.1",
+  cvss4: "4.0",
+  epss: "v5",
   ubl: "2.1",
   en16931: "EN 16931-1:2017",
   peppolBisBilling: "3.0",
@@ -224,5 +330,40 @@ export const SPEC_PINS: {
   rfc9700: "2025-01",
   ratelimitHeaders: "draft-11",
   shadcnRegistry: "4.21.4",
+  lti: "1.3",
+  xapi: "2.0.0",
+  openBadges: "3.0.3",
+  smartAppLaunch: "2.2.0",
+  cdsHooks: "2.0",
+  berlinGroupXs2a: "1.3.12",
+  c2pa: "2.2",
+  odrl: "2.2",
+  sitemaps: "0.9",
+  rfc9309: "2022-09",
+  jsonLd: "1.1",
+  rfc6350: "2011-08",
+  openid4vci: "1.0",
+  openid4vp: "1.0",
+  sdJwt: "RFC 9901",
+  sdJwtVc: "draft-19",
+  tokenStatusList: "draft-21",
+  vcDataModel: "2.0",
+  bitstringStatusList: "1.0",
+  webauthn: "3",
   typescriptContentMapper: "1",
+  acp: "2026-04-17",
+  ucp: "2026-08-25",
+  ap2: "0.2",
+  x402: "2",
+  a2a: "1.0",
+  webmcp: "CG-2026-09-30",
+  euDsa: "2022/2065",
+  euNis2: "2022/2555",
+  euDora: "2022/2554",
+  euCra: "2024/2847",
+  euGdpr: "2016/679",
+  gpc: "WD-20260924",
+  iabTcf: "2.2",
+  iabGpp: "1.1",
+  oscal: "1.2.3",
 };

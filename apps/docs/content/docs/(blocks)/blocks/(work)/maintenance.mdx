@@ -147,3 +147,36 @@ await db.maintenance
 
 The hooks are `before_maintenance_plan_create` and
 `after_maintenance_plan_create`.
+
+## Telemetry ingest
+
+A gateway can post readings instead of a person calling `recordReading`. The
+ingest helpers map devices to meters and write the highest reading per meter.
+A meter still refuses a reading that goes down.
+
+```ts
+import {
+  createMaintenance,
+  createTelemetryHandler,
+} from "better-supabase/blocks/maintenance";
+
+const maintenance = createMaintenance({ transport, tenant: organizationId });
+
+export const POST = createTelemetryHandler({
+  maintenance,
+  authorize: async (request) => (await deviceKey(request)) !== undefined,
+  meterFor: (device, metric) => meters.get(`${device}:${metric}`),
+});
+```
+
+The body is `{ "points": [{ "device", "metric", "value", "time" }] }`, or an
+OTLP/HTTP JSON metrics export with `format: "otlp"` (gauge and sum points,
+the device from the `device.id` or `service.instance.id` resource attribute).
+The handler answers 401 before it reads the body, 413 for a large body, 400
+for a point that is not valid and 202 with `accepted`, `unmapped`, `updated`
+and `failures`. A meter that refuses a reading is listed under `failures` and
+does not stop the others. `authorize` has no default, because the endpoint
+writes to your maintenance data. Use `ingestTelemetry` to run the same logic
+from a queue, and `parseTelemetryPoints` or `parseOtlpMetrics` on their own.
+A meter's `assetId` ties its readings to an [asset](/docs/blocks/assets), so
+`meterFor` can look a device up from the asset it belongs to.

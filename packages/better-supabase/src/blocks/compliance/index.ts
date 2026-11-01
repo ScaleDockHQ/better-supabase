@@ -13,6 +13,9 @@ export {
   type Compliance,
   type ComplianceOptions,
   type ControlStatus,
+  type OscalCatalogImport,
+  type OscalDocument,
+  type OscalProfileResult,
   type EvidenceTask,
   type EvidenceTaskInput,
   type EvidenceTaskListOptions,
@@ -54,6 +57,7 @@ export { complianceEvents } from "./events.ts";
 
 export type {
   ControlEvidenceAddedEventData,
+  ControlFrameworkImportedEventData,
   ControlSavedEventData,
   ComplianceEvents,
   EvidenceTaskMissedEventData,

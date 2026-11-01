@@ -157,7 +157,7 @@ const verifyParams = (alg: VerifyAlgorithm) => {
 };
 
 /** The key type of a JWK: `OKP`/`Ed25519` or `EC`/`P-256`. */
-function jwkAlgorithm(jwk: Jwk): SigningAlgorithm | undefined {
+export function jwkAlgorithm(jwk: Jwk): SigningAlgorithm | undefined {
   if (jwk.kty === "OKP" && jwk.crv === "Ed25519") {
     return "Ed25519";
   }

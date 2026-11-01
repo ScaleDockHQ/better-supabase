@@ -1,0 +1,110 @@
+---
+title: AI guardrails
+description: Per-agent input and output policies with prompt-injection heuristics, PII redaction, topic deny lists and a tool depth limit, and a decision log.
+---
+
+The `ai-guardrails` block checks the text that goes into and comes out of an
+agent against a policy you store per agent. A check returns `allow`, `redact` or
+`block`, logs a block or a redaction, and records the `guardrail.blocked` event.
+It is a heuristic filter, not a complete defence: pair it with least-privilege
+tools and review.
+
+```bash
+better-supabase add ai-guardrails
+```
+
+| Table                 | Holds                                                                         |
+| --------------------- | ----------------------------------------------------------------------------- |
+| `guardrail_policies`  | The tenant (or none), agent (or `*`), stage, config and whether it is enabled |
+| `guardrail_decisions` | The decision, the reasons, the chat and a SHA-256 hash of the checked text    |
+
+The log keeps a hash and never the text, so it holds no user content. Only the
+service role reads or writes the tables.
+
+| Option      | Default | Sets                                                    |
+| ----------- | ------- | ------------------------------------------------------- |
+| `retention` | none    | How long decisions stay, such as `90 days`, for `purge` |
+
+## Set a policy
+
+```ts
+await guardrails.policies
+  .upsert(
+    "support",
+    "input",
+    {
+      injection: { action: "block" },
+      pii: { action: "redact", kinds: ["card", "iban", "email"] },
+      denyTopics: ["weapons", "self-harm"],
+    },
+    { organizationId },
+  )
+  .orThrow();
+
+await guardrails.policies
+  .upsert(
+    "support",
+    "output",
+    { pii: { action: "redact" }, maxToolDepth: 5 },
+    { organizationId },
+  )
+  .orThrow();
+```
+
+A policy for agent `*` applies to every agent without its own. A tenant's policy
+wins over the system policy of the same agent and stage.
+
+| Rule           | Checks                                                                              |
+| -------------- | ----------------------------------------------------------------------------------- |
+| `injection`    | Input only: instruction overrides, prompt extraction and forged roles (OWASP LLM01) |
+| `pii`          | Cards (Luhn), IBANs (mod 97), emails and phone numbers; `block`, `redact` or `flag` |
+| `denyTopics`   | Terms and phrases the agent never discusses                                         |
+| `maxToolDepth` | The deepest chain of tool calls in a run                                            |
+
+`flag` logs the reasons and lets the text through.
+
+## Check and wrap
+
+```ts
+const verdict = await guardrails
+  .check({ agent: "support", stage: "input", text, organizationId })
+  .orThrow();
+
+if (verdict.decision === "block") {
+  return refuse();
+}
+```
+
+`guardrailMiddleware(guardrails, { agent })` wraps one model step as a function
+from the user text and a `next(text)` that calls the model. It checks the input,
+passes the redacted text to `next`, checks the answer and returns the final
+text, or the `refusal` with `blockedAt`. The middleware reads and rewrites text
+only and never changes a repository `Result`. A check that cannot run (for
+example when the database is unreachable) blocks the stage unless you set
+`failOpen`. A failed log write never changes the decision.
+
+## Functions
+
+| Function                                                          | Who     |
+| ----------------------------------------------------------------- | ------- |
+| `set_guardrail_policy(agent, stage, config, tenant, enabled)`     | service |
+| `get_guardrail_policy(agent, stage, tenant)`                      | service |
+| `record_guardrail_decision(agent, stage, decision, reasons, ...)` | service |
+| `list_guardrail_decisions(tenant, agent, decision, limit)`        | service |
+| `purge_guardrail_decisions()`                                     | service |
+
+## Without the client
+
+```ts title="lib/guardrails.ts"
+import "server-only";
+
+import {
+  createAiGuardrails,
+  rpcTransport,
+} from "better-supabase/blocks/ai-guardrails";
+
+export const guardrails = createAiGuardrails({
+  transport: rpcTransport(bsb.admin().$client, { schema: "api" }),
+  schema: "api",
+});
+```

@@ -297,6 +297,18 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0181: Warehouse suggests putaway and slotting, orders pick routes through the RouteOptimizer port and closes the picking task.
 - 0182: Invoices keep Peppol participant ids and one delivery log behind one `EInvoiceChannel` port in `better-supabase/e-invoicing` (amends 0151, 0159; supersedes 0175).
 - 0183: Prompts are versioned templates behind labels, read as the service role.
+- 0184: `ai-evals` runs datasets against a prompt version and a model, scores with ports and compares runs; ai-chat feedback feeds datasets.
+- 0185: `ai-guardrails` keeps per-agent policies and a hashed decision log, and checks text without touching a `Result`.
+- 0186: `better-supabase/verifiable-credentials` issues SD-JWT VC and W3C credentials over OpenID4VCI behind a store port; mfa gains passkeys and contacts gains vCard.
+- 0187: Moderation, incidents, consents, data-lifecycle and compliance gain DSA, NIS2, DORA, CRA, GPC, TCF, GDPR request and OSCAL workflows.
+- 0188: Advisories tracks products, SBOMs and vulnerabilities (OSV, EPSS and KEV through a versioned feed port) and publishes OpenVEX and CSAF; CVSS 4.0 is parsed, not scored, and exposure matches packages, not version ranges.
+- 0189: `agent-checkout` runs ACP and UCP sessions and AP2 mandates over orders and signing-keys; `agents` serves an A2A card and task endpoint; `better-supabase/webmcp` registers permitted block actions as page tools.
+- 0190: Courses verify LTI 1.3 launches, write xAPI statements and export unsigned Open Badges.
+- 0191: SMART App Launch and CDS Hooks helpers sit in `better-supabase/fhir` behind versioned ports.
+- 0192: Berlin Group XS2A is a `BankFeed` adapter over fetch.
+- 0193: DAM reads C2PA manifests through a port and exports usage rights as ODRL.
+- 0194: Content writes sitemaps, robots.txt and JSON-LD as pure functions.
+- 0195: Maintenance ingests meter telemetry through a Fetch handler.
 
 ## Pre-release pins
 

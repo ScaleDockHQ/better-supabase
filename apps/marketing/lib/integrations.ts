@@ -92,6 +92,7 @@ export const integrations: readonly Integration[] = [
     ["Expo Router", "/docs/frameworks/expo", siExpo],
     ["oRPC", "/docs/frameworks/orpc", orpcGlyph],
     ["MCP", "/docs/frameworks/mcp", siModelcontextprotocol],
+    ["WebMCP", "/docs/frameworks/webmcp", siModelcontextprotocol],
   ]),
   ...group("Frontend and mobile", [
     ["React", "/docs/frontend/react", siReact],

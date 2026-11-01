@@ -2,10 +2,14 @@ import type { accessRequestsBlock } from "../../src/blocks/access-requests/manif
 import type { accountingBlock } from "../../src/blocks/accounting/manifest.ts";
 import type { acknowledgementsBlock } from "../../src/blocks/acknowledgements/manifest.ts";
 import type { activitiesBlock } from "../../src/blocks/activities/manifest.ts";
+import type { advisoriesBlock } from "../../src/blocks/advisories/manifest.ts";
+import type { agentCheckoutBlock } from "../../src/blocks/agent-checkout/manifest.ts";
 import type { agentsBlock } from "../../src/blocks/agents/manifest.ts";
 import type { aiCacheBlock } from "../../src/blocks/ai-cache/manifest.ts";
 import type { aiChatBlock } from "../../src/blocks/ai-chat/manifest.ts";
+import type { aiEvalsBlock } from "../../src/blocks/ai-evals/manifest.ts";
 import type { aiFilesBlock } from "../../src/blocks/ai-files/manifest.ts";
+import type { aiGuardrailsBlock } from "../../src/blocks/ai-guardrails/manifest.ts";
 import type { aiKeysBlock } from "../../src/blocks/ai-keys/manifest.ts";
 import type { aiSchedulesBlock } from "../../src/blocks/ai-schedules/manifest.ts";
 import type { announcementsBlock } from "../../src/blocks/announcements/manifest.ts";
@@ -184,7 +188,9 @@ export type AllBlocks = {
   readonly aiCache: typeof aiCacheBlock;
   readonly prompts: typeof promptsBlock;
   readonly aiChat: typeof aiChatBlock;
+  readonly aiEvals: typeof aiEvalsBlock;
   readonly aiFiles: typeof aiFilesBlock;
+  readonly aiGuardrails: typeof aiGuardrailsBlock;
   readonly aiProviders: typeof aiKeysBlock;
   readonly aiTasks: typeof aiSchedulesBlock;
   readonly announcements: typeof announcementsBlock;
@@ -257,8 +263,10 @@ export type AllBlocks = {
   readonly warehouse: typeof warehouseBlock;
   readonly rfqs: typeof rfqsBlock;
   readonly tills: typeof tillsBlock;
+  readonly "agent-checkout": typeof agentCheckoutBlock;
   readonly "clinical-decision-support": typeof clinicalDecisionSupportBlock;
   readonly "e-prescribing": typeof ePrescribingBlock;
+  readonly advisories: typeof advisoriesBlock;
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
   readonly tax: typeof taxBlock;

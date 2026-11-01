@@ -69,3 +69,46 @@ export type {
   CourseLessonCompletedEventData,
   CoursesEvents,
 } from "./events.ts";
+
+export {
+  ltiHasRole,
+  ltiJwksOf,
+  verifyLtiLaunch,
+  type LtiContext,
+  type LtiLaunch,
+  type LtiMessageType,
+  type LtiResourceLink,
+  type LtiRoleName,
+  type VerifyLtiLaunchOptions,
+} from "./lti.ts";
+
+export {
+  sendXapiStatements,
+  XAPI_ACTIVITY_TYPES,
+  XAPI_VERBS,
+  XAPI_VERSION,
+  xapiCourseCompleted,
+  xapiDuration,
+  xapiLessonCompleted,
+  xapiQuizResult,
+  xapiStatement,
+  type XapiAccount,
+  type XapiActivity,
+  type XapiLrs,
+  type XapiResult,
+  type XapiStatement,
+  type XapiStatementInput,
+  type XapiVerbName,
+} from "./xapi.ts";
+
+export {
+  courseCertificateBadge,
+  OPEN_BADGES_CONTEXT,
+  openBadgeCredential,
+  type CourseBadgeOptions,
+  type OpenBadgeAchievement,
+  type OpenBadgeCredential,
+  type OpenBadgeInput,
+  type OpenBadgeIssuer,
+  type OpenBadgeRecipient,
+} from "./open-badges.ts";

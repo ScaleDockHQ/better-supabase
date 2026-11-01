@@ -17,8 +17,39 @@ export interface RawMfaFactor {
   readonly status: string;
 }
 
+/** The browser options `supabase.auth.mfa.webauthn` takes (WebAuthn Level 3). */
+export interface PasskeyOptions {
+  /** The relying party id; default: the page's hostname. */
+  readonly rpId?: string;
+  /** The origins that may use the passkey; default: the page's origin. */
+  readonly rpOrigins?: readonly string[];
+  /** Aborts the browser's credential prompt. */
+  readonly signal?: AbortSignal;
+}
+
+/**
+ * `supabase.auth.mfa.webauthn` of supabase-js 2.100 and later. It runs the
+ * browser's `navigator.credentials` calls and the Auth server's challenge and
+ * verify steps, so no WebAuthn library is needed.
+ */
+export interface WebAuthnApi {
+  register(params: {
+    friendlyName: string;
+    webauthn?: { rpId?: string; rpOrigins?: string[]; signal?: AbortSignal };
+  }): PromiseLike<AuthReply<unknown>>;
+  authenticate(params: {
+    factorId: string;
+    webauthn?: { rpId?: string; rpOrigins?: string[]; signal?: AbortSignal };
+  }): PromiseLike<AuthReply<unknown>>;
+}
+
 /** The part of `supabase.auth.mfa` the MFA controllers call. */
 export interface MfaApi {
+  /**
+   * Present when the client supports passkeys; without it they report
+   * unsupported.
+   */
+  readonly webauthn?: WebAuthnApi;
   listFactors(): PromiseLike<
     AuthReply<{ readonly all: readonly RawMfaFactor[] }>
   >;
@@ -67,6 +98,28 @@ export interface MfaEnrollment {
   readonly secret: string;
   readonly uri: string;
 }
+
+/** The refusal when the client has no `auth.mfa.webauthn`. */
+const PASSKEYS_UNSUPPORTED = (): DbError =>
+  dbError(
+    "invalid_input",
+    "This Supabase client does not support passkeys (auth.mfa.webauthn)",
+    { code: "MFA_PASSKEYS_UNSUPPORTED" },
+  );
+
+const webauthnParams = (
+  options: PasskeyOptions | undefined,
+): {
+  webauthn: { rpId?: string; rpOrigins?: string[]; signal?: AbortSignal };
+} => ({
+  webauthn: {
+    ...(options?.rpId === undefined ? {} : { rpId: options.rpId }),
+    ...(options?.rpOrigins === undefined
+      ? {}
+      : { rpOrigins: [...options.rpOrigins] }),
+    ...(options?.signal === undefined ? {} : { signal: options.signal }),
+  },
+});
 
 export interface MfaAssurance {
   /** The session's level; `undefined` until the first load. */
@@ -138,6 +191,13 @@ export interface MfaActions {
    * it.
    */
   readonly verify: (code: string) => Promise<Result<MfaAssurance>>;
+  /**
+   * Registers a passkey: the browser asks for the authenticator, and the factor
+   * is verified in the same call, so the session is `aal2` after it.
+   */
+  readonly registerPasskey: (
+    input?: PasskeyOptions & { readonly name?: string },
+  ) => Promise<Result<MfaAssurance>>;
   /** Removes the unconfirmed factor of `enrollment`. */
   readonly cancel: () => Promise<void>;
   /** Removes a factor; removing a verified one needs an `aal2` session. */
@@ -249,6 +309,31 @@ export function createMfaController(
 
             return settle(enrolled);
           },
+          registerPasskey: async (input) => {
+            if (mfa.webauthn === undefined) {
+              const unsupported = PASSKEYS_UNSUPPORTED();
+
+              state.set({ error: unsupported });
+
+              return err(unsupported);
+            }
+
+            const webauthn = mfa.webauthn;
+            state.set({ pending: true, error: undefined });
+
+            const registered = await authResult(() =>
+              webauthn.register({
+                friendlyName: input?.name ?? "Passkey",
+                ...webauthnParams(input),
+              }),
+            );
+
+            if (!registered.ok) {
+              return settle<MfaAssurance>(err(registered.error));
+            }
+
+            return settle<MfaAssurance>(await readAssurance(mfa));
+          },
           verify: async (code) => {
             const enrollment = state.get().enrollment;
 
@@ -330,6 +415,13 @@ export interface StepUpActions {
   readonly verify: (
     code: string,
     factorId?: string,
+  ) => Promise<Result<MfaAssurance>>;
+  /**
+   * Challenges a verified passkey (`factorId`, or the first `webauthn` factor)
+   * through the browser, then reads the session's level again.
+   */
+  readonly verifyPasskey: (
+    input?: PasskeyOptions & { readonly factorId?: string },
   ) => Promise<Result<MfaAssurance>>;
   readonly dismiss: () => void;
   readonly refresh: () => Promise<void>;
@@ -419,6 +511,45 @@ export function createStepUpController(
 
             const verified = await authResult(() =>
               mfa.challengeAndVerify({ factorId: id, code }),
+            );
+
+            const result = verified.ok ? await readAssurance(mfa) : verified;
+            state.set(
+              result.ok
+                ? { verifying: false, ...assured(result.data) }
+                : { verifying: false, error: result.error },
+            );
+
+            return result;
+          },
+          verifyPasskey: async (input) => {
+            const fail = (error: DbError): Result<MfaAssurance> => {
+              state.set({ verifying: false, error });
+
+              return err(error);
+            };
+
+            if (mfa.webauthn === undefined) {
+              return fail(PASSKEYS_UNSUPPORTED());
+            }
+
+            const webauthn = mfa.webauthn;
+
+            const id =
+              input?.factorId ??
+              state.get().factors?.find((factor) => factor.type === "webauthn")
+                ?.id;
+
+            if (id === undefined) {
+              return fail(
+                dbError("invalid_input", "No verified passkey to challenge"),
+              );
+            }
+
+            state.set({ verifying: true, error: undefined });
+
+            const verified = await authResult(() =>
+              webauthn.authenticate({ factorId: id, ...webauthnParams(input) }),
             );
 
             const result = verified.ok ? await readAssurance(mfa) : verified;

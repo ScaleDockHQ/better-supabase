@@ -9,7 +9,9 @@ import { accountingBlock } from "better-supabase/blocks/accounting";
 import { agentsBlock } from "better-supabase/blocks/agents";
 import { aiCacheBlock } from "better-supabase/blocks/ai-cache";
 import { aiChatBlock } from "better-supabase/blocks/ai-chat";
+import { aiEvalsBlock } from "better-supabase/blocks/ai-evals";
 import { aiFilesBlock } from "better-supabase/blocks/ai-files";
+import { aiGuardrailsBlock } from "better-supabase/blocks/ai-guardrails";
 import { aiKeysBlock } from "better-supabase/blocks/ai-keys";
 import { aiSchedulesBlock } from "better-supabase/blocks/ai-schedules";
 import { announcementsBlock } from "better-supabase/blocks/announcements";
@@ -67,8 +69,10 @@ import { appraisalsBlock } from "better-supabase/blocks/appraisals";
 import { warehouseBlock } from "better-supabase/blocks/warehouse";
 import { rfqsBlock } from "better-supabase/blocks/rfqs";
 import { tillsBlock } from "better-supabase/blocks/tills";
+import { agentCheckoutBlock } from "better-supabase/blocks/agent-checkout";
 import { clinicalDecisionSupportBlock } from "better-supabase/blocks/clinical-decision-support";
 import { ePrescribingBlock } from "better-supabase/blocks/e-prescribing";
+import { advisoriesBlock } from "better-supabase/blocks/advisories";
 import { manufacturingBlock } from "better-supabase/blocks/manufacturing";
 import { bankingBlock } from "better-supabase/blocks/banking";
 import { legalEntitiesBlock } from "better-supabase/blocks/legal-entities";
@@ -165,7 +169,9 @@ export const blockSet = defineBlocks(blockConfig, {
   agents: agentsBlock,
   aiCache: aiCacheBlock,
   aiChat: aiChatBlock,
+  aiEvals: aiEvalsBlock,
   aiFiles: aiFilesBlock,
+  aiGuardrails: aiGuardrailsBlock,
   aiKeys: aiKeysBlock,
   aiSchedules: aiSchedulesBlock,
   announcements: announcementsBlock,
@@ -223,8 +229,10 @@ export const blockSet = defineBlocks(blockConfig, {
   warehouse: warehouseBlock,
   rfqs: rfqsBlock,
   tills: tillsBlock,
+  agentCheckout: agentCheckoutBlock,
   clinicalDecisionSupport: clinicalDecisionSupportBlock,
   ePrescribing: ePrescribingBlock,
+  advisories: advisoriesBlock,
   manufacturing: manufacturingBlock,
   banking: bankingBlock,
   legalEntities: legalEntitiesBlock,

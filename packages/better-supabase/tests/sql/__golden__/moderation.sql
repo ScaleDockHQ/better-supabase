@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
--- @bsb-block moderation@1 managed
--- @bsb-hash sha256:0f5ceffdd2e6135979b236ea752f066bedc7e6798d9dd28907e6d2ca15963389
+-- @bsb-block moderation@2 managed
+-- @bsb-hash sha256:1dd69031a0c959fc3dbc89979d0a1e1717756a787cc87426bc142d3c2bf1e662
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -76,6 +76,38 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_bans";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_statements";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_notices";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_appeals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -142,6 +174,80 @@ create table if not exists "better_supabase"."moderation_bans" (
 create unique index if not exists "moderation_bans_active_idx" on "better_supabase"."moderation_bans" ("tenant_id", "user_id") where "lifted_at" is null;
 create index if not exists "moderation_bans_user_idx" on "better_supabase"."moderation_bans" ("user_id");
 
+-- Statements of reasons (DSA Article 17): what was restricted, the facts, the
+-- legal or contractual ground, automated means and the ways to appeal.
+create table if not exists "better_supabase"."moderation_statements" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "item_id" uuid not null references "better_supabase"."moderation_items" ("id") on delete cascade,
+  "restriction" text not null check ("restriction" in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination')),
+  "facts" text not null check (length("facts") between 1 and 5000),
+  "legal_ground" text check ("legal_ground" is null or length("legal_ground") <= 2000),
+  "terms_ground" text check ("terms_ground" is null or length("terms_ground") <= 2000),
+  "automated_detection" boolean not null default false,
+  "automated_decision" boolean not null default false,
+  "redress" text[] not null default array['internal_complaint', 'out_of_court', 'judicial'],
+  "issued_by" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("legal_ground" is not null or "terms_ground" is not null)
+);
+create index if not exists "moderation_statements_item_idx" on "better_supabase"."moderation_statements" ("item_id", "created_at" desc);
+create index if not exists "moderation_statements_tenant_idx" on "better_supabase"."moderation_statements" ("tenant_id", "created_at" desc);
+
+-- Notices of illegal content (DSA Article 16).
+create table if not exists "better_supabase"."moderation_notices" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "item_id" uuid references "better_supabase"."moderation_items" ("id") on delete set null,
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "explanation" text not null check (length("explanation") between 1 and 5000),
+  "url" text check ("url" is null or length("url") <= 2000),
+  "notifier_name" text check ("notifier_name" is null or length("notifier_name") <= 200),
+  "notifier_email" text check ("notifier_email" is null or length("notifier_email") <= 320),
+  "notifier_id" uuid references auth.users (id) on delete set null,
+  "trusted" boolean not null default false,
+  "status" text not null default 'received' check ("status" in ('received', 'actioned', 'rejected')),
+  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists "moderation_notices_queue_idx" on "better_supabase"."moderation_notices" ("tenant_id", "trusted" desc, "created_at") where "status" = 'received';
+create index if not exists "moderation_notices_notifier_idx" on "better_supabase"."moderation_notices" ("notifier_id");
+
+-- Trusted flaggers (DSA Article 22): notices from them are marked and come
+-- first in the queue.
+create table if not exists "better_supabase"."moderation_flaggers" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "name" text not null check (length("name") between 1 and 200),
+  "awarded_by" text check ("awarded_by" is null or length("awarded_by") <= 200),
+  "revoked_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create unique index if not exists "moderation_flaggers_active_idx" on "better_supabase"."moderation_flaggers" ("tenant_id", "user_id") where "revoked_at" is null;
+
+-- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
+create table if not exists "better_supabase"."moderation_appeals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "statement_id" uuid references "better_supabase"."moderation_statements" ("id") on delete cascade,
+  "notice_id" uuid references "better_supabase"."moderation_notices" ("id") on delete cascade,
+  "appellant_id" uuid references auth.users (id) on delete set null,
+  "reasons" text not null check (length("reasons") between 1 and 5000),
+  "status" text not null default 'open' check ("status" in ('open', 'upheld', 'reversed')),
+  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  check (("statement_id" is not null) <> ("notice_id" is not null))
+);
+create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
+create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
+create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
+
 alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_items" to authenticated;
@@ -174,6 +280,39 @@ drop policy if exists "moderation_bans_read" on "better_supabase"."moderation_ba
 create policy moderation_bans_read on "better_supabase"."moderation_bans"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+
+alter table "better_supabase"."moderation_statements" enable row level security;
+revoke all on "better_supabase"."moderation_statements" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_statements" to authenticated;
+grant all on "better_supabase"."moderation_statements" to service_role;
+drop policy if exists "moderation_statements_read" on "better_supabase"."moderation_statements";
+create policy moderation_statements_read on "better_supabase"."moderation_statements"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_notices" enable row level security;
+revoke all on "better_supabase"."moderation_notices" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_notices" to authenticated;
+grant all on "better_supabase"."moderation_notices" to service_role;
+drop policy if exists "moderation_notices_read" on "better_supabase"."moderation_notices";
+create policy moderation_notices_read on "better_supabase"."moderation_notices"
+  for select to authenticated
+  using ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_flaggers" enable row level security;
+revoke all on "better_supabase"."moderation_flaggers" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_flaggers" to authenticated;
+grant all on "better_supabase"."moderation_flaggers" to service_role;
+drop policy if exists "moderation_flaggers_read" on "better_supabase"."moderation_flaggers";
+create policy moderation_flaggers_read on "better_supabase"."moderation_flaggers"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_appeals" enable row level security;
+revoke all on "better_supabase"."moderation_appeals" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_appeals" to authenticated;
+grant all on "better_supabase"."moderation_appeals" to service_role;
+drop policy if exists "moderation_appeals_read" on "better_supabase"."moderation_appeals";
+create policy moderation_appeals_read on "better_supabase"."moderation_appeals"
+  for select to authenticated
+  using ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
 -- Whether a user is banned in an organization right now.
 create or replace function "better_supabase"."moderation_banned"(tenant uuid, user_id uuid)
@@ -600,6 +739,425 @@ $$;
 revoke execute on function "better_supabase"."list_bans"(uuid, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_bans"(uuid, boolean, integer) to authenticated, service_role;
 
+-- Takes a notice of illegal content (DSA Article 16) for a subject. The
+-- notice is marked trusted when the caller is an active trusted flagger, and
+-- the subject gets a moderation item when it has none.
+create or replace function "better_supabase"."submit_notice"(tenant uuid, subject_type text, subject_id text, explanation text, url text default null, notifier_name text default null, notifier_email text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_item uuid;
+  v_trusted boolean;
+  v_row "better_supabase"."moderation_notices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to submit a notice' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if not coalesce(better_supabase.can('tenant', submit_notice.tenant, 'moderation.report'), false) then
+    raise exception 'not allowed to submit a notice' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if submit_notice.subject_type is null or submit_notice.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$'
+    or submit_notice.subject_id is null or length(submit_notice.subject_id) not between 1 and 200 then
+    raise exception 'a notice needs a subject type and id' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if submit_notice.explanation is null or length(trim(submit_notice.explanation)) = 0 or length(submit_notice.explanation) > 5000 then
+    raise exception 'a notice needs an explanation of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id")
+  values (submit_notice.tenant, submit_notice.subject_type, submit_notice.subject_id)
+  on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
+  select x."id" into v_item from "better_supabase"."moderation_items" x
+  where x."tenant_id" = submit_notice.tenant and x."subject_type" = submit_notice.subject_type and x."subject_id" = submit_notice.subject_id;
+  select exists (
+    select 1 from "better_supabase"."moderation_flaggers" x
+    where x."tenant_id" = submit_notice.tenant and x."user_id" = v_me and x."revoked_at" is null
+  ) into v_trusted;
+  insert into "better_supabase"."moderation_notices" ("tenant_id", "item_id", "subject_type", "subject_id", "explanation", "url", "notifier_name", "notifier_email", "notifier_id", "trusted")
+  values (submit_notice.tenant, v_item, submit_notice.subject_type, submit_notice.subject_id, trim(submit_notice.explanation), nullif(trim(submit_notice.url), ''), nullif(trim(submit_notice.notifier_name), ''), nullif(trim(submit_notice.notifier_email), ''), v_me, v_trusted)
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'explanation', v_row."explanation", 'url', v_row."url", 'notifierName', v_row."notifier_name", 'notifierEmail', v_row."notifier_email", 'notifierId', v_row."notifier_id", 'trusted', v_row."trusted", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."submit_notice"(uuid, text, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."submit_notice"(uuid, text, text, text, text, text, text) to authenticated, service_role;
+
+-- The notices of an organization, trusted flaggers first, then oldest first.
+-- Without a status it lists the notices that wait for a decision.
+create or replace function "better_supabase"."list_notices"(tenant uuid, status text default null, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_notices.tenant, 'moderation.read'), false)) then
+    raise exception 'not allowed to read notices' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(q.notice order by q.trusted desc, q.created asc), '[]'::jsonb) into v_rows
+  from (
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'itemId', x."item_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'explanation', x."explanation", 'url', x."url", 'notifierName', x."notifier_name", 'notifierEmail', x."notifier_email", 'notifierId', x."notifier_id", 'trusted', x."trusted", 'status', x."status", 'outcome', x."outcome", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") as notice, x."trusted" as trusted, x."created_at" as created
+    from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = list_notices.tenant
+      and x."status" = coalesce(list_notices.status, 'received')
+    order by x."trusted" desc, x."created_at" asc
+    limit least(greatest(coalesce(list_notices.page_size, 50), 1), 200)
+  ) q;
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."list_notices"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_notices"(uuid, text, integer) to authenticated, service_role;
+
+-- Decides a notice: hide or remove the content, or reject the notice. The
+-- notifier is told through the moderation_notice.decided event.
+create or replace function "better_supabase"."decide_notice"(notice_id uuid, decision text, outcome text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_notices";
+  v_item "better_supabase"."moderation_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."moderation_notices" x where x."id" = decide_notice.notice_id for update;
+  if v_row."id" is null then
+    raise exception 'notice not found' using errcode = 'P0002', hint = 'MODERATION_NOTICE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to decide on notices' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if decide_notice.decision is null or decide_notice.decision not in ('hide', 'remove', 'reject') then
+    raise exception 'decision must be hide, remove or reject' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if length(decide_notice.outcome) > 2000 then
+    raise exception 'outcome must be at most 2000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if v_row."status" <> 'received' then
+    raise exception 'this notice was decided already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if decide_notice.decision <> 'reject' then
+    if v_row."item_id" is null then
+      raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+    end if;
+    perform "better_supabase"."moderation_apply"(v_row."item_id", decide_notice.decision, decide_notice.outcome, false);
+  end if;
+  update "better_supabase"."moderation_notices" x
+  set "status" = case when decide_notice.decision = 'reject' then 'rejected' else 'actioned' end,
+    "outcome" = nullif(trim(decide_notice.outcome), ''), "decided_by" = auth.uid(), "decided_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'explanation', v_row."explanation", 'url', v_row."url", 'notifierName', v_row."notifier_name", 'notifierEmail', v_row."notifier_email", 'notifierId', v_row."notifier_id", 'trusted', v_row."trusted", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_notice"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."decide_notice"(uuid, text, text) to authenticated, service_role;
+
+-- Records a statement of reasons (DSA Article 17) for an item a moderator
+-- restricted. A statement names the legal ground, the terms ground or both.
+create or replace function "better_supabase"."issue_statement"(item_id uuid, restriction text, facts text, legal_ground text default null, terms_ground text default null, automated_detection boolean default false, automated_decision boolean default false, redress text[] default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_item "better_supabase"."moderation_items";
+  v_row "better_supabase"."moderation_statements";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_item from "better_supabase"."moderation_items" x where x."id" = issue_statement.item_id;
+  if v_item."id" is null then
+    raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_item."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to issue statements of reasons' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if issue_statement.restriction is null or issue_statement.restriction not in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination') then
+    raise exception 'restriction must be one of the Article 17 restrictions' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if issue_statement.facts is null or length(trim(issue_statement.facts)) = 0 or length(issue_statement.facts) > 5000 then
+    raise exception 'a statement needs facts and circumstances of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if nullif(trim(issue_statement.legal_ground), '') is null and nullif(trim(issue_statement.terms_ground), '') is null then
+    raise exception 'a statement needs a legal ground or a terms ground' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  insert into "better_supabase"."moderation_statements" ("tenant_id", "item_id", "restriction", "facts", "legal_ground", "terms_ground", "automated_detection", "automated_decision", "redress", "issued_by")
+  values (v_item."tenant_id", v_item."id", issue_statement.restriction, trim(issue_statement.facts), nullif(trim(issue_statement.legal_ground), ''), nullif(trim(issue_statement.terms_ground), ''),
+    coalesce(issue_statement.automated_detection, false), coalesce(issue_statement.automated_decision, false),
+    coalesce(issue_statement.redress, array['internal_complaint', 'out_of_court', 'judicial']), auth.uid())
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'restriction', v_row."restriction", 'facts', v_row."facts", 'legalGround', v_row."legal_ground", 'termsGround', v_row."terms_ground", 'automatedDetection', v_row."automated_detection", 'automatedDecision', v_row."automated_decision", 'redress', to_jsonb(v_row."redress"), 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) to authenticated, service_role;
+
+-- The statements of reasons for one item, newest first. The item's author
+-- reads their own through the same call.
+create or replace function "better_supabase"."list_statements"(item_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_item "better_supabase"."moderation_items";
+begin
+  select * into v_item from "better_supabase"."moderation_items" x where x."id" = list_statements.item_id;
+  if v_item."id" is null then
+    raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+  end if;
+  if not ((auth.uid() is not null and v_item."author_id" is not distinct from auth.uid()) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_item."tenant_id", 'moderation.read'), false))) then
+    raise exception 'not allowed to read statements of reasons' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'itemId', y."item_id", 'restriction', y."restriction", 'facts', y."facts", 'legalGround', y."legal_ground", 'termsGround', y."terms_ground", 'automatedDetection', y."automated_detection", 'automatedDecision', y."automated_decision", 'redress', to_jsonb(y."redress"), 'issuedBy', y."issued_by", 'createdAt', y."created_at") order by y."created_at" desc) from "better_supabase"."moderation_statements" y where y."item_id" = v_item."id"), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_statements"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_statements"(uuid) to authenticated, service_role;
+
+-- Awards or revokes trusted flagger status (DSA Article 22) for a user.
+create or replace function "better_supabase"."set_trusted_flagger"(tenant uuid, user_id uuid, name text default null, awarded_by text default null, active boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_flaggers";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_trusted_flagger.tenant, 'moderation.manage'), false)) then
+    raise exception 'not allowed to manage trusted flaggers' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if set_trusted_flagger.active is false then
+    update "better_supabase"."moderation_flaggers" x set "revoked_at" = now()
+    where x."tenant_id" = set_trusted_flagger.tenant and x."user_id" = set_trusted_flagger.user_id and x."revoked_at" is null
+    returning * into v_row;
+    if v_row."id" is null then
+      raise exception 'no active trusted flagger for this user' using errcode = 'P0002', hint = 'MODERATION_FLAGGER_NOT_FOUND';
+    end if;
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'name', v_row."name", 'awardedBy', v_row."awarded_by", 'revokedAt', v_row."revoked_at", 'createdAt', v_row."created_at");
+  end if;
+  if set_trusted_flagger.name is null or length(trim(set_trusted_flagger.name)) not between 1 and 200 then
+    raise exception 'a trusted flagger needs a name of at most 200 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."moderation_flaggers" x
+  where x."tenant_id" = set_trusted_flagger.tenant and x."user_id" = set_trusted_flagger.user_id and x."revoked_at" is null;
+  if v_row."id" is null then
+    insert into "better_supabase"."moderation_flaggers" ("tenant_id", "user_id", "name", "awarded_by")
+    values (set_trusted_flagger.tenant, set_trusted_flagger.user_id, trim(set_trusted_flagger.name), nullif(trim(set_trusted_flagger.awarded_by), ''))
+    returning * into v_row;
+  else
+    update "better_supabase"."moderation_flaggers" x
+    set "name" = trim(set_trusted_flagger.name), "awarded_by" = nullif(trim(set_trusted_flagger.awarded_by), '')
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'name', v_row."name", 'awardedBy', v_row."awarded_by", 'revokedAt', v_row."revoked_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."set_trusted_flagger"(uuid, uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_trusted_flagger"(uuid, uuid, text, text, boolean) to authenticated, service_role;
+
+-- Files an appeal (DSA Article 20) against a statement of reasons, or against
+-- a rejected notice. Only the affected content's author or the notifier can.
+create or replace function "better_supabase"."file_appeal"(statement_id uuid default null, notice_id uuid default null, reasons text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_tenant uuid;
+  v_row "better_supabase"."moderation_appeals";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to file an appeal' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if (file_appeal.statement_id is null) = (file_appeal.notice_id is null) then
+    raise exception 'an appeal names a statement or a notice' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if file_appeal.reasons is null or length(trim(file_appeal.reasons)) = 0 or length(file_appeal.reasons) > 5000 then
+    raise exception 'an appeal needs reasons of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if file_appeal.statement_id is not null then
+    select s."tenant_id" into v_tenant
+    from "better_supabase"."moderation_statements" s join "better_supabase"."moderation_items" x on x."id" = s."item_id"
+    where s."id" = file_appeal.statement_id and x."author_id" = v_me;
+  else
+    select x."tenant_id" into v_tenant from "better_supabase"."moderation_notices" x
+    where x."id" = file_appeal.notice_id and x."notifier_id" = v_me and x."status" = 'rejected';
+  end if;
+  if v_tenant is null then
+    raise exception 'you can only appeal a decision that affects you' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  begin
+    insert into "better_supabase"."moderation_appeals" ("tenant_id", "statement_id", "notice_id", "appellant_id", "reasons")
+    values (v_tenant, file_appeal.statement_id, file_appeal.notice_id, v_me, trim(file_appeal.reasons))
+    returning * into v_row;
+  exception when unique_violation then
+    raise exception 'an appeal is open for this decision already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'appellantId', v_row."appellant_id", 'reasons', v_row."reasons", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."file_appeal"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."file_appeal"(uuid, uuid, text) to authenticated, service_role;
+
+-- Decides an appeal. The decision needs a person, not an automated means
+-- (DSA Article 20(6)). Reversing an appeal against a statement restores the
+-- content; reversing one against a notice puts the notice back in the queue.
+create or replace function "better_supabase"."decide_appeal"(appeal_id uuid, outcome text, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_appeals";
+  v_item "better_supabase"."moderation_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."moderation_appeals" x where x."id" = decide_appeal.appeal_id for update;
+  if v_row."id" is null then
+    raise exception 'appeal not found' using errcode = 'P0002', hint = 'MODERATION_APPEAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to decide on appeals' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if decide_appeal.outcome is null or decide_appeal.outcome not in ('upheld', 'reversed') then
+    raise exception 'outcome must be upheld or reversed' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if length(decide_appeal.reason) > 2000 then
+    raise exception 'reason must be at most 2000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if v_row."status" <> 'open' then
+    raise exception 'this appeal was decided already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if decide_appeal.outcome = 'reversed' then
+    if v_row."statement_id" is not null then
+      select x.* into v_item from "better_supabase"."moderation_items" x join "better_supabase"."moderation_statements" s on s."item_id" = x."id" where s."id" = v_row."statement_id";
+      if v_item."status" in ('hidden', 'removed') then
+        perform "better_supabase"."moderation_apply"(v_item."id", 'restore', decide_appeal.reason, false);
+      end if;
+    else
+      update "better_supabase"."moderation_notices" x set "status" = 'received', "decided_at" = null, "decided_by" = null
+      where x."id" = v_row."notice_id";
+    end if;
+  end if;
+  update "better_supabase"."moderation_appeals" x
+  set "status" = decide_appeal.outcome, "outcome" = nullif(trim(decide_appeal.reason), ''), "decided_by" = auth.uid(), "decided_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'appellantId', v_row."appellant_id", 'reasons', v_row."reasons", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_appeal"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."decide_appeal"(uuid, text, text) to authenticated, service_role;
+
+-- The transparency report (DSA Articles 15 and 24) for a period, as CSV with
+-- the columns metric, dimension and value: notices by status and from trusted
+-- flaggers, statements by restriction and automated means, appeals by
+-- outcome, and moderation decisions by action.
+create or replace function "better_supabase"."transparency_report"(tenant uuid, period_start timestamptz, period_end timestamptz)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_csv text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', transparency_report.tenant, 'moderation.read'), false)) then
+    raise exception 'not allowed to read the transparency report' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if transparency_report.period_start is null or transparency_report.period_end is null or transparency_report.period_end <= transparency_report.period_start then
+    raise exception 'the period needs a start before its end' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  with rows (metric, dimension, value, sort) as (
+    select 'notices', 'received', count(*), 10 from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'notices', 'trusted_flagger', count(*), 11 from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."trusted" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'notices', x."status", count(*), 12 from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."status"
+    union all
+    select 'statements', x."restriction", count(*), 20 from "better_supabase"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."restriction"
+    union all
+    select 'statements', 'automated_detection', count(*), 21 from "better_supabase"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."automated_detection" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'statements', 'automated_decision', count(*), 22 from "better_supabase"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."automated_decision" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'appeals', 'received', count(*), 30 from "better_supabase"."moderation_appeals" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'appeals', x."status", count(*), 31 from "better_supabase"."moderation_appeals" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."status"
+    union all
+    select 'decisions', x."action"::text, count(*), 40 from "better_supabase"."moderation_actions" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."action"
+    union all
+    select 'reports', 'received', count(*), 50 from "better_supabase"."moderation_reports" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+  )
+  select 'metric,dimension,value' || coalesce(E'\n' || string_agg(r.metric || ',' || r.dimension || ',' || r.value::text, E'\n' order by r.sort, r.dimension), '')
+  into v_csv from rows r;
+  return v_csv;
+end;
+$$;
+revoke execute on function "better_supabase"."transparency_report"(uuid, timestamptz, timestamptz) from public, anon;
+grant execute on function "better_supabase"."transparency_report"(uuid, timestamptz, timestamptz) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -699,6 +1257,90 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_b
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_bans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_statements";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_statements" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_statements" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_statements" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_statements" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_notices";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_notices" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_notices" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_notices" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_notices" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_flaggers";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_flaggers" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_flaggers" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_appeals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_appeals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_appeals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_appeals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_appeals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -716,21 +1358,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block-data moderation
--- @bsb-hash sha256:b01db3a657b26c96f56f50464078184599dffda20d933155ff1262b74ce1da6d
+-- @bsb-hash sha256:97d80d244d5ecfdb00b7662ae72c988dec37f9a47d1839281040f4050ac1d3b5
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('moderation', 1, 'managed')
+values ('moderation', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
--- @bsb-block moderation@1 managed
--- @bsb-hash sha256:e6f6ff388ae26cd9bd9f5ec68d654ae03349e5755ec19e259d28e1a677cc2f66
+-- @bsb-block moderation@2 managed
+-- @bsb-hash sha256:8b3e7e58b2b58ad7e03c1687a6db2cef557a24a483199d475b12d335d05121ec
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -805,6 +1447,38 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_bans";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_statements";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_notices";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_appeals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -871,6 +1545,80 @@ create table if not exists "better_supabase"."moderation_bans" (
 create unique index if not exists "moderation_bans_active_idx" on "better_supabase"."moderation_bans" ("tenant_id", "user_id") where "lifted_at" is null;
 create index if not exists "moderation_bans_user_idx" on "better_supabase"."moderation_bans" ("user_id");
 
+-- Statements of reasons (DSA Article 17): what was restricted, the facts, the
+-- legal or contractual ground, automated means and the ways to appeal.
+create table if not exists "better_supabase"."moderation_statements" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "item_id" uuid not null references "better_supabase"."moderation_items" ("id") on delete cascade,
+  "restriction" text not null check ("restriction" in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination')),
+  "facts" text not null check (length("facts") between 1 and 5000),
+  "legal_ground" text check ("legal_ground" is null or length("legal_ground") <= 2000),
+  "terms_ground" text check ("terms_ground" is null or length("terms_ground") <= 2000),
+  "automated_detection" boolean not null default false,
+  "automated_decision" boolean not null default false,
+  "redress" text[] not null default array['internal_complaint', 'out_of_court', 'judicial'],
+  "issued_by" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("legal_ground" is not null or "terms_ground" is not null)
+);
+create index if not exists "moderation_statements_item_idx" on "better_supabase"."moderation_statements" ("item_id", "created_at" desc);
+create index if not exists "moderation_statements_tenant_idx" on "better_supabase"."moderation_statements" ("tenant_id", "created_at" desc);
+
+-- Notices of illegal content (DSA Article 16).
+create table if not exists "better_supabase"."moderation_notices" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "item_id" uuid references "better_supabase"."moderation_items" ("id") on delete set null,
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "explanation" text not null check (length("explanation") between 1 and 5000),
+  "url" text check ("url" is null or length("url") <= 2000),
+  "notifier_name" text check ("notifier_name" is null or length("notifier_name") <= 200),
+  "notifier_email" text check ("notifier_email" is null or length("notifier_email") <= 320),
+  "notifier_id" uuid references auth.users (id) on delete set null,
+  "trusted" boolean not null default false,
+  "status" text not null default 'received' check ("status" in ('received', 'actioned', 'rejected')),
+  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists "moderation_notices_queue_idx" on "better_supabase"."moderation_notices" ("tenant_id", "trusted" desc, "created_at") where "status" = 'received';
+create index if not exists "moderation_notices_notifier_idx" on "better_supabase"."moderation_notices" ("notifier_id");
+
+-- Trusted flaggers (DSA Article 22): notices from them are marked and come
+-- first in the queue.
+create table if not exists "better_supabase"."moderation_flaggers" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "name" text not null check (length("name") between 1 and 200),
+  "awarded_by" text check ("awarded_by" is null or length("awarded_by") <= 200),
+  "revoked_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create unique index if not exists "moderation_flaggers_active_idx" on "better_supabase"."moderation_flaggers" ("tenant_id", "user_id") where "revoked_at" is null;
+
+-- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
+create table if not exists "better_supabase"."moderation_appeals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "statement_id" uuid references "better_supabase"."moderation_statements" ("id") on delete cascade,
+  "notice_id" uuid references "better_supabase"."moderation_notices" ("id") on delete cascade,
+  "appellant_id" uuid references auth.users (id) on delete set null,
+  "reasons" text not null check (length("reasons") between 1 and 5000),
+  "status" text not null default 'open' check ("status" in ('open', 'upheld', 'reversed')),
+  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  check (("statement_id" is not null) <> ("notice_id" is not null))
+);
+create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
+create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
+create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
+
 alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_items" to authenticated;
@@ -903,6 +1651,39 @@ drop policy if exists "moderation_bans_read" on "better_supabase"."moderation_ba
 create policy moderation_bans_read on "better_supabase"."moderation_bans"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+
+alter table "better_supabase"."moderation_statements" enable row level security;
+revoke all on "better_supabase"."moderation_statements" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_statements" to authenticated;
+grant all on "better_supabase"."moderation_statements" to service_role;
+drop policy if exists "moderation_statements_read" on "better_supabase"."moderation_statements";
+create policy moderation_statements_read on "better_supabase"."moderation_statements"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_notices" enable row level security;
+revoke all on "better_supabase"."moderation_notices" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_notices" to authenticated;
+grant all on "better_supabase"."moderation_notices" to service_role;
+drop policy if exists "moderation_notices_read" on "better_supabase"."moderation_notices";
+create policy moderation_notices_read on "better_supabase"."moderation_notices"
+  for select to authenticated
+  using ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_flaggers" enable row level security;
+revoke all on "better_supabase"."moderation_flaggers" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_flaggers" to authenticated;
+grant all on "better_supabase"."moderation_flaggers" to service_role;
+drop policy if exists "moderation_flaggers_read" on "better_supabase"."moderation_flaggers";
+create policy moderation_flaggers_read on "better_supabase"."moderation_flaggers"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_appeals" enable row level security;
+revoke all on "better_supabase"."moderation_appeals" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_appeals" to authenticated;
+grant all on "better_supabase"."moderation_appeals" to service_role;
+drop policy if exists "moderation_appeals_read" on "better_supabase"."moderation_appeals";
+create policy moderation_appeals_read on "better_supabase"."moderation_appeals"
+  for select to authenticated
+  using ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
 -- Whether a user is banned in an organization right now.
 create or replace function "better_supabase"."moderation_banned"(tenant uuid, user_id uuid)
@@ -1399,6 +2180,452 @@ $$;
 revoke execute on function "better_supabase"."moderation_hidden"(text, text) from public, anon;
 grant execute on function "better_supabase"."moderation_hidden"(text, text) to authenticated, service_role;
 
+-- Takes a notice of illegal content (DSA Article 16) for a subject. The
+-- notice is marked trusted when the caller is an active trusted flagger, and
+-- the subject gets a moderation item when it has none.
+create or replace function "better_supabase"."submit_notice"(tenant uuid, subject_type text, subject_id text, explanation text, url text default null, notifier_name text default null, notifier_email text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_item uuid;
+  v_trusted boolean;
+  v_row "better_supabase"."moderation_notices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to submit a notice' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if not coalesce(better_supabase.can('tenant', submit_notice.tenant, 'moderation.report'), false) then
+    raise exception 'not allowed to submit a notice' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if submit_notice.subject_type is null or submit_notice.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$'
+    or submit_notice.subject_id is null or length(submit_notice.subject_id) not between 1 and 200 then
+    raise exception 'a notice needs a subject type and id' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if submit_notice.explanation is null or length(trim(submit_notice.explanation)) = 0 or length(submit_notice.explanation) > 5000 then
+    raise exception 'a notice needs an explanation of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id")
+  values (submit_notice.tenant, submit_notice.subject_type, submit_notice.subject_id)
+  on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
+  select x."id" into v_item from "better_supabase"."moderation_items" x
+  where x."tenant_id" = submit_notice.tenant and x."subject_type" = submit_notice.subject_type and x."subject_id" = submit_notice.subject_id;
+  select exists (
+    select 1 from "better_supabase"."moderation_flaggers" x
+    where x."tenant_id" = submit_notice.tenant and x."user_id" = v_me and x."revoked_at" is null
+  ) into v_trusted;
+  insert into "better_supabase"."moderation_notices" ("tenant_id", "item_id", "subject_type", "subject_id", "explanation", "url", "notifier_name", "notifier_email", "notifier_id", "trusted")
+  values (submit_notice.tenant, v_item, submit_notice.subject_type, submit_notice.subject_id, trim(submit_notice.explanation), nullif(trim(submit_notice.url), ''), nullif(trim(submit_notice.notifier_name), ''), nullif(trim(submit_notice.notifier_email), ''), v_me, v_trusted)
+  returning * into v_row;
+  perform "better_supabase".emit_event('moderation_notice.received', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'itemId', v_row."item_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'trusted', v_row."trusted"), 'moderation-notices/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/moderation');
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'explanation', v_row."explanation", 'url', v_row."url", 'notifierName', v_row."notifier_name", 'notifierEmail', v_row."notifier_email", 'notifierId', v_row."notifier_id", 'trusted', v_row."trusted", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."submit_notice"(uuid, text, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."submit_notice"(uuid, text, text, text, text, text, text) to authenticated, service_role;
+
+-- The notices of an organization, trusted flaggers first, then oldest first.
+-- Without a status it lists the notices that wait for a decision.
+create or replace function "better_supabase"."list_notices"(tenant uuid, status text default null, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_notices.tenant, 'moderation.read'), false)) then
+    raise exception 'not allowed to read notices' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(q.notice order by q.trusted desc, q.created asc), '[]'::jsonb) into v_rows
+  from (
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'itemId', x."item_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'explanation', x."explanation", 'url', x."url", 'notifierName', x."notifier_name", 'notifierEmail', x."notifier_email", 'notifierId', x."notifier_id", 'trusted', x."trusted", 'status', x."status", 'outcome', x."outcome", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") as notice, x."trusted" as trusted, x."created_at" as created
+    from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = list_notices.tenant
+      and x."status" = coalesce(list_notices.status, 'received')
+    order by x."trusted" desc, x."created_at" asc
+    limit least(greatest(coalesce(list_notices.page_size, 50), 1), 200)
+  ) q;
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."list_notices"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_notices"(uuid, text, integer) to authenticated, service_role;
+
+-- Decides a notice: hide or remove the content, or reject the notice. The
+-- notifier is told through the moderation_notice.decided event.
+create or replace function "better_supabase"."decide_notice"(notice_id uuid, decision text, outcome text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_notices";
+  v_item "better_supabase"."moderation_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."moderation_notices" x where x."id" = decide_notice.notice_id for update;
+  if v_row."id" is null then
+    raise exception 'notice not found' using errcode = 'P0002', hint = 'MODERATION_NOTICE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to decide on notices' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if decide_notice.decision is null or decide_notice.decision not in ('hide', 'remove', 'reject') then
+    raise exception 'decision must be hide, remove or reject' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if length(decide_notice.outcome) > 2000 then
+    raise exception 'outcome must be at most 2000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if v_row."status" <> 'received' then
+    raise exception 'this notice was decided already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if decide_notice.decision <> 'reject' then
+    if v_row."item_id" is null then
+      raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+    end if;
+    perform "better_supabase"."moderation_apply"(v_row."item_id", decide_notice.decision, decide_notice.outcome, false);
+  end if;
+  update "better_supabase"."moderation_notices" x
+  set "status" = case when decide_notice.decision = 'reject' then 'rejected' else 'actioned' end,
+    "outcome" = nullif(trim(decide_notice.outcome), ''), "decided_by" = auth.uid(), "decided_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('moderation_notice.decided', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'itemId', v_row."item_id", 'status', v_row."status", 'decision', decide_notice.decision, 'notifierId', v_row."notifier_id"), 'moderation-notices/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/moderation');
+  perform better_supabase.audit_event(
+    event_type => 'moderation_notice.decided',
+    category => 'data',
+    target_type => 'moderation_notice',
+    record_id => v_row."id"::text,
+    summary => 'notice ' || v_row."status",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'itemId', v_row."item_id", 'status', v_row."status", 'decision', decide_notice.decision, 'notifierId', v_row."notifier_id")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'explanation', v_row."explanation", 'url', v_row."url", 'notifierName', v_row."notifier_name", 'notifierEmail', v_row."notifier_email", 'notifierId', v_row."notifier_id", 'trusted', v_row."trusted", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_notice"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."decide_notice"(uuid, text, text) to authenticated, service_role;
+
+-- Records a statement of reasons (DSA Article 17) for an item a moderator
+-- restricted. A statement names the legal ground, the terms ground or both.
+create or replace function "better_supabase"."issue_statement"(item_id uuid, restriction text, facts text, legal_ground text default null, terms_ground text default null, automated_detection boolean default false, automated_decision boolean default false, redress text[] default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_item "better_supabase"."moderation_items";
+  v_row "better_supabase"."moderation_statements";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_item from "better_supabase"."moderation_items" x where x."id" = issue_statement.item_id;
+  if v_item."id" is null then
+    raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_item."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to issue statements of reasons' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if issue_statement.restriction is null or issue_statement.restriction not in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination') then
+    raise exception 'restriction must be one of the Article 17 restrictions' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if issue_statement.facts is null or length(trim(issue_statement.facts)) = 0 or length(issue_statement.facts) > 5000 then
+    raise exception 'a statement needs facts and circumstances of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if nullif(trim(issue_statement.legal_ground), '') is null and nullif(trim(issue_statement.terms_ground), '') is null then
+    raise exception 'a statement needs a legal ground or a terms ground' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  insert into "better_supabase"."moderation_statements" ("tenant_id", "item_id", "restriction", "facts", "legal_ground", "terms_ground", "automated_detection", "automated_decision", "redress", "issued_by")
+  values (v_item."tenant_id", v_item."id", issue_statement.restriction, trim(issue_statement.facts), nullif(trim(issue_statement.legal_ground), ''), nullif(trim(issue_statement.terms_ground), ''),
+    coalesce(issue_statement.automated_detection, false), coalesce(issue_statement.automated_decision, false),
+    coalesce(issue_statement.redress, array['internal_complaint', 'out_of_court', 'judicial']), auth.uid())
+  returning * into v_row;
+  perform "better_supabase".emit_event('moderation_statement.issued', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'itemId', v_row."item_id", 'restriction', v_row."restriction", 'authorId', v_item."author_id"), 'moderation-statements/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/moderation');
+  perform better_supabase.audit_event(
+    event_type => 'moderation_statement.issued',
+    category => 'data',
+    target_type => 'moderation_statement',
+    record_id => v_row."id"::text,
+    summary => 'statement of reasons: ' || v_row."restriction",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'itemId', v_row."item_id", 'restriction', v_row."restriction", 'authorId', v_item."author_id")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'restriction', v_row."restriction", 'facts', v_row."facts", 'legalGround', v_row."legal_ground", 'termsGround', v_row."terms_ground", 'automatedDetection', v_row."automated_detection", 'automatedDecision', v_row."automated_decision", 'redress', to_jsonb(v_row."redress"), 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) to authenticated, service_role;
+
+-- The statements of reasons for one item, newest first. The item's author
+-- reads their own through the same call.
+create or replace function "better_supabase"."list_statements"(item_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_item "better_supabase"."moderation_items";
+begin
+  select * into v_item from "better_supabase"."moderation_items" x where x."id" = list_statements.item_id;
+  if v_item."id" is null then
+    raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+  end if;
+  if not ((auth.uid() is not null and v_item."author_id" is not distinct from auth.uid()) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_item."tenant_id", 'moderation.read'), false))) then
+    raise exception 'not allowed to read statements of reasons' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'itemId', y."item_id", 'restriction', y."restriction", 'facts', y."facts", 'legalGround', y."legal_ground", 'termsGround', y."terms_ground", 'automatedDetection', y."automated_detection", 'automatedDecision', y."automated_decision", 'redress', to_jsonb(y."redress"), 'issuedBy', y."issued_by", 'createdAt', y."created_at") order by y."created_at" desc) from "better_supabase"."moderation_statements" y where y."item_id" = v_item."id"), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_statements"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_statements"(uuid) to authenticated, service_role;
+
+-- Awards or revokes trusted flagger status (DSA Article 22) for a user.
+create or replace function "better_supabase"."set_trusted_flagger"(tenant uuid, user_id uuid, name text default null, awarded_by text default null, active boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_flaggers";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_trusted_flagger.tenant, 'moderation.manage'), false)) then
+    raise exception 'not allowed to manage trusted flaggers' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if set_trusted_flagger.active is false then
+    update "better_supabase"."moderation_flaggers" x set "revoked_at" = now()
+    where x."tenant_id" = set_trusted_flagger.tenant and x."user_id" = set_trusted_flagger.user_id and x."revoked_at" is null
+    returning * into v_row;
+    if v_row."id" is null then
+      raise exception 'no active trusted flagger for this user' using errcode = 'P0002', hint = 'MODERATION_FLAGGER_NOT_FOUND';
+    end if;
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'name', v_row."name", 'awardedBy', v_row."awarded_by", 'revokedAt', v_row."revoked_at", 'createdAt', v_row."created_at");
+  end if;
+  if set_trusted_flagger.name is null or length(trim(set_trusted_flagger.name)) not between 1 and 200 then
+    raise exception 'a trusted flagger needs a name of at most 200 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."moderation_flaggers" x
+  where x."tenant_id" = set_trusted_flagger.tenant and x."user_id" = set_trusted_flagger.user_id and x."revoked_at" is null;
+  if v_row."id" is null then
+    insert into "better_supabase"."moderation_flaggers" ("tenant_id", "user_id", "name", "awarded_by")
+    values (set_trusted_flagger.tenant, set_trusted_flagger.user_id, trim(set_trusted_flagger.name), nullif(trim(set_trusted_flagger.awarded_by), ''))
+    returning * into v_row;
+  else
+    update "better_supabase"."moderation_flaggers" x
+    set "name" = trim(set_trusted_flagger.name), "awarded_by" = nullif(trim(set_trusted_flagger.awarded_by), '')
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'name', v_row."name", 'awardedBy', v_row."awarded_by", 'revokedAt', v_row."revoked_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."set_trusted_flagger"(uuid, uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_trusted_flagger"(uuid, uuid, text, text, boolean) to authenticated, service_role;
+
+-- Files an appeal (DSA Article 20) against a statement of reasons, or against
+-- a rejected notice. Only the affected content's author or the notifier can.
+create or replace function "better_supabase"."file_appeal"(statement_id uuid default null, notice_id uuid default null, reasons text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_tenant uuid;
+  v_row "better_supabase"."moderation_appeals";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to file an appeal' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if (file_appeal.statement_id is null) = (file_appeal.notice_id is null) then
+    raise exception 'an appeal names a statement or a notice' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if file_appeal.reasons is null or length(trim(file_appeal.reasons)) = 0 or length(file_appeal.reasons) > 5000 then
+    raise exception 'an appeal needs reasons of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if file_appeal.statement_id is not null then
+    select s."tenant_id" into v_tenant
+    from "better_supabase"."moderation_statements" s join "better_supabase"."moderation_items" x on x."id" = s."item_id"
+    where s."id" = file_appeal.statement_id and x."author_id" = v_me;
+  else
+    select x."tenant_id" into v_tenant from "better_supabase"."moderation_notices" x
+    where x."id" = file_appeal.notice_id and x."notifier_id" = v_me and x."status" = 'rejected';
+  end if;
+  if v_tenant is null then
+    raise exception 'you can only appeal a decision that affects you' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  begin
+    insert into "better_supabase"."moderation_appeals" ("tenant_id", "statement_id", "notice_id", "appellant_id", "reasons")
+    values (v_tenant, file_appeal.statement_id, file_appeal.notice_id, v_me, trim(file_appeal.reasons))
+    returning * into v_row;
+  exception when unique_violation then
+    raise exception 'an appeal is open for this decision already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end;
+  perform "better_supabase".emit_event('moderation_appeal.filed', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'appellantId', v_row."appellant_id"), 'moderation-appeals/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/moderation');
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'appellantId', v_row."appellant_id", 'reasons', v_row."reasons", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."file_appeal"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."file_appeal"(uuid, uuid, text) to authenticated, service_role;
+
+-- Decides an appeal. The decision needs a person, not an automated means
+-- (DSA Article 20(6)). Reversing an appeal against a statement restores the
+-- content; reversing one against a notice puts the notice back in the queue.
+create or replace function "better_supabase"."decide_appeal"(appeal_id uuid, outcome text, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_appeals";
+  v_item "better_supabase"."moderation_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."moderation_appeals" x where x."id" = decide_appeal.appeal_id for update;
+  if v_row."id" is null then
+    raise exception 'appeal not found' using errcode = 'P0002', hint = 'MODERATION_APPEAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to decide on appeals' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if decide_appeal.outcome is null or decide_appeal.outcome not in ('upheld', 'reversed') then
+    raise exception 'outcome must be upheld or reversed' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if length(decide_appeal.reason) > 2000 then
+    raise exception 'reason must be at most 2000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if v_row."status" <> 'open' then
+    raise exception 'this appeal was decided already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if decide_appeal.outcome = 'reversed' then
+    if v_row."statement_id" is not null then
+      select x.* into v_item from "better_supabase"."moderation_items" x join "better_supabase"."moderation_statements" s on s."item_id" = x."id" where s."id" = v_row."statement_id";
+      if v_item."status" in ('hidden', 'removed') then
+        perform "better_supabase"."moderation_apply"(v_item."id", 'restore', decide_appeal.reason, false);
+      end if;
+    else
+      update "better_supabase"."moderation_notices" x set "status" = 'received', "decided_at" = null, "decided_by" = null
+      where x."id" = v_row."notice_id";
+    end if;
+  end if;
+  update "better_supabase"."moderation_appeals" x
+  set "status" = decide_appeal.outcome, "outcome" = nullif(trim(decide_appeal.reason), ''), "decided_by" = auth.uid(), "decided_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('moderation_appeal.decided', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'status', v_row."status", 'appellantId', v_row."appellant_id"), 'moderation-appeals/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/moderation');
+  perform better_supabase.audit_event(
+    event_type => 'moderation_appeal.decided',
+    category => 'data',
+    target_type => 'moderation_appeal',
+    record_id => v_row."id"::text,
+    summary => 'appeal ' || v_row."status",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'status', v_row."status", 'appellantId', v_row."appellant_id")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'appellantId', v_row."appellant_id", 'reasons', v_row."reasons", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_appeal"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."decide_appeal"(uuid, text, text) to authenticated, service_role;
+
+-- The transparency report (DSA Articles 15 and 24) for a period, as CSV with
+-- the columns metric, dimension and value: notices by status and from trusted
+-- flaggers, statements by restriction and automated means, appeals by
+-- outcome, and moderation decisions by action.
+create or replace function "better_supabase"."transparency_report"(tenant uuid, period_start timestamptz, period_end timestamptz)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_csv text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', transparency_report.tenant, 'moderation.read'), false)) then
+    raise exception 'not allowed to read the transparency report' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if transparency_report.period_start is null or transparency_report.period_end is null or transparency_report.period_end <= transparency_report.period_start then
+    raise exception 'the period needs a start before its end' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  with rows (metric, dimension, value, sort) as (
+    select 'notices', 'received', count(*), 10 from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'notices', 'trusted_flagger', count(*), 11 from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."trusted" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'notices', x."status", count(*), 12 from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."status"
+    union all
+    select 'statements', x."restriction", count(*), 20 from "better_supabase"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."restriction"
+    union all
+    select 'statements', 'automated_detection', count(*), 21 from "better_supabase"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."automated_detection" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'statements', 'automated_decision', count(*), 22 from "better_supabase"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."automated_decision" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'appeals', 'received', count(*), 30 from "better_supabase"."moderation_appeals" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'appeals', x."status", count(*), 31 from "better_supabase"."moderation_appeals" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."status"
+    union all
+    select 'decisions', x."action"::text, count(*), 40 from "better_supabase"."moderation_actions" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."action"
+    union all
+    select 'reports', 'received', count(*), 50 from "better_supabase"."moderation_reports" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+  )
+  select 'metric,dimension,value' || coalesce(E'\n' || string_agg(r.metric || ',' || r.dimension || ',' || r.value::text, E'\n' order by r.sort, r.dimension), '')
+  into v_csv from rows r;
+  return v_csv;
+end;
+$$;
+revoke execute on function "better_supabase"."transparency_report"(uuid, timestamptz, timestamptz) from public, anon;
+grant execute on function "better_supabase"."transparency_report"(uuid, timestamptz, timestamptz) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1498,6 +2725,90 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_b
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_bans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_statements";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_statements" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_statements" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_statements" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_statements" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_notices";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_notices" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_notices" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_notices" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_notices" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_flaggers";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_flaggers" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_flaggers" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_appeals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_appeals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_appeals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_appeals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_appeals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1515,21 +2826,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block-data moderation
--- @bsb-hash sha256:b01db3a657b26c96f56f50464078184599dffda20d933155ff1262b74ce1da6d
+-- @bsb-hash sha256:97d80d244d5ecfdb00b7662ae72c988dec37f9a47d1839281040f4050ac1d3b5
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('moderation', 1, 'managed')
+values ('moderation', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
--- @bsb-block moderation@1 managed
--- @bsb-hash sha256:537915bf8dc057b72c26d2d3aff2e5ae6c183ffbb3c45e235caa7cf3f7b17137
+-- @bsb-block moderation@2 managed
+-- @bsb-hash sha256:4cd0ab67275955aceda55e97906ae37de436f98e8994e33c01380a9273125ff8
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1604,6 +2915,38 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "app_private"."moderation_bans";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."moderation_statements";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."moderation_notices";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."moderation_flaggers";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."moderation_appeals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -1675,6 +3018,80 @@ create table if not exists "app_private"."moderation_bans" (
 create unique index if not exists "moderation_bans_active_idx" on "app_private"."moderation_bans" ("tenant_id", "user_id") where "lifted_at" is null;
 create index if not exists "moderation_bans_user_idx" on "app_private"."moderation_bans" ("user_id");
 
+-- Statements of reasons (DSA Article 17): what was restricted, the facts, the
+-- legal or contractual ground, automated means and the ways to appeal.
+create table if not exists "app_private"."moderation_statements" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "item_id" uuid not null references "app_private"."moderation_items" ("id") on delete cascade,
+  "restriction" text not null check ("restriction" in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination')),
+  "facts" text not null check (length("facts") between 1 and 5000),
+  "legal_ground" text check ("legal_ground" is null or length("legal_ground") <= 2000),
+  "terms_ground" text check ("terms_ground" is null or length("terms_ground") <= 2000),
+  "automated_detection" boolean not null default false,
+  "automated_decision" boolean not null default false,
+  "redress" text[] not null default array['internal_complaint', 'out_of_court', 'judicial'],
+  "issued_by" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("legal_ground" is not null or "terms_ground" is not null)
+);
+create index if not exists "moderation_statements_item_idx" on "app_private"."moderation_statements" ("item_id", "created_at" desc);
+create index if not exists "moderation_statements_tenant_idx" on "app_private"."moderation_statements" ("tenant_id", "created_at" desc);
+
+-- Notices of illegal content (DSA Article 16).
+create table if not exists "app_private"."moderation_notices" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "item_id" uuid references "app_private"."moderation_items" ("id") on delete set null,
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "explanation" text not null check (length("explanation") between 1 and 5000),
+  "url" text check ("url" is null or length("url") <= 2000),
+  "notifier_name" text check ("notifier_name" is null or length("notifier_name") <= 200),
+  "notifier_email" text check ("notifier_email" is null or length("notifier_email") <= 320),
+  "notifier_id" uuid references auth.users (id) on delete set null,
+  "trusted" boolean not null default false,
+  "status" text not null default 'received' check ("status" in ('received', 'actioned', 'rejected')),
+  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists "moderation_notices_queue_idx" on "app_private"."moderation_notices" ("tenant_id", "trusted" desc, "created_at") where "status" = 'received';
+create index if not exists "moderation_notices_notifier_idx" on "app_private"."moderation_notices" ("notifier_id");
+
+-- Trusted flaggers (DSA Article 22): notices from them are marked and come
+-- first in the queue.
+create table if not exists "app_private"."moderation_flaggers" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "name" text not null check (length("name") between 1 and 200),
+  "awarded_by" text check ("awarded_by" is null or length("awarded_by") <= 200),
+  "revoked_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create unique index if not exists "moderation_flaggers_active_idx" on "app_private"."moderation_flaggers" ("tenant_id", "user_id") where "revoked_at" is null;
+
+-- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
+create table if not exists "app_private"."moderation_appeals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "statement_id" uuid references "app_private"."moderation_statements" ("id") on delete cascade,
+  "notice_id" uuid references "app_private"."moderation_notices" ("id") on delete cascade,
+  "appellant_id" uuid references auth.users (id) on delete set null,
+  "reasons" text not null check (length("reasons") between 1 and 5000),
+  "status" text not null default 'open' check ("status" in ('open', 'upheld', 'reversed')),
+  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  check (("statement_id" is not null) <> ("notice_id" is not null))
+);
+create unique index if not exists "moderation_appeals_open_statement_idx" on "app_private"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
+create unique index if not exists "moderation_appeals_open_notice_idx" on "app_private"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
+create index if not exists "moderation_appeals_tenant_idx" on "app_private"."moderation_appeals" ("tenant_id", "created_at" desc);
+
 alter table "app_private"."moderation_items" enable row level security;
 revoke all on "app_private"."moderation_items" from public, anon, authenticated;
 grant select on "app_private"."moderation_items" to authenticated;
@@ -1707,6 +3124,39 @@ drop policy if exists "moderation_bans_read" on "app_private"."moderation_bans";
 create policy moderation_bans_read on "app_private"."moderation_bans"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+
+alter table "app_private"."moderation_statements" enable row level security;
+revoke all on "app_private"."moderation_statements" from public, anon, authenticated;
+grant select on "app_private"."moderation_statements" to authenticated;
+grant all on "app_private"."moderation_statements" to service_role;
+drop policy if exists "moderation_statements_read" on "app_private"."moderation_statements";
+create policy moderation_statements_read on "app_private"."moderation_statements"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "app_private"."moderation_notices" enable row level security;
+revoke all on "app_private"."moderation_notices" from public, anon, authenticated;
+grant select on "app_private"."moderation_notices" to authenticated;
+grant all on "app_private"."moderation_notices" to service_role;
+drop policy if exists "moderation_notices_read" on "app_private"."moderation_notices";
+create policy moderation_notices_read on "app_private"."moderation_notices"
+  for select to authenticated
+  using ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "app_private"."moderation_flaggers" enable row level security;
+revoke all on "app_private"."moderation_flaggers" from public, anon, authenticated;
+grant select on "app_private"."moderation_flaggers" to authenticated;
+grant all on "app_private"."moderation_flaggers" to service_role;
+drop policy if exists "moderation_flaggers_read" on "app_private"."moderation_flaggers";
+create policy moderation_flaggers_read on "app_private"."moderation_flaggers"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "app_private"."moderation_appeals" enable row level security;
+revoke all on "app_private"."moderation_appeals" from public, anon, authenticated;
+grant select on "app_private"."moderation_appeals" to authenticated;
+grant all on "app_private"."moderation_appeals" to service_role;
+drop policy if exists "moderation_appeals_read" on "app_private"."moderation_appeals";
+create policy moderation_appeals_read on "app_private"."moderation_appeals"
+  for select to authenticated
+  using ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
 -- Whether a user is banned in an organization right now.
 create or replace function "app_private"."moderation_banned"(tenant uuid, user_id uuid)
@@ -2133,6 +3583,425 @@ $$;
 revoke execute on function "app_private"."list_bans"(uuid, boolean, integer) from public, anon;
 grant execute on function "app_private"."list_bans"(uuid, boolean, integer) to authenticated, service_role;
 
+-- Takes a notice of illegal content (DSA Article 16) for a subject. The
+-- notice is marked trusted when the caller is an active trusted flagger, and
+-- the subject gets a moderation item when it has none.
+create or replace function "app_private"."submit_notice"(tenant uuid, subject_type text, subject_id text, explanation text, url text default null, notifier_name text default null, notifier_email text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_item uuid;
+  v_trusted boolean;
+  v_row "app_private"."moderation_notices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to submit a notice' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if not coalesce(better_supabase.can('tenant', submit_notice.tenant, 'moderation.report'), false) then
+    raise exception 'not allowed to submit a notice' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if submit_notice.subject_type is null or submit_notice.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$'
+    or submit_notice.subject_id is null or length(submit_notice.subject_id) not between 1 and 200 then
+    raise exception 'a notice needs a subject type and id' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if submit_notice.explanation is null or length(trim(submit_notice.explanation)) = 0 or length(submit_notice.explanation) > 5000 then
+    raise exception 'a notice needs an explanation of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  insert into "app_private"."moderation_items" ("tenant_id", "subject_type", "subject_id")
+  values (submit_notice.tenant, submit_notice.subject_type, submit_notice.subject_id)
+  on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
+  select x."id" into v_item from "app_private"."moderation_items" x
+  where x."tenant_id" = submit_notice.tenant and x."subject_type" = submit_notice.subject_type and x."subject_id" = submit_notice.subject_id;
+  select exists (
+    select 1 from "app_private"."moderation_flaggers" x
+    where x."tenant_id" = submit_notice.tenant and x."user_id" = v_me and x."revoked_at" is null
+  ) into v_trusted;
+  insert into "app_private"."moderation_notices" ("tenant_id", "item_id", "subject_type", "subject_id", "explanation", "url", "notifier_name", "notifier_email", "notifier_id", "trusted")
+  values (submit_notice.tenant, v_item, submit_notice.subject_type, submit_notice.subject_id, trim(submit_notice.explanation), nullif(trim(submit_notice.url), ''), nullif(trim(submit_notice.notifier_name), ''), nullif(trim(submit_notice.notifier_email), ''), v_me, v_trusted)
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'explanation', v_row."explanation", 'url', v_row."url", 'notifierName', v_row."notifier_name", 'notifierEmail', v_row."notifier_email", 'notifierId', v_row."notifier_id", 'trusted', v_row."trusted", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "app_private"."submit_notice"(uuid, text, text, text, text, text, text) from public, anon;
+grant execute on function "app_private"."submit_notice"(uuid, text, text, text, text, text, text) to authenticated, service_role;
+
+-- The notices of an organization, trusted flaggers first, then oldest first.
+-- Without a status it lists the notices that wait for a decision.
+create or replace function "app_private"."list_notices"(tenant uuid, status text default null, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_notices.tenant, 'moderation.read'), false)) then
+    raise exception 'not allowed to read notices' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(q.notice order by q.trusted desc, q.created asc), '[]'::jsonb) into v_rows
+  from (
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'itemId', x."item_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'explanation', x."explanation", 'url', x."url", 'notifierName', x."notifier_name", 'notifierEmail', x."notifier_email", 'notifierId', x."notifier_id", 'trusted', x."trusted", 'status', x."status", 'outcome', x."outcome", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") as notice, x."trusted" as trusted, x."created_at" as created
+    from "app_private"."moderation_notices" x
+    where x."tenant_id" = list_notices.tenant
+      and x."status" = coalesce(list_notices.status, 'received')
+    order by x."trusted" desc, x."created_at" asc
+    limit least(greatest(coalesce(list_notices.page_size, 50), 1), 200)
+  ) q;
+  return v_rows;
+end;
+$$;
+revoke execute on function "app_private"."list_notices"(uuid, text, integer) from public, anon;
+grant execute on function "app_private"."list_notices"(uuid, text, integer) to authenticated, service_role;
+
+-- Decides a notice: hide or remove the content, or reject the notice. The
+-- notifier is told through the moderation_notice.decided event.
+create or replace function "app_private"."decide_notice"(notice_id uuid, decision text, outcome text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."moderation_notices";
+  v_item "app_private"."moderation_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."moderation_notices" x where x."id" = decide_notice.notice_id for update;
+  if v_row."id" is null then
+    raise exception 'notice not found' using errcode = 'P0002', hint = 'MODERATION_NOTICE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to decide on notices' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if decide_notice.decision is null or decide_notice.decision not in ('hide', 'remove', 'reject') then
+    raise exception 'decision must be hide, remove or reject' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if length(decide_notice.outcome) > 2000 then
+    raise exception 'outcome must be at most 2000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if v_row."status" <> 'received' then
+    raise exception 'this notice was decided already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if decide_notice.decision <> 'reject' then
+    if v_row."item_id" is null then
+      raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+    end if;
+    perform "app_private"."moderation_apply"(v_row."item_id", decide_notice.decision, decide_notice.outcome, false);
+  end if;
+  update "app_private"."moderation_notices" x
+  set "status" = case when decide_notice.decision = 'reject' then 'rejected' else 'actioned' end,
+    "outcome" = nullif(trim(decide_notice.outcome), ''), "decided_by" = auth.uid(), "decided_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'explanation', v_row."explanation", 'url', v_row."url", 'notifierName', v_row."notifier_name", 'notifierEmail', v_row."notifier_email", 'notifierId', v_row."notifier_id", 'trusted', v_row."trusted", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "app_private"."decide_notice"(uuid, text, text) from public, anon;
+grant execute on function "app_private"."decide_notice"(uuid, text, text) to authenticated, service_role;
+
+-- Records a statement of reasons (DSA Article 17) for an item a moderator
+-- restricted. A statement names the legal ground, the terms ground or both.
+create or replace function "app_private"."issue_statement"(item_id uuid, restriction text, facts text, legal_ground text default null, terms_ground text default null, automated_detection boolean default false, automated_decision boolean default false, redress text[] default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_item "app_private"."moderation_items";
+  v_row "app_private"."moderation_statements";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_item from "app_private"."moderation_items" x where x."id" = issue_statement.item_id;
+  if v_item."id" is null then
+    raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_item."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to issue statements of reasons' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if issue_statement.restriction is null or issue_statement.restriction not in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination') then
+    raise exception 'restriction must be one of the Article 17 restrictions' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if issue_statement.facts is null or length(trim(issue_statement.facts)) = 0 or length(issue_statement.facts) > 5000 then
+    raise exception 'a statement needs facts and circumstances of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if nullif(trim(issue_statement.legal_ground), '') is null and nullif(trim(issue_statement.terms_ground), '') is null then
+    raise exception 'a statement needs a legal ground or a terms ground' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  insert into "app_private"."moderation_statements" ("tenant_id", "item_id", "restriction", "facts", "legal_ground", "terms_ground", "automated_detection", "automated_decision", "redress", "issued_by")
+  values (v_item."tenant_id", v_item."id", issue_statement.restriction, trim(issue_statement.facts), nullif(trim(issue_statement.legal_ground), ''), nullif(trim(issue_statement.terms_ground), ''),
+    coalesce(issue_statement.automated_detection, false), coalesce(issue_statement.automated_decision, false),
+    coalesce(issue_statement.redress, array['internal_complaint', 'out_of_court', 'judicial']), auth.uid())
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'restriction', v_row."restriction", 'facts', v_row."facts", 'legalGround', v_row."legal_ground", 'termsGround', v_row."terms_ground", 'automatedDetection', v_row."automated_detection", 'automatedDecision', v_row."automated_decision", 'redress', to_jsonb(v_row."redress"), 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "app_private"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) from public, anon;
+grant execute on function "app_private"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) to authenticated, service_role;
+
+-- The statements of reasons for one item, newest first. The item's author
+-- reads their own through the same call.
+create or replace function "app_private"."list_statements"(item_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_item "app_private"."moderation_items";
+begin
+  select * into v_item from "app_private"."moderation_items" x where x."id" = list_statements.item_id;
+  if v_item."id" is null then
+    raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+  end if;
+  if not ((auth.uid() is not null and v_item."author_id" is not distinct from auth.uid()) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_item."tenant_id", 'moderation.read'), false))) then
+    raise exception 'not allowed to read statements of reasons' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'itemId', y."item_id", 'restriction', y."restriction", 'facts', y."facts", 'legalGround', y."legal_ground", 'termsGround', y."terms_ground", 'automatedDetection', y."automated_detection", 'automatedDecision', y."automated_decision", 'redress', to_jsonb(y."redress"), 'issuedBy', y."issued_by", 'createdAt', y."created_at") order by y."created_at" desc) from "app_private"."moderation_statements" y where y."item_id" = v_item."id"), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."list_statements"(uuid) from public, anon;
+grant execute on function "app_private"."list_statements"(uuid) to authenticated, service_role;
+
+-- Awards or revokes trusted flagger status (DSA Article 22) for a user.
+create or replace function "app_private"."set_trusted_flagger"(tenant uuid, user_id uuid, name text default null, awarded_by text default null, active boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."moderation_flaggers";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_trusted_flagger.tenant, 'moderation.manage'), false)) then
+    raise exception 'not allowed to manage trusted flaggers' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if set_trusted_flagger.active is false then
+    update "app_private"."moderation_flaggers" x set "revoked_at" = now()
+    where x."tenant_id" = set_trusted_flagger.tenant and x."user_id" = set_trusted_flagger.user_id and x."revoked_at" is null
+    returning * into v_row;
+    if v_row."id" is null then
+      raise exception 'no active trusted flagger for this user' using errcode = 'P0002', hint = 'MODERATION_FLAGGER_NOT_FOUND';
+    end if;
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'name', v_row."name", 'awardedBy', v_row."awarded_by", 'revokedAt', v_row."revoked_at", 'createdAt', v_row."created_at");
+  end if;
+  if set_trusted_flagger.name is null or length(trim(set_trusted_flagger.name)) not between 1 and 200 then
+    raise exception 'a trusted flagger needs a name of at most 200 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  select * into v_row from "app_private"."moderation_flaggers" x
+  where x."tenant_id" = set_trusted_flagger.tenant and x."user_id" = set_trusted_flagger.user_id and x."revoked_at" is null;
+  if v_row."id" is null then
+    insert into "app_private"."moderation_flaggers" ("tenant_id", "user_id", "name", "awarded_by")
+    values (set_trusted_flagger.tenant, set_trusted_flagger.user_id, trim(set_trusted_flagger.name), nullif(trim(set_trusted_flagger.awarded_by), ''))
+    returning * into v_row;
+  else
+    update "app_private"."moderation_flaggers" x
+    set "name" = trim(set_trusted_flagger.name), "awarded_by" = nullif(trim(set_trusted_flagger.awarded_by), '')
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'name', v_row."name", 'awardedBy', v_row."awarded_by", 'revokedAt', v_row."revoked_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "app_private"."set_trusted_flagger"(uuid, uuid, text, text, boolean) from public, anon;
+grant execute on function "app_private"."set_trusted_flagger"(uuid, uuid, text, text, boolean) to authenticated, service_role;
+
+-- Files an appeal (DSA Article 20) against a statement of reasons, or against
+-- a rejected notice. Only the affected content's author or the notifier can.
+create or replace function "app_private"."file_appeal"(statement_id uuid default null, notice_id uuid default null, reasons text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_tenant uuid;
+  v_row "app_private"."moderation_appeals";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to file an appeal' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if (file_appeal.statement_id is null) = (file_appeal.notice_id is null) then
+    raise exception 'an appeal names a statement or a notice' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if file_appeal.reasons is null or length(trim(file_appeal.reasons)) = 0 or length(file_appeal.reasons) > 5000 then
+    raise exception 'an appeal needs reasons of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if file_appeal.statement_id is not null then
+    select s."tenant_id" into v_tenant
+    from "app_private"."moderation_statements" s join "app_private"."moderation_items" x on x."id" = s."item_id"
+    where s."id" = file_appeal.statement_id and x."author_id" = v_me;
+  else
+    select x."tenant_id" into v_tenant from "app_private"."moderation_notices" x
+    where x."id" = file_appeal.notice_id and x."notifier_id" = v_me and x."status" = 'rejected';
+  end if;
+  if v_tenant is null then
+    raise exception 'you can only appeal a decision that affects you' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  begin
+    insert into "app_private"."moderation_appeals" ("tenant_id", "statement_id", "notice_id", "appellant_id", "reasons")
+    values (v_tenant, file_appeal.statement_id, file_appeal.notice_id, v_me, trim(file_appeal.reasons))
+    returning * into v_row;
+  exception when unique_violation then
+    raise exception 'an appeal is open for this decision already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'appellantId', v_row."appellant_id", 'reasons', v_row."reasons", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "app_private"."file_appeal"(uuid, uuid, text) from public, anon;
+grant execute on function "app_private"."file_appeal"(uuid, uuid, text) to authenticated, service_role;
+
+-- Decides an appeal. The decision needs a person, not an automated means
+-- (DSA Article 20(6)). Reversing an appeal against a statement restores the
+-- content; reversing one against a notice puts the notice back in the queue.
+create or replace function "app_private"."decide_appeal"(appeal_id uuid, outcome text, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."moderation_appeals";
+  v_item "app_private"."moderation_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."moderation_appeals" x where x."id" = decide_appeal.appeal_id for update;
+  if v_row."id" is null then
+    raise exception 'appeal not found' using errcode = 'P0002', hint = 'MODERATION_APPEAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to decide on appeals' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if decide_appeal.outcome is null or decide_appeal.outcome not in ('upheld', 'reversed') then
+    raise exception 'outcome must be upheld or reversed' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if length(decide_appeal.reason) > 2000 then
+    raise exception 'reason must be at most 2000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if v_row."status" <> 'open' then
+    raise exception 'this appeal was decided already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if decide_appeal.outcome = 'reversed' then
+    if v_row."statement_id" is not null then
+      select x.* into v_item from "app_private"."moderation_items" x join "app_private"."moderation_statements" s on s."item_id" = x."id" where s."id" = v_row."statement_id";
+      if v_item."status" in ('hidden', 'removed') then
+        perform "app_private"."moderation_apply"(v_item."id", 'restore', decide_appeal.reason, false);
+      end if;
+    else
+      update "app_private"."moderation_notices" x set "status" = 'received', "decided_at" = null, "decided_by" = null
+      where x."id" = v_row."notice_id";
+    end if;
+  end if;
+  update "app_private"."moderation_appeals" x
+  set "status" = decide_appeal.outcome, "outcome" = nullif(trim(decide_appeal.reason), ''), "decided_by" = auth.uid(), "decided_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'appellantId', v_row."appellant_id", 'reasons', v_row."reasons", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "app_private"."decide_appeal"(uuid, text, text) from public, anon;
+grant execute on function "app_private"."decide_appeal"(uuid, text, text) to authenticated, service_role;
+
+-- The transparency report (DSA Articles 15 and 24) for a period, as CSV with
+-- the columns metric, dimension and value: notices by status and from trusted
+-- flaggers, statements by restriction and automated means, appeals by
+-- outcome, and moderation decisions by action.
+create or replace function "app_private"."transparency_report"(tenant uuid, period_start timestamptz, period_end timestamptz)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_csv text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', transparency_report.tenant, 'moderation.read'), false)) then
+    raise exception 'not allowed to read the transparency report' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if transparency_report.period_start is null or transparency_report.period_end is null or transparency_report.period_end <= transparency_report.period_start then
+    raise exception 'the period needs a start before its end' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  with rows (metric, dimension, value, sort) as (
+    select 'notices', 'received', count(*), 10 from "app_private"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'notices', 'trusted_flagger', count(*), 11 from "app_private"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."trusted" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'notices', x."status", count(*), 12 from "app_private"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."status"
+    union all
+    select 'statements', x."restriction", count(*), 20 from "app_private"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."restriction"
+    union all
+    select 'statements', 'automated_detection', count(*), 21 from "app_private"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."automated_detection" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'statements', 'automated_decision', count(*), 22 from "app_private"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."automated_decision" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'appeals', 'received', count(*), 30 from "app_private"."moderation_appeals" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'appeals', x."status", count(*), 31 from "app_private"."moderation_appeals" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."status"
+    union all
+    select 'decisions', x."action"::text, count(*), 40 from "app_private"."moderation_actions" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."action"
+    union all
+    select 'reports', 'received', count(*), 50 from "app_private"."moderation_reports" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+  )
+  select 'metric,dimension,value' || coalesce(E'\n' || string_agg(r.metric || ',' || r.dimension || ',' || r.value::text, E'\n' order by r.sort, r.dimension), '')
+  into v_csv from rows r;
+  return v_csv;
+end;
+$$;
+revoke execute on function "app_private"."transparency_report"(uuid, timestamptz, timestamptz) from public, anon;
+grant execute on function "app_private"."transparency_report"(uuid, timestamptz, timestamptz) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2232,6 +4101,90 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."moderation_bans"
 create policy bsb_tenant_scope_delete on "app_private"."moderation_bans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."moderation_statements";
+drop policy if exists bsb_tenant_scope_select on "app_private"."moderation_statements";
+create policy bsb_tenant_scope_select on "app_private"."moderation_statements" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."moderation_statements";
+create policy bsb_tenant_scope_insert on "app_private"."moderation_statements" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."moderation_statements";
+create policy bsb_tenant_scope_update on "app_private"."moderation_statements" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."moderation_statements";
+create policy bsb_tenant_scope_delete on "app_private"."moderation_statements" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."moderation_notices";
+drop policy if exists bsb_tenant_scope_select on "app_private"."moderation_notices";
+create policy bsb_tenant_scope_select on "app_private"."moderation_notices" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."moderation_notices";
+create policy bsb_tenant_scope_insert on "app_private"."moderation_notices" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."moderation_notices";
+create policy bsb_tenant_scope_update on "app_private"."moderation_notices" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."moderation_notices";
+create policy bsb_tenant_scope_delete on "app_private"."moderation_notices" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."moderation_flaggers";
+drop policy if exists bsb_tenant_scope_select on "app_private"."moderation_flaggers";
+create policy bsb_tenant_scope_select on "app_private"."moderation_flaggers" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."moderation_flaggers";
+create policy bsb_tenant_scope_insert on "app_private"."moderation_flaggers" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."moderation_flaggers";
+create policy bsb_tenant_scope_update on "app_private"."moderation_flaggers" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."moderation_flaggers";
+create policy bsb_tenant_scope_delete on "app_private"."moderation_flaggers" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."moderation_appeals";
+drop policy if exists bsb_tenant_scope_select on "app_private"."moderation_appeals";
+create policy bsb_tenant_scope_select on "app_private"."moderation_appeals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."moderation_appeals";
+create policy bsb_tenant_scope_insert on "app_private"."moderation_appeals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."moderation_appeals";
+create policy bsb_tenant_scope_update on "app_private"."moderation_appeals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."moderation_appeals";
+create policy bsb_tenant_scope_delete on "app_private"."moderation_appeals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2249,21 +4202,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block-data moderation
--- @bsb-hash sha256:b01db3a657b26c96f56f50464078184599dffda20d933155ff1262b74ce1da6d
+-- @bsb-hash sha256:97d80d244d5ecfdb00b7662ae72c988dec37f9a47d1839281040f4050ac1d3b5
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('moderation', 1, 'managed')
+values ('moderation', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
--- @bsb-block moderation@1 managed
--- @bsb-hash sha256:9ab3e7c3085697181c1cfed1a34f613429af1bb536d15fced556202bbdf1e35a
+-- @bsb-block moderation@2 managed
+-- @bsb-hash sha256:a64277972a70063c5a097b583676a2fef1aebc4011a7d6579b9944168b0b504e
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2338,6 +4291,38 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_bans";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_statements";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_notices";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_appeals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -2404,6 +4389,80 @@ create table if not exists "better_supabase"."moderation_bans" (
 create unique index if not exists "moderation_bans_active_idx" on "better_supabase"."moderation_bans" ("tenant_id", "user_id") where "lifted_at" is null;
 create index if not exists "moderation_bans_user_idx" on "better_supabase"."moderation_bans" ("user_id");
 
+-- Statements of reasons (DSA Article 17): what was restricted, the facts, the
+-- legal or contractual ground, automated means and the ways to appeal.
+create table if not exists "better_supabase"."moderation_statements" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "item_id" uuid not null references "better_supabase"."moderation_items" ("id") on delete cascade,
+  "restriction" text not null check ("restriction" in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination')),
+  "facts" text not null check (length("facts") between 1 and 5000),
+  "legal_ground" text check ("legal_ground" is null or length("legal_ground") <= 2000),
+  "terms_ground" text check ("terms_ground" is null or length("terms_ground") <= 2000),
+  "automated_detection" boolean not null default false,
+  "automated_decision" boolean not null default false,
+  "redress" text[] not null default array['internal_complaint', 'out_of_court', 'judicial'],
+  "issued_by" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("legal_ground" is not null or "terms_ground" is not null)
+);
+create index if not exists "moderation_statements_item_idx" on "better_supabase"."moderation_statements" ("item_id", "created_at" desc);
+create index if not exists "moderation_statements_tenant_idx" on "better_supabase"."moderation_statements" ("tenant_id", "created_at" desc);
+
+-- Notices of illegal content (DSA Article 16).
+create table if not exists "better_supabase"."moderation_notices" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "item_id" uuid references "better_supabase"."moderation_items" ("id") on delete set null,
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "explanation" text not null check (length("explanation") between 1 and 5000),
+  "url" text check ("url" is null or length("url") <= 2000),
+  "notifier_name" text check ("notifier_name" is null or length("notifier_name") <= 200),
+  "notifier_email" text check ("notifier_email" is null or length("notifier_email") <= 320),
+  "notifier_id" uuid references auth.users (id) on delete set null,
+  "trusted" boolean not null default false,
+  "status" text not null default 'received' check ("status" in ('received', 'actioned', 'rejected')),
+  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists "moderation_notices_queue_idx" on "better_supabase"."moderation_notices" ("tenant_id", "trusted" desc, "created_at") where "status" = 'received';
+create index if not exists "moderation_notices_notifier_idx" on "better_supabase"."moderation_notices" ("notifier_id");
+
+-- Trusted flaggers (DSA Article 22): notices from them are marked and come
+-- first in the queue.
+create table if not exists "better_supabase"."moderation_flaggers" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "name" text not null check (length("name") between 1 and 200),
+  "awarded_by" text check ("awarded_by" is null or length("awarded_by") <= 200),
+  "revoked_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create unique index if not exists "moderation_flaggers_active_idx" on "better_supabase"."moderation_flaggers" ("tenant_id", "user_id") where "revoked_at" is null;
+
+-- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
+create table if not exists "better_supabase"."moderation_appeals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "statement_id" uuid references "better_supabase"."moderation_statements" ("id") on delete cascade,
+  "notice_id" uuid references "better_supabase"."moderation_notices" ("id") on delete cascade,
+  "appellant_id" uuid references auth.users (id) on delete set null,
+  "reasons" text not null check (length("reasons") between 1 and 5000),
+  "status" text not null default 'open' check ("status" in ('open', 'upheld', 'reversed')),
+  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  check (("statement_id" is not null) <> ("notice_id" is not null))
+);
+create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
+create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
+create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
+
 alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_items" to authenticated;
@@ -2436,6 +4495,39 @@ drop policy if exists "moderation_bans_read" on "better_supabase"."moderation_ba
 create policy moderation_bans_read on "better_supabase"."moderation_bans"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+
+alter table "better_supabase"."moderation_statements" enable row level security;
+revoke all on "better_supabase"."moderation_statements" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_statements" to authenticated;
+grant all on "better_supabase"."moderation_statements" to service_role;
+drop policy if exists "moderation_statements_read" on "better_supabase"."moderation_statements";
+create policy moderation_statements_read on "better_supabase"."moderation_statements"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_notices" enable row level security;
+revoke all on "better_supabase"."moderation_notices" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_notices" to authenticated;
+grant all on "better_supabase"."moderation_notices" to service_role;
+drop policy if exists "moderation_notices_read" on "better_supabase"."moderation_notices";
+create policy moderation_notices_read on "better_supabase"."moderation_notices"
+  for select to authenticated
+  using ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_flaggers" enable row level security;
+revoke all on "better_supabase"."moderation_flaggers" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_flaggers" to authenticated;
+grant all on "better_supabase"."moderation_flaggers" to service_role;
+drop policy if exists "moderation_flaggers_read" on "better_supabase"."moderation_flaggers";
+create policy moderation_flaggers_read on "better_supabase"."moderation_flaggers"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_appeals" enable row level security;
+revoke all on "better_supabase"."moderation_appeals" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_appeals" to authenticated;
+grant all on "better_supabase"."moderation_appeals" to service_role;
+drop policy if exists "moderation_appeals_read" on "better_supabase"."moderation_appeals";
+create policy moderation_appeals_read on "better_supabase"."moderation_appeals"
+  for select to authenticated
+  using ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
 -- Whether a user is banned in an organization right now.
 create or replace function "better_supabase"."moderation_banned"(tenant uuid, user_id uuid)
@@ -2862,6 +4954,425 @@ $$;
 revoke execute on function "better_supabase"."list_bans"(uuid, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_bans"(uuid, boolean, integer) to authenticated, service_role;
 
+-- Takes a notice of illegal content (DSA Article 16) for a subject. The
+-- notice is marked trusted when the caller is an active trusted flagger, and
+-- the subject gets a moderation item when it has none.
+create or replace function "better_supabase"."submit_notice"(tenant uuid, subject_type text, subject_id text, explanation text, url text default null, notifier_name text default null, notifier_email text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_item uuid;
+  v_trusted boolean;
+  v_row "better_supabase"."moderation_notices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to submit a notice' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if not coalesce(better_supabase.can('tenant', submit_notice.tenant, 'moderation.report'), false) then
+    raise exception 'not allowed to submit a notice' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if submit_notice.subject_type is null or submit_notice.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$'
+    or submit_notice.subject_id is null or length(submit_notice.subject_id) not between 1 and 200 then
+    raise exception 'a notice needs a subject type and id' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if submit_notice.explanation is null or length(trim(submit_notice.explanation)) = 0 or length(submit_notice.explanation) > 5000 then
+    raise exception 'a notice needs an explanation of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id")
+  values (submit_notice.tenant, submit_notice.subject_type, submit_notice.subject_id)
+  on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
+  select x."id" into v_item from "better_supabase"."moderation_items" x
+  where x."tenant_id" = submit_notice.tenant and x."subject_type" = submit_notice.subject_type and x."subject_id" = submit_notice.subject_id;
+  select exists (
+    select 1 from "better_supabase"."moderation_flaggers" x
+    where x."tenant_id" = submit_notice.tenant and x."user_id" = v_me and x."revoked_at" is null
+  ) into v_trusted;
+  insert into "better_supabase"."moderation_notices" ("tenant_id", "item_id", "subject_type", "subject_id", "explanation", "url", "notifier_name", "notifier_email", "notifier_id", "trusted")
+  values (submit_notice.tenant, v_item, submit_notice.subject_type, submit_notice.subject_id, trim(submit_notice.explanation), nullif(trim(submit_notice.url), ''), nullif(trim(submit_notice.notifier_name), ''), nullif(trim(submit_notice.notifier_email), ''), v_me, v_trusted)
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'explanation', v_row."explanation", 'url', v_row."url", 'notifierName', v_row."notifier_name", 'notifierEmail', v_row."notifier_email", 'notifierId', v_row."notifier_id", 'trusted', v_row."trusted", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."submit_notice"(uuid, text, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."submit_notice"(uuid, text, text, text, text, text, text) to authenticated, service_role;
+
+-- The notices of an organization, trusted flaggers first, then oldest first.
+-- Without a status it lists the notices that wait for a decision.
+create or replace function "better_supabase"."list_notices"(tenant uuid, status text default null, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_notices.tenant, 'moderation.read'), false)) then
+    raise exception 'not allowed to read notices' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(q.notice order by q.trusted desc, q.created asc), '[]'::jsonb) into v_rows
+  from (
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'itemId', x."item_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'explanation', x."explanation", 'url', x."url", 'notifierName', x."notifier_name", 'notifierEmail', x."notifier_email", 'notifierId', x."notifier_id", 'trusted', x."trusted", 'status', x."status", 'outcome', x."outcome", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") as notice, x."trusted" as trusted, x."created_at" as created
+    from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = list_notices.tenant
+      and x."status" = coalesce(list_notices.status, 'received')
+    order by x."trusted" desc, x."created_at" asc
+    limit least(greatest(coalesce(list_notices.page_size, 50), 1), 200)
+  ) q;
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."list_notices"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_notices"(uuid, text, integer) to authenticated, service_role;
+
+-- Decides a notice: hide or remove the content, or reject the notice. The
+-- notifier is told through the moderation_notice.decided event.
+create or replace function "better_supabase"."decide_notice"(notice_id uuid, decision text, outcome text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_notices";
+  v_item "better_supabase"."moderation_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."moderation_notices" x where x."id" = decide_notice.notice_id for update;
+  if v_row."id" is null then
+    raise exception 'notice not found' using errcode = 'P0002', hint = 'MODERATION_NOTICE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to decide on notices' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if decide_notice.decision is null or decide_notice.decision not in ('hide', 'remove', 'reject') then
+    raise exception 'decision must be hide, remove or reject' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if length(decide_notice.outcome) > 2000 then
+    raise exception 'outcome must be at most 2000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if v_row."status" <> 'received' then
+    raise exception 'this notice was decided already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if decide_notice.decision <> 'reject' then
+    if v_row."item_id" is null then
+      raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+    end if;
+    perform "better_supabase"."moderation_apply"(v_row."item_id", decide_notice.decision, decide_notice.outcome, false);
+  end if;
+  update "better_supabase"."moderation_notices" x
+  set "status" = case when decide_notice.decision = 'reject' then 'rejected' else 'actioned' end,
+    "outcome" = nullif(trim(decide_notice.outcome), ''), "decided_by" = auth.uid(), "decided_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'explanation', v_row."explanation", 'url', v_row."url", 'notifierName', v_row."notifier_name", 'notifierEmail', v_row."notifier_email", 'notifierId', v_row."notifier_id", 'trusted', v_row."trusted", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_notice"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."decide_notice"(uuid, text, text) to authenticated, service_role;
+
+-- Records a statement of reasons (DSA Article 17) for an item a moderator
+-- restricted. A statement names the legal ground, the terms ground or both.
+create or replace function "better_supabase"."issue_statement"(item_id uuid, restriction text, facts text, legal_ground text default null, terms_ground text default null, automated_detection boolean default false, automated_decision boolean default false, redress text[] default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_item "better_supabase"."moderation_items";
+  v_row "better_supabase"."moderation_statements";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_item from "better_supabase"."moderation_items" x where x."id" = issue_statement.item_id;
+  if v_item."id" is null then
+    raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_item."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to issue statements of reasons' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if issue_statement.restriction is null or issue_statement.restriction not in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination') then
+    raise exception 'restriction must be one of the Article 17 restrictions' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if issue_statement.facts is null or length(trim(issue_statement.facts)) = 0 or length(issue_statement.facts) > 5000 then
+    raise exception 'a statement needs facts and circumstances of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if nullif(trim(issue_statement.legal_ground), '') is null and nullif(trim(issue_statement.terms_ground), '') is null then
+    raise exception 'a statement needs a legal ground or a terms ground' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  insert into "better_supabase"."moderation_statements" ("tenant_id", "item_id", "restriction", "facts", "legal_ground", "terms_ground", "automated_detection", "automated_decision", "redress", "issued_by")
+  values (v_item."tenant_id", v_item."id", issue_statement.restriction, trim(issue_statement.facts), nullif(trim(issue_statement.legal_ground), ''), nullif(trim(issue_statement.terms_ground), ''),
+    coalesce(issue_statement.automated_detection, false), coalesce(issue_statement.automated_decision, false),
+    coalesce(issue_statement.redress, array['internal_complaint', 'out_of_court', 'judicial']), auth.uid())
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'restriction', v_row."restriction", 'facts', v_row."facts", 'legalGround', v_row."legal_ground", 'termsGround', v_row."terms_ground", 'automatedDetection', v_row."automated_detection", 'automatedDecision', v_row."automated_decision", 'redress', to_jsonb(v_row."redress"), 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) to authenticated, service_role;
+
+-- The statements of reasons for one item, newest first. The item's author
+-- reads their own through the same call.
+create or replace function "better_supabase"."list_statements"(item_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_item "better_supabase"."moderation_items";
+begin
+  select * into v_item from "better_supabase"."moderation_items" x where x."id" = list_statements.item_id;
+  if v_item."id" is null then
+    raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+  end if;
+  if not ((auth.uid() is not null and v_item."author_id" is not distinct from auth.uid()) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_item."tenant_id", 'moderation.read'), false))) then
+    raise exception 'not allowed to read statements of reasons' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'itemId', y."item_id", 'restriction', y."restriction", 'facts', y."facts", 'legalGround', y."legal_ground", 'termsGround', y."terms_ground", 'automatedDetection', y."automated_detection", 'automatedDecision', y."automated_decision", 'redress', to_jsonb(y."redress"), 'issuedBy', y."issued_by", 'createdAt', y."created_at") order by y."created_at" desc) from "better_supabase"."moderation_statements" y where y."item_id" = v_item."id"), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_statements"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_statements"(uuid) to authenticated, service_role;
+
+-- Awards or revokes trusted flagger status (DSA Article 22) for a user.
+create or replace function "better_supabase"."set_trusted_flagger"(tenant uuid, user_id uuid, name text default null, awarded_by text default null, active boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_flaggers";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_trusted_flagger.tenant, 'moderation.manage'), false)) then
+    raise exception 'not allowed to manage trusted flaggers' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if set_trusted_flagger.active is false then
+    update "better_supabase"."moderation_flaggers" x set "revoked_at" = now()
+    where x."tenant_id" = set_trusted_flagger.tenant and x."user_id" = set_trusted_flagger.user_id and x."revoked_at" is null
+    returning * into v_row;
+    if v_row."id" is null then
+      raise exception 'no active trusted flagger for this user' using errcode = 'P0002', hint = 'MODERATION_FLAGGER_NOT_FOUND';
+    end if;
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'name', v_row."name", 'awardedBy', v_row."awarded_by", 'revokedAt', v_row."revoked_at", 'createdAt', v_row."created_at");
+  end if;
+  if set_trusted_flagger.name is null or length(trim(set_trusted_flagger.name)) not between 1 and 200 then
+    raise exception 'a trusted flagger needs a name of at most 200 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."moderation_flaggers" x
+  where x."tenant_id" = set_trusted_flagger.tenant and x."user_id" = set_trusted_flagger.user_id and x."revoked_at" is null;
+  if v_row."id" is null then
+    insert into "better_supabase"."moderation_flaggers" ("tenant_id", "user_id", "name", "awarded_by")
+    values (set_trusted_flagger.tenant, set_trusted_flagger.user_id, trim(set_trusted_flagger.name), nullif(trim(set_trusted_flagger.awarded_by), ''))
+    returning * into v_row;
+  else
+    update "better_supabase"."moderation_flaggers" x
+    set "name" = trim(set_trusted_flagger.name), "awarded_by" = nullif(trim(set_trusted_flagger.awarded_by), '')
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'name', v_row."name", 'awardedBy', v_row."awarded_by", 'revokedAt', v_row."revoked_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."set_trusted_flagger"(uuid, uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_trusted_flagger"(uuid, uuid, text, text, boolean) to authenticated, service_role;
+
+-- Files an appeal (DSA Article 20) against a statement of reasons, or against
+-- a rejected notice. Only the affected content's author or the notifier can.
+create or replace function "better_supabase"."file_appeal"(statement_id uuid default null, notice_id uuid default null, reasons text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_tenant uuid;
+  v_row "better_supabase"."moderation_appeals";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to file an appeal' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if (file_appeal.statement_id is null) = (file_appeal.notice_id is null) then
+    raise exception 'an appeal names a statement or a notice' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if file_appeal.reasons is null or length(trim(file_appeal.reasons)) = 0 or length(file_appeal.reasons) > 5000 then
+    raise exception 'an appeal needs reasons of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if file_appeal.statement_id is not null then
+    select s."tenant_id" into v_tenant
+    from "better_supabase"."moderation_statements" s join "better_supabase"."moderation_items" x on x."id" = s."item_id"
+    where s."id" = file_appeal.statement_id and x."author_id" = v_me;
+  else
+    select x."tenant_id" into v_tenant from "better_supabase"."moderation_notices" x
+    where x."id" = file_appeal.notice_id and x."notifier_id" = v_me and x."status" = 'rejected';
+  end if;
+  if v_tenant is null then
+    raise exception 'you can only appeal a decision that affects you' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  begin
+    insert into "better_supabase"."moderation_appeals" ("tenant_id", "statement_id", "notice_id", "appellant_id", "reasons")
+    values (v_tenant, file_appeal.statement_id, file_appeal.notice_id, v_me, trim(file_appeal.reasons))
+    returning * into v_row;
+  exception when unique_violation then
+    raise exception 'an appeal is open for this decision already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'appellantId', v_row."appellant_id", 'reasons', v_row."reasons", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."file_appeal"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."file_appeal"(uuid, uuid, text) to authenticated, service_role;
+
+-- Decides an appeal. The decision needs a person, not an automated means
+-- (DSA Article 20(6)). Reversing an appeal against a statement restores the
+-- content; reversing one against a notice puts the notice back in the queue.
+create or replace function "better_supabase"."decide_appeal"(appeal_id uuid, outcome text, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_appeals";
+  v_item "better_supabase"."moderation_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."moderation_appeals" x where x."id" = decide_appeal.appeal_id for update;
+  if v_row."id" is null then
+    raise exception 'appeal not found' using errcode = 'P0002', hint = 'MODERATION_APPEAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to decide on appeals' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if decide_appeal.outcome is null or decide_appeal.outcome not in ('upheld', 'reversed') then
+    raise exception 'outcome must be upheld or reversed' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if length(decide_appeal.reason) > 2000 then
+    raise exception 'reason must be at most 2000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if v_row."status" <> 'open' then
+    raise exception 'this appeal was decided already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if decide_appeal.outcome = 'reversed' then
+    if v_row."statement_id" is not null then
+      select x.* into v_item from "better_supabase"."moderation_items" x join "better_supabase"."moderation_statements" s on s."item_id" = x."id" where s."id" = v_row."statement_id";
+      if v_item."status" in ('hidden', 'removed') then
+        perform "better_supabase"."moderation_apply"(v_item."id", 'restore', decide_appeal.reason, false);
+      end if;
+    else
+      update "better_supabase"."moderation_notices" x set "status" = 'received', "decided_at" = null, "decided_by" = null
+      where x."id" = v_row."notice_id";
+    end if;
+  end if;
+  update "better_supabase"."moderation_appeals" x
+  set "status" = decide_appeal.outcome, "outcome" = nullif(trim(decide_appeal.reason), ''), "decided_by" = auth.uid(), "decided_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'appellantId', v_row."appellant_id", 'reasons', v_row."reasons", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_appeal"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."decide_appeal"(uuid, text, text) to authenticated, service_role;
+
+-- The transparency report (DSA Articles 15 and 24) for a period, as CSV with
+-- the columns metric, dimension and value: notices by status and from trusted
+-- flaggers, statements by restriction and automated means, appeals by
+-- outcome, and moderation decisions by action.
+create or replace function "better_supabase"."transparency_report"(tenant uuid, period_start timestamptz, period_end timestamptz)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_csv text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', transparency_report.tenant, 'moderation.read'), false)) then
+    raise exception 'not allowed to read the transparency report' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if transparency_report.period_start is null or transparency_report.period_end is null or transparency_report.period_end <= transparency_report.period_start then
+    raise exception 'the period needs a start before its end' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  with rows (metric, dimension, value, sort) as (
+    select 'notices', 'received', count(*), 10 from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'notices', 'trusted_flagger', count(*), 11 from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."trusted" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'notices', x."status", count(*), 12 from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."status"
+    union all
+    select 'statements', x."restriction", count(*), 20 from "better_supabase"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."restriction"
+    union all
+    select 'statements', 'automated_detection', count(*), 21 from "better_supabase"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."automated_detection" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'statements', 'automated_decision', count(*), 22 from "better_supabase"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."automated_decision" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'appeals', 'received', count(*), 30 from "better_supabase"."moderation_appeals" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'appeals', x."status", count(*), 31 from "better_supabase"."moderation_appeals" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."status"
+    union all
+    select 'decisions', x."action"::text, count(*), 40 from "better_supabase"."moderation_actions" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."action"
+    union all
+    select 'reports', 'received', count(*), 50 from "better_supabase"."moderation_reports" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+  )
+  select 'metric,dimension,value' || coalesce(E'\n' || string_agg(r.metric || ',' || r.dimension || ',' || r.value::text, E'\n' order by r.sort, r.dimension), '')
+  into v_csv from rows r;
+  return v_csv;
+end;
+$$;
+revoke execute on function "better_supabase"."transparency_report"(uuid, timestamptz, timestamptz) from public, anon;
+grant execute on function "better_supabase"."transparency_report"(uuid, timestamptz, timestamptz) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2961,6 +5472,90 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_b
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_bans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_statements";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_statements" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_statements" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_statements" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_statements" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_notices";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_notices" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_notices" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_notices" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_notices" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_flaggers";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_flaggers" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_flaggers" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_appeals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_appeals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_appeals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_appeals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_appeals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.moderation.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3056,6 +5651,87 @@ as $$ select "better_supabase"."list_bans"($1, $2, $3) $$;
 revoke execute on function "api"."list_bans"(uuid, boolean, integer) from public, anon;
 grant execute on function "api"."list_bans"(uuid, boolean, integer) to authenticated, service_role;
 
+create or replace function "api"."submit_notice"(tenant uuid, subject_type text, subject_id text, explanation text, url text default null, notifier_name text default null, notifier_email text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."submit_notice"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."submit_notice"(uuid, text, text, text, text, text, text) from public, anon;
+grant execute on function "api"."submit_notice"(uuid, text, text, text, text, text, text) to authenticated, service_role;
+
+create or replace function "api"."list_notices"(tenant uuid, status text default null, page_size integer default 50)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_notices"($1, $2, $3) $$;
+revoke execute on function "api"."list_notices"(uuid, text, integer) from public, anon;
+grant execute on function "api"."list_notices"(uuid, text, integer) to authenticated, service_role;
+
+create or replace function "api"."decide_notice"(notice_id uuid, decision text, outcome text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."decide_notice"($1, $2, $3) $$;
+revoke execute on function "api"."decide_notice"(uuid, text, text) from public, anon;
+grant execute on function "api"."decide_notice"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."issue_statement"(item_id uuid, restriction text, facts text, legal_ground text default null, terms_ground text default null, automated_detection boolean default false, automated_decision boolean default false, redress text[] default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."issue_statement"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) from public, anon;
+grant execute on function "api"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) to authenticated, service_role;
+
+create or replace function "api"."list_statements"(item_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_statements"($1) $$;
+revoke execute on function "api"."list_statements"(uuid) from public, anon;
+grant execute on function "api"."list_statements"(uuid) to authenticated, service_role;
+
+create or replace function "api"."set_trusted_flagger"(tenant uuid, user_id uuid, name text default null, awarded_by text default null, active boolean default true)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_trusted_flagger"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."set_trusted_flagger"(uuid, uuid, text, text, boolean) from public, anon;
+grant execute on function "api"."set_trusted_flagger"(uuid, uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "api"."file_appeal"(statement_id uuid default null, notice_id uuid default null, reasons text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."file_appeal"($1, $2, $3) $$;
+revoke execute on function "api"."file_appeal"(uuid, uuid, text) from public, anon;
+grant execute on function "api"."file_appeal"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "api"."decide_appeal"(appeal_id uuid, outcome text, reason text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."decide_appeal"($1, $2, $3) $$;
+revoke execute on function "api"."decide_appeal"(uuid, text, text) from public, anon;
+grant execute on function "api"."decide_appeal"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."transparency_report"(tenant uuid, period_start timestamptz, period_end timestamptz)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."transparency_report"($1, $2, $3) $$;
+revoke execute on function "api"."transparency_report"(uuid, timestamptz, timestamptz) from public, anon;
+grant execute on function "api"."transparency_report"(uuid, timestamptz, timestamptz) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3072,21 +5748,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block-data moderation
--- @bsb-hash sha256:b01db3a657b26c96f56f50464078184599dffda20d933155ff1262b74ce1da6d
+-- @bsb-hash sha256:97d80d244d5ecfdb00b7662ae72c988dec37f9a47d1839281040f4050ac1d3b5
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('moderation', 1, 'managed')
+values ('moderation', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
--- @bsb-block moderation@1 managed
--- @bsb-hash sha256:79db72cfed6d09941687d191f6e5305becca611cabdaeb909e17cdd95dbc9c10
+-- @bsb-block moderation@2 managed
+-- @bsb-hash sha256:299688499f8b383645754733ad6602faf0fed68552e9f3dcc406b4f128a88849
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3177,6 +5853,38 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_bans";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_statements";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_notices";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_appeals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -3239,6 +5947,74 @@ alter table "better_supabase"."moderation_bans" add column if not exists "create
 create unique index if not exists "moderation_bans_active_idx" on "better_supabase"."moderation_bans" ("tenant_id", "user_id") where "lifted_at" is null;
 create index if not exists "moderation_bans_user_idx" on "better_supabase"."moderation_bans" ("user_id");
 
+-- Statements of reasons (DSA Article 17): what was restricted, the facts, the
+-- legal or contractual ground, automated means and the ways to appeal.
+-- better_supabase.moderation_statements is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."moderation_statements" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."moderation_statements" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."moderation_statements" add column if not exists "item_id" uuid references "better_supabase"."moderation_items" ("id") on delete cascade;
+alter table "better_supabase"."moderation_statements" add column if not exists "restriction" text check ("restriction" in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination'));
+alter table "better_supabase"."moderation_statements" add column if not exists "facts" text check (length("facts") between 1 and 5000);
+alter table "better_supabase"."moderation_statements" add column if not exists "legal_ground" text check ("legal_ground" is null or length("legal_ground") <= 2000);
+alter table "better_supabase"."moderation_statements" add column if not exists "terms_ground" text check ("terms_ground" is null or length("terms_ground") <= 2000);
+alter table "better_supabase"."moderation_statements" add column if not exists "automated_detection" boolean not null default false;
+alter table "better_supabase"."moderation_statements" add column if not exists "automated_decision" boolean not null default false;
+alter table "better_supabase"."moderation_statements" add column if not exists "redress" text[] not null default array['internal_complaint';
+alter table "better_supabase"."moderation_statements" add column if not exists "issued_by" uuid;
+alter table "better_supabase"."moderation_statements" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists "moderation_statements_item_idx" on "better_supabase"."moderation_statements" ("item_id", "created_at" desc);
+create index if not exists "moderation_statements_tenant_idx" on "better_supabase"."moderation_statements" ("tenant_id", "created_at" desc);
+
+-- Notices of illegal content (DSA Article 16).
+-- better_supabase.moderation_notices is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."moderation_notices" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."moderation_notices" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."moderation_notices" add column if not exists "item_id" uuid references "better_supabase"."moderation_items" ("id") on delete set null;
+alter table "better_supabase"."moderation_notices" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."moderation_notices" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."moderation_notices" add column if not exists "explanation" text check (length("explanation") between 1 and 5000);
+alter table "better_supabase"."moderation_notices" add column if not exists "url" text check ("url" is null or length("url") <= 2000);
+alter table "better_supabase"."moderation_notices" add column if not exists "notifier_name" text check ("notifier_name" is null or length("notifier_name") <= 200);
+alter table "better_supabase"."moderation_notices" add column if not exists "notifier_email" text check ("notifier_email" is null or length("notifier_email") <= 320);
+alter table "better_supabase"."moderation_notices" add column if not exists "notifier_id" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."moderation_notices" add column if not exists "trusted" boolean not null default false;
+alter table "better_supabase"."moderation_notices" add column if not exists "status" text not null default 'received' check ("status" in ('received', 'actioned', 'rejected'));
+alter table "better_supabase"."moderation_notices" add column if not exists "outcome" text check ("outcome" is null or length("outcome") <= 2000);
+alter table "better_supabase"."moderation_notices" add column if not exists "decided_by" uuid;
+alter table "better_supabase"."moderation_notices" add column if not exists "decided_at" timestamptz;
+alter table "better_supabase"."moderation_notices" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists "moderation_notices_queue_idx" on "better_supabase"."moderation_notices" ("tenant_id", "trusted" desc, "created_at") where "status" = 'received';
+create index if not exists "moderation_notices_notifier_idx" on "better_supabase"."moderation_notices" ("notifier_id");
+
+-- Trusted flaggers (DSA Article 22): notices from them are marked and come
+-- first in the queue.
+-- better_supabase.moderation_flaggers is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."moderation_flaggers" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."moderation_flaggers" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."moderation_flaggers" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."moderation_flaggers" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."moderation_flaggers" add column if not exists "awarded_by" text check ("awarded_by" is null or length("awarded_by") <= 200);
+alter table "better_supabase"."moderation_flaggers" add column if not exists "revoked_at" timestamptz;
+alter table "better_supabase"."moderation_flaggers" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "moderation_flaggers_active_idx" on "better_supabase"."moderation_flaggers" ("tenant_id", "user_id") where "revoked_at" is null;
+
+-- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
+-- better_supabase.moderation_appeals is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."moderation_appeals" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."moderation_appeals" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."moderation_appeals" add column if not exists "statement_id" uuid references "better_supabase"."moderation_statements" ("id") on delete cascade;
+alter table "better_supabase"."moderation_appeals" add column if not exists "notice_id" uuid references "better_supabase"."moderation_notices" ("id") on delete cascade;
+alter table "better_supabase"."moderation_appeals" add column if not exists "appellant_id" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."moderation_appeals" add column if not exists "reasons" text check (length("reasons") between 1 and 5000);
+alter table "better_supabase"."moderation_appeals" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'upheld', 'reversed'));
+alter table "better_supabase"."moderation_appeals" add column if not exists "outcome" text check ("outcome" is null or length("outcome") <= 2000);
+alter table "better_supabase"."moderation_appeals" add column if not exists "decided_by" uuid;
+alter table "better_supabase"."moderation_appeals" add column if not exists "decided_at" timestamptz;
+alter table "better_supabase"."moderation_appeals" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
+create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
+create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
+
 alter table "better_supabase"."moderation_items" enable row level security;
 grant select on "better_supabase"."moderation_items" to authenticated;
 grant all on "better_supabase"."moderation_items" to service_role;
@@ -3267,6 +6043,35 @@ drop policy if exists bsb_moderation_bans_select on "better_supabase"."moderatio
 create policy bsb_moderation_bans_select on "better_supabase"."moderation_bans"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+
+alter table "better_supabase"."moderation_statements" enable row level security;
+grant select on "better_supabase"."moderation_statements" to authenticated;
+grant all on "better_supabase"."moderation_statements" to service_role;
+drop policy if exists bsb_moderation_statements_select on "better_supabase"."moderation_statements";
+create policy bsb_moderation_statements_select on "better_supabase"."moderation_statements"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_notices" enable row level security;
+grant select on "better_supabase"."moderation_notices" to authenticated;
+grant all on "better_supabase"."moderation_notices" to service_role;
+drop policy if exists bsb_moderation_notices_select on "better_supabase"."moderation_notices";
+create policy bsb_moderation_notices_select on "better_supabase"."moderation_notices"
+  for select to authenticated
+  using ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_flaggers" enable row level security;
+grant select on "better_supabase"."moderation_flaggers" to authenticated;
+grant all on "better_supabase"."moderation_flaggers" to service_role;
+drop policy if exists bsb_moderation_flaggers_select on "better_supabase"."moderation_flaggers";
+create policy bsb_moderation_flaggers_select on "better_supabase"."moderation_flaggers"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_appeals" enable row level security;
+grant select on "better_supabase"."moderation_appeals" to authenticated;
+grant all on "better_supabase"."moderation_appeals" to service_role;
+drop policy if exists bsb_moderation_appeals_select on "better_supabase"."moderation_appeals";
+create policy bsb_moderation_appeals_select on "better_supabase"."moderation_appeals"
+  for select to authenticated
+  using ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
 -- Whether a user is banned in an organization right now.
 create or replace function "better_supabase"."moderation_banned"(tenant uuid, user_id uuid)
@@ -3693,6 +6498,425 @@ $$;
 revoke execute on function "better_supabase"."list_bans"(uuid, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_bans"(uuid, boolean, integer) to authenticated, service_role;
 
+-- Takes a notice of illegal content (DSA Article 16) for a subject. The
+-- notice is marked trusted when the caller is an active trusted flagger, and
+-- the subject gets a moderation item when it has none.
+create or replace function "better_supabase"."submit_notice"(tenant uuid, subject_type text, subject_id text, explanation text, url text default null, notifier_name text default null, notifier_email text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_item uuid;
+  v_trusted boolean;
+  v_row "better_supabase"."moderation_notices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to submit a notice' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if not coalesce(better_supabase.can('tenant', submit_notice.tenant, 'moderation.report'), false) then
+    raise exception 'not allowed to submit a notice' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if submit_notice.subject_type is null or submit_notice.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$'
+    or submit_notice.subject_id is null or length(submit_notice.subject_id) not between 1 and 200 then
+    raise exception 'a notice needs a subject type and id' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if submit_notice.explanation is null or length(trim(submit_notice.explanation)) = 0 or length(submit_notice.explanation) > 5000 then
+    raise exception 'a notice needs an explanation of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id")
+  values (submit_notice.tenant, submit_notice.subject_type, submit_notice.subject_id)
+  on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
+  select x."id" into v_item from "better_supabase"."moderation_items" x
+  where x."tenant_id" = submit_notice.tenant and x."subject_type" = submit_notice.subject_type and x."subject_id" = submit_notice.subject_id;
+  select exists (
+    select 1 from "better_supabase"."moderation_flaggers" x
+    where x."tenant_id" = submit_notice.tenant and x."user_id" = v_me and x."revoked_at" is null
+  ) into v_trusted;
+  insert into "better_supabase"."moderation_notices" ("tenant_id", "item_id", "subject_type", "subject_id", "explanation", "url", "notifier_name", "notifier_email", "notifier_id", "trusted")
+  values (submit_notice.tenant, v_item, submit_notice.subject_type, submit_notice.subject_id, trim(submit_notice.explanation), nullif(trim(submit_notice.url), ''), nullif(trim(submit_notice.notifier_name), ''), nullif(trim(submit_notice.notifier_email), ''), v_me, v_trusted)
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'explanation', v_row."explanation", 'url', v_row."url", 'notifierName', v_row."notifier_name", 'notifierEmail', v_row."notifier_email", 'notifierId', v_row."notifier_id", 'trusted', v_row."trusted", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."submit_notice"(uuid, text, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."submit_notice"(uuid, text, text, text, text, text, text) to authenticated, service_role;
+
+-- The notices of an organization, trusted flaggers first, then oldest first.
+-- Without a status it lists the notices that wait for a decision.
+create or replace function "better_supabase"."list_notices"(tenant uuid, status text default null, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_notices.tenant, 'moderation.read'), false)) then
+    raise exception 'not allowed to read notices' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(q.notice order by q.trusted desc, q.created asc), '[]'::jsonb) into v_rows
+  from (
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'itemId', x."item_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'explanation', x."explanation", 'url', x."url", 'notifierName', x."notifier_name", 'notifierEmail', x."notifier_email", 'notifierId', x."notifier_id", 'trusted', x."trusted", 'status', x."status", 'outcome', x."outcome", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") as notice, x."trusted" as trusted, x."created_at" as created
+    from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = list_notices.tenant
+      and x."status" = coalesce(list_notices.status, 'received')
+    order by x."trusted" desc, x."created_at" asc
+    limit least(greatest(coalesce(list_notices.page_size, 50), 1), 200)
+  ) q;
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."list_notices"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_notices"(uuid, text, integer) to authenticated, service_role;
+
+-- Decides a notice: hide or remove the content, or reject the notice. The
+-- notifier is told through the moderation_notice.decided event.
+create or replace function "better_supabase"."decide_notice"(notice_id uuid, decision text, outcome text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_notices";
+  v_item "better_supabase"."moderation_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."moderation_notices" x where x."id" = decide_notice.notice_id for update;
+  if v_row."id" is null then
+    raise exception 'notice not found' using errcode = 'P0002', hint = 'MODERATION_NOTICE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to decide on notices' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if decide_notice.decision is null or decide_notice.decision not in ('hide', 'remove', 'reject') then
+    raise exception 'decision must be hide, remove or reject' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if length(decide_notice.outcome) > 2000 then
+    raise exception 'outcome must be at most 2000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if v_row."status" <> 'received' then
+    raise exception 'this notice was decided already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if decide_notice.decision <> 'reject' then
+    if v_row."item_id" is null then
+      raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+    end if;
+    perform "better_supabase"."moderation_apply"(v_row."item_id", decide_notice.decision, decide_notice.outcome, false);
+  end if;
+  update "better_supabase"."moderation_notices" x
+  set "status" = case when decide_notice.decision = 'reject' then 'rejected' else 'actioned' end,
+    "outcome" = nullif(trim(decide_notice.outcome), ''), "decided_by" = auth.uid(), "decided_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'explanation', v_row."explanation", 'url', v_row."url", 'notifierName', v_row."notifier_name", 'notifierEmail', v_row."notifier_email", 'notifierId', v_row."notifier_id", 'trusted', v_row."trusted", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_notice"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."decide_notice"(uuid, text, text) to authenticated, service_role;
+
+-- Records a statement of reasons (DSA Article 17) for an item a moderator
+-- restricted. A statement names the legal ground, the terms ground or both.
+create or replace function "better_supabase"."issue_statement"(item_id uuid, restriction text, facts text, legal_ground text default null, terms_ground text default null, automated_detection boolean default false, automated_decision boolean default false, redress text[] default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_item "better_supabase"."moderation_items";
+  v_row "better_supabase"."moderation_statements";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_item from "better_supabase"."moderation_items" x where x."id" = issue_statement.item_id;
+  if v_item."id" is null then
+    raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_item."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to issue statements of reasons' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if issue_statement.restriction is null or issue_statement.restriction not in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination') then
+    raise exception 'restriction must be one of the Article 17 restrictions' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if issue_statement.facts is null or length(trim(issue_statement.facts)) = 0 or length(issue_statement.facts) > 5000 then
+    raise exception 'a statement needs facts and circumstances of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if nullif(trim(issue_statement.legal_ground), '') is null and nullif(trim(issue_statement.terms_ground), '') is null then
+    raise exception 'a statement needs a legal ground or a terms ground' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  insert into "better_supabase"."moderation_statements" ("tenant_id", "item_id", "restriction", "facts", "legal_ground", "terms_ground", "automated_detection", "automated_decision", "redress", "issued_by")
+  values (v_item."tenant_id", v_item."id", issue_statement.restriction, trim(issue_statement.facts), nullif(trim(issue_statement.legal_ground), ''), nullif(trim(issue_statement.terms_ground), ''),
+    coalesce(issue_statement.automated_detection, false), coalesce(issue_statement.automated_decision, false),
+    coalesce(issue_statement.redress, array['internal_complaint', 'out_of_court', 'judicial']), auth.uid())
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'itemId', v_row."item_id", 'restriction', v_row."restriction", 'facts', v_row."facts", 'legalGround', v_row."legal_ground", 'termsGround', v_row."terms_ground", 'automatedDetection', v_row."automated_detection", 'automatedDecision', v_row."automated_decision", 'redress', to_jsonb(v_row."redress"), 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) to authenticated, service_role;
+
+-- The statements of reasons for one item, newest first. The item's author
+-- reads their own through the same call.
+create or replace function "better_supabase"."list_statements"(item_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_item "better_supabase"."moderation_items";
+begin
+  select * into v_item from "better_supabase"."moderation_items" x where x."id" = list_statements.item_id;
+  if v_item."id" is null then
+    raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+  end if;
+  if not ((auth.uid() is not null and v_item."author_id" is not distinct from auth.uid()) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_item."tenant_id", 'moderation.read'), false))) then
+    raise exception 'not allowed to read statements of reasons' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'itemId', y."item_id", 'restriction', y."restriction", 'facts', y."facts", 'legalGround', y."legal_ground", 'termsGround', y."terms_ground", 'automatedDetection', y."automated_detection", 'automatedDecision', y."automated_decision", 'redress', to_jsonb(y."redress"), 'issuedBy', y."issued_by", 'createdAt', y."created_at") order by y."created_at" desc) from "better_supabase"."moderation_statements" y where y."item_id" = v_item."id"), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_statements"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_statements"(uuid) to authenticated, service_role;
+
+-- Awards or revokes trusted flagger status (DSA Article 22) for a user.
+create or replace function "better_supabase"."set_trusted_flagger"(tenant uuid, user_id uuid, name text default null, awarded_by text default null, active boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_flaggers";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_trusted_flagger.tenant, 'moderation.manage'), false)) then
+    raise exception 'not allowed to manage trusted flaggers' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if set_trusted_flagger.active is false then
+    update "better_supabase"."moderation_flaggers" x set "revoked_at" = now()
+    where x."tenant_id" = set_trusted_flagger.tenant and x."user_id" = set_trusted_flagger.user_id and x."revoked_at" is null
+    returning * into v_row;
+    if v_row."id" is null then
+      raise exception 'no active trusted flagger for this user' using errcode = 'P0002', hint = 'MODERATION_FLAGGER_NOT_FOUND';
+    end if;
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'name', v_row."name", 'awardedBy', v_row."awarded_by", 'revokedAt', v_row."revoked_at", 'createdAt', v_row."created_at");
+  end if;
+  if set_trusted_flagger.name is null or length(trim(set_trusted_flagger.name)) not between 1 and 200 then
+    raise exception 'a trusted flagger needs a name of at most 200 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."moderation_flaggers" x
+  where x."tenant_id" = set_trusted_flagger.tenant and x."user_id" = set_trusted_flagger.user_id and x."revoked_at" is null;
+  if v_row."id" is null then
+    insert into "better_supabase"."moderation_flaggers" ("tenant_id", "user_id", "name", "awarded_by")
+    values (set_trusted_flagger.tenant, set_trusted_flagger.user_id, trim(set_trusted_flagger.name), nullif(trim(set_trusted_flagger.awarded_by), ''))
+    returning * into v_row;
+  else
+    update "better_supabase"."moderation_flaggers" x
+    set "name" = trim(set_trusted_flagger.name), "awarded_by" = nullif(trim(set_trusted_flagger.awarded_by), '')
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'name', v_row."name", 'awardedBy', v_row."awarded_by", 'revokedAt', v_row."revoked_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."set_trusted_flagger"(uuid, uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_trusted_flagger"(uuid, uuid, text, text, boolean) to authenticated, service_role;
+
+-- Files an appeal (DSA Article 20) against a statement of reasons, or against
+-- a rejected notice. Only the affected content's author or the notifier can.
+create or replace function "better_supabase"."file_appeal"(statement_id uuid default null, notice_id uuid default null, reasons text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_tenant uuid;
+  v_row "better_supabase"."moderation_appeals";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to file an appeal' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if (file_appeal.statement_id is null) = (file_appeal.notice_id is null) then
+    raise exception 'an appeal names a statement or a notice' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if file_appeal.reasons is null or length(trim(file_appeal.reasons)) = 0 or length(file_appeal.reasons) > 5000 then
+    raise exception 'an appeal needs reasons of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if file_appeal.statement_id is not null then
+    select s."tenant_id" into v_tenant
+    from "better_supabase"."moderation_statements" s join "better_supabase"."moderation_items" x on x."id" = s."item_id"
+    where s."id" = file_appeal.statement_id and x."author_id" = v_me;
+  else
+    select x."tenant_id" into v_tenant from "better_supabase"."moderation_notices" x
+    where x."id" = file_appeal.notice_id and x."notifier_id" = v_me and x."status" = 'rejected';
+  end if;
+  if v_tenant is null then
+    raise exception 'you can only appeal a decision that affects you' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  begin
+    insert into "better_supabase"."moderation_appeals" ("tenant_id", "statement_id", "notice_id", "appellant_id", "reasons")
+    values (v_tenant, file_appeal.statement_id, file_appeal.notice_id, v_me, trim(file_appeal.reasons))
+    returning * into v_row;
+  exception when unique_violation then
+    raise exception 'an appeal is open for this decision already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'appellantId', v_row."appellant_id", 'reasons', v_row."reasons", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."file_appeal"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."file_appeal"(uuid, uuid, text) to authenticated, service_role;
+
+-- Decides an appeal. The decision needs a person, not an automated means
+-- (DSA Article 20(6)). Reversing an appeal against a statement restores the
+-- content; reversing one against a notice puts the notice back in the queue.
+create or replace function "better_supabase"."decide_appeal"(appeal_id uuid, outcome text, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_appeals";
+  v_item "better_supabase"."moderation_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."moderation_appeals" x where x."id" = decide_appeal.appeal_id for update;
+  if v_row."id" is null then
+    raise exception 'appeal not found' using errcode = 'P0002', hint = 'MODERATION_APPEAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to decide on appeals' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if decide_appeal.outcome is null or decide_appeal.outcome not in ('upheld', 'reversed') then
+    raise exception 'outcome must be upheld or reversed' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if length(decide_appeal.reason) > 2000 then
+    raise exception 'reason must be at most 2000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if v_row."status" <> 'open' then
+    raise exception 'this appeal was decided already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if decide_appeal.outcome = 'reversed' then
+    if v_row."statement_id" is not null then
+      select x.* into v_item from "better_supabase"."moderation_items" x join "better_supabase"."moderation_statements" s on s."item_id" = x."id" where s."id" = v_row."statement_id";
+      if v_item."status" in ('hidden', 'removed') then
+        perform "better_supabase"."moderation_apply"(v_item."id", 'restore', decide_appeal.reason, false);
+      end if;
+    else
+      update "better_supabase"."moderation_notices" x set "status" = 'received', "decided_at" = null, "decided_by" = null
+      where x."id" = v_row."notice_id";
+    end if;
+  end if;
+  update "better_supabase"."moderation_appeals" x
+  set "status" = decide_appeal.outcome, "outcome" = nullif(trim(decide_appeal.reason), ''), "decided_by" = auth.uid(), "decided_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'appellantId', v_row."appellant_id", 'reasons', v_row."reasons", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_appeal"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."decide_appeal"(uuid, text, text) to authenticated, service_role;
+
+-- The transparency report (DSA Articles 15 and 24) for a period, as CSV with
+-- the columns metric, dimension and value: notices by status and from trusted
+-- flaggers, statements by restriction and automated means, appeals by
+-- outcome, and moderation decisions by action.
+create or replace function "better_supabase"."transparency_report"(tenant uuid, period_start timestamptz, period_end timestamptz)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_csv text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', transparency_report.tenant, 'moderation.read'), false)) then
+    raise exception 'not allowed to read the transparency report' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if transparency_report.period_start is null or transparency_report.period_end is null or transparency_report.period_end <= transparency_report.period_start then
+    raise exception 'the period needs a start before its end' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  with rows (metric, dimension, value, sort) as (
+    select 'notices', 'received', count(*), 10 from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'notices', 'trusted_flagger', count(*), 11 from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."trusted" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'notices', x."status", count(*), 12 from "better_supabase"."moderation_notices" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."status"
+    union all
+    select 'statements', x."restriction", count(*), 20 from "better_supabase"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."restriction"
+    union all
+    select 'statements', 'automated_detection', count(*), 21 from "better_supabase"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."automated_detection" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'statements', 'automated_decision', count(*), 22 from "better_supabase"."moderation_statements" x
+    where x."tenant_id" = transparency_report.tenant and x."automated_decision" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'appeals', 'received', count(*), 30 from "better_supabase"."moderation_appeals" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'appeals', x."status", count(*), 31 from "better_supabase"."moderation_appeals" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."status"
+    union all
+    select 'decisions', x."action"::text, count(*), 40 from "better_supabase"."moderation_actions" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."action"
+    union all
+    select 'reports', 'received', count(*), 50 from "better_supabase"."moderation_reports" x
+    where x."tenant_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+  )
+  select 'metric,dimension,value' || coalesce(E'\n' || string_agg(r.metric || ',' || r.dimension || ',' || r.value::text, E'\n' order by r.sort, r.dimension), '')
+  into v_csv from rows r;
+  return v_csv;
+end;
+$$;
+revoke execute on function "better_supabase"."transparency_report"(uuid, timestamptz, timestamptz) from public, anon;
+grant execute on function "better_supabase"."transparency_report"(uuid, timestamptz, timestamptz) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3792,6 +7016,90 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_b
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_bans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_statements";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_statements" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_statements" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_statements" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_statements" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_notices";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_notices" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_notices" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_notices" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_notices" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_flaggers";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_flaggers" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_flaggers" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_appeals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_appeals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_appeals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_appeals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_appeals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3809,21 +7117,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block-data moderation
--- @bsb-hash sha256:b01db3a657b26c96f56f50464078184599dffda20d933155ff1262b74ce1da6d
+-- @bsb-hash sha256:97d80d244d5ecfdb00b7662ae72c988dec37f9a47d1839281040f4050ac1d3b5
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('moderation', 1, 'managed')
+values ('moderation', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
--- @bsb-block moderation@1 managed
--- @bsb-hash sha256:aa1d8da74521f88eec1c6e0db4ce13b48c4f00186e20ca46f48aba725c28f2fc
+-- @bsb-block moderation@2 managed
+-- @bsb-hash sha256:94a8c8688ef6aa536f1a86a6926ee21f254beb56916dd8125ed1cf57a4c57b10
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3898,6 +7206,38 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_bans";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_statements";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_statements";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_notices";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_notices";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_flaggers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_appeals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_appeals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -3964,6 +7304,80 @@ create table if not exists "better_supabase"."moderation_bans" (
 create unique index if not exists "moderation_bans_active_idx" on "better_supabase"."moderation_bans" ("org_id", "user_id") where "lifted_at" is null;
 create index if not exists "moderation_bans_user_idx" on "better_supabase"."moderation_bans" ("user_id");
 
+-- Statements of reasons (DSA Article 17): what was restricted, the facts, the
+-- legal or contractual ground, automated means and the ways to appeal.
+create table if not exists "better_supabase"."moderation_statements" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "item_id" uuid not null references "better_supabase"."moderation_items" ("id") on delete cascade,
+  "restriction" text not null check ("restriction" in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination')),
+  "facts" text not null check (length("facts") between 1 and 5000),
+  "legal_ground" text check ("legal_ground" is null or length("legal_ground") <= 2000),
+  "terms_ground" text check ("terms_ground" is null or length("terms_ground") <= 2000),
+  "automated_detection" boolean not null default false,
+  "automated_decision" boolean not null default false,
+  "redress" text[] not null default array['internal_complaint', 'out_of_court', 'judicial'],
+  "issued_by" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("legal_ground" is not null or "terms_ground" is not null)
+);
+create index if not exists "moderation_statements_item_idx" on "better_supabase"."moderation_statements" ("item_id", "created_at" desc);
+create index if not exists "moderation_statements_tenant_idx" on "better_supabase"."moderation_statements" ("org_id", "created_at" desc);
+
+-- Notices of illegal content (DSA Article 16).
+create table if not exists "better_supabase"."moderation_notices" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "item_id" uuid references "better_supabase"."moderation_items" ("id") on delete set null,
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "explanation" text not null check (length("explanation") between 1 and 5000),
+  "url" text check ("url" is null or length("url") <= 2000),
+  "notifier_name" text check ("notifier_name" is null or length("notifier_name") <= 200),
+  "notifier_email" text check ("notifier_email" is null or length("notifier_email") <= 320),
+  "notifier_id" uuid references auth.users (id) on delete set null,
+  "trusted" boolean not null default false,
+  "status" text not null default 'received' check ("status" in ('received', 'actioned', 'rejected')),
+  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists "moderation_notices_queue_idx" on "better_supabase"."moderation_notices" ("org_id", "trusted" desc, "created_at") where "status" = 'received';
+create index if not exists "moderation_notices_notifier_idx" on "better_supabase"."moderation_notices" ("notifier_id");
+
+-- Trusted flaggers (DSA Article 22): notices from them are marked and come
+-- first in the queue.
+create table if not exists "better_supabase"."moderation_flaggers" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "name" text not null check (length("name") between 1 and 200),
+  "awarded_by" text check ("awarded_by" is null or length("awarded_by") <= 200),
+  "revoked_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create unique index if not exists "moderation_flaggers_active_idx" on "better_supabase"."moderation_flaggers" ("org_id", "user_id") where "revoked_at" is null;
+
+-- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
+create table if not exists "better_supabase"."moderation_appeals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "statement_id" uuid references "better_supabase"."moderation_statements" ("id") on delete cascade,
+  "notice_id" uuid references "better_supabase"."moderation_notices" ("id") on delete cascade,
+  "appellant_id" uuid references auth.users (id) on delete set null,
+  "reasons" text not null check (length("reasons") between 1 and 5000),
+  "status" text not null default 'open' check ("status" in ('open', 'upheld', 'reversed')),
+  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  check (("statement_id" is not null) <> ("notice_id" is not null))
+);
+create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
+create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
+create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("org_id", "created_at" desc);
+
 alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_items" to authenticated;
@@ -3996,6 +7410,39 @@ drop policy if exists "moderation_bans_read" on "better_supabase"."moderation_ba
 create policy moderation_bans_read on "better_supabase"."moderation_bans"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+
+alter table "better_supabase"."moderation_statements" enable row level security;
+revoke all on "better_supabase"."moderation_statements" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_statements" to authenticated;
+grant all on "better_supabase"."moderation_statements" to service_role;
+drop policy if exists "moderation_statements_read" on "better_supabase"."moderation_statements";
+create policy moderation_statements_read on "better_supabase"."moderation_statements"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_notices" enable row level security;
+revoke all on "better_supabase"."moderation_notices" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_notices" to authenticated;
+grant all on "better_supabase"."moderation_notices" to service_role;
+drop policy if exists "moderation_notices_read" on "better_supabase"."moderation_notices";
+create policy moderation_notices_read on "better_supabase"."moderation_notices"
+  for select to authenticated
+  using ("notifier_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_flaggers" enable row level security;
+revoke all on "better_supabase"."moderation_flaggers" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_flaggers" to authenticated;
+grant all on "better_supabase"."moderation_flaggers" to service_role;
+drop policy if exists "moderation_flaggers_read" on "better_supabase"."moderation_flaggers";
+create policy moderation_flaggers_read on "better_supabase"."moderation_flaggers"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('moderation.read')));
+alter table "better_supabase"."moderation_appeals" enable row level security;
+revoke all on "better_supabase"."moderation_appeals" from public, anon, authenticated;
+grant select on "better_supabase"."moderation_appeals" to authenticated;
+grant all on "better_supabase"."moderation_appeals" to service_role;
+drop policy if exists "moderation_appeals_read" on "better_supabase"."moderation_appeals";
+create policy moderation_appeals_read on "better_supabase"."moderation_appeals"
+  for select to authenticated
+  using ("appellant_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
 -- Whether a user is banned in an organization right now.
 create or replace function "better_supabase"."moderation_banned"(tenant uuid, user_id uuid)
@@ -4422,6 +7869,425 @@ $$;
 revoke execute on function "better_supabase"."list_bans"(uuid, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_bans"(uuid, boolean, integer) to authenticated, service_role;
 
+-- Takes a notice of illegal content (DSA Article 16) for a subject. The
+-- notice is marked trusted when the caller is an active trusted flagger, and
+-- the subject gets a moderation item when it has none.
+create or replace function "better_supabase"."submit_notice"(tenant uuid, subject_type text, subject_id text, explanation text, url text default null, notifier_name text default null, notifier_email text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_item uuid;
+  v_trusted boolean;
+  v_row "better_supabase"."moderation_notices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to submit a notice' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if not coalesce(better_supabase.can('tenant', submit_notice.tenant, 'moderation.report'), false) then
+    raise exception 'not allowed to submit a notice' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if submit_notice.subject_type is null or submit_notice.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$'
+    or submit_notice.subject_id is null or length(submit_notice.subject_id) not between 1 and 200 then
+    raise exception 'a notice needs a subject type and id' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if submit_notice.explanation is null or length(trim(submit_notice.explanation)) = 0 or length(submit_notice.explanation) > 5000 then
+    raise exception 'a notice needs an explanation of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  insert into "better_supabase"."moderation_items" ("org_id", "subject_type", "subject_id")
+  values (submit_notice.tenant, submit_notice.subject_type, submit_notice.subject_id)
+  on conflict ("org_id", "subject_type", "subject_id") do nothing;
+  select x."id" into v_item from "better_supabase"."moderation_items" x
+  where x."org_id" = submit_notice.tenant and x."subject_type" = submit_notice.subject_type and x."subject_id" = submit_notice.subject_id;
+  select exists (
+    select 1 from "better_supabase"."moderation_flaggers" x
+    where x."org_id" = submit_notice.tenant and x."user_id" = v_me and x."revoked_at" is null
+  ) into v_trusted;
+  insert into "better_supabase"."moderation_notices" ("org_id", "item_id", "subject_type", "subject_id", "explanation", "url", "notifier_name", "notifier_email", "notifier_id", "trusted")
+  values (submit_notice.tenant, v_item, submit_notice.subject_type, submit_notice.subject_id, trim(submit_notice.explanation), nullif(trim(submit_notice.url), ''), nullif(trim(submit_notice.notifier_name), ''), nullif(trim(submit_notice.notifier_email), ''), v_me, v_trusted)
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'itemId', v_row."item_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'explanation', v_row."explanation", 'url', v_row."url", 'notifierName', v_row."notifier_name", 'notifierEmail', v_row."notifier_email", 'notifierId', v_row."notifier_id", 'trusted', v_row."trusted", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."submit_notice"(uuid, text, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."submit_notice"(uuid, text, text, text, text, text, text) to authenticated, service_role;
+
+-- The notices of an organization, trusted flaggers first, then oldest first.
+-- Without a status it lists the notices that wait for a decision.
+create or replace function "better_supabase"."list_notices"(tenant uuid, status text default null, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_notices.tenant, 'moderation.read'), false)) then
+    raise exception 'not allowed to read notices' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(q.notice order by q.trusted desc, q.created asc), '[]'::jsonb) into v_rows
+  from (
+    select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'itemId', x."item_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'explanation', x."explanation", 'url', x."url", 'notifierName', x."notifier_name", 'notifierEmail', x."notifier_email", 'notifierId', x."notifier_id", 'trusted', x."trusted", 'status', x."status", 'outcome', x."outcome", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") as notice, x."trusted" as trusted, x."created_at" as created
+    from "better_supabase"."moderation_notices" x
+    where x."org_id" = list_notices.tenant
+      and x."status" = coalesce(list_notices.status, 'received')
+    order by x."trusted" desc, x."created_at" asc
+    limit least(greatest(coalesce(list_notices.page_size, 50), 1), 200)
+  ) q;
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."list_notices"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_notices"(uuid, text, integer) to authenticated, service_role;
+
+-- Decides a notice: hide or remove the content, or reject the notice. The
+-- notifier is told through the moderation_notice.decided event.
+create or replace function "better_supabase"."decide_notice"(notice_id uuid, decision text, outcome text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_notices";
+  v_item "better_supabase"."moderation_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."moderation_notices" x where x."id" = decide_notice.notice_id for update;
+  if v_row."id" is null then
+    raise exception 'notice not found' using errcode = 'P0002', hint = 'MODERATION_NOTICE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to decide on notices' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if decide_notice.decision is null or decide_notice.decision not in ('hide', 'remove', 'reject') then
+    raise exception 'decision must be hide, remove or reject' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if length(decide_notice.outcome) > 2000 then
+    raise exception 'outcome must be at most 2000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if v_row."status" <> 'received' then
+    raise exception 'this notice was decided already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if decide_notice.decision <> 'reject' then
+    if v_row."item_id" is null then
+      raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+    end if;
+    perform "better_supabase"."moderation_apply"(v_row."item_id", decide_notice.decision, decide_notice.outcome, false);
+  end if;
+  update "better_supabase"."moderation_notices" x
+  set "status" = case when decide_notice.decision = 'reject' then 'rejected' else 'actioned' end,
+    "outcome" = nullif(trim(decide_notice.outcome), ''), "decided_by" = auth.uid(), "decided_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'itemId', v_row."item_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'explanation', v_row."explanation", 'url', v_row."url", 'notifierName', v_row."notifier_name", 'notifierEmail', v_row."notifier_email", 'notifierId', v_row."notifier_id", 'trusted', v_row."trusted", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_notice"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."decide_notice"(uuid, text, text) to authenticated, service_role;
+
+-- Records a statement of reasons (DSA Article 17) for an item a moderator
+-- restricted. A statement names the legal ground, the terms ground or both.
+create or replace function "better_supabase"."issue_statement"(item_id uuid, restriction text, facts text, legal_ground text default null, terms_ground text default null, automated_detection boolean default false, automated_decision boolean default false, redress text[] default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_item "better_supabase"."moderation_items";
+  v_row "better_supabase"."moderation_statements";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_item from "better_supabase"."moderation_items" x where x."id" = issue_statement.item_id;
+  if v_item."id" is null then
+    raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_item."org_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to issue statements of reasons' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if issue_statement.restriction is null or issue_statement.restriction not in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination') then
+    raise exception 'restriction must be one of the Article 17 restrictions' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if issue_statement.facts is null or length(trim(issue_statement.facts)) = 0 or length(issue_statement.facts) > 5000 then
+    raise exception 'a statement needs facts and circumstances of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if nullif(trim(issue_statement.legal_ground), '') is null and nullif(trim(issue_statement.terms_ground), '') is null then
+    raise exception 'a statement needs a legal ground or a terms ground' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  insert into "better_supabase"."moderation_statements" ("org_id", "item_id", "restriction", "facts", "legal_ground", "terms_ground", "automated_detection", "automated_decision", "redress", "issued_by")
+  values (v_item."org_id", v_item."id", issue_statement.restriction, trim(issue_statement.facts), nullif(trim(issue_statement.legal_ground), ''), nullif(trim(issue_statement.terms_ground), ''),
+    coalesce(issue_statement.automated_detection, false), coalesce(issue_statement.automated_decision, false),
+    coalesce(issue_statement.redress, array['internal_complaint', 'out_of_court', 'judicial']), auth.uid())
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'itemId', v_row."item_id", 'restriction', v_row."restriction", 'facts', v_row."facts", 'legalGround', v_row."legal_ground", 'termsGround', v_row."terms_ground", 'automatedDetection', v_row."automated_detection", 'automatedDecision', v_row."automated_decision", 'redress', to_jsonb(v_row."redress"), 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."issue_statement"(uuid, text, text, text, text, boolean, boolean, text[]) to authenticated, service_role;
+
+-- The statements of reasons for one item, newest first. The item's author
+-- reads their own through the same call.
+create or replace function "better_supabase"."list_statements"(item_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_item "better_supabase"."moderation_items";
+begin
+  select * into v_item from "better_supabase"."moderation_items" x where x."id" = list_statements.item_id;
+  if v_item."id" is null then
+    raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
+  end if;
+  if not ((auth.uid() is not null and v_item."author_id" is not distinct from auth.uid()) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_item."org_id", 'moderation.read'), false))) then
+    raise exception 'not allowed to read statements of reasons' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."org_id", 'itemId', y."item_id", 'restriction', y."restriction", 'facts', y."facts", 'legalGround', y."legal_ground", 'termsGround', y."terms_ground", 'automatedDetection', y."automated_detection", 'automatedDecision', y."automated_decision", 'redress', to_jsonb(y."redress"), 'issuedBy', y."issued_by", 'createdAt', y."created_at") order by y."created_at" desc) from "better_supabase"."moderation_statements" y where y."item_id" = v_item."id"), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_statements"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_statements"(uuid) to authenticated, service_role;
+
+-- Awards or revokes trusted flagger status (DSA Article 22) for a user.
+create or replace function "better_supabase"."set_trusted_flagger"(tenant uuid, user_id uuid, name text default null, awarded_by text default null, active boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_flaggers";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_trusted_flagger.tenant, 'moderation.manage'), false)) then
+    raise exception 'not allowed to manage trusted flaggers' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if set_trusted_flagger.active is false then
+    update "better_supabase"."moderation_flaggers" x set "revoked_at" = now()
+    where x."org_id" = set_trusted_flagger.tenant and x."user_id" = set_trusted_flagger.user_id and x."revoked_at" is null
+    returning * into v_row;
+    if v_row."id" is null then
+      raise exception 'no active trusted flagger for this user' using errcode = 'P0002', hint = 'MODERATION_FLAGGER_NOT_FOUND';
+    end if;
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'userId', v_row."user_id", 'name', v_row."name", 'awardedBy', v_row."awarded_by", 'revokedAt', v_row."revoked_at", 'createdAt', v_row."created_at");
+  end if;
+  if set_trusted_flagger.name is null or length(trim(set_trusted_flagger.name)) not between 1 and 200 then
+    raise exception 'a trusted flagger needs a name of at most 200 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."moderation_flaggers" x
+  where x."org_id" = set_trusted_flagger.tenant and x."user_id" = set_trusted_flagger.user_id and x."revoked_at" is null;
+  if v_row."id" is null then
+    insert into "better_supabase"."moderation_flaggers" ("org_id", "user_id", "name", "awarded_by")
+    values (set_trusted_flagger.tenant, set_trusted_flagger.user_id, trim(set_trusted_flagger.name), nullif(trim(set_trusted_flagger.awarded_by), ''))
+    returning * into v_row;
+  else
+    update "better_supabase"."moderation_flaggers" x
+    set "name" = trim(set_trusted_flagger.name), "awarded_by" = nullif(trim(set_trusted_flagger.awarded_by), '')
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'userId', v_row."user_id", 'name', v_row."name", 'awardedBy', v_row."awarded_by", 'revokedAt', v_row."revoked_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."set_trusted_flagger"(uuid, uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_trusted_flagger"(uuid, uuid, text, text, boolean) to authenticated, service_role;
+
+-- Files an appeal (DSA Article 20) against a statement of reasons, or against
+-- a rejected notice. Only the affected content's author or the notifier can.
+create or replace function "better_supabase"."file_appeal"(statement_id uuid default null, notice_id uuid default null, reasons text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_tenant uuid;
+  v_row "better_supabase"."moderation_appeals";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to file an appeal' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if (file_appeal.statement_id is null) = (file_appeal.notice_id is null) then
+    raise exception 'an appeal names a statement or a notice' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if file_appeal.reasons is null or length(trim(file_appeal.reasons)) = 0 or length(file_appeal.reasons) > 5000 then
+    raise exception 'an appeal needs reasons of at most 5000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if file_appeal.statement_id is not null then
+    select s."org_id" into v_tenant
+    from "better_supabase"."moderation_statements" s join "better_supabase"."moderation_items" x on x."id" = s."item_id"
+    where s."id" = file_appeal.statement_id and x."author_id" = v_me;
+  else
+    select x."org_id" into v_tenant from "better_supabase"."moderation_notices" x
+    where x."id" = file_appeal.notice_id and x."notifier_id" = v_me and x."status" = 'rejected';
+  end if;
+  if v_tenant is null then
+    raise exception 'you can only appeal a decision that affects you' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  begin
+    insert into "better_supabase"."moderation_appeals" ("org_id", "statement_id", "notice_id", "appellant_id", "reasons")
+    values (v_tenant, file_appeal.statement_id, file_appeal.notice_id, v_me, trim(file_appeal.reasons))
+    returning * into v_row;
+  exception when unique_violation then
+    raise exception 'an appeal is open for this decision already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'appellantId', v_row."appellant_id", 'reasons', v_row."reasons", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."file_appeal"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."file_appeal"(uuid, uuid, text) to authenticated, service_role;
+
+-- Decides an appeal. The decision needs a person, not an automated means
+-- (DSA Article 20(6)). Reversing an appeal against a statement restores the
+-- content; reversing one against a notice puts the notice back in the queue.
+create or replace function "better_supabase"."decide_appeal"(appeal_id uuid, outcome text, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."moderation_appeals";
+  v_item "better_supabase"."moderation_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."moderation_appeals" x where x."id" = decide_appeal.appeal_id for update;
+  if v_row."id" is null then
+    raise exception 'appeal not found' using errcode = 'P0002', hint = 'MODERATION_APPEAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'moderation.manage'), false)) then
+    raise exception 'not allowed to decide on appeals' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if decide_appeal.outcome is null or decide_appeal.outcome not in ('upheld', 'reversed') then
+    raise exception 'outcome must be upheld or reversed' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if length(decide_appeal.reason) > 2000 then
+    raise exception 'reason must be at most 2000 characters' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if v_row."status" <> 'open' then
+    raise exception 'this appeal was decided already' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  if decide_appeal.outcome = 'reversed' then
+    if v_row."statement_id" is not null then
+      select x.* into v_item from "better_supabase"."moderation_items" x join "better_supabase"."moderation_statements" s on s."item_id" = x."id" where s."id" = v_row."statement_id";
+      if v_item."status" in ('hidden', 'removed') then
+        perform "better_supabase"."moderation_apply"(v_item."id", 'restore', decide_appeal.reason, false);
+      end if;
+    else
+      update "better_supabase"."moderation_notices" x set "status" = 'received', "decided_at" = null, "decided_by" = null
+      where x."id" = v_row."notice_id";
+    end if;
+  end if;
+  update "better_supabase"."moderation_appeals" x
+  set "status" = decide_appeal.outcome, "outcome" = nullif(trim(decide_appeal.reason), ''), "decided_by" = auth.uid(), "decided_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'statementId', v_row."statement_id", 'noticeId', v_row."notice_id", 'appellantId', v_row."appellant_id", 'reasons', v_row."reasons", 'status', v_row."status", 'outcome', v_row."outcome", 'decidedBy', v_row."decided_by", 'decidedAt', v_row."decided_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."decide_appeal"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."decide_appeal"(uuid, text, text) to authenticated, service_role;
+
+-- The transparency report (DSA Articles 15 and 24) for a period, as CSV with
+-- the columns metric, dimension and value: notices by status and from trusted
+-- flaggers, statements by restriction and automated means, appeals by
+-- outcome, and moderation decisions by action.
+create or replace function "better_supabase"."transparency_report"(tenant uuid, period_start timestamptz, period_end timestamptz)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_csv text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', transparency_report.tenant, 'moderation.read'), false)) then
+    raise exception 'not allowed to read the transparency report' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
+  end if;
+  if transparency_report.period_start is null or transparency_report.period_end is null or transparency_report.period_end <= transparency_report.period_start then
+    raise exception 'the period needs a start before its end' using errcode = '22023', hint = 'MODERATION_INVALID';
+  end if;
+  with rows (metric, dimension, value, sort) as (
+    select 'notices', 'received', count(*), 10 from "better_supabase"."moderation_notices" x
+    where x."org_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'notices', 'trusted_flagger', count(*), 11 from "better_supabase"."moderation_notices" x
+    where x."org_id" = transparency_report.tenant and x."trusted" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'notices', x."status", count(*), 12 from "better_supabase"."moderation_notices" x
+    where x."org_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."status"
+    union all
+    select 'statements', x."restriction", count(*), 20 from "better_supabase"."moderation_statements" x
+    where x."org_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."restriction"
+    union all
+    select 'statements', 'automated_detection', count(*), 21 from "better_supabase"."moderation_statements" x
+    where x."org_id" = transparency_report.tenant and x."automated_detection" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'statements', 'automated_decision', count(*), 22 from "better_supabase"."moderation_statements" x
+    where x."org_id" = transparency_report.tenant and x."automated_decision" and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'appeals', 'received', count(*), 30 from "better_supabase"."moderation_appeals" x
+    where x."org_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    union all
+    select 'appeals', x."status", count(*), 31 from "better_supabase"."moderation_appeals" x
+    where x."org_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."status"
+    union all
+    select 'decisions', x."action"::text, count(*), 40 from "better_supabase"."moderation_actions" x
+    where x."org_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+    group by x."action"
+    union all
+    select 'reports', 'received', count(*), 50 from "better_supabase"."moderation_reports" x
+    where x."org_id" = transparency_report.tenant and x."created_at" >= transparency_report.period_start and x."created_at" < transparency_report.period_end
+  )
+  select 'metric,dimension,value' || coalesce(E'\n' || string_agg(r.metric || ',' || r.dimension || ',' || r.value::text, E'\n' order by r.sort, r.dimension), '')
+  into v_csv from rows r;
+  return v_csv;
+end;
+$$;
+revoke execute on function "better_supabase"."transparency_report"(uuid, timestamptz, timestamptz) from public, anon;
+grant execute on function "better_supabase"."transparency_report"(uuid, timestamptz, timestamptz) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -4521,6 +8387,90 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_b
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_bans" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_statements";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_statements" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_statements" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_statements" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_statements";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_statements" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_notices";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_notices" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("notifier_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_notices" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_notices" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_notices";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_notices" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_flaggers";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_flaggers" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_flaggers" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_appeals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_select on "better_supabase"."moderation_appeals" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("appellant_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_insert on "better_supabase"."moderation_appeals" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_update on "better_supabase"."moderation_appeals" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_appeals";
+create policy bsb_tenant_scope_delete on "better_supabase"."moderation_appeals" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4538,13 +8488,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block-data moderation
--- @bsb-hash sha256:b01db3a657b26c96f56f50464078184599dffda20d933155ff1262b74ce1da6d
+-- @bsb-hash sha256:97d80d244d5ecfdb00b7662ae72c988dec37f9a47d1839281040f4050ac1d3b5
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('moderation', 1, 'managed')
+values ('moderation', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
