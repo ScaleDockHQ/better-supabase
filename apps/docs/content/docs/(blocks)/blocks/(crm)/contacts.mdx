@@ -279,6 +279,40 @@ await parties.saveCompany(organizationId, {
 
 People take app fields through [custom fields](/docs/blocks/custom-fields) with the `person` subject.
 
+## vCard import and export
+
+`better-supabase/blocks/contacts` reads and writes vCard 4.0 (RFC 6350,
+`SPEC_PINS.rfc6350`) without a library. `personVCard(person)` and
+`companyVCard(company)` map a record to a card, `toVCard` and `toVCards` write
+one or several with 75-octet line folding, and `vcardFile`, `vcardListFile` and
+`vcardResponse` give the `.vcf` download for one contact or a list.
+
+```ts
+import {
+  parseVCards,
+  personVCard,
+  vcardFile,
+  vcardResponse,
+  vcardToPersonInput,
+} from "better-supabase/blocks/contacts";
+
+export async function GET() {
+  const people = await db.contacts.listPeople(organizationId).orThrow();
+
+  return vcardResponse(vcardFile(personVCard(people.items[0]!)));
+}
+
+const { cards, skipped } = parseVCards(await file.text());
+
+for (const card of cards) {
+  await db.contacts.savePerson(organizationId, vcardToPersonInput(card));
+}
+```
+
+`parseVCards` never throws. It reads versions 2.1, 3.0 and 4.0, and a card it
+cannot use comes back in `skipped` with its index and a reason. Filenames drop
+characters that are unsafe in a download.
+
 ## Events
 
 | Event                                                    | Data                                                                        |

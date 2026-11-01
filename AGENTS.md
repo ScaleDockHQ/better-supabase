@@ -299,6 +299,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0183: Prompts are versioned templates behind labels, read as the service role.
 - 0184: `ai-evals` runs datasets against a prompt version and a model, scores with ports and compares runs; ai-chat feedback feeds datasets.
 - 0185: `ai-guardrails` keeps per-agent policies and a hashed decision log, and checks text without touching a `Result`.
+- 0186: `better-supabase/verifiable-credentials` issues SD-JWT VC and W3C credentials over OpenID4VCI behind a store port; mfa gains passkeys and contacts gains vCard.
 
 ## Pre-release pins
 

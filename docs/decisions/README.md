@@ -183,3 +183,4 @@ add one, and link it from the code or config it explains.
 | [0183](0183-prompts-block.md)                                 | Prompts are versioned templates behind labels, read as the service role                                                                                      |
 | [0184](0184-ai-evals-block.md)                                | `ai-evals` runs datasets against a prompt version and a model, scores with ports and compares runs                                                           |
 | [0185](0185-ai-guardrails-block.md)                           | `ai-guardrails` keeps per-agent policies and a hashed decision log, and checks text without touching a `Result`                                              |
+| [0186](0186-verifiable-credentials.md)                        | Verifiable credentials are a pure TypeScript subpath over a store port, with passkeys in mfa and vCard in contacts                                           |

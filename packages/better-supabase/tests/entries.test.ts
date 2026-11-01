@@ -198,6 +198,7 @@ const PURE_BARRELS = [
   "flags-sdk",
   "e-invoicing",
   "audit-files",
+  "verifiable-credentials",
 ];
 
 describe("subpath entries", () => {

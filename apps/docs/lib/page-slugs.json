@@ -244,6 +244,7 @@
   "cli/table",
   "concepts",
   "concepts/audit-files",
+  "concepts/verifiable-credentials",
   "concepts/better-result",
   "concepts/caching",
   "concepts/casing",
