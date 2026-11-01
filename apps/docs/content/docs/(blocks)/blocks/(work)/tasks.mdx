@@ -103,6 +103,8 @@ await db.tasks
 
 Without `atomic`, a refused change comes back in `rejected` and the others stay applied. Pass `strict: true` to get the first refused change as the error instead, with its hint as the `raised` code, so an action can return it as it is.
 
+`move({ workItemId, stageId })` is `update` with one `stageId` change and `strict`, so a refused board drag comes back as the error.
+
 `assign(id, userIds)` replaces the assignees. Each one watches the item, and the people newly assigned get a `work_item.assigned` notification. The `task.assigned` event is recorded only when the call adds someone: `assigneeIds` holds everyone assigned now and `addedIds` the people the call added. `options.maxAssignees` caps the list (`TASK_ASSIGNEES_LIMIT`), and `1` gives the single-assignee shape of Linear and Jira.
 
 The notification carries the item's title as its subject label, and `options.actionPath` sets its action path from a template with `{id}` and `{identifier}`, such as `"/tasks/{id}"`. Set `options.notify: false` when the app sends its own assignment notifications; the assignees still watch the item.

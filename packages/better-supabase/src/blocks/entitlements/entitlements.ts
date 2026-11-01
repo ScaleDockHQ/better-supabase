@@ -5,7 +5,8 @@ import type { Logger } from "../../core/logger.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { blockCall, run } from "../shared.ts";
 
 /** The Stripe event sent when a customer's active entitlements change. */
@@ -85,6 +86,17 @@ export interface Entitlements {
    * or the caller is not a member.
    */
   value(input: { organizationId: string; key: string }): AsyncResult<unknown>;
+  /**
+   * Succeeds when the tenant has `key`, and otherwise fails with a `forbidden`
+   * error whose `permission` is `entitlement:<key>`, so a route or action can
+   * answer "upgrade your plan" with `.orThrow()` or a plain return.
+   */
+  require(input: { organizationId: string; key: string }): AsyncResult<true>;
+  /** `has` for each key, in one result keyed by feature. */
+  all(input: {
+    organizationId: string;
+    keys: readonly string[];
+  }): AsyncResult<Readonly<Record<string, boolean>>>;
 }
 
 /**
@@ -105,10 +117,43 @@ export function createEntitlements(options: EntitlementsOptions): Entitlements {
       call("entitlement_value", { tenant: organizationId, key }, (value) =>
         value === null ? undefined : value,
       ),
+    require: ({ organizationId, key }) =>
+      hooked
+        .has({ organizationId, key })
+        .andThen((has) =>
+          Promise.resolve(
+            has
+              ? ok(true as const)
+              : err(
+                  dbError("forbidden", `The plan does not include ${key}`, {
+                    permission: `entitlement:${key}`,
+                  }),
+                ),
+          ),
+        ),
+    all: ({ organizationId, keys }) =>
+      AsyncResult.from(async () => {
+        const entries: [string, boolean][] = [];
+
+        for (const key of keys) {
+          const has = await hooked.has({ organizationId, key });
+
+          if (!has.ok) {
+            return has;
+          }
+
+          entries.push([key, has.data]);
+        }
+
+        return ok(Object.fromEntries(entries));
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Entitlements = withBlockHooks(client, options.hooks, {
     block: "entitlements",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

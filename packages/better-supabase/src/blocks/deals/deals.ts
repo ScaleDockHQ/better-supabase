@@ -255,6 +255,12 @@ export interface Deals<F extends object = Record<never, never>> {
     changes: readonly DealChange[];
     strict?: boolean | undefined;
   }): AsyncResult<DealChangeResult>;
+  /**
+   * Moves the deal to `stageId` and returns the refusal as the error. It is
+   * `update` with one `stageId` change and `strict`, so the `update` hooks see
+   * the move.
+   */
+  moveStage(input: { dealId: string; stageId: string }): AsyncResult<true>;
   /** Moves the deal to its pipeline's won stage. `note` is the closing note. */
   win(input: {
     dealId: string;
@@ -646,6 +652,13 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
           },
         ).andThen((result) => strictChanges(result, strict)),
       ),
+    moveStage: ({ dealId, stageId }) =>
+      hooked
+        .update({
+          changes: [{ dealId, field: "stageId", value: stageId }],
+          strict: true,
+        })
+        .map(() => true as const),
     win: ({ dealId, note }) =>
       call(
         "close_deal",
@@ -736,8 +749,11 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Deals<F> = withBlockHooks(client, options.hooks, {
     block: "deals",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

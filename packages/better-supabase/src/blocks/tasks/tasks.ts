@@ -280,6 +280,12 @@ export interface Tasks<F extends object = Record<never, never>> {
   update(
     input: { changes: readonly WorkItemChange<F>[] } & WorkItemUpdateOptions,
   ): AsyncResult<WorkItemChangeResult>;
+  /**
+   * Moves the item to `stageId` and returns the refusal as the error. It is
+   * `update` with one `stageId` change and `strict`, so the `update` hooks see
+   * the move.
+   */
+  move(input: { workItemId: string; stageId: string }): AsyncResult<true>;
   /** Replaces the assignees; new ones are notified and every one watches. */
   assign(input: {
     workItemId: string;
@@ -699,6 +705,13 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
           },
         ).andThen((result) => strictChanges(result, updateOptions.strict)),
       ),
+    move: ({ workItemId, stageId }) =>
+      hooked
+        .update({
+          changes: [{ workItemId, field: "stageId", value: stageId }],
+          strict: true,
+        })
+        .map(() => true as const),
     assign: ({ workItemId, userIds }) =>
       call(
         "set_task_assignees",
@@ -816,8 +829,11 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
     },
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Tasks<F> = withBlockHooks(client, options.hooks, {
     block: "tasks",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

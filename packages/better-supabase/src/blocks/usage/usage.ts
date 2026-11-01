@@ -194,6 +194,16 @@ export interface Usage {
     organizationId: string;
     meter: string;
   }): AsyncResult<number | undefined>;
+  /**
+   * Whether `quantity` (default 1) fits the quota right now, without recording
+   * anything. A meter without a quota always fits. `consume` stays the call
+   * that decides, because the answer can change before the next call.
+   */
+  canConsume(input: {
+    organizationId: string;
+    meter: string;
+    quantity?: number | undefined;
+  }): AsyncResult<boolean>;
   /** The meter catalog (`options.meters`), empty without one. */
   meters(): AsyncResult<Readonly<Record<string, UsageMeterInfo>>>;
   /**
@@ -466,6 +476,10 @@ export function createUsage(options: UsageOptions): Usage {
           quantity: numberOf(row["quantity"]),
         })),
       ),
+    canConsume: ({ organizationId, meter, quantity = 1 }) =>
+      hooked
+        .remaining({ organizationId, meter })
+        .map((left) => left === undefined || left >= quantity),
     meters: () =>
       call("usage_meters", {}, (value) => {
         const row = isRecord(value) ? value : {};
@@ -479,10 +493,13 @@ export function createUsage(options: UsageOptions): Usage {
       }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Usage = withBlockHooks(client, options.hooks, {
     block: "usage",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }
 
 export interface ReportUsageOptions {
