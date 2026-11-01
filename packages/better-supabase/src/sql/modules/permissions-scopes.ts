@@ -257,6 +257,7 @@ export const MODULE_PERMISSION_SCOPES: {
   "field-history": { read: "tenant" },
   content: { read: "tenant", write: "tenant", publish: "tenant" },
   qualifications: { read: "tenant", grant: "tenant", manage: "tenant" },
+  advisories: { read: "tenant", write: "tenant", publish: "tenant" },
   risks: {
     read: "tenant",
     write: "tenant",

@@ -79,6 +79,31 @@ export interface BlockNameRegistry {
     readonly primary: "activity";
     readonly formerKeys: "engagement";
   };
+  readonly "advisories": {
+    readonly tables: {
+      readonly "products": "id" | "tenant" | "key" | "name" | "vendor" | "description" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "versions": "id" | "tenant" | "product" | "version" | "releasedAt" | "endOfSupportAt" | "sbomSerial" | "sbomSpec" | "sbomComponents" | "sbomImportedAt" | "createdAt";
+      readonly "components": "id" | "tenant" | "version" | "bomRef" | "kind" | "name" | "componentVersion" | "purl" | "packagePurl" | "cpe" | "supplier" | "licenses" | "hashes";
+      readonly "vulnerabilities": "id" | "tenant" | "vulnId" | "aliases" | "summary" | "details" | "cvssVector" | "cvssVersion" | "cvssScore" | "severity" | "epssScore" | "epssPercentile" | "epssDate" | "kev" | "kevAddedOn" | "kevDueOn" | "kevRansomware" | "affectedPurls" | "referenceLinks" | "publishedAt" | "modifiedAt" | "enrichedAt" | "createdAt" | "updatedAt";
+      readonly "vex": "id" | "tenant" | "product" | "version" | "vulnerability" | "status" | "justification" | "impactStatement" | "actionStatement" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "advisories": "id" | "tenant" | "trackingId" | "title" | "summary" | "product" | "severity" | "status" | "revision" | "initialReleaseAt" | "currentReleaseAt" | "revisionHistory" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "links": "tenant" | "advisory" | "vulnerability" | "createdAt";
+    };
+    readonly functions: "create_product_version" | "get_advisory" | "get_published_advisory" | "import_sbom" | "list_advisories" | "list_advisory_products" | "list_product_versions" | "list_published_advisories" | "list_sbom_components" | "list_vex_statements" | "list_vulnerabilities" | "publish_advisory" | "record_vulnerability_enrichment" | "save_advisory" | "save_advisory_product" | "save_vex_statement" | "save_vulnerability" | "version_exposure" | "vulnerabilities_due";
+    readonly actions: "read" | "write" | "publish";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "advisory": "id" | "tenant_id" | "tracking_id" | "title" | "summary" | "product_id" | "severity" | "status" | "revision" | "initial_release_at" | "current_release_at" | "revision_history" | "created_by" | "created_at" | "updated_at";
+      readonly "advisory_product": "id" | "tenant_id" | "key" | "name" | "vendor" | "description" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "advisory_product_version": "id" | "tenant_id" | "product_id" | "version" | "released_at" | "end_of_support_at" | "sbom_serial" | "sbom_spec" | "sbom_component_count" | "sbom_imported_at" | "created_at";
+      readonly "sbom_component": "id" | "tenant_id" | "version_id" | "bom_ref" | "component_type" | "name" | "component_version" | "purl" | "package_purl" | "cpe" | "supplier" | "licenses" | "hashes";
+      readonly "vulnerability": "id" | "tenant_id" | "vuln_id" | "aliases" | "summary" | "details" | "cvss_vector" | "cvss_version" | "cvss_score" | "severity" | "epss_score" | "epss_percentile" | "epss_date" | "kev" | "kev_added_on" | "kev_due_on" | "kev_ransomware" | "affected_purls" | "reference_links" | "published_at" | "modified_at" | "enriched_at" | "created_at" | "updated_at";
+      readonly "vex_statement": "id" | "tenant_id" | "product_id" | "version_id" | "vulnerability_id" | "status" | "justification" | "impact_statement" | "action_statement" | "created_by" | "created_at" | "updated_at";
+      readonly "advisory_vulnerability": "tenant_id" | "advisory_id" | "vulnerability_id" | "created_at";
+    };
+    readonly primary: "advisory";
+    readonly formerKeys: never;
+  };
   readonly "agents": {
     readonly tables: {
       readonly "agents": "id" | "tenant" | "owner" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connectors" | "knowledgeScope" | "starters" | "visibility" | "publishedAt" | "installCount" | "ratingCount" | "ratingSum" | "createdAt" | "updatedAt";

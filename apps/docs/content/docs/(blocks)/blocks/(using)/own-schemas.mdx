@@ -78,6 +78,14 @@ may be your own enum or domain.
   - `better_supabase.engagement_recordings`: `id`, `tenant_id`, `activity_id`, `file_id`, `filename`, `media_type`, `status`, `created_at`; typed: `status`
   - `better_supabase.engagement_transcript_segments`: `recording_id`, `tenant_id`, `position`, `starts_ms`, `ends_ms`, `text`
   - `better_supabase.engagement_notes`: `activity_id`, `tenant_id`, `summary`, `action_items`, `source`; typed: `source`
+- `advisories`
+  - `better_supabase.advisory_products`: `id`, `tenant_id`, `key`, `name`, `vendor`, `description`, `archived_at`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.advisory_product_versions`: `id`, `tenant_id`, `product_id`, `version`, `released_at`, `end_of_support_at`, `sbom_serial`, `sbom_spec`, `sbom_component_count`, `sbom_imported_at`, `created_at`
+  - `better_supabase.sbom_components`: `id`, `tenant_id`, `version_id`, `bom_ref`, `component_type`, `name`, `component_version`, `purl`, `package_purl`, `cpe`, `supplier`, `licenses`, `hashes`
+  - `better_supabase.vulnerabilities`: `id`, `tenant_id`, `vuln_id`, `aliases`, `summary`, `details`, `cvss_vector`, `cvss_version`, `cvss_score`, `severity`, `epss_score`, `epss_percentile`, `epss_date`, `kev`, `kev_added_on`, `kev_due_on`, `kev_ransomware`, `affected_purls`, `reference_links`, `published_at`, `modified_at`, `enriched_at`, `created_at`, `updated_at`
+  - `better_supabase.vex_statements`: `id`, `tenant_id`, `product_id`, `version_id`, `vulnerability_id`, `status`, `justification`, `impact_statement`, `action_statement`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.advisories`: `id`, `tenant_id`, `tracking_id`, `title`, `summary`, `product_id`, `severity`, `status`, `revision`, `initial_release_at`, `current_release_at`, `revision_history`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.advisory_vulnerabilities`: `tenant_id`, `advisory_id`, `vulnerability_id`, `created_at`
 - `agents`
   - `better_supabase.agents`: `id`, `organization_id`, `owner_id`, `slug`, `name`, `instructions`, `visibility`, `published_at`, `updated_at`; typed: `visibility`
   - `better_supabase.agent_installs`: `agent_id`, `user_id`, `organization_id`
