@@ -63,6 +63,38 @@ describe("tasks.complete, cancel and reopen", () => {
   });
 });
 
+describe("tasks.assignToMe", () => {
+  it("adds the user and keeps the other assignees", async () => {
+    const t = fieldsTransport({
+      get_task: () => ({ ...TASK, assignees: ["u1"] }),
+      set_task_assignees: () => 2,
+    });
+
+    const tasks = createTasks({ transport: t });
+
+    expect(
+      await tasks.assignToMe({ workItemId: "w1", userId: "u2" }).orThrow(),
+    ).toBe(2);
+    expect(t.calls[1]).toEqual([
+      "set_task_assignees",
+      { work_item: "w1", users: ["u1", "u2"] },
+    ]);
+  });
+
+  it("does nothing when the user is assigned", async () => {
+    const t = fieldsTransport({
+      get_task: () => ({ ...TASK, assignees: ["u1"] }),
+    });
+
+    const tasks = createTasks({ transport: t });
+
+    expect(
+      await tasks.assignToMe({ workItemId: "w1", userId: "u1" }).orThrow(),
+    ).toBe(1);
+    expect(t.calls).toHaveLength(1);
+  });
+});
+
 describe("cases.tryClose", () => {
   it("returns the blockers without closing", async () => {
     const t = fieldsTransport({

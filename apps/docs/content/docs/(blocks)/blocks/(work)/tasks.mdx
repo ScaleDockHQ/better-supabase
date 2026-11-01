@@ -245,3 +245,10 @@ const { accepted, rejected } = await items
 await tasks.complete({ workItemId, stageId: doneStageId }).orThrow();
 await tasks.reopen({ workItemId, stageId: todoStageId }).orThrow();
 ```
+
+## Assign to yourself
+
+`tasks.assignToMe({ workItemId, userId })` adds a user to the item's assignees and keeps the others, where
+`assign` replaces them. The client has no signed-in user of its own, so the caller passes the id, for
+example `ctx.user.id` in an action. It returns the assignee count and does nothing when the user is
+already assigned.

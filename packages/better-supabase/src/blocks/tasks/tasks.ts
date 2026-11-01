@@ -359,6 +359,16 @@ export interface Tasks<F extends object = Record<never, never>> {
   /** `complete` for a stage of the `canceled` category. */
   cancel(input: { workItemId: string; stageId: string }): AsyncResult<true>;
   /**
+   * Adds `userId` to the item's assignees and keeps the others; `assign`
+   * replaces them. The client has no signed-in user, so the caller passes its
+   * id (`ctx.user.id` in an action). Returns the assignee count, and does
+   * nothing when the user is already assigned.
+   */
+  assignToMe(input: {
+    workItemId: string;
+    userId: string;
+  }): AsyncResult<number>;
+  /**
    * Moves a closed item back to `stageId`, a stage of an open category, and
    * checks that it is open afterwards.
    */
@@ -874,6 +884,23 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
     complete: (input) => settle(input, ["completed"], "completed"),
     cancel: (input) => settle(input, ["canceled"], "canceled"),
     reopen: (input) => settle(input, OPEN_STATES, "open"),
+    assignToMe: ({ workItemId, userId }) =>
+      hooked.get(workItemId).andThen((item) => {
+        if (item === undefined) {
+          return Promise.resolve(
+            err(dbError("not_found", `Work item ${workItemId} not found`)),
+          );
+        }
+
+        if (item.assigneeIds.includes(userId)) {
+          return Promise.resolve(ok(item.assigneeIds.length));
+        }
+
+        return hooked.assign({
+          workItemId,
+          userIds: [...item.assigneeIds, userId],
+        });
+      }),
   };
 
   // Helpers call the hooked client, so app hooks see each step.
