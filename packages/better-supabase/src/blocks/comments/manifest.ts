@@ -10,13 +10,14 @@ export const commentsBlock: BlockOf<
   "comments",
   typeof createComments,
   Record<never, never>,
-  Record<never, never>,
+  { readonly attachments: "optional" },
   never,
   typeof commentsBinding
 > = defineBlock({
   name: "comments",
   sql: ["comments"],
   options: { comments: commentsSqlOptions },
+  consumes: { attachments: "optional" },
   create: createComments,
   record: commentsBinding,
   category: "collaboration",

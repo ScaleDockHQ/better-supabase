@@ -91,6 +91,12 @@ A type with `autoApprove: true` needs no approval: its requests are approved whe
 
 `cancel(requestId)` cancels a pending request, or an approved one before the leave starts, for its requester, and any request for a member with `leave.manage`. It cancels a pending approval request with it. Cancelling an approved request writes an entry that gives the days back. `list` returns the caller's requests, earliest first, and `userId` or `everyone: true` read other members' with `leave.read`; `status`, `from` and `to` narrow it.
 
+`workingDays({ from, to })` returns the working days between two `Temporal.PlainDate` values, inclusive, by the module's `workingDays` option. It is the number `request` charges a full-day request, so a form can show the cost before it submits. Half days are not counted.
+
+```ts
+const days = await leave.workingDays({ from, to }).orThrow();
+```
+
 ## Balances
 
 Each member has a ledger account per type and year (amounts in hundredths of the type's unit), and every change to a balance is a ledger transaction of kind `leave.grant`, `leave.accrual`, `leave.adjustment`, `leave.taken`, `leave.carryover` or `leave.expiry` against the type's pool or taken account. A carryover moves the amount between the two years' accounts. `balances(organizationId)` returns the caller's balance of each tracked type this year (pass `userId` and `period` for others), with `granted`, `taken`, `pending` and `available`, which is the ledger total less pending requests. `ledger` lists the entries behind it.

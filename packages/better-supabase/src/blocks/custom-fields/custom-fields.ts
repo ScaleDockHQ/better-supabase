@@ -10,7 +10,10 @@ import type { FieldPack } from "./pack.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
-import { rankBetweenResult } from "../../core/rank-result.ts";
+import {
+  neighborsForIndex,
+  rankBetweenResult,
+} from "../../core/rank-result.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import {
   blockCall,
@@ -137,6 +140,16 @@ export interface CustomFields {
   reorderDefinition(input: {
     id: string;
     neighbors: RankNeighbors;
+  }): AsyncResult<string>;
+  /**
+   * Puts a definition at position `toIndex` (0 is first) among `entity`'s
+   * definitions and resolves to its new key. It reads `listDefinitions` and
+   * calls `reorderDefinition` with the neighbours there.
+   */
+  moveDefinition(input: {
+    id: string;
+    entity: string;
+    toIndex: number;
   }): AsyncResult<string>;
   /**
    * Installs a field pack in the tenant. A definition is matched by pack and
@@ -288,6 +301,14 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
         () => key.data,
       );
     },
+    moveDefinition: ({ id, entity, toIndex }) =>
+      hooked.listDefinitions(entity).andThen((definitions) => {
+        const neighbors = neighborsForIndex(definitions, id, toIndex);
+
+        return neighbors.ok
+          ? hooked.reorderDefinition({ id, neighbors: neighbors.data })
+          : AsyncResult.err(neighbors.error);
+      }),
     deleteDefinition: (id) =>
       call(
         "delete_field_definition",

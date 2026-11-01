@@ -45,6 +45,16 @@ export interface ReactionCount {
   readonly actors: readonly string[];
 }
 
+/** The actors behind one emoji, from `who`. */
+export interface ReactionActors {
+  readonly count: number;
+  readonly actors: readonly string[];
+  /** Reactions beyond the listed actors. */
+  readonly hidden: number;
+  /** Whether the signed-in user reacted with it. */
+  readonly reacted: boolean;
+}
+
 /** A subject's votes. */
 export interface VoteTally {
   /** Up votes minus down votes. */
@@ -101,6 +111,16 @@ export interface Reactions {
   summary(
     subjects: readonly RecordRef[],
   ): AsyncResult<Readonly<Record<string, readonly ReactionCount[]>>>;
+  /**
+   * Who reacted to `subject`, by emoji (only `emoji` when given), for a "who
+   * reacted" popover. The database returns the first ten actors of each emoji,
+   * so `hidden` counts the ones beyond them. It is `summary` for one subject
+   * and shares its read rules.
+   */
+  who(input: {
+    subject: RecordRef;
+    emoji?: string | undefined;
+  }): AsyncResult<Readonly<Record<string, ReactionActors>>>;
   /**
    * Sets the caller's vote on `subject` and returns its tally. Votes use the
    * `create` permission and the subject's read rules, like `react`.
@@ -223,6 +243,24 @@ export function createReactions(options: ReactionsOptions): Reactions {
           ),
         ),
       ),
+    who: ({ subject, emoji }) =>
+      hooked
+        .summary([subject])
+        .map((summary) =>
+          Object.fromEntries(
+            (summary[subjectKey(subject)] ?? [])
+              .filter((entry) => emoji === undefined || entry.emoji === emoji)
+              .map((entry) => [
+                entry.emoji,
+                {
+                  count: entry.count,
+                  actors: entry.actors,
+                  hidden: Math.max(0, entry.count - entry.actors.length),
+                  reacted: entry.reacted,
+                },
+              ]),
+          ),
+        ),
     vote: ({ subject, value, ...vote }) =>
       tenant().andThen((organizationId) =>
         call(

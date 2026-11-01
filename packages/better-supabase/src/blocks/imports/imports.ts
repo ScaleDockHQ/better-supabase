@@ -2,10 +2,10 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { ImportBatchReply, ImportItem } from "./define-import.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import {
   blockCall,
   nullableInstant,
@@ -117,7 +117,55 @@ export interface UpsertBatchResult extends ImportBatchReply {
   readonly dryRun: boolean;
 }
 
+/** One entity's items for `run`, in the order runs must write them. */
+export interface ImportRunEntity {
+  readonly entity: string;
+  readonly items: Iterable<ImportItem> | AsyncIterable<ImportItem>;
+}
+
+export interface RunImportsOptions extends StartImportRunOptions {
+  /** Items per `upsertBatch` call. Default 200. */
+  readonly batchSize?: number | undefined;
+  /** Called after each batch with the entity's running totals. */
+  readonly onBatch?:
+    | ((progress: {
+        readonly entity: string;
+        readonly items: number;
+        readonly errors: number;
+      }) => void)
+    | undefined;
+}
+
+/** What `run` answers: the finished run's counts and what the batches reported. */
+export interface ImportRunResult {
+  readonly id: string;
+  readonly dryRun: boolean;
+  readonly counts: Readonly<Record<string, ImportEntityCounts>>;
+  /** Rejected items, by entity, with the batch's hint code. */
+  readonly errors: readonly ImportRunError[];
+  readonly warnings: readonly {
+    readonly entity: string;
+    readonly key: string | null;
+    readonly code: string;
+    readonly message: string;
+  }[];
+}
+
 export interface Imports {
+  /**
+   * Runs a whole import in one call, for the service role: `runs.start`,
+   * `markRunning`, one `upsertBatch` per `batchSize` items of each entity in
+   * the order given, then `finish`. Item errors do not stop the run; they come
+   * back in `errors`. When a call fails (the run could not start, a batch
+   * threw), the run is cancelled and the error returned.
+   */
+  run(
+    input: {
+      organizationId: string;
+      source: string;
+      entities: readonly ImportRunEntity[];
+    } & RunImportsOptions,
+  ): AsyncResult<ImportRunResult>;
   /** Starts a run and returns its id. Prefer `runs.start`. */
   start(input: {
     organizationId: string;
@@ -283,6 +331,104 @@ export function createImports(options: ImportsOptions): Imports {
   });
 
   const client: Imports = {
+    run: ({ organizationId, source, entities, batchSize, onBatch, ...start }) =>
+      AsyncResult.from(async () => {
+        const size = Math.max(1, batchSize ?? 200);
+
+        const started = await hooked.runs.start({
+          organizationId,
+          source,
+          ...start,
+        });
+
+        if (!started.ok) {
+          return started;
+        }
+
+        const { id } = started.data;
+        const errors: ImportRunError[] = [];
+        const warnings: ImportRunResult["warnings"][number][] = [];
+
+        const stop = async <T>(failure: T): Promise<T> => {
+          await hooked.runs.cancel(id);
+
+          return failure;
+        };
+
+        const running = await hooked.markRunning(id);
+
+        if (!running.ok) {
+          return stop(running);
+        }
+
+        for (const { entity, items } of entities) {
+          let batch: ImportItem[] = [];
+          let sent = 0;
+          let rejected = 0;
+
+          const flush = async () => {
+            const reply = await hooked.upsertBatch({
+              runId: id,
+              entity,
+              items: batch,
+            });
+
+            if (!reply.ok) {
+              return reply;
+            }
+
+            sent += batch.length;
+            rejected += reply.data.errors.length;
+            batch = [];
+
+            for (const error of reply.data.errors) {
+              errors.push({ entity, ...error });
+            }
+
+            for (const warning of reply.data.warnings ?? []) {
+              warnings.push({ entity, ...warning });
+            }
+
+            onBatch?.({ entity, items: sent, errors: rejected });
+
+            return reply;
+          };
+
+          for await (const item of items) {
+            batch.push(item);
+
+            if (batch.length >= size) {
+              const flushed = await flush();
+
+              if (!flushed.ok) {
+                return stop(flushed);
+              }
+            }
+          }
+
+          if (batch.length > 0) {
+            const flushed = await flush();
+
+            if (!flushed.ok) {
+              return stop(flushed);
+            }
+          }
+        }
+
+        const finished = await hooked.finish(id);
+
+        if (!finished.ok) {
+          return stop(finished);
+        }
+
+        return ok({
+          id,
+          dryRun: start.dryRun === true,
+          counts: finished.data,
+          errors,
+          warnings,
+        });
+      }),
     start: ({ organizationId, source, mapping }) =>
       call(
         "start_import",
@@ -367,8 +513,11 @@ export function createImports(options: ImportsOptions): Imports {
       call("finish_import_run", { run: runId }, (value) => countsOf(value)),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Imports = withBlockHooks(client, options.hooks, {
     block: "imports",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

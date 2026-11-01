@@ -25,6 +25,7 @@ const POSITIONAL = new Set<string>([
   "attachments/attachments.ts:scan",
   "attachments/attachments.ts:signedUrl",
   "attachments/attachments.ts:upload",
+  "attachments/attachments.ts:uploadToSignedUrl",
   "attachments/client.ts:open",
   "attachments/client.ts:setRequestHeader",
   "attachments/list-controller.ts:onMessage",

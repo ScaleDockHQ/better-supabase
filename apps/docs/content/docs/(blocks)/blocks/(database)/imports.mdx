@@ -238,6 +238,10 @@ sending the same list again writes nothing.
 
 Map `tables.runs` onto the app's import table. Optional columns can be `null`.
 
+## Run an import in one call
+
+`run({ organizationId, source, entities, batchSize?, onBatch? })` is for the service role. It starts a run, marks it running, writes each entity's items in batches of `batchSize` in the order given, then finishes the run. Item errors do not stop the run: they come back in `errors`. When the run cannot start or a batch call fails, the run is cancelled and the error is returned.
+
 ## Hooks
 
 `createImports` takes `hooks`, keyed by method name, that run your code

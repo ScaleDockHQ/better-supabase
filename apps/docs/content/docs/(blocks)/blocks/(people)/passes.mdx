@@ -162,6 +162,15 @@ blocks: {
 },
 ```
 
+### Scan a token
+
+`scan({ token, jwks })` checks a scanned token in and never fails for a bad one. An unreadable, forged or expired token comes back as `{ admitted: false, reason: "invalid" | "expired" }`, the same shape as a refused scan, so a door display handles one case. Other errors are the ones `checkIn` returns.
+
+```ts
+const outcome = await passes.scan({ token, jwks }).orThrow();
+if (!outcome.admitted) show(outcome.reason);
+```
+
 ## Class credits
 
 Turn on `credits` to sell a pack of classes: a pass with `usesAllowed` and no
