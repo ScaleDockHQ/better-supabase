@@ -257,7 +257,7 @@ const drive = createDrive({
   storage: serviceStorage,
 });
 const sent = await drive
-  .uploadToRequest(token, file, { name: file.name, password })
+  .uploadToRequest({ token, file, options: { name: file.name, password } })
   .orThrow();
 
 if (sent.passwordRequired) {
@@ -280,16 +280,23 @@ With `drives` on, every node belongs to a drive: `drive_drives` holds the drives
 
 ```ts
 const drive = await db.drive
-  .createDrive(organizationId, { name: "Projects", kind: "shared" })
+  .createDrive({ organizationId, drive: { name: "Projects", kind: "shared" } })
   .orThrow();
 const folder = await db.drive
-  .createFolder(organizationId, { name: "Launch", driveId: drive.id })
+  .createFolder({
+    organizationId,
+    folder: { name: "Launch", driveId: drive.id },
+  })
   .orThrow();
 const roots = await db.drive
-  .list(organizationId, { driveId: drive.id })
+  .list({ organizationId, options: { driveId: drive.id } })
   .orThrow();
 
-await db.drive.shareDrive(drive.id, { type: "team", id: designTeam }, "editor");
+await db.drive.shareDrive({
+  id: drive.id,
+  principal: { type: "team", id: designTeam },
+  role: "editor",
+});
 ```
 
 `drives(organizationId)` lists the drives the caller can read, `drive(id)` reads one, and `renameDrive`, `deleteDrive`, `shareDrive`, `unshareDrive` and `driveGrants` manage them. `deleteDrive` fails while any node in the drive is under a legal hold.
@@ -402,13 +409,14 @@ Quotas need the usage block in the same set; installing `drive-files` with a quo
 
 ```ts
 await db.drive
-  .lock(fileId, {
+  .lock({
+    id: fileId,
     until: Temporal.Now.instant().add({ hours: 2 }),
     note: "Redlining",
   })
   .orThrow();
 // edit, upload a revision, commit
-await db.drive.unlock(fileId).orThrow();
+await db.drive.unlock({ id: fileId }).orThrow();
 ```
 
 `blockDownloads(id)` keeps the original of a node, and of everything under it, from callers below the write role; `blockDownloads(id, false)` lifts it. With `drives` on, `blockDriveDownloads(driveId)` does the same for a whole drive. Setting a block needs the share role. A blocked caller still lists and opens the node and reads its previews, but the storage policy refuses the original and `download(id)` fails with the hint `DRIVE_DOWNLOAD_BLOCKED`. Every node reports `downloadBlocked` (the flag on the node itself) and `downloadable` (whether the caller may download it). `drive_can_download(node)` is the same check in SQL.
@@ -431,7 +439,7 @@ const previews = createDrivePreviews({
   requireClean: true,
 });
 
-await outbox.relay("drive-previews", previews.sink());
+await outbox.relay({ consumer: "drive-previews", sink: previews.sink() });
 // or from a queue: queue.work("drive-previews", previews.job)
 ```
 
@@ -483,10 +491,19 @@ Typed metadata on files and folders comes from the [custom fields](/docs/blocks/
 
 ```ts
 const contract = await db.customFields
-  .saveDefinition("drive_node", "contract_type", "Contract type", "option")
+  .saveDefinition({
+    entity: "drive_node",
+    key: "contract_type",
+    label: "Contract type",
+    type: "option",
+  })
   .orThrow();
 await db.customFields
-  .setValue({ type: "drive_node", id: fileId }, contract.id, "nda")
+  .setValue({
+    subject: { type: "drive_node", id: fileId },
+    definitionId: contract.id,
+    value: "nda",
+  })
   .orThrow();
 ```
 
@@ -514,7 +531,7 @@ Creating a link on a node needs the share role. A `view` or `download` link open
 ```tsx
 import { driveTree, nodeType } from "better-supabase/blocks/drive";
 
-const data = driveTree(await drive.list(organizationId).orThrow());
+const data = driveTree(await drive.list({ organizationId }).orThrow());
 const tree = useTree({
   rootItemId: data.rootItemId,
   getItemName: (item) => data.name(item.getId()),
@@ -680,22 +697,35 @@ const drive = createDrive({
 });
 
 const projects = await drive
-  .createFolder(organizationId, { name: "Projects" })
+  .createFolder({ organizationId, folder: { name: "Projects" } })
   .orThrow();
 const upload = await drive
-  .upload(organizationId, {
-    parentId: projects.id,
-    name: file.name,
-    mimeType: file.type,
-    size: file.size,
+  .upload({
+    organizationId,
+    file: {
+      parentId: projects.id,
+      name: file.name,
+      mimeType: file.type,
+      size: file.size,
+    },
   })
   .orThrow();
 await supabase.storage
   .from(upload.attachment.bucket)
   .uploadToSignedUrl(upload.attachment.path, upload.token, file);
-await drive.commit(upload.node.id, upload.attachment.id).orThrow();
+await drive
+  .commit({ id: upload.node.id, attachmentId: upload.attachment.id })
+  .orThrow();
 
-await drive.share(projects.id, { type: "team", id: designTeam }, "editor");
-await drive.share(projects.id, { type: "role", id: memberRoleId }, "viewer");
-const { signedUrl } = await drive.download(upload.node.id).orThrow();
+await drive.share({
+  id: projects.id,
+  principal: { type: "team", id: designTeam },
+  role: "editor",
+});
+await drive.share({
+  id: projects.id,
+  principal: { type: "role", id: memberRoleId },
+  role: "viewer",
+});
+const { signedUrl } = await drive.download({ id: upload.node.id }).orThrow();
 ```

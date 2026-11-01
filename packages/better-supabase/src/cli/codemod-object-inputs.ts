@@ -221,6 +221,26 @@ function clearlyPositional(arg: string): boolean {
   return !arg.startsWith("{") && !INPUT_NAME.test(arg);
 }
 
+/**
+ * Method names an app's own tables share (`db.tasks.update(id, patch)` is a
+ * repository call), so the codemod lists these for review and never rewrites
+ * them.
+ */
+const REPOSITORY_VERBS = new Set([
+  "count",
+  "create",
+  "delete",
+  "find",
+  "get",
+  "insert",
+  "list",
+  "publish",
+  "remove",
+  "select",
+  "update",
+  "upsert",
+]);
+
 /** Every call in `text` that still uses a block method's positional form. */
 export function findObjectInputCalls(text: string): ObjectInputCall[] {
   const masked = mask(text);
@@ -271,6 +291,7 @@ export function findObjectInputCalls(text: string): ObjectInputCall[] {
 
     const certain =
       only !== undefined &&
+      !REPOSITORY_VERBS.has(method) &&
       new Set(named.map((signature) => objectInput(signature, args))).size ===
         1;
 

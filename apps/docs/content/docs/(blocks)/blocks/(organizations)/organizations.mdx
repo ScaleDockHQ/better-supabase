@@ -629,9 +629,9 @@ to renew its expiry, then edit it. It returns the invitation without its token a
 emits `invitation.updated`. In TypeScript:
 
 ```ts
-await organizations.updateInvitation(invitationId, {
-  role: "admin",
-  prefill: { name: "Ada Lovelace" },
+await organizations.updateInvitation({
+  invitationId,
+  changes: { role: "admin", prefill: { name: "Ada Lovelace" } },
 });
 ```
 

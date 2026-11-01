@@ -33,6 +33,7 @@ the tasks block installed, postmortem action items become tasks. Everything this
 | [Tax codes](#tax-codes)                             | Install `tax`; call its code methods                |
 | [General ledger](#general-ledger)                   | Pass the new arguments in your own SQL calls        |
 | [Import runs](#import-runs)                         | Rename `kind` to `source`; use `runs.start`         |
+| [Object inputs](#object-inputs)                     | Run `codemod 0.47`; check `doctor` BS509            |
 | [Table names](#table-names)                         | Rename queries on the old tables in your own code   |
 | [The SQL modules](#the-sql-modules)                 | Run `upgrade` and generate a migration              |
 | [Removed in 0.48](#removed-in-048)                  | Move off each item before 0.48                      |
@@ -725,6 +726,45 @@ Rows whose `subject_type` is not registered keep working until they are
 written again; register the type or map it first. Declare `options.sources`
 for every source your app writes besides import runs. The codemod lists calls
 of `create_attachment` so you can check them. See [attachments](/docs/blocks/attachments).
+
+## Object inputs
+
+Every block client method that took two or more positional arguments now
+takes one object (ADR 0177). A required argument becomes a property of the same
+name. A trailing options object is merged into the same object when every
+field in it is optional, and otherwise it moves under `options`.
+
+```ts
+// 0.46
+await db.catalog.setPrice(variantId, { amount, currency });
+await db.drive.shareDrive(drive.id, principal, "editor");
+await db.catalog.channelProducts(web.id, { locale: "de", limit: 50 });
+
+// 0.47
+await db.catalog.setPrice({ variantId, input: { amount, currency } });
+await db.drive.shareDrive({ id: drive.id, principal, role: "editor" });
+await db.catalog.channelProducts({
+  channelId: web.id,
+  locale: "de",
+  limit: 50,
+});
+```
+
+Hook arguments follow: a `before` or `after` hook for a block method receives
+`[input]` instead of the old argument list. Some signatures stay positional on
+purpose: the ports other libraries implement (carriers, providers, signers),
+queue backends, the `load` and `run` functions of a record binding, controller
+callbacks, extension hooks and Stripe wrappers.
+
+Run `better-supabase codemod 0.47`. It rewrites calls whose receiver names the
+block (`db.catalog.setPrice(...)`, `blocks.drive.shareDrive(...)`) and lists the
+calls it cannot place, such as an aliased client, for review. After that,
+`better-supabase doctor` reports every call it can still rewrite as BS509, and
+the TypeScript compiler finds the rest.
+
+| Block | Methods that changed                                                          |
+| ----- | ----------------------------------------------------------------------------- |
+| All   | 1,159 methods; the table is `codemod-object-inputs-data.ts` in the CLI source |
 
 ## Table names
 
