@@ -162,10 +162,10 @@ export interface MaintenanceCalibrationListOptions {
 export interface Maintenance {
   /** Creates a plan; needs `maintenance.manage`. */
   createPlan(input: MaintenancePlanInput): AsyncResult<MaintenancePlan>;
-  updatePlan(
-    planId: string,
-    change: MaintenancePlanChange,
-  ): AsyncResult<MaintenancePlan>;
+  updatePlan(input: {
+    planId: string;
+    change: MaintenancePlanChange;
+  }): AsyncResult<MaintenancePlan>;
   deletePlan(planId: string): AsyncResult<MaintenancePlan>;
   listPlans(
     options?: MaintenancePlanListOptions,
@@ -185,11 +185,11 @@ export interface Maintenance {
    * Records a reading, never below the previous one; needs
    * `maintenance.record`.
    */
-  recordReading(
-    meterId: string,
-    value: string | number,
-    readAt?: Temporal.Instant,
-  ): AsyncResult<MaintenanceMeter>;
+  recordReading(input: {
+    meterId: string;
+    value: string | number;
+    readAt?: Temporal.Instant | undefined;
+  }): AsyncResult<MaintenanceMeter>;
   listMeters(): AsyncResult<readonly MaintenanceMeter[]>;
   recordCalibration(
     input: MaintenanceCalibrationInput,
@@ -342,7 +342,7 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
           plan("create_maintenance_plan"),
         ),
       ),
-    updatePlan: (planId, change) =>
+    updatePlan: ({ planId, change }) =>
       call(
         "update_maintenance_plan",
         { plan_id: planId, changes: planArgs(change) },
@@ -400,7 +400,7 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
           meter("create_maintenance_meter"),
         ),
       ),
-    recordReading: (meterId, value, readAt) =>
+    recordReading: ({ meterId, value, readAt }) =>
       call(
         "record_meter_reading",
         {

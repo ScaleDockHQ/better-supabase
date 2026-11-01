@@ -130,7 +130,10 @@ describe("createWarehouse", () => {
       .orThrow();
 
     await warehouse
-      .recordPick("n1", { quantity: 1, binId: "b1", serials: ["S1"] })
+      .recordPick({
+        lineId: "n1",
+        pick: { quantity: 1, binId: "b1", serials: ["S1"] },
+      })
       .orThrow();
 
     const done = await warehouse.completePickList("p1").orThrow();
@@ -199,10 +202,10 @@ describe("createWarehouse", () => {
     const variance = await warehouse.cycleCountVariance("k2").orThrow();
 
     const posted = await warehouse
-      .postCycleCount("k2", { approve: true })
+      .postCycleCount({ countId: "k2", approve: true })
       .orThrow();
 
-    await warehouse.postCycleCount("k2").orThrow();
+    await warehouse.postCycleCount({ countId: "k2" }).orThrow();
 
     expect(plan).toMatchObject({ everyDays: 30, varianceLimitPct: "5.00" });
     expect(plans[1]?.variantIds).toEqual([]);

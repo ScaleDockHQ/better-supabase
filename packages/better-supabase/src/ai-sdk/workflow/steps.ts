@@ -35,13 +35,17 @@ export async function saveMessagesStep(
   input: DurableSaveInput,
 ): Promise<void> {
   await chats.messages
-    .saveAssistant(input.chatId, input.message, {
-      parentId: input.parentId,
-      status: input.status,
-      model: input.model,
-      format: AI_SDK_UI_FORMAT,
-      native: toUIMessage(input.message),
-      runId: input.runId,
+    .saveAssistant({
+      chatId: input.chatId,
+      message: input.message,
+      options: {
+        parentId: input.parentId,
+        status: input.status,
+        model: input.model,
+        format: AI_SDK_UI_FORMAT,
+        native: toUIMessage(input.message),
+        runId: input.runId,
+      },
     })
     .orThrow();
 }
@@ -52,16 +56,19 @@ async function recordApprovals(
 ): Promise<void> {
   for (const request of input.requests) {
     await chats.approvals
-      .request(input.chatId, {
-        approvalId: request.approvalId,
-        tool: request.toolName,
-        toolCallId: request.toolCallId,
-        input: request.input,
-        runId: input.runId,
-        messageId: input.messageId,
-        ...(request.signature === undefined
-          ? {}
-          : { signature: request.signature }),
+      .request({
+        chatId: input.chatId,
+        request: {
+          approvalId: request.approvalId,
+          tool: request.toolName,
+          toolCallId: request.toolCallId,
+          input: request.input,
+          runId: input.runId,
+          messageId: input.messageId,
+          ...(request.signature === undefined
+            ? {}
+            : { signature: request.signature }),
+        },
       })
       .orThrow();
   }
@@ -72,7 +79,7 @@ async function decisionsOf(
   input: DurableDecisionsInput,
 ): Promise<DurableDecision[]> {
   const rows = await chats.approvals
-    .list(input.chatId, input.approvalIds)
+    .list({ chatId: input.chatId, approvalIds: input.approvalIds })
     .orThrow();
 
   return rows.flatMap((row) =>
@@ -94,11 +101,11 @@ async function release(
   options: DurableStepOptions,
 ): Promise<void> {
   await chats.runs
-    .release(
-      input.chatId,
-      input.streamId,
-      runRelease(input.status, input.usage, input.error),
-    )
+    .release({
+      chatId: input.chatId,
+      streamId: input.streamId,
+      ...runRelease(input.status, input.usage, input.error),
+    })
     .orThrow();
   const { usage } = input;
 

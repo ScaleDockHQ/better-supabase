@@ -71,29 +71,38 @@ describe.skipIf(!live)("expenses", () => {
         .orThrow();
 
       const train = await expenses
-        .addLine(report.id, {
-          categoryId: travel.id,
-          spentOn: day("2026-10-01"),
-          amount: money(30_000n, "EUR"),
-          description: "Train",
+        .addLine({
+          reportId: report.id,
+          line: {
+            categoryId: travel.id,
+            spentOn: day("2026-10-01"),
+            amount: money(30_000n, "EUR"),
+            description: "Train",
+          },
         })
         .orThrow();
 
       await expenses
-        .addLine(report.id, {
-          categoryId: meals.id,
-          spentOn: day("2026-10-01"),
-          amount: money(4000n, "EUR"),
-          description: "Dinner",
+        .addLine({
+          reportId: report.id,
+          line: {
+            categoryId: meals.id,
+            spentOn: day("2026-10-01"),
+            amount: money(4000n, "EUR"),
+            description: "Dinner",
+          },
         })
         .orThrow();
       expect(
         await expenses
-          .addLine(report.id, {
-            categoryId: meals.id,
-            spentOn: day("2026-10-02"),
-            amount: money(1000n, "USD"),
-            description: "Taxi",
+          .addLine({
+            reportId: report.id,
+            line: {
+              categoryId: meals.id,
+              spentOn: day("2026-10-02"),
+              amount: money(1000n, "USD"),
+              description: "Taxi",
+            },
           })
           .then(hint),
       ).toBe("EXPENSE_CURRENCY_MISMATCH");
@@ -123,7 +132,7 @@ describe.skipIf(!live)("expenses", () => {
       expect(
         submitted.lines.find((line) => line.id === train.id)?.receipts,
       ).toBe(1);
-      expect(await expenses.reimburse(report.id).then(hint)).toBe(
+      expect(await expenses.reimburse({ reportId: report.id }).then(hint)).toBe(
         "EXPENSES_FORBIDDEN",
       );
 
@@ -138,7 +147,7 @@ describe.skipIf(!live)("expenses", () => {
       expect(approved.approvalTransactionId).toBeDefined();
 
       const reimbursed = await expenses
-        .reimburse(report.id, { reference: "SEPA-1" })
+        .reimburse({ reportId: report.id, input: { reference: "SEPA-1" } })
         .orThrow();
 
       expect(reimbursed.status).toBe("reimbursed");
@@ -201,11 +210,14 @@ describe.skipIf(!live)("expenses", () => {
         .orThrow();
 
       await expenses
-        .addLine(report.id, {
-          categoryId: meals.id,
-          spentOn: day("2026-10-01"),
-          amount: money(2500n, "EUR"),
-          description: "Lunch",
+        .addLine({
+          reportId: report.id,
+          line: {
+            categoryId: meals.id,
+            spentOn: day("2026-10-01"),
+            amount: money(2500n, "EUR"),
+            description: "Lunch",
+          },
         })
         .orThrow();
 

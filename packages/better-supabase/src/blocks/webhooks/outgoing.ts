@@ -790,7 +790,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       ),
     redeliver: (deliveryId) =>
       db("redeliver_webhook", { delivery: deliveryId }, String),
-    rotateSecret(endpointId, rotateOptions) {
+    rotateSecret({ endpointId, ...rotateOptions }) {
       if (!store.rotate) {
         return AsyncResult.err(
           dbError("unexpected", "The secret store can't rotate secrets"),

@@ -54,16 +54,16 @@ describe("createWaitlist", () => {
     }));
 
     const waitlist = createWaitlist({ transport, schema: "app" });
-    expect(await waitlist.join("ada@example.com").orThrow()).toEqual({
-      position: 4,
-      status: "waiting",
-    });
+    expect(await waitlist.join({ email: "ada@example.com" }).orThrow()).toEqual(
+      { position: 4, status: "waiting" },
+    );
     expect(call).toHaveBeenCalledWith("app", "join_waitlist", {
       email: "ada@example.com",
       referrer: null,
       metadata: {},
     });
-    await waitlist.join("b@example.com", {
+    await waitlist.join({
+      email: "b@example.com",
       referrer: "ada",
       metadata: { utm: "x" },
     });
@@ -77,12 +77,12 @@ describe("createWaitlist", () => {
     let status = "rejected";
     const { transport } = fake(() => ({ position: null, status }));
     const waitlist = createWaitlist({ transport });
-    expect(await waitlist.join("a@b.c").orThrow()).toEqual({
+    expect(await waitlist.join({ email: "a@b.c" }).orThrow()).toEqual({
       position: undefined,
       status: "waiting",
     });
     status = "lost";
-    const result = await waitlist.join("a@b.c");
+    const result = await waitlist.join({ email: "a@b.c" });
     expect(result.ok).toBe(false);
   });
 

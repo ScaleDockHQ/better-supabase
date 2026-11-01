@@ -37,9 +37,13 @@ function setup(subject: RecordRef | null = CUSTOMER) {
     resolved<readonly Tag[]>([tag("t1", "VIP"), tag("t2", "Churn")]),
   );
 
-  const tagFn = vi.fn((_subject: RecordRef, _tagId: string) => resolved(true));
+  const tagFn = vi.fn((_input: { record: RecordRef; tagId: string }) =>
+    resolved(true),
+  );
 
-  const untag = vi.fn((_subject: RecordRef, _tagId: string) => resolved(true));
+  const untag = vi.fn((_input: { record: RecordRef; tagId: string }) =>
+    resolved(true),
+  );
 
   const create = vi.fn(({ name }: CreateTagInput) =>
     resolved<Tag>({ id: "t3", name, slug: name.toLowerCase(), fields: {} }),

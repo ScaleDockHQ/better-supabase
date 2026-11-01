@@ -31,9 +31,19 @@ describe("catalog block", () => {
 
     const catalog = createCatalog({ transport });
     await catalog
-      .updateProduct("org", "p1", { title: "Mug", price: null })
+      .updateProduct({
+        organizationId: "org",
+        productId: "p1",
+        input: { title: "Mug", price: null },
+      })
       .orThrow();
-    await catalog.updateVariant("p1", "v1", { allowBackorder: true }).orThrow();
+    await catalog
+      .updateVariant({
+        productId: "p1",
+        variantId: "v1",
+        input: { allowBackorder: true },
+      })
+      .orThrow();
     expect(calls).toEqual([
       {
         fn: "save_product",
@@ -74,11 +84,18 @@ describe("catalog block", () => {
     const catalog = createCatalog({ transport });
     expect(
       await catalog
-        .createProduct("org", { title: "Linen Shirt", kind: "physical" })
+        .createProduct({
+          organizationId: "org",
+          input: { title: "Linen Shirt", kind: "physical" },
+        })
         .orThrow(),
     ).toEqual({ id: "p1", slug: "linen-shirt", status: "draft" });
     await catalog
-      .updateProduct("org", "p1", { title: "Linen Shirt", slug: "linen" })
+      .updateProduct({
+        organizationId: "org",
+        productId: "p1",
+        input: { title: "Linen Shirt", slug: "linen" },
+      })
       .orThrow();
     expect(calls).toEqual([
       {
@@ -115,20 +132,29 @@ describe("catalog block", () => {
 
     const catalog = createCatalog({ transport });
     await catalog
-      .createProduct("org", {
-        title: "Shirt",
-        price: money(990n, "EUR"),
-        trackInventory: false,
+      .createProduct({
+        organizationId: "org",
+        input: {
+          title: "Shirt",
+          price: money(990n, "EUR"),
+          trackInventory: false,
+        },
       })
       .orThrow();
     expect(
       await catalog
-        .createVariant("p1", { sku: "S", fields: { is_default: true } })
+        .createVariant({
+          productId: "p1",
+          input: { sku: "S", fields: { is_default: true } },
+        })
         .orThrow(),
     ).toEqual({ id: "x1", sku: "S", rank: "V", fields: { is_default: true } });
     expect(
       await catalog
-        .saveCategory("org", { name: "Shirts", fields: { icon: "Shirt" } })
+        .saveCategory({
+          organizationId: "org",
+          input: { name: "Shirts", fields: { icon: "Shirt" } },
+        })
         .orThrow(),
     ).toMatchObject({ fields: { icon: "Shirt" } });
     expect(calls[0]?.args).toMatchObject({
@@ -143,10 +169,10 @@ describe("catalog block", () => {
   it("refuses a status the database doesn't know", async () => {
     const { transport } = recorder({ status: "live", from: "draft" });
 
-    const result = await createCatalog({ transport }).setProductStatus(
-      "p1",
-      "active",
-    );
+    const result = await createCatalog({ transport }).setProductStatus({
+      productId: "p1",
+      status: "active",
+    });
 
     expect(result.ok).toBe(false);
   });
@@ -159,7 +185,7 @@ describe("catalog block", () => {
     });
 
     const result = await createCatalog({ transport })
-      .setVariantStatus("v1", "discontinued")
+      .setVariantStatus({ variantId: "v1", status: "discontinued" })
       .orThrow();
 
     expect(result).toEqual({ status: "discontinued", from: "active" });
@@ -179,14 +205,15 @@ describe("catalog block", () => {
 
     const catalog = createCatalog({ transport });
     expect(
-      await catalog.saveOption("p1", { name: "Size", values: ["S"] }).orThrow(),
+      await catalog
+        .saveOption({ productId: "p1", input: { name: "Size", values: ["S"] } })
+        .orThrow(),
     ).toEqual({ id: "o1", values: [{ id: "v1", value: "S" }] });
     expect(
       await catalog
-        .createVariant("p1", {
-          sku: "TEE-S",
-          optionValues: ["v1"],
-          weightGrams: 200,
+        .createVariant({
+          productId: "p1",
+          input: { sku: "TEE-S", optionValues: ["v1"], weightGrams: 200 },
         })
         .orThrow(),
     ).toEqual({ id: "x1", sku: "TEE-S", rank: "V" });
@@ -216,10 +243,13 @@ describe("catalog block", () => {
     const catalog = createCatalog({ transport });
 
     const saved = await catalog
-      .setPrice("x1", {
-        amount: money(900_719_925_474_099_300n, "EUR"),
-        compareAt: money(900_719_925_474_099_400n, "EUR"),
-        validFrom: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+      .setPrice({
+        variantId: "x1",
+        input: {
+          amount: money(900_719_925_474_099_300n, "EUR"),
+          compareAt: money(900_719_925_474_099_400n, "EUR"),
+          validFrom: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+        },
       })
       .orThrow();
 
@@ -242,9 +272,9 @@ describe("catalog block", () => {
   it("refuses a compare-at amount in another currency without a call", async () => {
     const { calls, transport } = recorder(null);
 
-    const result = await createCatalog({ transport }).setPrice("x1", {
-      amount: money(100, "EUR"),
-      compareAt: money(200, "USD"),
+    const result = await createCatalog({ transport }).setPrice({
+      variantId: "x1",
+      input: { amount: money(100, "EUR"), compareAt: money(200, "USD") },
     });
 
     expect(result).toMatchObject({
@@ -269,14 +299,20 @@ describe("catalog block", () => {
 
     const catalog = createCatalog({ transport });
     expect(
-      await catalog.variantPrice("x1", "JPY", { priceListId: "l1" }).orThrow(),
+      await catalog
+        .variantPrice({ variantId: "x1", currency: "JPY", priceListId: "l1" })
+        .orThrow(),
     ).toEqual({
       id: "pr1",
       variantId: "x1",
       amount: money(1200, "JPY"),
       priceListId: "l1",
     });
-    expect(await catalog.variantPrice("x1", "JPY").orThrow()).toBeNull();
+    expect(
+      await catalog
+        .variantPrice({ variantId: "x1", currency: "JPY" })
+        .orThrow(),
+    ).toBeNull();
   });
 
   it("computes rank keys for variants, categories and collections", async () => {
@@ -284,24 +320,35 @@ describe("catalog block", () => {
     const catalog = createCatalog({ transport });
     expect(
       await catalog
-        .reorderVariant("x1", { previous: "V", next: null })
+        .reorderVariant({
+          variantId: "x1",
+          rank: { previous: "V", next: null },
+        })
         .orThrow(),
     ).toBe("k");
     expect(
       await catalog
-        .moveCategory("c1", null, { previous: null, next: "V" })
+        .moveCategory({
+          categoryId: "c1",
+          parentId: null,
+          rank: { previous: null, next: "V" },
+        })
         .orThrow(),
     ).toBe("F");
-    expect(await catalog.addToCollection("k1", "p1").orThrow()).toBe("k");
+    expect(
+      await catalog
+        .addToCollection({ collectionId: "k1", productId: "p1" })
+        .orThrow(),
+    ).toBe("k");
     expect(calls.map((call) => call.args)).toEqual([
       { variant: "x1", rank: "k" },
       { category: "c1", parent: null, rank: "F" },
       { collection: "k1", product: "p1", rank: null },
     ]);
 
-    const invalid = await catalog.reorderVariant("x1", {
-      previous: "k",
-      next: "V",
+    const invalid = await catalog.reorderVariant({
+      variantId: "x1",
+      rank: { previous: "k", next: "V" },
     });
 
     expect(invalid.ok).toBe(false);
@@ -312,20 +359,37 @@ describe("catalog block", () => {
     const catalog = createCatalog({ transport, rankType: "integer" });
     expect(
       await catalog
-        .reorderVariant("x1", { previous: "2", next: null })
+        .reorderVariant({
+          variantId: "x1",
+          rank: { previous: "2", next: null },
+        })
         .orThrow(),
     ).toBe("3");
     expect(
       await catalog
-        .moveCategory("c1", null, { previous: "2", next: "8" })
+        .moveCategory({
+          categoryId: "c1",
+          parentId: null,
+          rank: { previous: "2", next: "8" },
+        })
         .orThrow(),
     ).toBe("5");
     expect(
-      await catalog.moveCategory("c1", "c0", { position: 4 }).orThrow(),
+      await catalog
+        .moveCategory({
+          categoryId: "c1",
+          parentId: "c0",
+          rank: { position: 4 },
+        })
+        .orThrow(),
     ).toBe("4");
     expect(
       await catalog
-        .addToCollection("k1", "p1", { previous: null, next: "1" })
+        .addToCollection({
+          collectionId: "k1",
+          productId: "p1",
+          rank: { previous: null, next: "1" },
+        })
         .orThrow(),
     ).toBe("7");
     expect(calls.map((call) => call.args)).toEqual([
@@ -335,17 +399,20 @@ describe("catalog block", () => {
       { collection: "k1", product: "p1", rank: "0" },
     ]);
 
-    const full = await catalog.reorderVariant("x1", {
-      previous: "2",
-      next: "3",
+    const full = await catalog.reorderVariant({
+      variantId: "x1",
+      rank: { previous: "2", next: "3" },
     });
 
-    const text = await catalog.reorderVariant("x1", {
-      previous: "V",
-      next: null,
+    const text = await catalog.reorderVariant({
+      variantId: "x1",
+      rank: { previous: "V", next: null },
     });
 
-    const fraction = await catalog.reorderVariant("x1", { position: 1.5 });
+    const fraction = await catalog.reorderVariant({
+      variantId: "x1",
+      rank: { position: 1.5 },
+    });
 
     expect([full, text, fraction].map((result) => result.ok)).toEqual([
       false,
@@ -359,7 +426,12 @@ describe("catalog block", () => {
   it("refuses a position with text ranks", async () => {
     const { calls, transport } = recorder(true);
     const catalog = createCatalog({ transport });
-    const moved = await catalog.moveCategory("c1", null, { position: 2 });
+
+    const moved = await catalog.moveCategory({
+      categoryId: "c1",
+      parentId: null,
+      rank: { position: 2 },
+    });
 
     expect(moved.ok ? undefined : moved.error.hint).toBe("RANK_KEY_INVALID");
     expect(calls).toHaveLength(0);
@@ -380,7 +452,10 @@ describe("catalog block", () => {
     };
 
     await createCatalog({ transport })
-      .saveCollection("org", { title: "Physical", kind: "rule", rule })
+      .saveCollection({
+        organizationId: "org",
+        input: { title: "Physical", kind: "rule", rule },
+      })
       .orThrow();
     expect(calls[0]?.args).toMatchObject({ kind: "rule", rule });
   });
@@ -414,38 +489,60 @@ describe("catalog block", () => {
       [
         "set_product_status",
         { status: "active", from: "draft" },
-        (c) => c.setProductStatus("p1", "active").orThrow(),
+        (c) =>
+          c.setProductStatus({ productId: "p1", status: "active" }).orThrow(),
       ],
       ["delete_product_option", true, (c) => c.deleteOption("o1").orThrow()],
       [
         "save_variant",
         { id: "x1", sku: "S", rank: "V" },
-        (c) => c.updateVariant("p1", "x1", { sku: "S" }).orThrow(),
+        (c) =>
+          c
+            .updateVariant({
+              productId: "p1",
+              variantId: "x1",
+              input: { sku: "S" },
+            })
+            .orThrow(),
       ],
       ["delete_variant", true, (c) => c.deleteVariant("x1").orThrow()],
       [
         "save_price_list",
         { id: "l1" },
-        (c) => c.savePriceList("org", { name: "B2B" }).orThrow(),
+        (c) =>
+          c
+            .savePriceList({ organizationId: "org", input: { name: "B2B" } })
+            .orThrow(),
       ],
       ["delete_price_list", true, (c) => c.deletePriceList("l1").orThrow()],
       ["delete_price", true, (c) => c.deletePrice("r1").orThrow()],
       [
         "save_category",
         { id: "c1", slug: "shirts", rank: "V" },
-        (c) => c.saveCategory("org", { name: "Shirts" }).orThrow(),
+        (c) =>
+          c
+            .saveCategory({ organizationId: "org", input: { name: "Shirts" } })
+            .orThrow(),
       ],
       ["delete_category", true, (c) => c.deleteCategory("c1").orThrow()],
       [
         "set_product_categories",
         true,
-        (c) => c.setProductCategories("p1", ["c1"]).orThrow(),
+        (c) =>
+          c
+            .setProductCategories({ productId: "p1", categoryIds: ["c1"] })
+            .orThrow(),
       ],
       [
         "save_collection",
         { id: "k1", slug: "new", kind: "manual" },
         (c) =>
-          c.saveCollection("org", { title: "New", kind: "manual" }).orThrow(),
+          c
+            .saveCollection({
+              organizationId: "org",
+              input: { title: "New", kind: "manual" },
+            })
+            .orThrow(),
       ],
       ["delete_collection", true, (c) => c.deleteCollection("k1").orThrow()],
       [
@@ -453,18 +550,28 @@ describe("catalog block", () => {
         "k",
         (c) =>
           c
-            .addToCollection("k1", "p1", { previous: "V", next: null })
+            .addToCollection({
+              collectionId: "k1",
+              productId: "p1",
+              rank: { previous: "V", next: null },
+            })
             .orThrow(),
       ],
       [
         "remove_from_collection",
         true,
-        (c) => c.removeFromCollection("k1", "p1").orThrow(),
+        (c) =>
+          c
+            .removeFromCollection({ collectionId: "k1", productId: "p1" })
+            .orThrow(),
       ],
       [
         "publish_storefront",
         true,
-        (c) => c.publishStorefront("org", true).orThrow(),
+        (c) =>
+          c
+            .publishStorefront({ organizationId: "org", published: true })
+            .orThrow(),
       ],
     ];
 
@@ -479,10 +586,24 @@ describe("catalog block", () => {
     const { calls, transport } = recorder(true);
     const catalog = createCatalog({ transport });
     const backwards = { previous: "V", next: "A" };
-    expect((await catalog.moveCategory("c1", null, backwards)).ok).toBe(false);
-    expect((await catalog.addToCollection("k1", "p1", backwards)).ok).toBe(
-      false,
-    );
+    expect(
+      (
+        await catalog.moveCategory({
+          categoryId: "c1",
+          parentId: null,
+          rank: backwards,
+        })
+      ).ok,
+    ).toBe(false);
+    expect(
+      (
+        await catalog.addToCollection({
+          collectionId: "k1",
+          productId: "p1",
+          rank: backwards,
+        })
+      ).ok,
+    ).toBe(false);
     expect(calls).toEqual([]);
   });
 
@@ -497,11 +618,22 @@ describe("catalog block", () => {
 
     expect(
       await catalog
-        .saveChannel("org", { key: "web", name: "Web", currency: "EUR" })
+        .saveChannel({
+          organizationId: "org",
+          input: { key: "web", name: "Web", currency: "EUR" },
+        })
         .orThrow(),
     ).toEqual({ id: "ch1", key: "web", active: true });
-    expect(await catalog.listOnChannel("ch1", ["p1", "p2"]).orThrow()).toBe(2);
-    expect(await catalog.unlistFromChannel("ch1", ["p1"]).orThrow()).toBe(1);
+    expect(
+      await catalog
+        .listOnChannel({ channelId: "ch1", productIds: ["p1", "p2"] })
+        .orThrow(),
+    ).toBe(2);
+    expect(
+      await catalog
+        .unlistFromChannel({ channelId: "ch1", productIds: ["p1"] })
+        .orThrow(),
+    ).toBe(1);
     expect(calls).toEqual([
       {
         fn: "save_catalog_channel",
@@ -541,7 +673,7 @@ describe("catalog block", () => {
     ]);
 
     const products = await createCatalog({ transport })
-      .channelProducts("ch1", { locale: "de-AT", limit: 20 })
+      .channelProducts({ channelId: "ch1", locale: "de-AT", limit: 20 })
       .orThrow();
 
     expect(products).toEqual([
@@ -577,22 +709,28 @@ describe("catalog block", () => {
     const catalog = createCatalog({ transport });
 
     await catalog
-      .setProductTranslation("p1", "de", { title: "Leinenhemd" })
-      .orThrow();
-    await catalog.setVariantTranslation("x1", "de", "Klein").orThrow();
-    expect(await catalog.productText("p1", { locale: "de" }).orThrow()).toEqual(
-      {
-        id: "p1",
-        slug: "linen-shirt",
+      .setProductTranslation({
+        productId: "p1",
         locale: "de",
-        title: "Leinenhemd",
-        description: "Aus Leinen",
-        variants: [
-          { id: "x1", sku: "TEE-S", title: "Klein" },
-          { id: "x2", sku: "TEE-M" },
-        ],
-      },
-    );
+        translation: { title: "Leinenhemd" },
+      })
+      .orThrow();
+    await catalog
+      .setVariantTranslation({ variantId: "x1", locale: "de", title: "Klein" })
+      .orThrow();
+    expect(
+      await catalog.productText({ productId: "p1", locale: "de" }).orThrow(),
+    ).toEqual({
+      id: "p1",
+      slug: "linen-shirt",
+      locale: "de",
+      title: "Leinenhemd",
+      description: "Aus Leinen",
+      variants: [
+        { id: "x1", sku: "TEE-S", title: "Klein" },
+        { id: "x2", sku: "TEE-M" },
+      ],
+    });
     expect(calls.map((call) => call.args)).toEqual([
       { product: "p1", locale: "de", title: "Leinenhemd", description: null },
       { variant: "x1", locale: "de", title: "Klein" },
@@ -604,7 +742,9 @@ describe("catalog block", () => {
     const { transport } = recorder(null);
 
     expect(
-      await createCatalog({ transport }).productText("p1").orThrow(),
+      await createCatalog({ transport })
+        .productText({ productId: "p1" })
+        .orThrow(),
     ).toBeNull();
   });
 
@@ -617,14 +757,24 @@ describe("catalog block", () => {
 
     const catalog = createCatalog({ transport });
     await catalog
-      .updateProduct("org", "p1", { description: null, slug: null })
+      .updateProduct({
+        organizationId: "org",
+        productId: "p1",
+        input: { description: null, slug: null },
+      })
       .orThrow();
     expect(
       await catalog
-        .updateVariant("p1", "v1", { sku: null, barcode: null })
+        .updateVariant({
+          productId: "p1",
+          variantId: "v1",
+          input: { sku: null, barcode: null },
+        })
         .orThrow(),
     ).toEqual({ id: "v1", rank: "a" });
-    await catalog.reorderOptions("p1", ["o2", "o1"]).orThrow();
+    await catalog
+      .reorderOptions({ productId: "p1", optionIds: ["o2", "o1"] })
+      .orThrow();
     expect(calls.map((call) => call.args)).toEqual([
       expect.objectContaining({ title: null, clear: ["slug", "description"] }),
       expect.objectContaining({ sku: null, clear: ["sku", "barcode"] }),
@@ -640,8 +790,10 @@ describe("catalog block", () => {
 
     expect(
       await createCatalog({ transport })
-        .setOptions("p1", [{ name: "Size", values: ["S"] }], {
-          titleSeparator: null,
+        .setOptions({
+          productId: "p1",
+          options: [{ name: "Size", values: ["S"] }],
+          settings: { titleSeparator: null },
         })
         .orThrow(),
     ).toEqual({
@@ -676,11 +828,17 @@ describe("catalog block", () => {
 
     expect(
       await catalog
-        .addProductMedia("p1", "a1", { alt: { en: "Linen shirt" } })
+        .addProductMedia({
+          productId: "p1",
+          attachmentId: "a1",
+          input: { alt: { en: "Linen shirt" } },
+        })
         .orThrow(),
     ).toEqual({ id: "m1", position: 0 });
-    await catalog.reorderProductMedia("p1", ["m1"]).orThrow();
-    expect(await catalog.productMedia("p1").orThrow()).toEqual([
+    await catalog
+      .reorderProductMedia({ productId: "p1", mediaIds: ["m1"] })
+      .orThrow();
+    expect(await catalog.productMedia({ productId: "p1" }).orThrow()).toEqual([
       {
         id: "m1",
         attachmentId: "a1",
@@ -721,16 +879,19 @@ describe("catalog block", () => {
 
     expect(
       await catalog
-        .saveProductIdentifier("org", {
-          variantId: "v1",
-          type: "ean",
-          value: "4006381333931",
+        .saveProductIdentifier({
+          organizationId: "org",
+          input: { variantId: "v1", type: "ean", value: "4006381333931" },
         })
         .orThrow(),
     ).toEqual({ id: "i1", created: true });
     expect(
       await catalog
-        .findVariantsByIdentifier("org", "4006381333931", { type: "ean" })
+        .findVariantsByIdentifier({
+          organizationId: "org",
+          value: "4006381333931",
+          type: "ean",
+        })
         .orThrow(),
     ).toEqual([
       {
@@ -783,13 +944,18 @@ describe("catalog block", () => {
     const catalog = createCatalog({ transport });
 
     await catalog
-      .saveProductRelation("org", {
-        fromVariantId: "v1",
-        toVariantId: "v2",
-        kind: "superseded_by",
+      .saveProductRelation({
+        organizationId: "org",
+        input: {
+          fromVariantId: "v1",
+          toVariantId: "v2",
+          kind: "superseded_by",
+        },
       })
       .orThrow();
-    expect(await catalog.variantRelations("v1").orThrow()).toEqual([
+    expect(
+      await catalog.variantRelations({ variantId: "v1" }).orThrow(),
+    ).toEqual([
       {
         kind: "superseded_by",
         direction: "outgoing",
@@ -828,21 +994,26 @@ describe("catalog block", () => {
     const catalog = createCatalog({ transport });
 
     await catalog
-      .saveSupplierItem("org", {
-        supplierId: "sup",
-        code: "GV-1",
-        price: 1250n,
+      .saveSupplierItem({
+        organizationId: "org",
+        input: { supplierId: "sup", code: "GV-1", price: 1250n },
       })
       .orThrow();
     expect(
       (
         await catalog
-          .mapSupplierRow("org", "sup", { Artikel: "GV-1" })
+          .mapSupplierRow({
+            organizationId: "org",
+            supplierId: "sup",
+            row: { Artikel: "GV-1" },
+          })
           .orThrow()
       ).price,
     ).toBe(1250n);
     expect(
-      await catalog.promoteSupplierItem("s1", { sku: "VALVE" }).orThrow(),
+      await catalog
+        .promoteSupplierItem({ itemId: "s1", sku: "VALVE" })
+        .orThrow(),
     ).toEqual({ productId: "p1", variantId: "v1", created: true });
     expect(calls[0]?.args).toMatchObject({
       tenant: "org",
@@ -866,8 +1037,12 @@ describe("catalog block", () => {
 
     const catalog = createCatalog({ transport });
 
-    await catalog.setVariantTradeCode("v1", "8481 80 99").orThrow();
-    await catalog.setVariantTradeCode("v1", null).orThrow();
+    await catalog
+      .setVariantTradeCode({ variantId: "v1", tradeCode: "8481 80 99" })
+      .orThrow();
+    await catalog
+      .setVariantTradeCode({ variantId: "v1", tradeCode: null })
+      .orThrow();
     expect(calls).toEqual([
       {
         fn: "set_variant_trade_code",

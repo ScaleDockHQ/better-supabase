@@ -247,12 +247,18 @@ export interface WorkOrderPartInput {
  */
 export interface Dispatch<F extends object = Record<never, never>> {
   create(input: WorkOrderInput<F>): AsyncResult<WorkOrder<F>>;
-  update(id: string, patch: WorkOrderPatch<F>): AsyncResult<WorkOrder<F>>;
+  update(input: {
+    id: string;
+    patch: WorkOrderPatch<F>;
+  }): AsyncResult<WorkOrder<F>>;
   /**
    * Puts the work order in a technician's slot: `DISPATCH_SLOT_TAKEN` when the
    * technician already has work then.
    */
-  schedule(id: string, slot: WorkOrderSlot): AsyncResult<WorkOrder<F>>;
+  schedule(input: {
+    id: string;
+    slot: WorkOrderSlot;
+  }): AsyncResult<WorkOrder<F>>;
   /** Sends a scheduled work order back to the backlog. */
   unschedule(id: string): AsyncResult<WorkOrder<F>>;
   /**
@@ -261,40 +267,40 @@ export interface Dispatch<F extends object = Record<never, never>> {
    * technician moves their own work orders with `dispatch.work`; cancelling
    * needs `dispatch.manage`.
    */
-  setStatus(
-    id: string,
-    status: WorkOrderTransition,
-    note?: string,
-  ): AsyncResult<WorkOrder<F>>;
+  setStatus(input: {
+    id: string;
+    status: WorkOrderTransition;
+    note?: string | undefined;
+  }): AsyncResult<WorkOrder<F>>;
   /** `null` when it doesn't exist or the caller can't read it. */
   get(id: string): AsyncResult<WorkOrder<F> | null>;
   list(options?: WorkOrderListOptions): AsyncResult<readonly WorkOrder<F>[]>;
   board(options: DispatchBoardOptions): AsyncResult<DispatchBoard<F>>;
   /** The technician's day plan; `technicianId` defaults to the caller. */
-  technicianDay(
-    day: Temporal.PlainDate,
-    technicianId?: string,
-  ): AsyncResult<TechnicianDay<F>>;
+  technicianDay(input: {
+    day: Temporal.PlainDate;
+    technicianId?: string | undefined;
+  }): AsyncResult<TechnicianDay<F>>;
   /** Replaces the technician's route for the day with these stops, in order. */
-  planRoute(
-    technicianId: string,
-    day: Temporal.PlainDate,
-    workOrderIds: readonly string[],
-  ): AsyncResult<DispatchRoute>;
+  planRoute(input: {
+    technicianId: string;
+    day: Temporal.PlainDate;
+    workOrderIds: readonly string[];
+  }): AsyncResult<DispatchRoute>;
   /**
    * Orders the technician's day with a `RouteOptimizer` and plans the result as
    * their route. A failing optimizer falls back to nearest neighbour; the
    * result says which one ran.
    */
-  optimizeRoute(
-    technicianId: string,
-    day: Temporal.PlainDate,
-    options: OptimizeRouteOptions<F>,
-  ): AsyncResult<OptimizedRoute>;
-  recordPart(
-    workOrderId: string,
-    input: WorkOrderPartInput,
-  ): AsyncResult<WorkOrderPart>;
+  optimizeRoute(input: {
+    technicianId: string;
+    day: Temporal.PlainDate;
+    options: OptimizeRouteOptions<F>;
+  }): AsyncResult<OptimizedRoute>;
+  recordPart(input: {
+    workOrderId: string;
+    input: WorkOrderPartInput;
+  }): AsyncResult<WorkOrderPart>;
   parts(workOrderId: string): AsyncResult<readonly WorkOrderPart[]>;
   /** `false` when the part was already gone. */
   removePart(partId: string): AsyncResult<boolean>;
@@ -420,7 +426,7 @@ export function createDispatch<
             ).andThen(fields.row),
           ),
       ),
-    update: (id, patch) =>
+    update: ({ id, patch }) =>
       fields
         .args(patch.fields)
         .andThen((checked) =>
@@ -439,7 +445,7 @@ export function createDispatch<
             one("update_work_order"),
           ).andThen(fields.row),
         ),
-    schedule: (id, slot) =>
+    schedule: ({ id, slot }) =>
       call(
         "schedule_work_order",
         {
@@ -456,7 +462,7 @@ export function createDispatch<
         { work_order_id: id },
         one("unschedule_work_order"),
       ).andThen(fields.row),
-    setStatus: (id, status, note) =>
+    setStatus: ({ id, status, note }) =>
       call(
         "set_work_order_status",
         { work_order_id: id, status, note: note ?? null },
@@ -523,7 +529,7 @@ export function createDispatch<
             ),
         ),
       ),
-    technicianDay: (day, technicianId) =>
+    technicianDay: ({ day, technicianId }) =>
       tenant().andThen((organizationId) =>
         call(
           "technician_day",
@@ -559,7 +565,7 @@ export function createDispatch<
             })),
         ),
       ),
-    planRoute: (technicianId, day, workOrderIds) =>
+    planRoute: ({ technicianId, day, workOrderIds }) =>
       tenant().andThen((organizationId) =>
         call(
           "plan_dispatch_route",
@@ -582,8 +588,8 @@ export function createDispatch<
           },
         ),
       ),
-    optimizeRoute: (technicianId, day, routeOptions) =>
-      client.technicianDay(day, technicianId).andThen((planned) => {
+    optimizeRoute: ({ technicianId, day, options: routeOptions }) =>
+      client.technicianDay({ day, technicianId }).andThen((planned) => {
         const located = planned.stops.flatMap((stop) => {
           const point = routeOptions.locate(stop.workOrder);
 
@@ -618,11 +624,15 @@ export function createDispatch<
           ),
         ).andThen((optimization) =>
           client
-            .planRoute(technicianId, day, [...optimization.order, ...unplaced])
+            .planRoute({
+              technicianId,
+              day,
+              workOrderIds: [...optimization.order, ...unplaced],
+            })
             .map((route) => ({ route, optimization })),
         );
       }),
-    recordPart: (workOrderId, input) =>
+    recordPart: ({ workOrderId, input }) =>
       call(
         "record_work_order_part",
         {

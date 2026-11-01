@@ -191,7 +191,10 @@ export interface Warehouse {
    * Records what a picker found; needs `warehouse.pick`. The stock moves when
    * the document ships, not here.
    */
-  recordPick(lineId: string, pick: PickRecord): AsyncResult<PickList>;
+  recordPick(input: {
+    lineId: string;
+    pick: PickRecord;
+  }): AsyncResult<PickList>;
   /** Finishes a list: lines with less picked than asked for become short. */
   completePickList(pickListId: string): AsyncResult<PickList>;
   getPickList(pickListId: string): AsyncResult<PickList>;
@@ -213,8 +216,7 @@ export interface Warehouse {
    * with `approve: true`.
    */
   postCycleCount(
-    countId: string,
-    options?: { readonly approve?: boolean },
+    input: { countId: string } & { readonly approve?: boolean },
   ): AsyncResult<Record<string, unknown>>;
 }
 
@@ -379,7 +381,7 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
       call("release_pick_wave", { wave_id: waveId }, wave("release_pick_wave")),
     cancelPickWave: (waveId) =>
       call("cancel_pick_wave", { wave_id: waveId }, wave("cancel_pick_wave")),
-    recordPick: (lineId, pick) =>
+    recordPick: ({ lineId, pick }) =>
       call(
         "record_pick",
         { line_id: lineId, attrs: definedOf(pick) },
@@ -447,7 +449,7 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
       call("get_cycle_count_variance", { count_id: countId }, (value) =>
         varianceOf(value, "get_cycle_count_variance"),
       ),
-    postCycleCount: (countId, post = {}) =>
+    postCycleCount: ({ countId, ...post }) =>
       call(
         "post_cycle_count",
         { count_id: countId, approve: post.approve ?? false },

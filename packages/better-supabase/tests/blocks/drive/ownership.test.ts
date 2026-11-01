@@ -46,14 +46,13 @@ describe("drive access requests", () => {
     const week = Temporal.Duration.from({ days: 7 });
 
     await drive
-      .requestAccess("n1", {
-        action: "comment",
-        reason: "Review",
-        duration: week,
+      .requestAccess({
+        nodeId: "n1",
+        input: { action: "comment", reason: "Review", duration: week },
       })
       .orThrow();
-    await drive.requestAccess("n1").orThrow();
-    await drive.accessRequests("n1", { status: "pending" }).orThrow();
+    await drive.requestAccess({ nodeId: "n1" }).orThrow();
+    await drive.accessRequests({ nodeId: "n1", status: "pending" }).orThrow();
 
     expect(port.requestRecord.mock.calls).toEqual([
       [
@@ -75,13 +74,13 @@ describe("drive access requests", () => {
   it("defaults to drive_node and fails without the block", async () => {
     const port = recordAccess();
     await createDrive({ transport: transport({}), recordAccess: port })
-      .accessRequests("n1")
+      .accessRequests({ nodeId: "n1" })
       .orThrow();
     expect(port.records.mock.calls[0]![0]).toBe("drive_node");
 
     const drive = createDrive({ transport: transport({}) });
-    const requested = await drive.requestAccess("n1");
-    const listed = await drive.accessRequests("n1");
+    const requested = await drive.requestAccess({ nodeId: "n1" });
+    const listed = await drive.accessRequests({ nodeId: "n1" });
 
     for (const result of [requested, listed]) {
       expect(result.ok).toBe(false);
@@ -100,10 +99,15 @@ describe("drive ownership transfer", () => {
 
     const drive = createDrive({ transport: fake });
 
-    expect(await drive.transferOwnership("o", "u1", "u2").orThrow()).toEqual({
-      nodes: 3,
-      drives: 1,
-    });
+    expect(
+      await drive
+        .transferOwnership({
+          organizationId: "o",
+          fromUserId: "u1",
+          toUserId: "u2",
+        })
+        .orThrow(),
+    ).toEqual({ nodes: 3, drives: 1 });
     expect(fake.calls).toEqual([
       [
         "drive_transfer_ownership",
@@ -119,7 +123,12 @@ describe("drive ownership transfer", () => {
       }),
     });
 
-    const result = await drive.transferOwnership("o", "u1", "u2");
+    const result = await drive.transferOwnership({
+      organizationId: "o",
+      fromUserId: "u1",
+      toUserId: "u2",
+    });
+
     expect(result.ok).toBe(false);
   });
 });

@@ -98,17 +98,17 @@ describe("createReactionsController", () => {
     const { react, summary, controller } = setup(null);
     const { view, unmount } = mount(controller);
     await flush();
-    await view().toggle(comment("c1"), "+1");
+    await view().toggle({ subject: comment("c1"), emoji: "+1" });
     expect(react).toHaveBeenLastCalledWith(comment("c1"), "+1", {
       present: true,
     });
     expect(view().reactions?.["comment:c1"]).toEqual([count("+1", true)]);
-    await view().toggle(comment("c1"), "+1");
+    await view().toggle({ subject: comment("c1"), emoji: "+1" });
     expect(react).toHaveBeenLastCalledWith(comment("c1"), "+1", {
       present: false,
     });
     react.mockReturnValue(failed("denied"));
-    await view().toggle(comment("c1"), "+1");
+    await view().toggle({ subject: comment("c1"), emoji: "+1" });
     expect(view().error?.message).toBe("denied");
     summary.mockReturnValue(failed("down"));
     await view().refresh();

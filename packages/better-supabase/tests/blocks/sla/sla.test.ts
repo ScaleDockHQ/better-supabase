@@ -103,19 +103,25 @@ describe("sla block", () => {
 
     const sla = createSla({ transport: t });
     const ticket = { type: "ticket", id: "t1" };
-    expect((await sla.start(ticket, "urgent").orThrow())[0]).toMatchObject({
-      subject: ticket,
-      state: "paused",
-      secondsLeft: 3600,
-    });
-    const met = await sla.record(ticket, "resolved").orThrow();
+    expect(
+      (await sla.start({ subject: ticket, priority: "urgent" }).orThrow())[0],
+    ).toMatchObject({ subject: ticket, state: "paused", secondsLeft: 3600 });
+
+    const met = await sla
+      .record({ subject: ticket, event: "resolved" })
+      .orThrow();
+
     expect(met[0]?.metAt).toBeDefined();
     expect(met[0]?.secondsLeft).toBeUndefined();
     await sla.clocks(ticket).orThrow();
     expect(await sla.check().orThrow()).toBe(2);
 
     const due = await sla
-      .dueAt(Temporal.Instant.from("2026-10-16T14:00:00Z"), 120, true)
+      .dueAt({
+        start: Temporal.Instant.from("2026-10-16T14:00:00Z"),
+        minutes: 120,
+        businessHours: true,
+      })
       .orThrow();
 
     expect(due.toString()).toBe("2026-10-19T08:00:00Z");
@@ -126,7 +132,7 @@ describe("sla block", () => {
       {},
       { start: "2026-10-16T14:00:00Z", minutes: 120, business: true },
     ]);
-    await sla.start(ticket).orThrow();
+    await sla.start({ subject: ticket }).orThrow();
     expect(t.calls[5]?.[1]).toMatchObject({ priority: null });
   });
 

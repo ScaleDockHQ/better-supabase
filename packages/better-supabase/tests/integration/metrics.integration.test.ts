@@ -248,10 +248,14 @@ describe.skipIf(!live)("metrics", () => {
       };
 
       const compared = await metrics
-        .series("orders", range, {
-          organizationId: tenant,
-          compare: "previous",
-          filter: { channel: "web" },
+        .series({
+          metric: "orders",
+          range,
+          options: {
+            organizationId: tenant,
+            compare: "previous",
+            filter: { channel: "web" },
+          },
         })
         .orThrow();
 
@@ -263,9 +267,10 @@ describe.skipIf(!live)("metrics", () => {
       ]);
       expect(
         await metrics
-          .kpi("revenue", range, {
-            organizationId: tenant,
-            compare: "previous",
+          .kpi({
+            metric: "revenue",
+            range,
+            options: { organizationId: tenant, compare: "previous" },
           })
           .orThrow(),
       ).toEqual({
@@ -278,7 +283,11 @@ describe.skipIf(!live)("metrics", () => {
       });
       expect(
         await metrics
-          .kpi("api_calls", range, { organizationId: tenant })
+          .kpi({
+            metric: "api_calls",
+            range,
+            options: { organizationId: tenant },
+          })
           .then((r) => !r.ok && r.error.hint),
       ).toBe("METRIC_FORBIDDEN");
 
@@ -301,7 +310,11 @@ describe.skipIf(!live)("metrics", () => {
       expect(
         (
           await metrics
-            .series("orders", range, { organizationId: tenant })
+            .series({
+              metric: "orders",
+              range,
+              options: { organizationId: tenant },
+            })
             .orThrow()
         ).points.map((p) => p.value),
       ).toEqual([1, 1]);

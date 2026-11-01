@@ -385,9 +385,12 @@ export function createAssistant(options: AssistantOptions): Assistant {
       return problemResponse(found.error);
     }
 
-    const created = await context.chats.chats.create(context.organizationId, {
-      id: body.id,
-      ...(body.model === undefined ? {} : { model: body.model }),
+    const created = await context.chats.chats.create({
+      organizationId: context.organizationId,
+      input: {
+        id: body.id,
+        ...(body.model === undefined ? {} : { model: body.model }),
+      },
     });
 
     return created.ok ? created.data : problemResponse(created.error);
@@ -444,14 +447,16 @@ export function createAssistant(options: AssistantOptions): Assistant {
     }
 
     await context.chats.moderation.record({
-      ...tenantOf(chat),
-      chatId: chat.id,
-      messageId: message.id,
-      userId: context.userId,
-      stage: "input",
-      action: verdict.action,
-      category: verdict.category,
-      ...(verdict.score === undefined ? {} : { score: verdict.score }),
+      event: {
+        ...tenantOf(chat),
+        chatId: chat.id,
+        messageId: message.id,
+        userId: context.userId,
+        stage: "input",
+        action: verdict.action,
+        category: verdict.category,
+        ...(verdict.score === undefined ? {} : { score: verdict.score }),
+      },
     });
 
     return verdict.action === "block"
@@ -516,15 +521,13 @@ export function createAssistant(options: AssistantOptions): Assistant {
       }
     }
 
-    const appended = await context.chats.messages.appendUser(
-      chat.id,
-      userMessage,
-      {
-        ...(body.trigger === undefined ? {} : { trigger: body.trigger }),
-        ...(body.messageId === undefined ? {} : { messageId: body.messageId }),
-        native: body.message,
-      },
-    );
+    const appended = await context.chats.messages.appendUser({
+      chatId: chat.id,
+      message: userMessage,
+      ...(body.trigger === undefined ? {} : { trigger: body.trigger }),
+      ...(body.messageId === undefined ? {} : { messageId: body.messageId }),
+      native: body.message,
+    });
 
     if (!appended.ok) {
       return problemResponse(appended.error);
@@ -532,7 +535,8 @@ export function createAssistant(options: AssistantOptions): Assistant {
 
     const parentId = appended.data.messageId;
 
-    const path = await context.chats.messages.path(chat.id, {
+    const path = await context.chats.messages.path({
+      chatId: chat.id,
       leafId: parentId,
       native: true,
     });
@@ -588,7 +592,9 @@ export function createAssistant(options: AssistantOptions): Assistant {
     const streamId = newId();
     const assistantId = newId();
 
-    const claim = await context.chats.runs.claim(chat.id, streamId, {
+    const claim = await context.chats.runs.claim({
+      chatId: chat.id,
+      streamId,
       model,
       messageId: assistantId,
     });
@@ -609,11 +615,11 @@ export function createAssistant(options: AssistantOptions): Assistant {
     const abort = new AbortController();
 
     const release = (status: AiRunStatus, usage?: AiUsage, error?: string) =>
-      context.chats.runs.release(
-        chat.id,
+      context.chats.runs.release({
+        chatId: chat.id,
         streamId,
-        runRelease(status, usage, error),
-      );
+        ...runRelease(status, usage, error),
+      });
 
     const runArgs: AssistantRunArgs = {
       chat,
@@ -650,10 +656,10 @@ export function createAssistant(options: AssistantOptions): Assistant {
         const stopped = event.isAborted || abort.signal.aborted;
         const status: AiRunStatus = stopped ? "cancelled" : "completed";
 
-        const saved = await context.chats.messages.saveAssistant(
-          chat.id,
-          fromUIMessage(event.responseMessage),
-          {
+        const saved = await context.chats.messages.saveAssistant({
+          chatId: chat.id,
+          message: fromUIMessage(event.responseMessage),
+          options: {
             parentId,
             status: stopped ? "aborted" : "complete",
             model,
@@ -661,7 +667,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
             native: event.responseMessage,
             runId,
           },
-        );
+        });
 
         const usage = usageOf({
           // oxlint-disable-next-line typescript/no-deprecated -- read for 0.32 results that predate `usage`.

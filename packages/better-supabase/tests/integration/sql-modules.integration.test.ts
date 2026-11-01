@@ -2061,15 +2061,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       queues: { [queue]: v.object({ to: v.pipe(v.string(), v.email()) }) },
     });
 
-    const invalid = await jobs.enqueue(queue, { to: "nope" });
+    const invalid = await jobs.enqueue({ queue, payload: { to: "nope" } });
     expect(invalid).toMatchObject({ ok: false, error: { kind: "validation" } });
 
     const first = await jobs
-      .enqueue(queue, { to: "a@example.com" }, { dedupeKey: "a" })
+      .enqueue({ queue, payload: { to: "a@example.com" }, dedupeKey: "a" })
       .orThrow();
 
     const again = await jobs
-      .enqueue(queue, { to: "a@example.com" }, { dedupeKey: "a" })
+      .enqueue({ queue, payload: { to: "a@example.com" }, dedupeKey: "a" })
       .orThrow();
 
     expect(again).toBe(first);
@@ -2081,10 +2081,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     expect(index.rows[0]!.indexdef).toContain("WHERE (message ? 'dedupe_key'");
     await jobs
-      .enqueue(queue, { to: "b@example.com" }, { maxAttempts: 1 })
+      .enqueue({ queue, payload: { to: "b@example.com" }, maxAttempts: 1 })
       .orThrow();
     await jobs
-      .enqueue(queue, { to: "later@example.com" }, { delay: 3600 })
+      .enqueue({ queue, payload: { to: "later@example.com" }, delay: 3600 })
       .orThrow();
 
     const other = createQueue({
@@ -2093,8 +2093,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     });
 
     const [mine, theirs] = await Promise.all([
-      jobs.claim(queue, { batch: 1 }).orThrow(),
-      other.claim(queue, { batch: 1 }).orThrow(),
+      jobs.claim({ queue, batch: 1 }).orThrow(),
+      other.claim({ queue, batch: 1 }).orThrow(),
     ]);
 
     expect(mine).toHaveLength(1);
@@ -2104,22 +2104,29 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       false,
     );
     expect(
-      await jobs.fail(mine[0]!, new Error("boom"), { retryIn: 0 }).orThrow(),
+      await jobs
+        .fail({ job: mine[0]!, error: new Error("boom"), retryIn: 0 })
+        .orThrow(),
     ).toMatch(/queued|dead/);
     expect(
-      await other.fail(theirs[0]!, "boom", { retryIn: 0 }).orThrow(),
+      await other
+        .fail({ job: theirs[0]!, error: "boom", retryIn: 0 })
+        .orThrow(),
     ).toMatch(/queued|dead/);
 
     const seen: string[] = [];
 
-    const drained = await jobs.drain(queue, (payload, job) => {
-      seen.push(payload.to);
+    const drained = await jobs.drain({
+      queue,
+      handler: (payload, job) => {
+        seen.push(payload.to);
 
-      if (job.attempts < 3 && payload.to === "a@example.com") {
-        throw new Error("retry me");
-      }
+        if (job.attempts < 3 && payload.to === "a@example.com") {
+          throw new Error("retry me");
+        }
 
-      return;
+        return;
+      },
     });
 
     expect(drained.succeeded + drained.failed).toBeGreaterThan(0);
@@ -2155,9 +2162,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       )
     ).rows[0]!.msg_id;
 
-    const replayed = await jobs.replay(queue, Number(deadId)).orThrow();
+    const replayed = await jobs.replay({ queue, id: Number(deadId) }).orThrow();
     expect(replayed).toEqual(expect.any(Number));
-    expect(await jobs.replay(queue, Number(deadId)).orThrow()).toBeNull();
+    expect(
+      await jobs.replay({ queue, id: Number(deadId) }).orThrow(),
+    ).toBeNull();
 
     const back = await pool.query<{ message: { payload: { to: string } } }>(
       `select message from pgmq.q_${queue} where msg_id = $1`,
@@ -2175,12 +2184,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       queues: { [queue]: v.object({}) },
     });
 
-    await jobs.enqueue(queue, {}, { maxAttempts: 1 }).orThrow();
-    expect(await jobs.claim(queue, { lease: 1 }).orThrow()).toHaveLength(1);
+    await jobs.enqueue({ queue, payload: {}, maxAttempts: 1 }).orThrow();
+    expect(await jobs.claim({ queue, lease: 1 }).orThrow()).toHaveLength(1);
     await pool.query(
       `update pgmq.q_${queue} set vt = now() - interval '1 second'`,
     );
-    expect(await jobs.claim(queue).orThrow()).toEqual([]);
+    expect(await jobs.claim({ queue }).orThrow()).toEqual([]);
 
     const archived = await pool.query<{
       message: { dead?: boolean; last_error?: string };
@@ -2206,18 +2215,31 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     };
 
     const id = await jobs
-      .enqueue(queue, { to: "a@example.com" }, { context, dedupeKey: "a" })
+      .enqueue({
+        queue,
+        payload: { to: "a@example.com" },
+        context,
+        dedupeKey: "a",
+      })
       .orThrow();
 
     expect(
       await jobs
-        .enqueue(queue, { to: "a@example.com" }, { context, dedupeKey: "a" })
+        .enqueue({
+          queue,
+          payload: { to: "a@example.com" },
+          context,
+          dedupeKey: "a",
+        })
         .orThrow(),
     ).toBe(id);
     const seen: unknown[] = [];
 
-    const drained = await jobs.drain(queue, (payload, job) => {
-      seen.push([payload, job.context]);
+    const drained = await jobs.drain({
+      queue,
+      handler: (payload, job) => {
+        seen.push([payload, job.context]);
+      },
     });
 
     expect(drained).toEqual({ succeeded: 1, failed: 0 });
@@ -2238,7 +2260,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     await pool.query(
       "create extension if not exists pg_cron with schema pg_catalog",
     );
-    await jobs.schedule(name, "0 3 * * *", queue, { kind: "digest" }).orThrow();
+    await jobs
+      .schedule({ name, cron: "0 3 * * *", queue, payload: { kind: "digest" } })
+      .orThrow();
 
     const { rows } = await pool.query<{ command: string }>(
       "select command from cron.job where jobname = $1",
@@ -2258,15 +2282,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     });
 
     for (const n of [1, 2, 3, 4]) {
-      await jobs.enqueue(queue, { n }).orThrow();
+      await jobs.enqueue({ queue, payload: { n } }).orThrow();
     }
 
     const controller = new AbortController();
     const done: number[] = [];
 
-    const result = await jobs.work(
+    const result = await jobs.work({
       queue,
-      (payload) => {
+      handler: (payload) => {
         done.push(payload.n);
 
         if (done.length === 4) {
@@ -2275,8 +2299,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
         return;
       },
-      { concurrency: 2, pollInterval: 20, signal: controller.signal },
-    );
+      concurrency: 2,
+      pollInterval: 20,
+      signal: controller.signal,
+    });
 
     expect(done.toSorted((a, b) => a - b)).toEqual([1, 2, 3, 4]);
     expect(result).toEqual({ succeeded: 4, failed: 0 });
@@ -2290,26 +2316,36 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       });
 
       const waiting = { dedupeKey: "p1", dedupe: "waiting" } as const;
-      const first = await jobs.enqueue(queue, { id: "1" }, waiting).orThrow();
-      expect(await jobs.enqueue(queue, { id: "2" }, waiting).orThrow()).toBe(
-        first,
-      );
-      const [running] = await jobs.claim(queue).orThrow();
+
+      const first = await jobs
+        .enqueue({ queue, payload: { id: "1" }, ...waiting })
+        .orThrow();
+
+      expect(
+        await jobs
+          .enqueue({ queue, payload: { id: "2" }, ...waiting })
+          .orThrow(),
+      ).toBe(first);
+      const [running] = await jobs.claim({ queue }).orThrow();
       expect(running!.id).toBe(first);
 
       const followUp = await jobs
-        .enqueue(queue, { id: "3" }, waiting)
+        .enqueue({ queue, payload: { id: "3" }, ...waiting })
         .orThrow();
 
       expect(followUp).not.toBe(first);
-      expect(await jobs.enqueue(queue, { id: "4" }, waiting).orThrow()).toBe(
-        followUp,
-      );
+      expect(
+        await jobs
+          .enqueue({ queue, payload: { id: "4" }, ...waiting })
+          .orThrow(),
+      ).toBe(followUp);
       expect([first, followUp]).toContain(
-        await jobs.enqueue(queue, { id: "5" }, { dedupeKey: "p1" }).orThrow(),
+        await jobs
+          .enqueue({ queue, payload: { id: "5" }, dedupeKey: "p1" })
+          .orThrow(),
       );
       await jobs.complete(running!).orThrow();
-      const [next] = await jobs.claim(queue).orThrow();
+      const [next] = await jobs.claim({ queue }).orThrow();
       expect(next!.id).toBe(followUp);
       await jobs.complete(next!).orThrow();
     };
@@ -2349,18 +2385,27 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     });
 
     const first = await jobs
-      .enqueueOnce(queue, { n: 1 }, { dedupeKey: "k" })
+      .enqueueOnce({ queue, payload: { n: 1 }, options: { dedupeKey: "k" } })
       .orThrow();
 
     expect(first.duplicate).toBe(false);
-    const [job] = await jobs.claim(queue).orThrow();
+    const [job] = await jobs.claim({ queue }).orThrow();
     await jobs.complete(job!).orThrow();
     expect(
-      await jobs.enqueueOnce(queue, { n: 2 }, { dedupeKey: "k" }).orThrow(),
+      await jobs
+        .enqueueOnce({ queue, payload: { n: 2 }, options: { dedupeKey: "k" } })
+        .orThrow(),
     ).toEqual({ id: first.id, duplicate: true });
     expect(
-      (await jobs.enqueueOnce(queue, { n: 3 }, { dedupeKey: "j" }).orThrow())
-        .duplicate,
+      (
+        await jobs
+          .enqueueOnce({
+            queue,
+            payload: { n: 3 },
+            options: { dedupeKey: "j" },
+          })
+          .orThrow()
+      ).duplicate,
     ).toBe(false);
   });
 
@@ -2393,13 +2438,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         queues: { [queue]: v.object({ n: v.number() }) },
       });
 
-      await jobs.enqueue(queue, { n: 1 }, { maxAttempts: 1 }).orThrow();
-      const [job] = await jobs.claim(queue).orThrow();
-      await jobs.fail(job!, new Error("boom")).orThrow();
+      await jobs
+        .enqueue({ queue, payload: { n: 1 }, maxAttempts: 1 })
+        .orThrow();
+      const [job] = await jobs.claim({ queue }).orThrow();
+      await jobs.fail({ job: job!, error: new Error("boom") }).orThrow();
       expect((await jobs.stats([queue]).orThrow())[queue]?.dead).toBe(1);
-      const dead = await jobs.listDead(queue).orThrow();
+      const dead = await jobs.listDead({ queue }).orThrow();
       expect(dead.map((entry) => entry.payload)).toEqual([{ n: 1 }]);
-      expect(await jobs.retryDead(queue).orThrow()).toBe(1);
+      expect(await jobs.retryDead({ queue }).orThrow()).toBe(1);
       expect(
         await jobs.purge({ olderThan: 0, deadOlderThan: 0 }).orThrow(),
       ).toBeGreaterThanOrEqual(0);
@@ -2419,18 +2466,20 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           body: "{}",
         });
 
-      expect((await idempotency.handle(request(), handler)).status).toBe(201);
-      const replay = await idempotency.handle(request(), handler);
+      expect(
+        (await idempotency.handle({ request: request(), handler })).status,
+      ).toBe(201);
+      const replay = await idempotency.handle({ request: request(), handler });
       expect(replay.headers.get("idempotency-replayed")).toBe("true");
 
-      const otherQuery = await idempotency.handle(
-        new Request("https://api.test/orders?dry_run=1", {
+      const otherQuery = await idempotency.handle({
+        request: new Request("https://api.test/orders?dry_run=1", {
           method: "POST",
           headers: { "idempotency-key": `rpc-${RUN}` },
           body: "{}",
         }),
         handler,
-      );
+      });
 
       expect(otherQuery.status).toBe(422);
       expect(await idempotency.purge().orThrow()).toBeGreaterThanOrEqual(0);
@@ -2517,13 +2566,17 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       });
 
       const first = await jobs
-        .enqueue(queue, { to: "a" }, { dedupeKey: "a" })
+        .enqueue({ queue, payload: { to: "a" }, dedupeKey: "a" })
         .orThrow();
 
       expect(
-        await jobs.enqueue(queue, { to: "a" }, { dedupeKey: "a" }).orThrow(),
+        await jobs
+          .enqueue({ queue, payload: { to: "a" }, dedupeKey: "a" })
+          .orThrow(),
       ).toBe(first);
-      await jobs.enqueue(queue, { to: "b" }, { maxAttempts: 1 }).orThrow();
+      await jobs
+        .enqueue({ queue, payload: { to: "b" }, maxAttempts: 1 })
+        .orThrow();
 
       const other = createQueue({
         sql: postgres.admin,
@@ -2531,8 +2584,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       });
 
       const [mine, theirs] = await Promise.all([
-        jobs.claim(queue).orThrow(),
-        other.claim(queue).orThrow(),
+        jobs.claim({ queue }).orThrow(),
+        other.claim({ queue }).orThrow(),
       ]);
 
       expect(mine[0]!.id).not.toBe(theirs[0]!.id);
@@ -2542,14 +2595,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       const states = await Promise.all(
         [...mine, ...theirs].map((job) =>
-          jobs.fail(job, "boom", { retryIn: 0 }).orThrow(),
+          jobs.fail({ job, error: "boom", retryIn: 0 }).orThrow(),
         ),
       );
 
       expect(
         states.toSorted((a, b) => String(a).localeCompare(String(b))),
       ).toEqual(["dead", "queued"]);
-      expect(await jobs.drain(queue, () => undefined)).toEqual({
+      expect(await jobs.drain({ queue, handler: () => undefined })).toEqual({
         succeeded: 1,
         failed: 0,
       });
@@ -2572,14 +2625,19 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         )
       ).rows[0]!.id;
 
-      const replayed = await jobs.replay(queue, Number(deadRow)).orThrow();
+      const replayed = await jobs
+        .replay({ queue, id: Number(deadRow) })
+        .orThrow();
+
       expect(replayed).not.toBeNull();
-      expect(await jobs.replay(queue, Number(deadRow)).orThrow()).toBeNull();
+      expect(
+        await jobs.replay({ queue, id: Number(deadRow) }).orThrow(),
+      ).toBeNull();
       await pool.query(
         "update better_supabase.job_messages set attempts = 1, visible_at = now() - interval '1 second' where id = $1",
         [replayed],
       );
-      expect(await jobs.claim(queue).orThrow()).toEqual([]);
+      expect(await jobs.claim({ queue }).orThrow()).toEqual([]);
 
       const lost = await pool.query<{ dead: boolean; error: string }>(
         "select dead, message ->> 'last_error' as error from better_supabase.job_messages where id = $1",
@@ -2592,13 +2650,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       });
 
       await jobs
-        .schedule(
+        .schedule({
           name,
-          "0 9 * * *",
+          cron: "0 9 * * *",
           queue,
-          { to: "digest" },
-          { timeZone: "Europe/Amsterdam" },
-        )
+          payload: { to: "digest" },
+          timeZone: "Europe/Amsterdam",
+        })
         .orThrow();
 
       const stored = await pool.query<{ timezone: string; local: string }>(
@@ -2672,22 +2730,23 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       });
 
       await jobs
-        .schedule(
-          `ext-${RUN}:hourly`,
-          "0 * * * *",
+        .schedule({
+          name: `ext-${RUN}:hourly`,
+          cron: "0 * * * *",
           queue,
-          { report: "hourly" },
-          { context: { tenant: "tenant-a" } },
-        )
+          payload: { report: "hourly" },
+          context: { tenant: "tenant-a" },
+        })
         .orThrow();
       await jobs
-        .schedule(
-          `ext-${RUN}:daily`,
-          "30 6 * * *",
+        .schedule({
+          name: `ext-${RUN}:daily`,
+          cron: "30 6 * * *",
           queue,
-          { report: "daily" },
-          { tenant: "tenant-b", timeZone: "Europe/Amsterdam" },
-        )
+          payload: { report: "daily" },
+          tenant: "tenant-b",
+          timeZone: "Europe/Amsterdam",
+        })
         .orThrow();
 
       const listed = await jobs
@@ -2797,7 +2856,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       expect(
         await jobs
-          .ensureSchedules(set(["a", "b"]), { prefix, tenant: "tenant-e" })
+          .ensureSchedules({
+            definitions: set(["a", "b"]),
+            options: { prefix, tenant: "tenant-e" },
+          })
           .orThrow(),
       ).toEqual({ scheduled: [`${prefix}a`, `${prefix}b`], removed: [] });
       await pool.query(
@@ -2808,7 +2870,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       );
       expect(
         await jobs
-          .ensureSchedules(set(["a"]), { prefix, tenant: "tenant-e" })
+          .ensureSchedules({
+            definitions: set(["a"]),
+            options: { prefix, tenant: "tenant-e" },
+          })
           .orThrow(),
       ).toEqual({ scheduled: [`${prefix}a`], removed: [`${prefix}b`] });
 
@@ -2825,9 +2890,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         { job_name: `${prefix}a`, due: true, tenant: "tenant-e" },
       ]);
       await jobs
-        .ensureSchedules([{ ...set(["a"])[0]!, cron: "0 7 * * *" }], {
-          prefix,
-          tenant: "tenant-e",
+        .ensureSchedules({
+          definitions: [{ ...set(["a"])[0]!, cron: "0 7 * * *" }],
+          options: { prefix, tenant: "tenant-e" },
         })
         .orThrow();
 
@@ -2895,7 +2960,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [name],
       );
       expect(await jobs.runSchedules().orThrow()).toBe(1);
-      expect(await jobs.drain(queue, () => undefined)).toEqual({
+      expect(await jobs.drain({ queue, handler: () => undefined })).toEqual({
         succeeded: 1,
         failed: 0,
       });
@@ -3055,11 +3120,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         dead: 0,
         oldestAgeSeconds: null,
       });
-      await jobs.enqueue(queue, { n: 1 }, { maxAttempts: 1 }).orThrow();
-      await jobs.enqueue(queue, { n: 2 }, { maxAttempts: 1 }).orThrow();
-      await jobs.enqueue(queue, { n: 3 }, { delay: 3600 }).orThrow();
-      await jobs.enqueue(queue, { n: 4 }).orThrow();
-      const [claimed] = await jobs.claim(queue, { batch: 1 }).orThrow();
+      await jobs
+        .enqueue({ queue, payload: { n: 1 }, maxAttempts: 1 })
+        .orThrow();
+      await jobs
+        .enqueue({ queue, payload: { n: 2 }, maxAttempts: 1 })
+        .orThrow();
+      await jobs.enqueue({ queue, payload: { n: 3 }, delay: 3600 }).orThrow();
+      await jobs.enqueue({ queue, payload: { n: 4 } }).orThrow();
+      const [claimed] = await jobs.claim({ queue, batch: 1 }).orThrow();
       expect(claimed!.payload.n).toBe(1);
       const before = (await jobs.stats().orThrow())[queue];
       expect(before).toMatchObject({
@@ -3069,26 +3138,26 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         dead: 0,
       });
       expect(before?.oldestAgeSeconds).toBeGreaterThanOrEqual(0);
-      await jobs.fail(claimed!, "gone").orThrow();
-      const [second] = await jobs.claim(queue).orThrow();
-      await jobs.fail(second!, "gone too").orThrow();
+      await jobs.fail({ job: claimed!, error: "gone" }).orThrow();
+      const [second] = await jobs.claim({ queue }).orThrow();
+      await jobs.fail({ job: second!, error: "gone too" }).orThrow();
       expect((await jobs.stats().orThrow())[queue]).toMatchObject({
         ready: 1,
         inFlight: 0,
         dead: 2,
       });
-      const dead = await jobs.listDead(queue).orThrow();
+      const dead = await jobs.listDead({ queue }).orThrow();
       expect(dead.map((job) => [job.payload.n, job.lastError])).toEqual([
         [2, "gone too"],
         [1, "gone"],
       ]);
       expect(
-        await jobs.listDead(queue, { cursor: dead[0]!.id }).orThrow(),
+        await jobs.listDead({ queue, cursor: dead[0]!.id }).orThrow(),
       ).toHaveLength(1);
       expect(
-        await jobs.retryDead(queue, { ids: [dead[1]!.id] }).orThrow(),
+        await jobs.retryDead({ queue, ids: [dead[1]!.id] }).orThrow(),
       ).toBe(1);
-      expect(await jobs.retryDead(queue).orThrow()).toBe(1);
+      expect(await jobs.retryDead({ queue }).orThrow()).toBe(1);
       expect((await jobs.stats().orThrow())[queue]).toMatchObject({
         ready: 3,
         dead: 0,
@@ -3130,56 +3199,99 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         body,
       });
 
-    const first = await idempotency.handle(request('{"sku":1}'), handler);
+    const first = await idempotency.handle({
+      request: request('{"sku":1}'),
+      handler,
+    });
+
     expect(first.status).toBe(201);
-    const replay = await idempotency.handle(request('{"sku":1}'), handler);
+
+    const replay = await idempotency.handle({
+      request: request('{"sku":1}'),
+      handler,
+    });
+
     expect(replay.status).toBe(201);
     expect(replay.headers.get("idempotency-replayed")).toBe("true");
     expect(await replay.json()).toEqual({ order: 1 });
     expect(runs).toBe(1);
-    const reused = await idempotency.handle(request('{"sku":2}'), handler);
+
+    const reused = await idempotency.handle({
+      request: request('{"sku":2}'),
+      handler,
+    });
+
     expect(reused.status).toBe(422);
 
-    const failing = await idempotency.handle(
-      request("{}", "order-2"),
-      () => new Response("down", { status: 503 }),
-    );
+    const failing = await idempotency.handle({
+      request: request("{}", "order-2"),
+      handler: () => new Response("down", { status: 503 }),
+    });
 
     expect(failing.status).toBe(503);
     expect(
-      (await idempotency.handle(request("{}", "order-2"), handler)).status,
+      (await idempotency.handle({ request: request("{}", "order-2"), handler }))
+        .status,
     ).toBe(201);
   });
 
   it("refuses a former holder's complete and release after a takeover", async () => {
     const idempotency = createIdempotency({ sql: postgres.admin, scope: RUN });
-    const first = await idempotency.begin("takeover", "fp", RUN).orThrow();
+
+    const first = await idempotency
+      .begin({ key: "takeover", fingerprint: "fp", scope: RUN })
+      .orThrow();
+
     expect(first.state).toBe("started");
     expect(
-      (await idempotency.begin("takeover", "fp", RUN).orThrow()).state,
+      (
+        await idempotency
+          .begin({ key: "takeover", fingerprint: "fp", scope: RUN })
+          .orThrow()
+      ).state,
     ).toBe("running");
     await pool.query(
       "update better_supabase.idempotency_keys set locked_until = now() - interval '1 second' where scope = $1 and key = 'takeover'",
       [RUN],
     );
-    const second = await idempotency.begin("takeover", "fp", RUN).orThrow();
+
+    const second = await idempotency
+      .begin({ key: "takeover", fingerprint: "fp", scope: RUN })
+      .orThrow();
+
     expect(second.state).toBe("started");
     expect(second.holder).not.toBe(first.holder);
     expect(
       await idempotency
-        .complete("takeover", first.holder!, 200, { late: true }, RUN)
+        .complete({
+          key: "takeover",
+          holder: first.holder!,
+          status: 200,
+          body: { late: true },
+          scope: RUN,
+        })
         .orThrow(),
-    ).toBe(false);
-    expect(
-      await idempotency.release("takeover", first.holder!, RUN).orThrow(),
     ).toBe(false);
     expect(
       await idempotency
-        .complete("takeover", second.holder!, 201, { ok: true }, RUN)
+        .release({ key: "takeover", holder: first.holder!, scope: RUN })
+        .orThrow(),
+    ).toBe(false);
+    expect(
+      await idempotency
+        .complete({
+          key: "takeover",
+          holder: second.holder!,
+          status: 201,
+          body: { ok: true },
+          scope: RUN,
+        })
         .orThrow(),
     ).toBe(true);
     expect(
-      await idempotency.begin("takeover", "fp", RUN).orThrow(),
+      await idempotency
+        .begin({ key: "takeover", fingerprint: "fp", scope: RUN })
+        .orThrow(),
     ).toMatchObject({ state: "replay", status: 201, body: { ok: true } });
   });
 
@@ -3198,17 +3310,24 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         )
       ).rows[0]?.left;
 
-    const first = await idempotency.begin("extend", "fp", RUN).orThrow();
+    const first = await idempotency
+      .begin({ key: "extend", fingerprint: "fp", scope: RUN })
+      .orThrow();
+
     await pool.query(
       "update better_supabase.idempotency_keys set locked_until = now() + interval '2 seconds' where scope = $1 and key = 'extend'",
       [RUN],
     );
     expect(
-      await idempotency.extend("extend", first.holder!, RUN).orThrow(),
+      await idempotency
+        .extend({ key: "extend", holder: first.holder!, scope: RUN })
+        .orThrow(),
     ).toBe(true);
     expect(await lockOf()).toBeGreaterThan(20);
     expect(
-      await idempotency.extend("extend", crypto.randomUUID(), RUN).orThrow(),
+      await idempotency
+        .extend({ key: "extend", holder: crypto.randomUUID(), scope: RUN })
+        .orThrow(),
     ).toBe(false);
 
     await pool.query(
@@ -3216,16 +3335,29 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       [RUN],
     );
     expect(
-      await idempotency.extend("extend", first.holder!, RUN).orThrow(),
+      await idempotency
+        .extend({ key: "extend", holder: first.holder!, scope: RUN })
+        .orThrow(),
     ).toBe(false);
 
-    const second = await idempotency.begin("extend", "fp", RUN).orThrow();
+    const second = await idempotency
+      .begin({ key: "extend", fingerprint: "fp", scope: RUN })
+      .orThrow();
+
     expect(second.state).toBe("started");
     await idempotency
-      .complete("extend", second.holder!, 200, { ok: true }, RUN)
+      .complete({
+        key: "extend",
+        holder: second.holder!,
+        status: 200,
+        body: { ok: true },
+        scope: RUN,
+      })
       .orThrow();
     expect(
-      await idempotency.extend("extend", second.holder!, RUN).orThrow(),
+      await idempotency
+        .extend({ key: "extend", holder: second.holder!, scope: RUN })
+        .orThrow(),
     ).toBe(false);
   });
 
@@ -3315,22 +3447,30 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         ),
       ],
       async (request, ctx) =>
-        ctx.idempotency.handle(request, async () => {
-          const id = await ctx.jobs.enqueue(queue, { n: 1 }).orThrow();
+        ctx.idempotency.handle({
+          request,
+          handler: async () => {
+            const id = await ctx.jobs
+              .enqueue({ queue, payload: { n: 1 } })
+              .orThrow();
 
-          const slug = await sqlTransport(ctx.postgresAdmin).call(
-            "better_supabase",
-            "slug_problem",
-            { slug: "admin" },
-          );
+            const slug = await sqlTransport(ctx.postgresAdmin).call(
+              "better_supabase",
+              "slug_problem",
+              { slug: "admin" },
+            );
 
-          const seen: number[] = [];
+            const seen: number[] = [];
 
-          const drained = await ctx.jobs.drain(queue, (payload) => {
-            seen.push(payload.n);
-          });
+            const drained = await ctx.jobs.drain({
+              queue,
+              handler: (payload) => {
+                seen.push(payload.n);
+              },
+            });
 
-          return Response.json({ id, slug, drained, seen }, { status: 201 });
+            return Response.json({ id, slug, drained, seen }, { status: 201 });
+          },
         }),
     );
 
@@ -3402,19 +3542,21 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const types: string[] = [];
 
-    const result = await inbox.process((message) => {
-      types.push(message.type ?? "");
+    const result = await inbox.process({
+      handler: (message) => {
+        types.push(message.type ?? "");
 
-      if (message.type === "invoice.failed") {
-        throw new Error("try later");
-      }
+        if (message.type === "invoice.failed") {
+          throw new Error("try later");
+        }
 
-      return;
+        return;
+      },
     });
 
     expect(result).toEqual({ succeeded: 1, failed: 1 });
     expect(types.toSorted()).toEqual(["invoice.failed", "invoice.paid"]);
-    expect(await inbox.process(() => undefined)).toEqual({
+    expect(await inbox.process({ handler: () => undefined })).toEqual({
       succeeded: 0,
       failed: 0,
     });
@@ -3446,15 +3588,17 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const cursors: unknown[] = [];
 
-    const first = await inbox.process<{ pages: number }>(async (message) => {
-      cursors.push(message.progress["page"] ?? 0);
+    const first = await inbox.process<{ pages: number }>({
+      handler: async (message) => {
+        cursors.push(message.progress["page"] ?? 0);
 
-      if (message.tenant !== "acct-a") {
-        return;
-      }
+        if (message.tenant !== "acct-a") {
+          return;
+        }
 
-      await message.checkpoint({ page: 2 });
-      throw new Error("provider timed out on page 3");
+        await message.checkpoint({ page: 2 });
+        throw new Error("provider timed out on page 3");
+      },
     });
 
     expect(first).toEqual({ succeeded: 1, failed: 1 });
@@ -3463,8 +3607,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       [source],
     );
 
-    const second = await inbox.process(async (message) => {
-      cursors.push(message.progress["page"]);
+    const second = await inbox.process({
+      handler: async (message) => {
+        cursors.push(message.progress["page"]);
+      },
     });
 
     expect(second).toEqual({ succeeded: 1, failed: 0 });
@@ -3501,12 +3647,18 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         throw new Error("still failing");
       };
 
-      expect(await inbox.process(fail)).toEqual({ succeeded: 0, failed: 1 });
+      expect(await inbox.process({ handler: fail })).toEqual({
+        succeeded: 0,
+        failed: 1,
+      });
       await pool.query(
         "update better_supabase.webhook_inbox set available_at = now() where source = $1",
         [source],
       );
-      expect(await inbox.process(fail)).toEqual({ succeeded: 0, failed: 1 });
+      expect(await inbox.process({ handler: fail })).toEqual({
+        succeeded: 0,
+        failed: 1,
+      });
       expect(seen).toEqual([
         [1, 2],
         [2, 2],
@@ -3518,7 +3670,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          where source = $1 and message_id = 'm2'`,
         [source],
       );
-      expect(await inbox.process(fail)).toEqual({ succeeded: 0, failed: 0 });
+      expect(await inbox.process({ handler: fail })).toEqual({
+        succeeded: 0,
+        failed: 0,
+      });
 
       const rows = await pool.query<{
         message_id: string;
@@ -3583,9 +3738,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         claimed = resolve;
       });
 
-      const first = inbox.process(async () => {
-        claimed();
-        await gate;
+      const first = inbox.process({
+        handler: async () => {
+          claimed();
+          await gate;
+        },
       });
 
       await started;
@@ -3605,10 +3762,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         secondClaimed = resolve;
       });
 
-      const second = inbox.process(async (message) => {
-        expect(message.attempts).toBe(2);
-        secondClaimed();
-        await secondGate;
+      const second = inbox.process({
+        handler: async (message) => {
+          expect(message.attempts).toBe(2);
+          secondClaimed();
+          await secondGate;
+        },
       });
 
       await secondStarted;
@@ -5394,7 +5553,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       const hits = [];
 
       for (let i = 0; i < 3; i += 1) {
-        hits.push(await limit.check(scope, "token-a").orThrow());
+        hits.push(await limit.check({ scope, key: "token-a" }).orThrow());
       }
 
       expect(hits.map((hit) => [hit.allowed, hit.remaining])).toEqual([
@@ -5403,19 +5562,22 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [false, 0],
       ]);
       expect(hits[2]!.retryAfter).toBeGreaterThan(0);
-      expect((await limit.check(scope, "token-b").orThrow()).allowed).toBe(
-        true,
-      );
+      expect(
+        (await limit.check({ scope, key: "token-b" }).orThrow()).allowed,
+      ).toBe(true);
 
       const adhoc = await limit
-        .check(`adhoc-${RUN}`, "thread-1", { max: 1, period: "1 hour" })
+        .check({
+          scope: `adhoc-${RUN}`,
+          key: "thread-1",
+          rule: { max: 1, period: "1 hour" },
+        })
         .orThrow();
 
       expect(adhoc.allowed).toBe(true);
-      expect(await limit.check(`none-${RUN}`, "k")).toMatchObject({
-        ok: false,
-        error: { hint: "RATE_LIMIT_UNKNOWN" },
-      });
+      expect(
+        await limit.check({ scope: `none-${RUN}`, key: "k" }),
+      ).toMatchObject({ ok: false, error: { hint: "RATE_LIMIT_UNKNOWN" } });
       expect(
         (
           await pool.query<{ allowed: boolean }>(
@@ -5428,20 +5590,21 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         transport: sqlTransport(postgres.admin),
       });
 
-      expect(await overTransport.check(scope, "token-c").orThrow()).toEqual({
-        allowed: true,
-        remaining: 1,
-        retryAfter: 0,
-      });
+      expect(
+        await overTransport.check({ scope, key: "token-c" }).orThrow(),
+      ).toEqual({ allowed: true, remaining: 1, retryAfter: 0 });
       expect(
         await overTransport
-          .check(`adhoc-${RUN}`, "thread-1", { max: 1, period: "1 hour" })
+          .check({
+            scope: `adhoc-${RUN}`,
+            key: "thread-1",
+            rule: { max: 1, period: "1 hour" },
+          })
           .orThrow(),
       ).toMatchObject({ allowed: false, remaining: 0 });
-      expect(await overTransport.check(`none-${RUN}`, "k")).toMatchObject({
-        ok: false,
-        error: { hint: "RATE_LIMIT_UNKNOWN" },
-      });
+      expect(
+        await overTransport.check({ scope: `none-${RUN}`, key: "k" }),
+      ).toMatchObject({ ok: false, error: { hint: "RATE_LIMIT_UNKNOWN" } });
     } finally {
       await pool.query("select better_supabase.set_rate_limit($1, null)", [
         scope,
@@ -5652,8 +5815,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     });
 
     await marketplace.upsertInstallation({ configurationId }).orThrow();
-    await marketplace.sealAccessToken(configurationId, "vat_1").orThrow();
-    await marketplace.sealAccessToken(configurationId, "vat_2").orThrow();
+    await marketplace
+      .sealAccessToken({ configurationId, token: "vat_1" })
+      .orThrow();
+    await marketplace
+      .sealAccessToken({ configurationId, token: "vat_2" })
+      .orThrow();
 
     const linked = await marketplace
       .linkTenant({ configurationId, tenant: "org_1", created: true })
@@ -5673,7 +5840,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     });
 
     expect(
-      await marketplace.resource(configurationId, "res_1").orThrow(),
+      await marketplace
+        .resource({ configurationId, externalId: "res_1" })
+        .orThrow(),
     ).toMatchObject({
       tenant: "org_2",
       tenantCreated: true,
@@ -5726,7 +5895,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     ]);
     expect(last).toMatchObject({ reported: true, reportedQuantity: 21 });
 
-    await marketplace.deleteResource(configurationId, "res_1").orThrow();
+    await marketplace
+      .deleteResource({ configurationId, externalId: "res_1" })
+      .orThrow();
 
     expect(await marketplace.resources(configurationId).orThrow()).toEqual([]);
 

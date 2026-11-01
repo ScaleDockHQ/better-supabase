@@ -101,7 +101,7 @@ async function withTenantKeys<T extends { readonly gateway: object }>(
     return providerOptions;
   }
 
-  const keys = await aiProviders().keys.resolve(organizationId);
+  const keys = await aiProviders().keys.resolve({ organizationId });
 
   if (!keys.ok || keys.data.length === 0) {
     return providerOptions;

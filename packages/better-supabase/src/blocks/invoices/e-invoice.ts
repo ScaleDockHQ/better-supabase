@@ -121,10 +121,10 @@ export interface InvoiceEInvoices {
    * channel and reference return the first row, so a retry changes nothing.
    * `sendEInvoice` calls it.
    */
-  recordEInvoice(
-    invoiceId: string,
-    input: InvoiceDeliveryInput,
-  ): AsyncResult<InvoiceDelivery>;
+  recordEInvoice(input: {
+    invoiceId: string;
+    input: InvoiceDeliveryInput;
+  }): AsyncResult<InvoiceDelivery>;
   /** The e-invoices an invoice was sent as, newest first. */
   eInvoiceDeliveries(
     invoiceId: string,
@@ -149,7 +149,7 @@ function deliveryOf(value: unknown): InvoiceDelivery {
 /** The e-invoice delivery methods of the invoices client. */
 export function invoiceEInvoices(call: BlockCall): InvoiceEInvoices {
   return {
-    recordEInvoice: (invoiceId, input) =>
+    recordEInvoice: ({ invoiceId, input }) =>
       call(
         "record_invoice_delivery",
         {
@@ -226,11 +226,14 @@ export function sendEInvoice(
 
     const sent = await channel.send(document, { ...context, invoice });
 
-    const recorded = await options.invoices.recordEInvoice(invoice.id, {
-      channel: channel.key,
-      format: format.key,
-      externalRef: sent.externalRef,
-      filename: document.filename,
+    const recorded = await options.invoices.recordEInvoice({
+      invoiceId: invoice.id,
+      input: {
+        channel: channel.key,
+        format: format.key,
+        externalRef: sent.externalRef,
+        filename: document.filename,
+      },
     });
 
     if (!recorded.ok) {

@@ -76,10 +76,13 @@ describe.skipIf(!live)("billing", () => {
       });
 
       const session = await billing
-        .checkout(organization, {
-          price: "price_seat",
-          quantity: "seats",
-          successUrl: "https://app.test/billing",
+        .checkout({
+          organizationId: organization,
+          options: {
+            price: "price_seat",
+            quantity: "seats",
+            successUrl: "https://app.test/billing",
+          },
         })
         .orThrow();
 
@@ -98,9 +101,9 @@ describe.skipIf(!live)("billing", () => {
       expect(await billing.customer(organization).orThrow()).toBe("cus_test1");
       // A second checkout reuses the customer.
       await billing
-        .checkout(organization, {
-          price: "price_seat",
-          successUrl: "https://app.test",
+        .checkout({
+          organizationId: organization,
+          options: { price: "price_seat", successUrl: "https://app.test" },
         })
         .orThrow();
       expect(
@@ -116,7 +119,9 @@ describe.skipIf(!live)("billing", () => {
       await s.rows(`insert into stripe.subscriptions (id, customer, status, created) values ('sub_1', 'cus_test1', 'active', 1);
         insert into stripe.subscription_items (id, subscription, price, quantity, created) values ('si_1', 'sub_1', 'price_seat', 1, 1)`);
       expect(
-        await billing.syncSeats(organization, { key: "evt" }).orThrow(),
+        await billing
+          .syncSeats({ organizationId: organization, key: "evt" })
+          .orThrow(),
       ).toEqual({ quantity: 2, previousQuantity: 1, changed: true });
       expect(calls.at(-1)).toEqual([
         "items.update",
@@ -280,10 +285,16 @@ describe.skipIf(!live)("billing", () => {
       });
 
       await s.asRole(owner);
-      const invoices = await billing.invoices(organization).orThrow();
+
+      const invoices = await billing
+        .invoices({ organizationId: organization })
+        .orThrow();
+
       expect(invoices.map((row) => row["id"])).toEqual(["in_bs_2", "in_bs_1"]);
       await s.asRole(member);
-      expect((await billing.invoices(organization)).ok).toBe(false);
+      expect(
+        (await billing.invoices({ organizationId: organization })).ok,
+      ).toBe(false);
       expect(await billing.allInvoices()).toMatchObject({
         error: { hint: "BILLING_FORBIDDEN" },
       });
@@ -291,9 +302,9 @@ describe.skipIf(!live)("billing", () => {
       const staff = await s.user("staff");
       await s.asRole(staff, { platform_permissions: ["billing.read"] });
       expect(
-        (await billing.invoices(organization).orThrow()).map(
-          (row) => row["id"],
-        ),
+        (
+          await billing.invoices({ organizationId: organization }).orThrow()
+        ).map((row) => row["id"]),
       ).toEqual(["in_bs_2", "in_bs_1"]);
       const open = await billing.allInvoices({ status: "open" }).orThrow();
       expect(
@@ -318,7 +329,9 @@ describe.skipIf(!live)("billing", () => {
           ('txi_bs_x', 'cus_someone_else', 'eu_vat', 'NL1', 'NL', null, 3)`);
       await s.asRole(owner);
       expect(
-        await billing.taxIds(organization, { from: "sync" }).orThrow(),
+        await billing
+          .taxIds({ organizationId: organization, options: { from: "sync" } })
+          .orThrow(),
       ).toEqual([
         {
           id: "txi_bs_2",
@@ -339,7 +352,10 @@ describe.skipIf(!live)("billing", () => {
       ]);
       await s.asRole(member);
       expect(
-        await billing.taxIds(organization, { from: "sync" }),
+        await billing.taxIds({
+          organizationId: organization,
+          options: { from: "sync" },
+        }),
       ).toMatchObject({ error: { hint: "BILLING_FORBIDDEN" } });
 
       await s.service();
@@ -687,9 +703,12 @@ describe.skipIf(!live)("billing", () => {
       });
 
       await billing
-        .checkout(organization, {
-          price: "price_seat",
-          successUrl: "https://app.test/billing",
+        .checkout({
+          organizationId: organization,
+          options: {
+            price: "price_seat",
+            successUrl: "https://app.test/billing",
+          },
         })
         .orThrow();
       expect(calls.at(-1)).toMatchObject([
@@ -771,7 +790,10 @@ describe.skipIf(!live)("billing", () => {
         accountId: "acct_bs_test1",
       });
 
-      await billing.portal(organization, { returnUrl: "https://app.test" });
+      await billing.portal({
+        organizationId: organization,
+        options: { returnUrl: "https://app.test" },
+      });
       expect(calls.at(-1)).toEqual([
         "portal.create",
         { customer_account: "acct_bs_test1", return_url: "https://app.test" },
@@ -781,7 +803,10 @@ describe.skipIf(!live)("billing", () => {
         legacy,
       ]);
       await billing
-        .checkout(legacy, { price: "price_seat", successUrl: "https://a" })
+        .checkout({
+          organizationId: legacy,
+          options: { price: "price_seat", successUrl: "https://a" },
+        })
         .orThrow();
       expect(calls.at(-1)).toMatchObject([
         "checkout.create",

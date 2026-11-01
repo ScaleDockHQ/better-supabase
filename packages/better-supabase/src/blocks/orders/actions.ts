@@ -47,7 +47,7 @@ const fromQuote = <C>(
 ): PromiseLike<Result<{ readonly id: string }>> =>
   hasOrders(context.clients)
     ? context.clients.orders
-        .fromQuote(context.source.id)
+        .fromQuote({ quoteId: context.source.id })
         .map(({ order }) => ({ id: order.id }))
     : Promise.resolve(
         err(

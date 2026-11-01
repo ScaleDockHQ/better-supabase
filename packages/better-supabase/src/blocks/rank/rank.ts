@@ -41,21 +41,21 @@ export interface Rank {
    * so the table's policies and any state-machine trigger on the group column
    * apply. Resolves to the row's new key.
    */
-  move(
-    subjectType: string,
-    subjectId: string,
-    target: MoveTarget,
-  ): AsyncResult<string>;
+  move(input: {
+    subjectType: string;
+    subjectId: string;
+    target: MoveTarget;
+  }): AsyncResult<string>;
   /**
    * Rewrites a tenant's keys (in one group, or all of them) to short, evenly
    * spaced keys in the same order. Service only. Resolves to the number of rows
    * rewritten.
    */
-  rebalance(
-    subjectType: string,
-    tenant: string | null,
-    group?: string | null,
-  ): AsyncResult<number>;
+  rebalance(input: {
+    subjectType: string;
+    tenant: string | null;
+    group?: string | null | undefined;
+  }): AsyncResult<number>;
   /** The handler for the `rank.rebalance` queue. */
   readonly job: JobHandler<unknown>;
 }
@@ -82,7 +82,7 @@ export function createRank(options: RankOptions): Rank {
   );
 
   const client: Rank = {
-    move: (subjectType, subjectId, target) =>
+    move: ({ subjectType, subjectId, target }) =>
       call(
         "move",
         {
@@ -94,7 +94,7 @@ export function createRank(options: RankOptions): Rank {
         },
         textOf,
       ),
-    rebalance: (subjectType, tenant, group) =>
+    rebalance: ({ subjectType, tenant, group }) =>
       service(
         "rebalance_ranks",
         { subject_type: subjectType, tenant, rank_group: group ?? null },
@@ -102,7 +102,7 @@ export function createRank(options: RankOptions): Rank {
       ),
     job: async (payload) => {
       const { subjectType, tenant, group } = payloadOf(payload);
-      await hooked.rebalance(subjectType, tenant, group).orThrow();
+      await hooked.rebalance({ subjectType, tenant, group }).orThrow();
     },
   };
 

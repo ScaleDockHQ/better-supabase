@@ -171,11 +171,14 @@ describe("createPasses", () => {
     const passes = createPasses({ transport: fake.transport, tenant: "org-1" });
 
     const booked = await passes
-      .bookWithCredit("p1", {
-        serviceId: "s1",
-        resourceId: "r1",
-        startsAt: Temporal.Instant.from(AT),
-        customer: { name: "Jane" },
+      .bookWithCredit({
+        passId: "p1",
+        input: {
+          serviceId: "s1",
+          resourceId: "r1",
+          startsAt: Temporal.Instant.from(AT),
+          customer: { name: "Jane" },
+        },
       })
       .orThrow();
 
@@ -395,7 +398,7 @@ describe("createPasses", () => {
     );
 
     const scan = await passes
-      .checkIn(token, { method: "nfc", gate: "north", resourceId: "r1" })
+      .checkIn({ token, method: "nfc", gate: "north", resourceId: "r1" })
       .orThrow();
 
     expect(fake.calls).toEqual([
@@ -426,7 +429,7 @@ describe("createPasses", () => {
     const typ = { typ: PASS_TOKEN_TYPE };
 
     const hint = async (token: string) => {
-      const result = await passes.checkIn(token);
+      const result = await passes.checkIn({ token });
 
       return result.ok ? undefined : result.error.hint;
     };
@@ -454,7 +457,7 @@ describe("createPasses", () => {
   it("fails to check in without a JWKS", async () => {
     const passes = createPasses({ transport: fakeTransport({}).transport });
 
-    const result = await passes.checkIn("a.b.c");
+    const result = await passes.checkIn({ token: "a.b.c" });
 
     expect(result.ok ? undefined : result.error.hint).toBe("PASS_JWKS_MISSING");
   });
@@ -473,7 +476,7 @@ describe("createPasses", () => {
 
     const passes = createPasses({ transport: fake.transport });
 
-    const scan = await passes.checkInManually("p1").orThrow();
+    const scan = await passes.checkInManually({ passId: "p1" }).orThrow();
 
     expect(fake.calls[0]).toEqual([
       "check_in_pass",
@@ -504,7 +507,8 @@ describe("createPasses", () => {
     const passes = createPasses({ transport: fake.transport });
 
     expect(
-      (await passes.checkIns("p1", { pageSize: 5 }).orThrow())[0]?.reason,
+      (await passes.checkIns({ passId: "p1", pageSize: 5 }).orThrow())[0]
+        ?.reason,
     ).toBe("used_up");
     expect(await passes.occupancy("r1").orThrow()).toEqual({
       resourceId: "r1",

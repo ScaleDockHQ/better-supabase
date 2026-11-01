@@ -71,12 +71,12 @@ export const tagsBinding: RecordBinding<
     apply: {
       input: tagRefInput,
       run: (client: Tags, subject, { tagId }: TagRefInput) =>
-        client.attach(subject, tagId),
+        client.attach({ record: subject, tagId }),
     },
     remove: {
       input: tagRefInput,
       run: (client: Tags, subject, { tagId }: TagRefInput) =>
-        client.detach(subject, tagId),
+        client.detach({ record: subject, tagId }),
     },
   },
 });

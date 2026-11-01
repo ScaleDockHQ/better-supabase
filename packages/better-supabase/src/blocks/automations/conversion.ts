@@ -20,15 +20,15 @@ export interface ConversionRef {
 
 /** The part of the relations block a conversion uses; `blocks.relations` fits. */
 export interface ConversionRelations {
-  link(
-    source: ConversionRef,
-    target: ConversionRef,
-    input: { readonly kind: "created_from" },
-  ): PromiseLike<Result<unknown>>;
-  convertedInto(
-    origin: ConversionRef,
-    intoType: string,
-  ): PromiseLike<Result<string | undefined>>;
+  link(input: {
+    source: ConversionRef;
+    target: ConversionRef;
+    input: { readonly kind: "created_from" };
+  }): PromiseLike<Result<unknown>>;
+  convertedInto(input: {
+    origin: ConversionRef;
+    intoType: string;
+  }): PromiseLike<Result<string | undefined>>;
 }
 
 /**
@@ -167,10 +167,10 @@ export function defineConversionAction<
       const targetType = targetTypeOf(call, spec.targetType);
       const clients = await spec.clients(tenant);
 
-      const existing = await clients.relations.convertedInto(
-        source,
-        targetType,
-      );
+      const existing = await clients.relations.convertedInto({
+        origin: source,
+        intoType: targetType,
+      });
 
       if (!existing.ok) {
         return existing;
@@ -210,8 +210,10 @@ export function defineConversionAction<
       const target = { type: targetType, id: created.data.id };
 
       if (spec.linksItself !== true) {
-        const linked = await clients.relations.link(target, source, {
-          kind: "created_from",
+        const linked = await clients.relations.link({
+          source: target,
+          target: source,
+          input: { kind: "created_from" },
         });
 
         if (!linked.ok) {

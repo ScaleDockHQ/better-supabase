@@ -109,7 +109,7 @@ describe.skipIf(!live)("domains module", () => {
       });
 
       const done = await admin
-        .verify(added.id, { actorId: owner.id })
+        .verify({ hostnameId: added.id, actorId: owner.id })
         .orThrow();
 
       expect(done.verifiedAt).toBeDefined();

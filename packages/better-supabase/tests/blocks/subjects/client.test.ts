@@ -97,7 +97,7 @@ describe("batchSubjects", () => {
     const inner = resolver();
     const subject = { type: "task", id: "a" };
 
-    await batchSubjects(inner).summary(subject, ["comments"]);
+    await batchSubjects(inner).summary({ subject, sections: ["comments"] });
 
     expect(inner.summary).toHaveBeenCalledWith(
       subject,

@@ -34,7 +34,7 @@ const OptionalId = v.nullish(Id);
 
 /** Applies one batch of item changes; a rejected change becomes the error. */
 async function applyChanges(db: AppDb, changes: readonly WorkItemChange[]) {
-  const result = await db.$blocks.tasks.update(changes);
+  const result = await db.$blocks.tasks.update({ changes });
 
   if (!result.ok) {
     return result;
@@ -73,10 +73,10 @@ export const createWorkItem = bsb.action(
     permission: "tasks.write",
   },
   async ({ title, teamId, priority, custom }, { tenant, db, auth }) => {
-    const created = await db.$blocks.tasks.create(
-      tenant,
-      teamId === "" ? { title, priority } : { title, priority, teamId },
-    );
+    const created = await db.$blocks.tasks.create({
+      organizationId: tenant,
+      input: teamId === "" ? { title, priority } : { title, priority, teamId },
+    });
 
     if (!created.ok) {
       return created;
@@ -104,7 +104,7 @@ export const createWorkItem = bsb.action(
 
           return id === undefined
             ? []
-            : [db.customFields.setValue(subject, id, value)];
+            : [db.customFields.setValue({ subject, definitionId: id, value })];
         }),
       );
 
@@ -150,9 +150,10 @@ export const moveWorkItem = bsb.action(
       }
     }
 
-    const ranked = await db.rank.move(WORK_ITEM_SUBJECT, id, {
-      previous: previousId ?? null,
-      next: nextId ?? null,
+    const ranked = await db.rank.move({
+      subjectType: WORK_ITEM_SUBJECT,
+      subjectId: id,
+      target: { previous: previousId ?? null, next: nextId ?? null },
     });
 
     await refreshCaller(auth);
@@ -195,7 +196,10 @@ export const setWorkItemAssignee = bsb.action(
     permission: "tasks.write",
   },
   async ({ id, userId }, { db, auth }) => {
-    const assigned = await db.$blocks.tasks.assign(id, userId ? [userId] : []);
+    const assigned = await db.$blocks.tasks.assign({
+      workItemId: id,
+      userIds: userId ? [userId] : [],
+    });
 
     if (!assigned.ok) {
       return assigned;
@@ -217,7 +221,7 @@ export const createTeam = bsb.action(
     permission: "teams.manage",
   },
   async ({ name }, { tenant, db, auth }) => {
-    const created = await db.teams.create(tenant, name);
+    const created = await db.teams.create({ organizationId: tenant, name });
 
     if (!created.ok) {
       return created;

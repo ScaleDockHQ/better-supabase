@@ -57,7 +57,11 @@ describe("pipelines block", () => {
     });
 
     const pipelines = createPipelines({ transport: t });
-    const [pipeline] = await pipelines.list("o", "deal").orThrow();
+
+    const [pipeline] = await pipelines
+      .list({ organizationId: "o", subjectType: "deal" })
+      .orThrow();
+
     expect(pipeline).toEqual({
       id: "p1",
       organizationId: "o",
@@ -97,12 +101,18 @@ describe("pipelines block", () => {
     expect(
       (
         await pipelines
-          .upsert("o", { subjectType: "deal", key: "default", name: "Default" })
+          .upsert({
+            organizationId: "o",
+            input: { subjectType: "deal", key: "default", name: "Default" },
+          })
           .orThrow()
       ).stages,
     ).toEqual([]);
     await pipelines
-      .saveStage("p1", { key: "lead", name: "Lead", category: "open" })
+      .saveStage({
+        pipelineId: "p1",
+        input: { key: "lead", name: "Lead", category: "open" },
+      })
       .orThrow();
     expect(t.calls).toEqual([
       [
@@ -156,7 +166,7 @@ describe("pipelines block", () => {
     });
 
     const [column] = await createPipelines({ transport: t })
-      .board("deal", "p1", { owner: "u1" })
+      .board({ subjectType: "deal", pipelineId: "p1", owner: "u1" })
       .orThrow();
 
     expect(column).toMatchObject({
@@ -202,7 +212,11 @@ describe("pipelines block", () => {
     const pipelines = createPipelines({ transport: t });
     const since = Temporal.Instant.from("2026-10-01T00:00:00Z");
     const until = Temporal.Instant.from("2026-11-01T00:00:00Z");
-    expect(await pipelines.stats("p1", { since, until }).orThrow()).toEqual({
+    expect(
+      await pipelines
+        .stats({ pipelineId: "p1", window: { since, until } })
+        .orThrow(),
+    ).toEqual({
       won: 2,
       lost: 1,
       winRate: 0.6667,
@@ -228,15 +242,26 @@ describe("pipelines block", () => {
     const pipelines = createPipelines({ transport: t });
     expect(
       await pipelines
-        .reorderStage("s1", { previous: "V", next: "k" })
+        .reorderStage({
+          stageId: "s1",
+          neighbors: { previous: "V", next: "k" },
+        })
         .orThrow(),
     ).toBe("c");
     expect(
-      (await pipelines.reorderStage("s1", { previous: "k", next: "V" })).ok,
+      (
+        await pipelines.reorderStage({
+          stageId: "s1",
+          neighbors: { previous: "k", next: "V" },
+        })
+      ).ok,
     ).toBe(false);
     expect(
       await pipelines
-        .setTransitions("p1", [{ from: "s1", to: "s2" }])
+        .setTransitions({
+          pipelineId: "p1",
+          transitions: [{ from: "s1", to: "s2" }],
+        })
         .orThrow(),
     ).toBe(1);
     expect(await pipelines.archive("p1").orThrow()).toBe(true);
@@ -317,33 +342,43 @@ describe("pipelines block, optional fields", () => {
 
     expect(
       await pipelines
-        .saveStage("p1", {
-          id: "s1",
-          key: "lead",
-          name: "Lead",
-          category: "open",
-          probability: 10,
-          rottingAfterDays: 7,
-          wipLimit: 5,
-          color: "#f00",
+        .saveStage({
+          pipelineId: "p1",
+          input: {
+            id: "s1",
+            key: "lead",
+            name: "Lead",
+            category: "open",
+            probability: 10,
+            rottingAfterDays: 7,
+            wipLimit: 5,
+            color: "#f00",
+          },
         })
         .orThrow(),
     ).toMatchObject({ color: "#f00", wipLimit: 5 });
     expect(
       (
         await pipelines
-          .upsert("o", {
-            id: "p1",
-            subjectType: "deal",
-            key: "k",
-            name: "N",
-            scopeId: "job-1",
-            isDefault: true,
+          .upsert({
+            organizationId: "o",
+            input: {
+              id: "p1",
+              subjectType: "deal",
+              key: "k",
+              name: "N",
+              scopeId: "job-1",
+              isDefault: true,
+            },
           })
           .orThrow()
       ).scopeId,
     ).toBe("job-1");
-    const [column] = await pipelines.board("deal", "p1").orThrow();
+
+    const [column] = await pipelines
+      .board({ subjectType: "deal", pipelineId: "p1" })
+      .orThrow();
+
     expect(column).toMatchObject({
       color: "#f00",
       count: 0,
@@ -358,7 +393,9 @@ describe("pipelines block, optional fields", () => {
     expect(column?.probability).toBeUndefined();
     const since = Temporal.Instant.from("2026-10-01T00:00:00Z");
     expect(
-      await pipelines.stats("p1", { since, until: since }).orThrow(),
+      await pipelines
+        .stats({ pipelineId: "p1", window: { since, until: since } })
+        .orThrow(),
     ).toEqual({
       won: 0,
       lost: 0,

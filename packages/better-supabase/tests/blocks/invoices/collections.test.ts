@@ -70,15 +70,18 @@ describe("invoices collections", () => {
     });
 
     const payment = await createInvoices({ transport: t })
-      .recordPartyPayment("o", {
-        partyId: "c1",
-        amount: eur(1500n),
-        allocations: [
-          { invoiceId: "i1", amount: eur(1000n) },
-          { invoiceId: "i2", amount: eur(300n) },
-        ],
-        receivedOn: Temporal.PlainDate.from("2026-10-31"),
-        reference: "bank-0001",
+      .recordPartyPayment({
+        organizationId: "o",
+        payment: {
+          partyId: "c1",
+          amount: eur(1500n),
+          allocations: [
+            { invoiceId: "i1", amount: eur(1000n) },
+            { invoiceId: "i2", amount: eur(300n) },
+          ],
+          receivedOn: Temporal.PlainDate.from("2026-10-31"),
+          reference: "bank-0001",
+        },
       })
       .orThrow();
 
@@ -115,7 +118,7 @@ describe("invoices collections", () => {
     const invoices = createInvoices({ transport: t });
 
     const paid = await invoices
-      .applyPartyCredit("c1", "i1", eur(150n))
+      .applyPartyCredit({ partyId: "c1", invoiceId: "i1", amount: eur(150n) })
       .orThrow();
 
     expect(t.calls[0]).toEqual([
@@ -127,9 +130,11 @@ describe("invoices collections", () => {
       at: Temporal.Instant.from("2026-10-30T06:00:00Z"),
       pausedUntil: Temporal.PlainDate.from("2026-11-07"),
     });
-    expect(await invoices.partyCredits("o", "c1").orThrow()).toEqual([
-      eur(50n),
-    ]);
+    expect(
+      await invoices
+        .partyCredits({ organizationId: "o", partyId: "c1" })
+        .orThrow(),
+    ).toEqual([eur(50n)]);
   });
 
   it("sets and reads dunning levels", async () => {
@@ -158,10 +163,13 @@ describe("invoices collections", () => {
     const invoices = createInvoices({ transport: t });
 
     const saved = await invoices
-      .setDunningLevels("o", [
-        { daysAfterDue: 7, templateKey: "reminder" },
-        { daysAfterDue: 21, templateKey: "final", fee: 500n, final: true },
-      ])
+      .setDunningLevels({
+        organizationId: "o",
+        levels: [
+          { daysAfterDue: 7, templateKey: "reminder" },
+          { daysAfterDue: 21, templateKey: "final", fee: 500n, final: true },
+        ],
+      })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toEqual({
@@ -200,9 +208,12 @@ describe("invoices collections", () => {
     const invoices = createInvoices({ transport: t });
 
     const [saved] = await invoices
-      .setDunningLevels("o", [
-        { daysAfterDue: 7, templateKey: "reminder", textKey: "friendly" },
-      ])
+      .setDunningLevels({
+        organizationId: "o",
+        levels: [
+          { daysAfterDue: 7, templateKey: "reminder", textKey: "friendly" },
+        ],
+      })
       .orThrow();
 
     expect(saved?.textKey).toBe("friendly");
@@ -210,10 +221,14 @@ describe("invoices collections", () => {
       levels: [{ textKey: "friendly" }],
     });
 
-    await invoices.handOverToCollection(["i1"], "a1").orThrow();
+    await invoices
+      .handOverToCollection({ invoiceIds: ["i1"], agencyPartyId: "a1" })
+      .orThrow();
     expect(t.calls.at(-1)?.[1]).toMatchObject({ note: null });
 
-    const read = await invoices.pauseDunning("i1", null).orThrow();
+    const read = await invoices
+      .pauseDunning({ invoiceId: "i1", until: null })
+      .orThrow();
 
     expect(read.paymentTerms).toEqual({ id: "t1" });
   });
@@ -232,9 +247,13 @@ describe("invoices collections", () => {
         .orThrow(),
     ).toBe(3);
     await invoices
-      .pauseDunning("i1", Temporal.PlainDate.from("2026-11-07"), "Disputed")
+      .pauseDunning({
+        invoiceId: "i1",
+        until: Temporal.PlainDate.from("2026-11-07"),
+        reason: "Disputed",
+      })
       .orThrow();
-    await invoices.pauseDunning("i1", null).orThrow();
+    await invoices.pauseDunning({ invoiceId: "i1", until: null }).orThrow();
 
     expect(t.calls.map(([, args]) => args)).toEqual([
       { tenant: null, as_of: "2026-10-31" },
@@ -262,17 +281,27 @@ describe("invoices collections", () => {
     const actor = { id: "u1", name: "Ann" };
 
     await invoices
-      .recordPartyPayment("o", {
+      .recordPartyPayment({
+        organizationId: "o",
+        payment: {
+          partyId: "c1",
+          amount: eur(100n),
+          allocations: [{ invoiceId: "i1", amount: eur(100n) }],
+          reference: "bank-0002",
+          method: "sepa",
+          note: "Batch",
+          actor,
+        },
+      })
+      .orThrow();
+    await invoices
+      .applyPartyCredit({
         partyId: "c1",
-        amount: eur(100n),
-        allocations: [{ invoiceId: "i1", amount: eur(100n) }],
-        reference: "bank-0002",
-        method: "sepa",
-        note: "Batch",
+        invoiceId: "i1",
+        amount: eur(10n),
         actor,
       })
       .orThrow();
-    await invoices.applyPartyCredit("c1", "i1", eur(10n), { actor }).orThrow();
 
     expect(await invoices.runDunning({ organizationId: "o" }).orThrow()).toBe(
       0,
@@ -295,7 +324,7 @@ describe("invoices collections", () => {
     const t = transport({ pause_invoice_dunning: () => row });
 
     const invoice = await createInvoices({ transport: t })
-      .pauseDunning("i1", null)
+      .pauseDunning({ invoiceId: "i1", until: null })
       .orThrow();
 
     expect(invoice.dunning).toBeUndefined();
@@ -368,7 +397,7 @@ describe("invoices collections", () => {
     });
 
     const invoices = createInvoices({ transport: t });
-    const [run] = await invoices.dunningRuns("o").orThrow();
+    const [run] = await invoices.dunningRuns({ organizationId: "o" }).orThrow();
 
     expect(run).toMatchObject({ id: "r1", items: 2, customers: 1 });
 
@@ -391,7 +420,11 @@ describe("invoices collections", () => {
     ).toEqual(["reminder", "handed_over"]);
     expect(
       await invoices
-        .handOverToCollection(["i1"], "a1", { note: "Sent" })
+        .handOverToCollection({
+          invoiceIds: ["i1"],
+          agencyPartyId: "a1",
+          note: "Sent",
+        })
         .orThrow(),
     ).toEqual(["i1"]);
     expect(t.calls.at(-1)?.[1]).toEqual({
@@ -400,7 +433,9 @@ describe("invoices collections", () => {
       note: "Sent",
     });
 
-    const read = await invoices.pauseDunning("i1", null).orThrow();
+    const read = await invoices
+      .pauseDunning({ invoiceId: "i1", until: null })
+      .orThrow();
 
     expect(read.paymentTerms).toEqual({
       id: "t1",

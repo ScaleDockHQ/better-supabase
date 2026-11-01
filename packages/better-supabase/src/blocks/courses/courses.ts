@@ -264,16 +264,16 @@ export interface Courses<F extends object = Record<never, never>> {
   delete(courseId: string): AsyncResult<boolean>;
   /** The course with its modules and lessons in rank order. */
   outline(courseId: string): AsyncResult<CourseOutline<F>>;
-  saveModule(
-    courseId: string,
-    module: CourseModuleInput,
-  ): AsyncResult<CourseModule>;
+  saveModule(input: {
+    courseId: string;
+    module: CourseModuleInput;
+  }): AsyncResult<CourseModule>;
   /** Deletes a module with its lessons; `false` when it was gone. */
   deleteModule(moduleId: string): AsyncResult<boolean>;
-  saveLesson(
-    courseId: string,
-    lesson: CourseLessonInput,
-  ): AsyncResult<CourseLesson>;
+  saveLesson(input: {
+    courseId: string;
+    lesson: CourseLessonInput;
+  }): AsyncResult<CourseLesson>;
   deleteLesson(lessonId: string): AsyncResult<boolean>;
   /** A lesson with its content and quiz, for managers and enrolled learners. */
   lesson(lessonId: string): AsyncResult<CourseLessonView>;
@@ -281,9 +281,15 @@ export interface Courses<F extends object = Record<never, never>> {
    * Enrolls the caller, or `userId` with `courses.enroll`, in a published
    * course. A cancelled enrollment starts again with its completed lessons.
    */
-  enroll(courseId: string, userId?: string): AsyncResult<CourseLearner>;
+  enroll(input: {
+    courseId: string;
+    userId?: string | undefined;
+  }): AsyncResult<CourseLearner>;
   /** Cancels an active enrollment; its progress stays. */
-  unenroll(courseId: string, userId?: string): AsyncResult<CourseLearner>;
+  unenroll(input: {
+    courseId: string;
+    userId?: string | undefined;
+  }): AsyncResult<CourseLearner>;
   /** Records that the caller opened a lesson. */
   start(lessonId: string): AsyncResult<LessonProgress>;
   /** Marks a content or video lesson done for the caller. */
@@ -294,20 +300,20 @@ export interface Courses<F extends object = Record<never, never>> {
    * Submits answers to a quiz lesson. The database grades them; a passed
    * submission completes the lesson.
    */
-  submitQuiz(
-    lessonId: string,
-    answers: Readonly<Record<string, unknown>>,
-  ): AsyncResult<CourseQuizResult>;
+  submitQuiz(input: {
+    lessonId: string;
+    answers: Readonly<Record<string, unknown>>;
+  }): AsyncResult<CourseQuizResult>;
   /** The caller's progress, or another user's; `null` when not enrolled. */
-  progress(
-    courseId: string,
-    userId?: string,
-  ): AsyncResult<CourseLearner | null>;
+  progress(input: {
+    courseId: string;
+    userId?: string | undefined;
+  }): AsyncResult<CourseLearner | null>;
   /** The course's learners, most recently changed first. */
-  learners(
-    courseId: string,
-    filter?: CourseLearnersFilter,
-  ): AsyncResult<readonly CourseLearner[]>;
+  learners(input: {
+    courseId: string;
+    filter?: CourseLearnersFilter | undefined;
+  }): AsyncResult<readonly CourseLearner[]>;
   /** Checks a certificate by its code; `null` for an unknown code. */
   verifyCertificate(code: string): AsyncResult<CourseCertificateCheck | null>;
   /** Revokes a certificate; `false` when it already was. */
@@ -624,7 +630,7 @@ export function createCourses<
       call("course_outline", { course_id: courseId }, outlineOf).andThen(
         fields.row,
       ),
-    saveModule: (courseId, module) =>
+    saveModule: ({ courseId, module }) =>
       call(
         "save_course_module",
         { course_id: courseId, module: definedOf(module) },
@@ -636,7 +642,7 @@ export function createCourses<
         { module_id: moduleId },
         (value) => value === true,
       ),
-    saveLesson: (courseId, lesson) =>
+    saveLesson: ({ courseId, lesson }) =>
       call(
         "save_course_lesson",
         { course_id: courseId, lesson: definedOf(lesson) },
@@ -650,13 +656,13 @@ export function createCourses<
       ),
     lesson: (lessonId) =>
       call("course_lesson", { lesson_id: lessonId }, lessonViewOf),
-    enroll: (courseId, userId) =>
+    enroll: ({ courseId, userId }) =>
       call(
         "enroll_in_course",
         { course_id: courseId, user_id: userId ?? null },
         learner("enroll_in_course"),
       ),
-    unenroll: (courseId, userId) =>
+    unenroll: ({ courseId, userId }) =>
       call(
         "unenroll_from_course",
         { course_id: courseId, user_id: userId ?? null },
@@ -678,7 +684,7 @@ export function createCourses<
         { lesson_id: lessonId, done: false },
         learner("complete_course_lesson"),
       ),
-    submitQuiz: (lessonId, answers) =>
+    submitQuiz: ({ lessonId, answers }) =>
       call("submit_course_quiz", { lesson_id: lessonId, answers }, (value) => {
         const row = recordOf(value, "submit_course_quiz");
 
@@ -688,14 +694,14 @@ export function createCourses<
           progress: learnerOf(row["progress"], "submit_course_quiz"),
         };
       }),
-    progress: (courseId, userId) =>
+    progress: ({ courseId, userId }) =>
       call(
         "course_progress",
         { course_id: courseId, user_id: userId ?? null },
         (value) =>
           isRecord(value) ? learnerOf(value, "course_progress") : null,
       ),
-    learners: (courseId, filter = {}) =>
+    learners: ({ courseId, filter = {} }) =>
       call(
         "list_course_learners",
         {

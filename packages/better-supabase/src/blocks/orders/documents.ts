@@ -57,18 +57,18 @@ export interface OrderDocuments<F extends object = Record<never, never>> {
    * A `confirmed` order from lines, outside the cart: its stock is allocated
    * (or backordered) and taken when a fulfillment ships.
    */
-  fromLines(
-    organizationId: string,
-    input: OrderFromLinesInput,
-  ): AsyncResult<OrderFromDocument<F>>;
+  fromLines(input: {
+    organizationId: string;
+    input: OrderFromLinesInput;
+  }): AsyncResult<OrderFromDocument<F>>;
   /**
    * The order of an accepted quote, with the quote's lines and totals. Needs
    * the quotes block; a quote orders once.
    */
-  fromQuote(
-    quoteId: string,
-    input?: OrderDocumentInput,
-  ): AsyncResult<OrderFromDocument<F>>;
+  fromQuote(input: {
+    quoteId: string;
+    input?: OrderDocumentInput | undefined;
+  }): AsyncResult<OrderFromDocument<F>>;
   /**
    * A draft inventory purchase order for a drop ship: the order's lines from
    * one supplier, delivered to the order's shipping address (`shipTo`). Needs
@@ -76,9 +76,10 @@ export interface OrderDocuments<F extends object = Record<never, never>> {
    * with `PURCHASE_ORDER_SUPPLIER_BLOCKED`.
    */
   purchaseOrderFromOrder(
-    orderId: string,
-    supplier: { readonly type?: string; readonly id: string },
-    options?: {
+    input: {
+      orderId: string;
+      supplier: { readonly type?: string; readonly id: string };
+    } & {
       /** Where the purchase order books. Default: the order's location. */
       readonly locationId?: string;
     },
@@ -132,7 +133,7 @@ export function orderDocuments<F extends object>(
   });
 
   return {
-    fromLines: (organizationId, input) =>
+    fromLines: ({ organizationId, input }) =>
       created(
         call(
           "order_from_lines",
@@ -150,7 +151,7 @@ export function orderDocuments<F extends object>(
           of("order_from_lines"),
         ),
       ),
-    purchaseOrderFromOrder: (orderId, supplier, options = {}) =>
+    purchaseOrderFromOrder: ({ orderId, supplier, ...options }) =>
       call(
         "purchase_order_from_order",
         {
@@ -165,7 +166,7 @@ export function orderDocuments<F extends object>(
           return { id: textOf(row["id"]), orderId: textOf(row["orderId"]) };
         },
       ),
-    fromQuote: (quoteId, input = {}) =>
+    fromQuote: ({ quoteId, input = {} }) =>
       created(
         call(
           "order_from_quote",

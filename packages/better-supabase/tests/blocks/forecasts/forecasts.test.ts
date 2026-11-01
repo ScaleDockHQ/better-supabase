@@ -66,12 +66,15 @@ describe("createForecasts", () => {
     });
 
     const snapshot = await createForecasts({ transport })
-      .snapshot("org", {
-        since: Temporal.PlainDate.from("2026-01-01"),
-        until: Temporal.PlainDate.from("2026-03-31"),
-        currency: "EUR",
-        target: eur(2000n),
-        pipelineId: "p1",
+      .snapshot({
+        organizationId: "org",
+        period: {
+          since: Temporal.PlainDate.from("2026-01-01"),
+          until: Temporal.PlainDate.from("2026-03-31"),
+          currency: "EUR",
+          target: eur(2000n),
+          pipelineId: "p1",
+        },
       })
       .orThrow();
 
@@ -108,11 +111,14 @@ describe("createForecasts", () => {
   it("refuses a target in another currency before calling", async () => {
     const { transport, call } = fakeTransport({});
 
-    const result = await createForecasts({ transport }).snapshot("org", {
-      since: Temporal.PlainDate.from("2026-01-01"),
-      until: Temporal.PlainDate.from("2026-03-31"),
-      currency: "EUR",
-      target: money(1n, "USD"),
+    const result = await createForecasts({ transport }).snapshot({
+      organizationId: "org",
+      period: {
+        since: Temporal.PlainDate.from("2026-01-01"),
+        until: Temporal.PlainDate.from("2026-03-31"),
+        currency: "EUR",
+        target: money(1n, "USD"),
+      },
     });
 
     expect(result.ok).toBe(false);
@@ -131,10 +137,13 @@ describe("createForecasts", () => {
     });
 
     const snapshot = await createForecasts({ transport })
-      .snapshot("org", {
-        since: Temporal.PlainDate.from("2026-01-01"),
-        until: Temporal.PlainDate.from("2026-03-31"),
-        currency: "EUR",
+      .snapshot({
+        organizationId: "org",
+        period: {
+          since: Temporal.PlainDate.from("2026-01-01"),
+          until: Temporal.PlainDate.from("2026-03-31"),
+          currency: "EUR",
+        },
       })
       .orThrow();
 
@@ -159,7 +168,7 @@ describe("createForecasts", () => {
 
     const forecasts = createForecasts({ transport });
 
-    const all = await forecasts.list("org").orThrow();
+    const all = await forecasts.list({ organizationId: "org" }).orThrow();
 
     expect(all.map((snapshot) => snapshot.id)).toEqual(["f2", "f1"]);
     expect(call.mock.lastCall?.[2]).toEqual({
@@ -171,11 +180,14 @@ describe("createForecasts", () => {
     });
 
     await forecasts
-      .list("org", {
-        pipelineId: "p1",
-        since: Temporal.PlainDate.from("2026-01-01"),
-        until: Temporal.PlainDate.from("2026-03-31"),
-        limit: 5,
+      .list({
+        organizationId: "org",
+        filter: {
+          pipelineId: "p1",
+          since: Temporal.PlainDate.from("2026-01-01"),
+          until: Temporal.PlainDate.from("2026-03-31"),
+          limit: 5,
+        },
       })
       .orThrow();
     expect(call.mock.lastCall?.[2]).toEqual({
@@ -260,7 +272,7 @@ describe("createForecasts", () => {
     });
 
     const changes = await createForecasts({ transport })
-      .changes("f1", "f2")
+      .changes({ fromSnapshotId: "f1", toSnapshotId: "f2" })
       .orThrow();
 
     expect(call).toHaveBeenCalledWith("better_supabase", "forecast_changes", {
@@ -295,7 +307,9 @@ describe("createForecasts", () => {
     const logger = { debug() {}, info() {}, warn() {}, error() {} };
 
     expect(
-      await createForecasts({ transport, logger }).list("org").orThrow(),
+      await createForecasts({ transport, logger })
+        .list({ organizationId: "org" })
+        .orThrow(),
     ).toEqual([]);
   });
 

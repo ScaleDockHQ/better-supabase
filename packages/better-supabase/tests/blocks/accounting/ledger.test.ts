@@ -38,7 +38,10 @@ describe("accounting ledger client", () => {
 
     const books = createAccounting({ transport: t });
     const locked = await books.lockPeriod("p1").orThrow();
-    const unlocked = await books.unlockPeriod("p1", "late invoice").orThrow();
+
+    const unlocked = await books
+      .unlockPeriod({ periodId: "p1", reason: "late invoice" })
+      .orThrow();
 
     expect(locked.status).toBe("locked");
     expect(unlocked.status).toBe("closed");
@@ -74,13 +77,20 @@ describe("accounting ledger client", () => {
     const books = createAccounting({ transport: t });
 
     const saved = await books
-      .saveOpeningBalances("org-1", 2026, [
-        { accountCode: "1300", partyId: "c1", amount: 12_100n },
-      ])
+      .saveOpeningBalances({
+        organizationId: "org-1",
+        fiscalYear: 2026,
+        balances: [{ accountCode: "1300", partyId: "c1", amount: 12_100n }],
+      })
       .orThrow();
 
-    const listed = await books.openingBalances("org-1", 2026).orThrow();
-    const entry = await books.postOpeningBalances("org-1", 2026).orThrow();
+    const listed = await books
+      .openingBalances({ organizationId: "org-1", fiscalYear: 2026 })
+      .orThrow();
+
+    const entry = await books
+      .postOpeningBalances({ organizationId: "org-1", fiscalYear: 2026 })
+      .orThrow();
 
     expect(saved[0]?.amount).toBe(12_100n);
     expect(listed.total).toBe(0n);
@@ -162,10 +172,12 @@ describe("accounting ledger client", () => {
     const books = createAccounting({ transport: t });
 
     const columns = await books
-      .columnBalance("org-1", { rollup: true })
+      .columnBalance({ organizationId: "org-1", rollup: true })
       .orThrow();
 
-    const listing = await books.journalListing("org-1").orThrow();
+    const listing = await books
+      .journalListing({ organizationId: "org-1" })
+      .orThrow();
 
     expect(columns.accounts[0]?.closingDebit).toBe(130n);
     expect(columns.totals.debit).toBe(50n);
@@ -254,7 +266,8 @@ describe("accounting ledger client", () => {
     const books = createAccounting({ transport: t });
 
     const columns = await books
-      .columnBalance("org-1", {
+      .columnBalance({
+        organizationId: "org-1",
         since: Temporal.PlainDate.from("2026-01-01"),
         until: Temporal.PlainDate.from("2026-12-31"),
         dimensions: { project: "x" },
@@ -262,7 +275,8 @@ describe("accounting ledger client", () => {
       .orThrow();
 
     const listing = await books
-      .journalListing("org-1", {
+      .journalListing({
+        organizationId: "org-1",
         since: Temporal.PlainDate.from("2026-01-01"),
         until: Temporal.PlainDate.from("2026-12-31"),
         journalId: "j1",
@@ -270,11 +284,19 @@ describe("accounting ledger client", () => {
       .orThrow();
 
     const saved = await books
-      .saveOpeningBalances("org-1", 2026, [{ accountId: "a1", amount: -5n }])
+      .saveOpeningBalances({
+        organizationId: "org-1",
+        fiscalYear: 2026,
+        balances: [{ accountId: "a1", amount: -5n }],
+      })
       .orThrow();
 
     await books
-      .postOpeningBalances("org-1", 2026, { journalId: "j9" })
+      .postOpeningBalances({
+        organizationId: "org-1",
+        fiscalYear: 2026,
+        journalId: "j9",
+      })
       .orThrow();
 
     const line = listing.journals[0]?.entries[0]?.lines[0];
@@ -311,9 +333,9 @@ describe("accounting ledger client", () => {
       }),
     });
 
-    const result = await createAccounting({ transport: t }).periodTrialBalance(
-      "p1",
-    );
+    const result = await createAccounting({ transport: t }).periodTrialBalance({
+      periodId: "p1",
+    });
 
     expect(t.calls[0]).toEqual([
       "accounting_period_trial_balance",

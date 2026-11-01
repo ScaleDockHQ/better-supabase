@@ -104,10 +104,10 @@ export interface DrivePreviewService {
    * `undefined` when there is nothing to render: a folder, a file not uploaded
    * or not scanned yet, or a type the renderer skips.
    */
-  render(
-    nodeId: string,
-    signal?: AbortSignal,
-  ): AsyncResult<DrivePreviews | undefined>;
+  render(input: {
+    nodeId: string;
+    signal?: AbortSignal | undefined;
+  }): AsyncResult<DrivePreviews | undefined>;
   /**
    * A jobs handler: `queue.work('drive-previews', previews.job)`. A deleted
    * node completes the job; other errors throw so the queue retries.
@@ -194,10 +194,13 @@ export function createDrivePreviews(
     });
   };
 
-  const render = (
-    nodeId: string,
-    signal?: AbortSignal,
-  ): AsyncResult<DrivePreviews | undefined> =>
+  const render = ({
+    nodeId,
+    signal,
+  }: {
+    nodeId: string;
+    signal?: AbortSignal | undefined;
+  }): AsyncResult<DrivePreviews | undefined> =>
     call("drive_get", { node: nodeId }, (value) =>
       nodeOf(value, "drive_get"),
     ).andThen((node) => {
@@ -246,7 +249,7 @@ export function createDrivePreviews(
     nodeId: string,
     signal?: AbortSignal,
   ): Promise<void> => {
-    const rendered = render(nodeId, signal);
+    const rendered = render({ nodeId, signal });
     const result = await rendered;
 
     if (result.ok || nodeGone(result.error)) {

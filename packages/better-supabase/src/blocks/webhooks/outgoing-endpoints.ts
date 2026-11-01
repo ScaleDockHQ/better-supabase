@@ -96,7 +96,7 @@ export function endpointMethods(
   return {
     createEndpoint: ({ tenant, ...input }) =>
       db("create_webhook_endpoint", { tenant, fields: fieldsOf(input) }, one),
-    updateEndpoint: (endpointId, changes) =>
+    updateEndpoint: ({ endpointId, changes }) =>
       db(
         "update_webhook_endpoint",
         { endpoint: endpointId, fields: fieldsOf(changes) },

@@ -56,10 +56,12 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
 
       const { id: organization } = await organizations
         .create({
-          name: "Acme",
-          slug: `acme-${USERS.owner.slice(0, 8)}`,
-          website: "https://acme.test",
-          default_currency: "USD",
+          attributes: {
+            name: "Acme",
+            slug: `acme-${USERS.owner.slice(0, 8)}`,
+            website: "https://acme.test",
+            default_currency: "USD",
+          },
         })
         .orThrow();
 
@@ -83,7 +85,11 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
         ),
       ).toEqual([{ kind: "organization.created", source: "domain" }]);
       expect(
-        (await organizations.create({ name: "App", slug: "app" })).error,
+        (
+          await organizations.create({
+            attributes: { name: "App", slug: "app" },
+          })
+        ).error,
       ).toMatchObject({ hint: "ORGANIZATION_SLUG_RESERVED" });
 
       const invite = async (who: "admin" | "member", role: string) =>
@@ -107,7 +113,12 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
 
       // The member's permissions come from the provider, never from the role name.
       expect(
-        (await organizations.update(organization, { name: "Mine" })).error,
+        (
+          await organizations.update({
+            organizationId: organization,
+            attributes: { name: "Mine" },
+          })
+        ).error,
       ).toMatchObject({ hint: "ORGANIZATION_FORBIDDEN" });
       expect(
         await s.value(
@@ -159,7 +170,10 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
 
       await s.as("owner");
       await organizations
-        .transferOwnership(organization, USERS.admin)
+        .transferOwnership({
+          organizationId: organization,
+          newOwnerId: USERS.admin,
+        })
         .orThrow();
       expect(await roleOf(organization, USERS.admin)).toBe(ROLES.owner);
       expect(await roleOf(organization, USERS.owner)).toBe(ROLES.admin);

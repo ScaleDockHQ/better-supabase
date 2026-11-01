@@ -35,7 +35,9 @@ export function RevokeAdmin() {
           accessibilityRole="button"
           accessibilityHint="Makes this admin a member"
           disabled={pending.includes(member.userId)}
-          onPress={() => void setRole(member.userId, "member")}
+          onPress={() =>
+            void setRole({ userId: member.userId, role: "member" })
+          }
           style={{ paddingVertical: 8 }}
         >
           <Text style={{ color: "#b91c1c" }} numberOfLines={1}>

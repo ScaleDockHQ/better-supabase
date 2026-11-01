@@ -668,9 +668,9 @@ describe.skipIf(!live)("webhooks-out", () => {
       });
 
       const updated = await webhooks
-        .updateEndpoint(created.id, {
-          eventTypes: ["deal.lost"],
-          enabled: false,
+        .updateEndpoint({
+          endpointId: created.id,
+          changes: { eventTypes: ["deal.lost"], enabled: false },
         })
         .orThrow();
 

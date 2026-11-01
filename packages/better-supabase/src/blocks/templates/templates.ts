@@ -233,10 +233,10 @@ export interface Templates<F extends object = Record<never, never>> {
    * The organization's templates and the system ones (only those with `null`),
    * defaults first.
    */
-  list(
-    organizationId: string | null,
-    filter?: { readonly type?: string; readonly language?: string },
-  ): AsyncResult<readonly Template<F>[]>;
+  list(input: {
+    organizationId: string | null;
+    filter?: { readonly type?: string; readonly language?: string } | undefined;
+  }): AsyncResult<readonly Template<F>[]>;
   /**
    * With its newest published version and its draft; `undefined` when the
    * caller can't read it.
@@ -247,13 +247,19 @@ export interface Templates<F extends object = Record<never, never>> {
    * Makes it the default for its organization, type and language (or stops it
    * being one).
    */
-  setDefault(id: string, isDefault?: boolean): AsyncResult<boolean>;
+  setDefault(input: {
+    id: string;
+    isDefault?: boolean | undefined;
+  }): AsyncResult<boolean>;
   /**
    * Copies the newest published version of a system template (or one of the
    * organization's) into a new template there, published as version 1, with its
    * workflow attachments.
    */
-  fork(source: string, organizationId: string): AsyncResult<Template<F>>;
+  fork(input: {
+    source: string;
+    organizationId: string;
+  }): AsyncResult<Template<F>>;
   /**
    * Upserts the system templates by key and publishes a new version of each
    * whose body changed. Service role. Returns how many it published.
@@ -261,7 +267,10 @@ export interface Templates<F extends object = Record<never, never>> {
   sync(starters: readonly TemplateStarter[]): AsyncResult<number>;
   readonly versions: {
     /** Saves the draft: updates the open one, or opens the next version. */
-    upsert(template: string, body: unknown): AsyncResult<TemplateVersion>;
+    upsert(input: {
+      template: string;
+      body: unknown;
+    }): AsyncResult<TemplateVersion>;
     publish(template: string): AsyncResult<TemplateVersion>;
     /** Newest first, without bodies. */
     list(template: string): AsyncResult<readonly TemplateVersion[]>;
@@ -269,7 +278,10 @@ export interface Templates<F extends object = Record<never, never>> {
   /** Needs the workflow-editor module. */
   readonly workflows: {
     attach(input: TemplateWorkflowInput): AsyncResult<TemplateWorkflow>;
-    detach(template: string, definition: string): AsyncResult<boolean>;
+    detach(input: {
+      template: string;
+      definition: string;
+    }): AsyncResult<boolean>;
     list(template: string): AsyncResult<readonly TemplateWorkflow[]>;
   };
   /**
@@ -277,21 +289,20 @@ export interface Templates<F extends object = Record<never, never>> {
    * type's `apply`, records the application and starts the attached workflows
    * on the new record. `templates.apply` in `into`.
    */
-  apply(
-    template: string,
-    options: ApplyOptions,
-  ): AsyncResult<TemplateApplyResult>;
+  apply(input: {
+    template: string;
+    options: ApplyOptions;
+  }): AsyncResult<TemplateApplyResult>;
   /** Templates applied on a recurrence rule. Needs the reminders module. */
   readonly recurring: TemplateRecurring;
   readonly applications: {
     /** Newest first, at most 200. */
-    list(
-      organizationId: string,
-      filter?: {
-        readonly template?: string;
-        readonly subject?: TemplateSubject;
-      },
-    ): AsyncResult<readonly TemplateApplication[]>;
+    list(input: {
+      organizationId: string;
+      filter?:
+        | { readonly template?: string; readonly subject?: TemplateSubject }
+        | undefined;
+    }): AsyncResult<readonly TemplateApplication[]>;
   };
 }
 
@@ -536,7 +547,7 @@ export function createTemplates<
           (value) => templateOf(recordOf(value, "save_template")),
         ).andThen(fields.row);
       }),
-    list: (organizationId, filter = {}) =>
+    list: ({ organizationId, filter = {} }) =>
       call(
         "templates_list",
         {
@@ -549,13 +560,13 @@ export function createTemplates<
     get,
     remove: (id) =>
       call("remove_template", { template_id: id }, (value) => value === true),
-    setDefault: (id, isDefault = true) =>
+    setDefault: ({ id, isDefault = true }) =>
       call(
         "set_default_template",
         { template_id: id, on_default: isDefault },
         (value) => value === true,
       ),
-    fork: (source, organizationId) =>
+    fork: ({ source, organizationId }) =>
       call("fork_template", { source, tenant: organizationId }, (value) =>
         templateOf(recordOf(value, "fork_template")),
       ).andThen(fields.row),
@@ -602,7 +613,7 @@ export function createTemplates<
         return call("sync_templates", { starters: rows }, Number);
       }),
     versions: {
-      upsert: (template, body) =>
+      upsert: ({ template, body }) =>
         AsyncResult.from(async () => {
           const hasBodySchemas = Object.values(types).some(
             (type) => type.body !== undefined,
@@ -655,7 +666,7 @@ export function createTemplates<
           },
           (value) => workflowOf(recordOf(value, "attach_template_workflow")),
         ),
-      detach: (template, definition) =>
+      detach: ({ template, definition }) =>
         call(
           "detach_template_workflow",
           { template_id: template, definition },
@@ -666,7 +677,7 @@ export function createTemplates<
           recordsOf(value, "template_workflows_list").map(workflowOf),
         ),
     },
-    apply: (template, applyOptions) =>
+    apply: ({ template, options: applyOptions }) =>
       call(
         "template_apply_target",
         { template_id: template, tenant: applyOptions.into },
@@ -760,11 +771,12 @@ export function createTemplates<
       }),
     recurring: createTemplateRecurring({
       call,
-      apply: (template, applyOptions) => hooked.apply(template, applyOptions),
+      apply: (template, applyOptions) =>
+        hooked.apply({ template, options: applyOptions }),
       ...(options.jobs === undefined ? {} : { jobs: options.jobs }),
     }),
     applications: {
-      list: (organizationId, filter = {}) =>
+      list: ({ organizationId, filter = {} }) =>
         call(
           "template_applications_list",
           {

@@ -193,7 +193,9 @@ describe.skipIf(!live)("workflows module", () => {
         started: 0,
       });
 
-      expect(await workflows.schedules.pause(schedule.id).orThrow()).toBe(true);
+      expect(
+        await workflows.schedules.pause({ id: schedule.id }).orThrow(),
+      ).toBe(true);
       expect(await workflows.schedules.remove(schedule.id).orThrow()).toBe(
         true,
       );
@@ -211,19 +213,29 @@ describe.skipIf(!live)("workflows module", () => {
       const workflows = createWorkflows({ transport: sqlTransport(s.sql) });
 
       expect(
-        await workflows.semaphores.acquire("api", "a", { max: 1 }).orThrow(),
+        await workflows.semaphores
+          .acquire({ key: "api", holder: "a", options: { max: 1 } })
+          .orThrow(),
       ).toBe(true);
       expect(
-        await workflows.semaphores.acquire("api", "a", { max: 1 }).orThrow(),
+        await workflows.semaphores
+          .acquire({ key: "api", holder: "a", options: { max: 1 } })
+          .orThrow(),
       ).toBe(true);
       expect(
-        await workflows.semaphores.acquire("api", "b", { max: 1 }).orThrow(),
+        await workflows.semaphores
+          .acquire({ key: "api", holder: "b", options: { max: 1 } })
+          .orThrow(),
       ).toBe(false);
-      expect(await workflows.semaphores.release("api", "a").orThrow()).toBe(
-        true,
-      );
       expect(
-        await workflows.semaphores.acquire("api", "b", { max: 1 }).orThrow(),
+        await workflows.semaphores
+          .release({ key: "api", holder: "a" })
+          .orThrow(),
+      ).toBe(true);
+      expect(
+        await workflows.semaphores
+          .acquire({ key: "api", holder: "b", options: { max: 1 } })
+          .orThrow(),
       ).toBe(true);
 
       const started: string[] = [];

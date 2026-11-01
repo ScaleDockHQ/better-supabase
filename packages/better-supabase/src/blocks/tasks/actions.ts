@@ -23,11 +23,11 @@ export interface TaskFromConversationClients extends ConversionClients {
     };
   };
   readonly tasks: {
-    create(
-      organizationId: string,
-      input: WorkItemInput,
-      assigneeIds?: readonly string[],
-    ): PromiseLike<Result<WorkItem>>;
+    create(input: {
+      organizationId: string;
+      input: WorkItemInput;
+      assigneeIds?: readonly string[] | undefined;
+    }): PromiseLike<Result<WorkItem>>;
   };
 }
 
@@ -92,13 +92,14 @@ export function taskFromConversationAction(
     create: async (input, { call, clients, tenant }) => {
       const assignee = call.context.payload?.["assigneeId"];
 
-      const created = await clients.tasks.create(
-        tenant,
+      const created = await clients.tasks.create({
+        organizationId: tenant,
         input,
-        options.assign !== false && typeof assignee === "string"
-          ? [assignee]
-          : undefined,
-      );
+        assigneeIds:
+          options.assign !== false && typeof assignee === "string"
+            ? [assignee]
+            : undefined,
+      });
 
       return created.ok ? ok({ id: created.data.id }) : created;
     },

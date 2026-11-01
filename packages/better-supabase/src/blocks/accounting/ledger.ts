@@ -143,48 +143,50 @@ export interface AccountingLedger {
    */
   lockPeriod(periodId: string): AsyncResult<AccountingPeriod>;
   /** Puts a locked period back to closed. Needs `accounting.close` and a reason. */
-  unlockPeriod(periodId: string, reason: string): AsyncResult<AccountingPeriod>;
+  unlockPeriod(input: {
+    periodId: string;
+    reason: string;
+  }): AsyncResult<AccountingPeriod>;
   /**
    * Saves a fiscal year's opening balances, each replacing the row of its
    * account and party. Needs `accounting.manage`.
    */
-  saveOpeningBalances(
-    organizationId: string,
-    fiscalYear: number,
-    balances: readonly OpeningBalanceInput[],
-  ): AsyncResult<readonly OpeningBalance[]>;
+  saveOpeningBalances(input: {
+    organizationId: string;
+    fiscalYear: number;
+    balances: readonly OpeningBalanceInput[];
+  }): AsyncResult<readonly OpeningBalance[]>;
   /** The imported and carried balances of a fiscal year. */
-  openingBalances(
-    organizationId: string,
-    fiscalYear: number,
-  ): AsyncResult<OpeningBalances>;
+  openingBalances(input: {
+    organizationId: string;
+    fiscalYear: number;
+  }): AsyncResult<OpeningBalances>;
   /**
    * Posts the imported balances as one entry on the year's first day. They must
    * add up to zero; posting twice returns the same entry. Needs
    * `accounting.post`.
    */
   postOpeningBalances(
-    organizationId: string,
-    fiscalYear: number,
-    options?: { readonly journalId?: string },
+    input: { organizationId: string; fiscalYear: number } & {
+      readonly journalId?: string;
+    },
   ): AsyncResult<AccountingEntry>;
   /** The trial balance of one period. */
   periodTrialBalance(
-    periodId: string,
-    options?: { readonly dimensions?: Readonly<Record<string, string>> },
+    input: { periodId: string } & {
+      readonly dimensions?: Readonly<Record<string, string>>;
+    },
   ): AsyncResult<TrialBalance>;
   /**
    * Per account the opening, period and closing balance as debit and credit
    * columns.
    */
   columnBalance(
-    organizationId: string,
-    options?: ColumnBalanceOptions,
+    input: { organizationId: string } & ColumnBalanceOptions,
   ): AsyncResult<ColumnBalance>;
   /** The posted entries with their lines, per journal. */
   journalListing(
-    organizationId: string,
-    options?: JournalListingOptions,
+    input: { organizationId: string } & JournalListingOptions,
   ): AsyncResult<JournalListing>;
 }
 
@@ -294,13 +296,13 @@ export function accountingLedger(call: BlockCall): AccountingLedger {
       call("lock_accounting_period", { period_id: periodId }, (value) =>
         periodOf(value, "lock_accounting_period"),
       ),
-    unlockPeriod: (periodId, reason) =>
+    unlockPeriod: ({ periodId, reason }) =>
       call(
         "unlock_accounting_period",
         { period_id: periodId, reason },
         (value) => periodOf(value, "unlock_accounting_period"),
       ),
-    saveOpeningBalances: (organizationId, fiscalYear, balances) =>
+    saveOpeningBalances: ({ organizationId, fiscalYear, balances }) =>
       call(
         "save_accounting_opening_balances",
         {
@@ -315,7 +317,7 @@ export function accountingLedger(call: BlockCall): AccountingLedger {
             "save_accounting_opening_balances",
           ).map(openingOf),
       ),
-    openingBalances: (organizationId, fiscalYear) =>
+    openingBalances: ({ organizationId, fiscalYear }) =>
       call(
         "list_accounting_opening_balances",
         { tenant: organizationId, fiscal_year: fiscalYear },
@@ -334,7 +336,7 @@ export function accountingLedger(call: BlockCall): AccountingLedger {
           };
         },
       ),
-    postOpeningBalances: (organizationId, fiscalYear, options = {}) =>
+    postOpeningBalances: ({ organizationId, fiscalYear, ...options }) =>
       call(
         "post_accounting_opening_balances",
         {
@@ -344,13 +346,13 @@ export function accountingLedger(call: BlockCall): AccountingLedger {
         },
         (value) => entryOf(value, "post_accounting_opening_balances"),
       ),
-    periodTrialBalance: (periodId, options = {}) =>
+    periodTrialBalance: ({ periodId, ...options }) =>
       call(
         "accounting_period_trial_balance",
         { period_id: periodId, dimensions: options.dimensions ?? {} },
         (value) => trialBalanceOf(value, "accounting_period_trial_balance"),
       ),
-    columnBalance: (organizationId, options = {}) =>
+    columnBalance: ({ organizationId, ...options }) =>
       call(
         "accounting_column_balance",
         {
@@ -362,7 +364,7 @@ export function accountingLedger(call: BlockCall): AccountingLedger {
         },
         (value) => columnBalanceOf(value, "accounting_column_balance"),
       ),
-    journalListing: (organizationId, options = {}) =>
+    journalListing: ({ organizationId, ...options }) =>
       call(
         "accounting_journal_listing",
         {

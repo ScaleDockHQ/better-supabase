@@ -36,7 +36,10 @@ export const createTemplate = bsb.action(
       return saved;
     }
 
-    const draft = await templates.versions.upsert(saved.data.id, { status });
+    const draft = await templates.versions.upsert({
+      template: saved.data.id,
+      body: { status },
+    });
 
     if (!draft.ok) {
       return draft;
@@ -65,7 +68,10 @@ export const applyTemplate = bsb.action(
   async ({ templateId, name }, { tenant, supabase, db, auth }) => {
     const applied = await customerTemplates(supabase, (row) =>
       db.customers.create(row, { select: ["id"] }),
-    ).apply(templateId, { into: tenant, values: { name } });
+    ).apply({
+      template: templateId,
+      options: { into: tenant, values: { name } },
+    });
 
     if (!applied.ok) {
       return applied;

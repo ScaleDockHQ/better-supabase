@@ -48,7 +48,11 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
       const retention = createRetention({ transport: sqlTransport(s.sql) });
 
       const policy = await retention
-        .setPolicy("outbox", "60 days", { organizationId: b })
+        .setPolicy({
+          kind: "outbox",
+          keep: "60 days",
+          scope: { organizationId: b },
+        })
         .orThrow();
 
       expect(policy).toMatchObject({
@@ -57,7 +61,7 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
         organizationId: b,
         plan: undefined,
       });
-      await retention.setPolicy("outbox", "1 day").orThrow();
+      await retention.setPolicy({ kind: "outbox", keep: "1 day" }).orThrow();
       expect(await retention.policies("outbox").orThrow()).toHaveLength(2);
 
       // The global policy beats the 30-day default for a, and b keeps 60 days.
@@ -92,10 +96,16 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
       ).toHaveLength(1);
       expect(await s.value<number>("better_supabase.purge_outbox()")).toBe(1);
       expect(
-        await retention.removePolicy("outbox", { organizationId: b }).orThrow(),
+        await retention
+          .removePolicy({ kind: "outbox", scope: { organizationId: b } })
+          .orThrow(),
       ).toBe(true);
-      expect(await retention.removePolicy("outbox").orThrow()).toBe(true);
-      expect(await retention.removePolicy("outbox").orThrow()).toBe(false);
+      expect(await retention.removePolicy({ kind: "outbox" }).orThrow()).toBe(
+        true,
+      );
+      expect(await retention.removePolicy({ kind: "outbox" }).orThrow()).toBe(
+        false,
+      );
     } finally {
       await s.close();
     }
@@ -124,13 +134,17 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
       const purge = "better_supabase.purge_audit_log(older_than => '1 year')";
       expect(await s.value<number>(purge)).toBe(0);
       await retention
-        .setPolicy("audit", "5 years", { organizationId: tenant })
+        .setPolicy({
+          kind: "audit",
+          keep: "5 years",
+          scope: { organizationId: tenant },
+        })
         .orThrow();
       const [active] = await retention.holds().orThrow();
       await retention.releaseHold(active!.id).orThrow();
       expect(await s.value<number>(purge)).toBe(0);
       await retention
-        .removePolicy("audit", { organizationId: tenant })
+        .removePolicy({ kind: "audit", scope: { organizationId: tenant } })
         .orThrow();
       expect(await s.value<number>(purge)).toBe(1);
 

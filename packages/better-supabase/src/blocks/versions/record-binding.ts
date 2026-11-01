@@ -46,7 +46,7 @@ export const versionsBinding: RecordBinding<
   permissions: { read: "read", write: "create" },
   module: "versions",
   load: (client: Versions, subject, options?: VersionListOptions) =>
-    client.list(subject, options),
+    client.list({ subject, ...options }),
   timeline: (versions) =>
     versions.map((version) => ({
       id: version.id,
@@ -60,10 +60,10 @@ export const versionsBinding: RecordBinding<
     snapshot: {
       input: versionInput,
       run: (client: Versions, subject, input: VersionInput) =>
-        client.snapshot(
+        client.snapshot({
           subject,
-          input.label === undefined ? {} : { label: input.label },
-        ),
+          input: input.label === undefined ? {} : { label: input.label },
+        }),
     },
     restore: {
       permission: "restore",

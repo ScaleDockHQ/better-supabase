@@ -85,7 +85,7 @@ describe.skipIf(!live)("posts module in Postgres", () => {
     ).toBe("POST_FORBIDDEN");
 
     const post = await mine
-      .create(board, { title: "Dark mode", body: "Please" })
+      .create({ boardId: board, input: { title: "Dark mode", body: "Please" } })
       .orThrow();
 
     dark = post.id;
@@ -98,11 +98,16 @@ describe.skipIf(!live)("posts module in Postgres", () => {
       votes: { score: 0, up: 0, down: 0, vote: 0 },
     });
     expect(
-      (await mine.create(crypto.randomUUID(), { title: "x" })).error?.hint,
+      (
+        await mine.create({
+          boardId: crypto.randomUUID(),
+          input: { title: "x" },
+        })
+      ).error?.hint,
     ).toBe("POST_BOARD_NOT_FOUND");
 
     const updated = await mine
-      .update(dark, { body: "Please add it" })
+      .update({ postId: dark, input: { body: "Please add it" } })
       .orThrow();
 
     expect(updated.body).toBe("Please add it");
@@ -123,48 +128,59 @@ describe.skipIf(!live)("posts module in Postgres", () => {
     await session.as(member);
     const mine = postsFor(tenant);
 
-    expect(await mine.vote(dark, 1).orThrow()).toEqual({
+    expect(await mine.vote({ postId: dark, value: 1 }).orThrow()).toEqual({
       score: 1,
       up: 1,
       down: 0,
       vote: 1,
     });
     await createComments({ transport: sqlTransport(session.sql), tenant })
-      .create({ type: "post", id: dark }, { body: "Agreed" })
+      .create({
+        subject: { type: "post", id: dark },
+        comment: { body: "Agreed" },
+      })
       .orThrow();
     expect((await mine.get(dark).orThrow())?.replyCount).toBe(1);
-    expect((await mine.setState(dark, { pinned: true })).error?.hint).toBe(
-      "POST_FORBIDDEN",
-    );
+    expect(
+      (await mine.setState({ postId: dark, input: { pinned: true } })).error
+        ?.hint,
+    ).toBe("POST_FORBIDDEN");
 
     await session.as(owner);
     const posts = postsFor(tenant);
 
-    expect((await posts.vote(dark, 1).orThrow()).score).toBe(2);
+    expect((await posts.vote({ postId: dark, value: 1 }).orThrow()).score).toBe(
+      2,
+    );
 
     const planned = await posts
-      .setState(dark, { status: "planned", locked: true })
+      .setState({ postId: dark, input: { status: "planned", locked: true } })
       .orThrow();
 
     expect(planned.status).toBe("planned");
     expect(planned.lockedAt).toBeDefined();
 
     await session.as(member);
-    expect((await mine.update(dark, { title: "Dark theme" })).ok).toBe(false);
+    expect(
+      (await mine.update({ postId: dark, input: { title: "Dark theme" } })).ok,
+    ).toBe(false);
   });
 
   it("merges duplicates and follows the moderation item", async () => {
     await session.as(member);
 
     const night = await postsFor(tenant)
-      .create(board, { title: "Night theme" })
+      .create({ boardId: board, input: { title: "Night theme" } })
       .orThrow();
 
-    await postsFor(tenant).vote(night.id, 1).orThrow();
+    await postsFor(tenant).vote({ postId: night.id, value: 1 }).orThrow();
 
     await session.as(owner);
     const posts = postsFor(tenant);
-    const merged = await posts.merge(night.id, dark).orThrow();
+
+    const merged = await posts
+      .merge({ sourceId: night.id, targetId: dark })
+      .orThrow();
 
     expect(merged.votes.score).toBe(2);
     expect((await posts.get(night.id).orThrow())?.mergedIntoId).toBe(dark);
@@ -181,14 +197,14 @@ describe.skipIf(!live)("posts module in Postgres", () => {
     const item = await moderation.item({ type: "post", id: dark }).orThrow();
 
     await moderation
-      .decide(item!.id, "hide", { reason: "off topic" })
+      .decide({ itemId: item!.id, decision: "hide", reason: "off topic" })
       .orThrow();
     expect((await posts.get(dark).orThrow())?.moderation).toBe("hidden");
 
     await session.as(member);
-    expect((await postsFor(tenant).vote(dark, -1)).error?.hint).toBe(
-      "POST_NOT_FOUND",
-    );
+    expect(
+      (await postsFor(tenant).vote({ postId: dark, value: -1 })).error?.hint,
+    ).toBe("POST_NOT_FOUND");
   });
 
   it("keeps other organizations and banned members out", async () => {
@@ -198,15 +214,16 @@ describe.skipIf(!live)("posts module in Postgres", () => {
 
     await session.as(owner);
     await createModeration({ transport: sqlTransport(session.sql), tenant })
-      .ban(member.id, { reason: "spam" })
+      .ban({ userId: member.id, reason: "spam" })
       .orThrow();
 
     await session.as(member);
     const mine = postsFor(tenant);
 
-    expect((await mine.create(board, { title: "Again" })).error?.hint).toBe(
-      "POST_FORBIDDEN",
-    );
+    expect(
+      (await mine.create({ boardId: board, input: { title: "Again" } })).error
+        ?.hint,
+    ).toBe("POST_FORBIDDEN");
 
     const night = (await mine.list({ merged: true }).orThrow()).find(
       (post) => post.mine && post.id !== dark,

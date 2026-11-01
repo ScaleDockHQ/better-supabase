@@ -41,13 +41,18 @@ describe.skipIf(!live)("project management recipe", () => {
 
       await s.as(owner);
       await stateMachine
-        .transition({ type: "task", id: subjectId }, "doing")
+        .transition({ subject: { type: "task", id: subjectId }, to: "doing" })
         .orThrow();
       await comments
-        .create({ type: "task", id: subjectId }, { body: "Picked this up" })
+        .create({
+          subject: { type: "task", id: subjectId },
+          comment: { body: "Picked this up" },
+        })
         .orThrow();
       expect(
-        await stateMachine.transition({ type: "task", id: subjectId }, "todo", {
+        await stateMachine.transition({
+          subject: { type: "task", id: subjectId },
+          to: "todo",
           reason: "blocked",
         }),
       ).toMatchObject({ ok: true });
@@ -92,7 +97,7 @@ describe.skipIf(!live)("project management recipe", () => {
       await s.as(owner);
 
       const reminder = await reminders
-        .upsert({ type: "task", id: subjectId }, 60)
+        .upsert({ subject: { type: "task", id: subjectId }, when: 60 })
         .orThrow();
 
       await s.service();

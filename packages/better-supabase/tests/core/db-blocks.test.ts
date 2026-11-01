@@ -313,7 +313,9 @@ describe("block instances and the Db's storage", () => {
     signed.length = 0;
     const db = withFiles.connect(files, { tenant: "org-1" }, { storage });
 
-    const { signedUrl } = await db.$blocks.attachments.download("a1").orThrow();
+    const { signedUrl } = await db.$blocks.attachments
+      .download({ id: "a1" })
+      .orThrow();
 
     expect(signedUrl).toBe("https://s/attachments/org-1/attachments/a1");
     expect(signed).toEqual([["attachments", "org-1/attachments/a1", 300]]);

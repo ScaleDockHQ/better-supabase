@@ -165,7 +165,7 @@ describe("createEnrollments", () => {
     const party = { type: "party", id: "pa1" };
 
     const enrollment = await enrollments
-      .enroll("customer-onboarding", party)
+      .enroll({ program: "customer-onboarding", subject: party })
       .orThrow();
 
     expect(enrollment).toMatchObject({
@@ -178,7 +178,9 @@ describe("createEnrollments", () => {
     });
     expect(enrollment).not.toHaveProperty("completedAt");
     expect(
-      await enrollments.enrollment("customer-onboarding", party).orThrow(),
+      await enrollments
+        .enrollment({ program: "customer-onboarding", subject: party })
+        .orThrow(),
     ).toBeNull();
 
     const list = await enrollments
@@ -253,12 +255,20 @@ describe("createEnrollments", () => {
 
     const enrollments = createEnrollments({ transport: fake.transport });
 
-    expect((await enrollments.complete("e1", "import").orThrow()).status).toBe(
-      "completed",
-    );
-    expect((await enrollments.reset("e1", "import").orThrow()).status).toBe(
-      "active",
-    );
+    expect(
+      (
+        await enrollments
+          .complete({ enrollmentId: "e1", step: "import" })
+          .orThrow()
+      ).status,
+    ).toBe("completed");
+    expect(
+      (
+        await enrollments
+          .reset({ enrollmentId: "e1", step: "import" })
+          .orThrow()
+      ).status,
+    ).toBe("active");
 
     const cancelled = await enrollments.cancel("e1").orThrow();
 
@@ -330,7 +340,7 @@ describe("createEnrollments", () => {
     const party = { type: "party", id: "pa1" };
 
     const plain = await enrollments
-      .enroll("customer-onboarding", party)
+      .enroll({ program: "customer-onboarding", subject: party })
       .orThrow();
 
     expect(plain.schedule).toEqual([]);
@@ -338,8 +348,10 @@ describe("createEnrollments", () => {
     expect(plain).not.toHaveProperty("endsAt");
 
     const dated = await enrollments
-      .enroll("customer-onboarding", party, {
-        endsAt: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+      .enroll({
+        program: "customer-onboarding",
+        subject: party,
+        dates: { endsAt: Temporal.Instant.from("2026-11-01T00:00:00Z") },
       })
       .orThrow();
 
@@ -352,7 +364,10 @@ describe("createEnrollments", () => {
     expect(dated.schedule[1]).not.toHaveProperty("dueAt");
 
     await enrollments
-      .setDates("e1", { startsAt: Temporal.Instant.from(AT), endsAt: null })
+      .setDates({
+        enrollmentId: "e1",
+        dates: { startsAt: Temporal.Instant.from(AT), endsAt: null },
+      })
       .orThrow();
 
     expect(fake.calls.slice(2)).toEqual([
@@ -485,7 +500,12 @@ describe("createEnrollments", () => {
 
     expect((await enrollments.programs()).ok).toBe(false);
     expect(
-      (await enrollments.enroll("p", { type: "party", id: "pa1" })).ok,
+      (
+        await enrollments.enroll({
+          program: "p",
+          subject: { type: "party", id: "pa1" },
+        })
+      ).ok,
     ).toBe(false);
     expect((await enrollments.list()).ok).toBe(false);
     expect(fake.calls).toEqual([]);

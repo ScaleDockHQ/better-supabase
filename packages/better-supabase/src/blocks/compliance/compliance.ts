@@ -269,61 +269,61 @@ export interface PolicyListOptions {
 
 export interface Compliance<F extends object = Record<never, never>> {
   /** Needs `compliance.manage`. */
-  saveFramework(
-    organizationId: string,
-    input: ControlFrameworkInput,
-  ): AsyncResult<ControlFramework>;
+  saveFramework(input: {
+    organizationId: string;
+    input: ControlFrameworkInput;
+  }): AsyncResult<ControlFramework>;
   frameworks(organizationId: string): AsyncResult<readonly ControlFramework[]>;
   /** Needs `compliance.manage`. */
   saveControl(input: ControlInput<F>): AsyncResult<Control<F>>;
   getControl(controlId: string): AsyncResult<ControlDetail<F>>;
   /** By framework and code. */
   controls(
-    organizationId: string,
-    options?: ControlListOptions,
+    input: { organizationId: string } & ControlListOptions,
   ): AsyncResult<readonly Control<F>[]>;
   /** Needs `compliance.collect`, or being the evidence task's assignee. */
-  addEvidence(
-    controlId: string,
-    input: ControlEvidenceInput,
-  ): AsyncResult<ControlEvidence>;
+  addEvidence(input: {
+    controlId: string;
+    input: ControlEvidenceInput;
+  }): AsyncResult<ControlEvidence>;
   /** Needs `compliance.manage`. */
   removeEvidence(evidenceId: string): AsyncResult<ControlEvidence>;
   /** Needs `compliance.manage`. */
-  saveEvidenceTask(
-    controlId: string,
-    input: EvidenceTaskInput,
-  ): AsyncResult<EvidenceTask>;
+  saveEvidenceTask(input: {
+    controlId: string;
+    input: EvidenceTaskInput;
+  }): AsyncResult<EvidenceTask>;
   /** The earliest due first. */
   evidenceTasks(
-    organizationId: string,
-    options?: EvidenceTaskListOptions,
+    input: { organizationId: string } & EvidenceTaskListOptions,
   ): AsyncResult<readonly EvidenceTask[]>;
   /** The status rollup per framework. */
-  posture(
-    organizationId: string,
-    frameworkId?: string,
-  ): AsyncResult<readonly ControlPosture[]>;
+  posture(input: {
+    organizationId: string;
+    frameworkId?: string | undefined;
+  }): AsyncResult<readonly ControlPosture[]>;
   /**
    * Reports each overdue evidence task once per lapse; returns how many.
    * Service role only; run it daily.
    */
   notifyOverdue(): AsyncResult<number>;
   /** Needs `compliance.manage`. */
-  savePolicy(organizationId: string, input: PolicyInput): AsyncResult<Policy>;
+  savePolicy(input: {
+    organizationId: string;
+    input: PolicyInput;
+  }): AsyncResult<Policy>;
   /**
    * Publishes the policy's text as a new frozen version. Members acknowledge
    * each published version again. Needs `compliance.manage`.
    */
-  publishPolicy(
-    policyId: string,
-    content: Readonly<Record<string, unknown>>,
-    label?: string,
-  ): AsyncResult<Policy>;
+  publishPolicy(input: {
+    policyId: string;
+    content: Readonly<Record<string, unknown>>;
+    label?: string | undefined;
+  }): AsyncResult<Policy>;
   archivePolicy(policyId: string): AsyncResult<Policy>;
   policies(
-    organizationId: string,
-    options?: PolicyListOptions,
+    input: { organizationId: string } & PolicyListOptions,
   ): AsyncResult<readonly Policy[]>;
 }
 
@@ -520,7 +520,7 @@ export function createCompliance<
     );
 
   const client: Compliance<F> = {
-    saveFramework: (organizationId, input) =>
+    saveFramework: ({ organizationId, input }) =>
       call(
         "save_control_framework",
         {
@@ -564,7 +564,7 @@ export function createCompliance<
       call("get_control", { control_id: controlId }, (value) =>
         detailOf(value, "get_control"),
       ).andThen(fields.row),
-    controls: (organizationId, list = {}) =>
+    controls: ({ organizationId, ...list }) =>
       call(
         "list_controls",
         {
@@ -576,7 +576,7 @@ export function createCompliance<
         },
         many("list_controls", controlOf),
       ).andThen(fields.rows),
-    addEvidence: (controlId, input) =>
+    addEvidence: ({ controlId, input }) =>
       call(
         "add_control_evidence",
         {
@@ -592,7 +592,7 @@ export function createCompliance<
       call("remove_control_evidence", { evidence_id: evidenceId }, (value) =>
         evidenceOf(value, "remove_control_evidence"),
       ),
-    saveEvidenceTask: (controlId, input) =>
+    saveEvidenceTask: ({ controlId, input }) =>
       call(
         "save_evidence_task",
         {
@@ -606,7 +606,7 @@ export function createCompliance<
         },
         (value) => taskOf(value, "save_evidence_task"),
       ),
-    evidenceTasks: (organizationId, list = {}) =>
+    evidenceTasks: ({ organizationId, ...list }) =>
       call(
         "list_evidence_tasks",
         {
@@ -617,14 +617,14 @@ export function createCompliance<
         },
         many("list_evidence_tasks", taskOf),
       ),
-    posture: (organizationId, frameworkId) =>
+    posture: ({ organizationId, frameworkId }) =>
       call(
         "control_posture",
         { tenant: organizationId, framework_id: frameworkId ?? null },
         many("control_posture", postureOf),
       ),
     notifyOverdue: () => call("notify_overdue_evidence_tasks", {}, numberOf),
-    savePolicy: (organizationId, input) =>
+    savePolicy: ({ organizationId, input }) =>
       call(
         "save_compliance_policy",
         {
@@ -637,7 +637,7 @@ export function createCompliance<
         },
         policy("save_compliance_policy"),
       ),
-    publishPolicy: (policyId, content, label) =>
+    publishPolicy: ({ policyId, content, label }) =>
       call(
         "publish_compliance_policy",
         { policy_id: policyId, content, label: label ?? null },
@@ -649,7 +649,7 @@ export function createCompliance<
         { policy_id: policyId },
         policy("archive_compliance_policy"),
       ),
-    policies: (organizationId, list = {}) =>
+    policies: ({ organizationId, ...list }) =>
       listPolicies(organizationId, list.includeArchived ?? false),
   };
 

@@ -72,15 +72,24 @@ export interface Channels {
   /** Creates a channel and its conversation; the caller owns it. */
   create(channel: NewChannel): AsyncResult<Channel>;
   /** The manage key or the channel's owner. */
-  update(channelId: string, change: ChannelChange): AsyncResult<Channel>;
+  update(input: {
+    channelId: string;
+    change: ChannelChange;
+  }): AsyncResult<Channel>;
   /** Archives the channel (read-only from then on) or restores it. */
-  archive(channelId: string, archived?: boolean): AsyncResult<boolean>;
+  archive(input: {
+    channelId: string;
+    archived?: boolean | undefined;
+  }): AsyncResult<boolean>;
   /** The caller joins a public channel. */
   join(channelId: string): AsyncResult<boolean>;
   /** The caller leaves; `false` when they weren't a member. */
   leave(channelId: string): AsyncResult<boolean>;
   /** Adds members; returns how many joined. */
-  invite(channelId: string, userIds: readonly string[]): AsyncResult<number>;
+  invite(input: {
+    channelId: string;
+    userIds: readonly string[];
+  }): AsyncResult<number>;
   /**
    * The caller's channels by name, with `browse` every channel they can see, or
    * with `on` the channels linked to that record that the caller can see.
@@ -179,9 +188,9 @@ export function createChannels(options: ChannelsOptions): Channels {
           channelOf,
         ),
       ),
-    update: (channelId, change) =>
+    update: ({ channelId, change }) =>
       call("update_channel", { channel: channelId, attrs: change }, channelOf),
-    archive: (channelId, archived = true) =>
+    archive: ({ channelId, archived = true }) =>
       call(
         "archive_channel",
         { channel: channelId, archived },
@@ -191,7 +200,7 @@ export function createChannels(options: ChannelsOptions): Channels {
       call("join_channel", { channel: channelId }, (value) => value === true),
     leave: (channelId) =>
       call("leave_channel", { channel: channelId }, (value) => value === true),
-    invite: (channelId, userIds) =>
+    invite: ({ channelId, userIds }) =>
       call(
         "invite_to_channel",
         { channel: channelId, users: [...userIds] },

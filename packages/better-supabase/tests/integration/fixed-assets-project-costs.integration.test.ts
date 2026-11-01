@@ -67,8 +67,12 @@ describe.skipIf(!live)("fixed assets and project costing", () => {
       const books = createAccounting({ transport });
 
       await s.as(owner);
-      await books.setup(tenant, { functionalCurrency: "EUR" }).orThrow();
-      await books.openFiscalYear(tenant, 2026).orThrow();
+      await books
+        .setup({ organizationId: tenant, input: { functionalCurrency: "EUR" } })
+        .orThrow();
+      await books
+        .openFiscalYear({ organizationId: tenant, fiscalYear: 2026 })
+        .orThrow();
 
       const { id } = await assets
         .createAsset({ kind: "van", name: "Van" })
@@ -76,19 +80,25 @@ describe.skipIf(!live)("fixed assets and project costing", () => {
 
       expect(
         hint(
-          await assets.updateAsset(id, {
-            acquisitionCost: eur(12_000n),
-            depreciationMethod: "straight_line",
+          await assets.updateAsset({
+            assetId: id,
+            patch: {
+              acquisitionCost: eur(12_000n),
+              depreciationMethod: "straight_line",
+            },
           }),
         ),
       ).toBe("ASSETS_DEPRECIATION_INVALID");
 
       const booked = await assets
-        .updateAsset(id, {
-          acquisitionCost: eur(12_000n),
-          acquiredOn: day("2026-01-15"),
-          usefulLifeMonths: 12,
-          depreciationMethod: "straight_line",
+        .updateAsset({
+          assetId: id,
+          patch: {
+            acquisitionCost: eur(12_000n),
+            acquiredOn: day("2026-01-15"),
+            usefulLifeMonths: 12,
+            depreciationMethod: "straight_line",
+          },
         })
         .orThrow();
 
@@ -114,7 +124,7 @@ describe.skipIf(!live)("fixed assets and project costing", () => {
 
       await s.as(owner);
 
-      const months = await assets.depreciations(id).orThrow();
+      const months = await assets.depreciations({ assetId: id }).orThrow();
 
       expect(
         months.map((month) => [month.periodStart.toString(), month.amount]),
@@ -125,11 +135,19 @@ describe.skipIf(!live)("fixed assets and project costing", () => {
       ]);
       expect(months.every((month) => month.entryId !== undefined)).toBe(true);
       expect(
-        hint(await assets.updateAsset(id, { acquisitionCost: eur(9000n) })),
+        hint(
+          await assets.updateAsset({
+            assetId: id,
+            patch: { acquisitionCost: eur(9000n) },
+          }),
+        ),
       ).toBe("ASSETS_DEPRECIATION_STARTED");
 
       const disposed = await assets
-        .dispose(id, { on: day("2026-05-10"), proceeds: eur(9000n) })
+        .dispose({
+          assetId: id,
+          disposal: { on: day("2026-05-10"), proceeds: eur(9000n) },
+        })
         .orThrow();
 
       expect(disposed).toMatchObject({
@@ -139,9 +157,14 @@ describe.skipIf(!live)("fixed assets and project costing", () => {
         disposalAmount: eur(9000n),
       });
       expect(disposed.disposedOn?.toString()).toBe("2026-05-10");
-      expect(hint(await assets.dispose(id, { on: day("2026-06-01") }))).toBe(
-        "ASSETS_DISPOSED",
-      );
+      expect(
+        hint(
+          await assets.dispose({
+            assetId: id,
+            disposal: { on: day("2026-06-01") },
+          }),
+        ),
+      ).toBe("ASSETS_DISPOSED");
 
       await s.service();
 
@@ -207,15 +230,22 @@ describe.skipIf(!live)("fixed assets and project costing", () => {
       const tasks = createTasks({ transport });
 
       await s.as(owner);
-      await books.setup(tenant, { functionalCurrency: "EUR" }).orThrow();
-      await books.openFiscalYear(tenant, 2026).orThrow();
+      await books
+        .setup({ organizationId: tenant, input: { functionalCurrency: "EUR" } })
+        .orThrow();
+      await books
+        .openFiscalYear({ organizationId: tenant, fiscalYear: 2026 })
+        .orThrow();
 
       const project = await tasks
-        .saveProject(tenant, {
-          key: "apo",
-          name: "Apollo",
-          budget: eur(50_000n),
-          budgetHours: 10,
+        .saveProject({
+          organizationId: tenant,
+          project: {
+            key: "apo",
+            name: "Apollo",
+            budget: eur(50_000n),
+            budgetHours: 10,
+          },
         })
         .orThrow();
 
@@ -244,7 +274,10 @@ describe.skipIf(!live)("fixed assets and project costing", () => {
       ).toBe("CURRENCY_MISMATCH");
 
       const item = await tasks
-        .create(tenant, { title: "Design", projectId: project.id })
+        .create({
+          organizationId: tenant,
+          input: { title: "Design", projectId: project.id },
+        })
         .orThrow();
 
       const subject = { type: "task", id: item.id };

@@ -101,8 +101,12 @@ describe("the data contract", () => {
     const { call, transport } = recording(true);
     const tags = createTags({ transport, tenant: "o" });
 
-    expect(await tags.attach(DEAL, "t1").orThrow()).toBe(true);
-    expect(await tags.detach(DEAL, "t1").orThrow()).toBe(true);
+    expect(await tags.attach({ record: DEAL, tagId: "t1" }).orThrow()).toBe(
+      true,
+    );
+    expect(await tags.detach({ record: DEAL, tagId: "t1" }).orThrow()).toBe(
+      true,
+    );
     expect(call.mock.calls.map(([, fn, args]) => [fn, args])).toEqual([
       [
         "tag",

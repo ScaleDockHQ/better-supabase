@@ -113,7 +113,10 @@ describe.skipIf(!live)("service principals", () => {
       const { admin: admin1, member, tenant, principals } = await setUp(s);
 
       const created = await principals
-        .create(tenant, "Automations", "member", {
+        .create({
+          organizationId: tenant,
+          name: "Automations",
+          role: "member",
           default: true,
           createdBy: admin1.id,
         })
@@ -132,7 +135,10 @@ describe.skipIf(!live)("service principals", () => {
         "(select count(*)::int from auth.users)",
       );
 
-      const refused = await principals.create(tenant, "Bot", "admin", {
+      const refused = await principals.create({
+        organizationId: tenant,
+        name: "Bot",
+        role: "admin",
         createdBy: member.id,
       });
 
@@ -175,7 +181,7 @@ describe.skipIf(!live)("service principals", () => {
       const direct = await createServiceAccounts({
         transport: sqlTransport(s.sql),
         admin: admin(s),
-      }).setRole(created.id, "admin");
+      }).setRole({ id: created.id, role: "admin" });
 
       expect(!direct.ok && direct.error.kind).toBe("forbidden");
     } finally {
@@ -195,21 +201,26 @@ describe.skipIf(!live)("service principals", () => {
         .orThrow();
 
       const draft = await builder.versions
-        .upsert(definition.id, CRM_GRAPH)
+        .upsert({ definition: definition.id, graph: CRM_GRAPH })
         .orThrow();
 
-      await builder.versions.publish(draft.id).orThrow();
+      await builder.versions.publish({ version: draft.id }).orThrow();
 
-      const none = await builder.versions.runAs(draft.id);
+      const none = await builder.versions.runAs({ version: draft.id });
       expect(!none.ok && none.error.message).toContain(
         "no default service principal",
       );
 
       const principal = await principals
-        .create(tenant, "Automations", "member", { default: true })
+        .create({
+          organizationId: tenant,
+          name: "Automations",
+          role: "member",
+          default: true,
+        })
         .orThrow();
 
-      const limited = await builder.versions.runAs(draft.id);
+      const limited = await builder.versions.runAs({ version: draft.id });
       expect(!limited.ok && limited.error).toMatchObject({
         kind: "forbidden",
         hint: "WORKFLOW_PUBLISHER_REVOKED",
@@ -218,8 +229,10 @@ describe.skipIf(!live)("service principals", () => {
         "service principal no longer holds crm.read",
       );
 
-      await principals.setRole(principal.id, "reader").orThrow();
-      expect(await builder.versions.runAs(draft.id).orThrow()).toEqual({
+      await principals.setRole({ id: principal.id, role: "reader" }).orThrow();
+      expect(
+        await builder.versions.runAs({ version: draft.id }).orThrow(),
+      ).toEqual({
         role: "authenticated",
         sub: principal.id,
         tenant_id: tenant,
@@ -238,8 +251,10 @@ describe.skipIf(!live)("service principals", () => {
         ),
       ).toBe(false);
 
-      expect(await principals.disable(principal.id).orThrow()).toBe(true);
-      const disabled = await builder.versions.runAs(draft.id);
+      expect(await principals.disable({ id: principal.id }).orThrow()).toBe(
+        true,
+      );
+      const disabled = await builder.versions.runAs({ version: draft.id });
       expect(!disabled.ok && disabled.error.message).toContain(
         "no default service principal",
       );

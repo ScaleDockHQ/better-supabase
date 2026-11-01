@@ -140,10 +140,10 @@ describe("createCases", () => {
       .orThrow();
 
     const updated = await cases
-      .update("c2", { title: "Rude call", dueOn: null })
+      .update({ caseId: "c2", change: { title: "Rude call", dueOn: null } })
       .orThrow();
 
-    await cases.move("c2", { stageId: "s2" }).orThrow();
+    await cases.move({ caseId: "c2", to: { stageId: "s2" } }).orThrow();
 
     const refused = await cases.open({
       kind: "complaint",
@@ -198,28 +198,42 @@ describe("createCases", () => {
 
     const cases = createCases({ transport: t, tenant: "org-1" });
 
-    await cases.recordRootCause("c1", "No buffer stock").orThrow();
+    await cases
+      .recordRootCause({ caseId: "c1", rootCause: "No buffer stock" })
+      .orThrow();
 
     const created = await cases
-      .createAction("c1", {
-        type: "corrective",
-        title: "Add buffer stock",
-        dueAt: temporal().Instant.from(AT),
+      .createAction({
+        caseId: "c1",
+        input: {
+          type: "corrective",
+          title: "Add buffer stock",
+          dueAt: temporal().Instant.from(AT),
+        },
       })
       .orThrow();
 
     const linked = await cases
-      .linkAction("c1", "t2", "containment", { required: false })
+      .linkAction({
+        caseId: "c1",
+        taskId: "t2",
+        type: "containment",
+        required: false,
+      })
       .orThrow();
 
     await cases.removeAction("a2").orThrow();
     await cases
-      .recordEffectiveness("c1", true, { note: "No repeats" })
+      .recordEffectiveness({
+        caseId: "c1",
+        effective: true,
+        note: "No repeats",
+      })
       .orThrow();
     const blockers = await cases.blockers("c1").orThrow();
-    const closed = await cases.close("c1").orThrow();
-    await cases.reopen("c2", "Came back").orThrow();
-    const canceled = await cases.cancel("c2").orThrow();
+    const closed = await cases.close({ caseId: "c1" }).orThrow();
+    await cases.reopen({ caseId: "c2", reason: "Came back" }).orThrow();
+    const canceled = await cases.cancel({ caseId: "c2" }).orThrow();
 
     expect(created).toEqual({ actionId: "a1", taskId: "t1" });
     expect(linked).toEqual({ actionId: "a2", taskId: "t2" });
@@ -404,15 +418,20 @@ describe("createCases", () => {
 
     const [kind] = await cases.kinds().orThrow();
     await cases
-      .createAction("c1", {
-        type: "preventive",
-        title: "Train staff",
-        assigneeId: "u2",
+      .createAction({
+        caseId: "c1",
+        input: { type: "preventive", title: "Train staff", assigneeId: "u2" },
       })
       .orThrow();
-    await cases.linkAction("c1", "t2", "correction").orThrow();
-    const recorded = await cases.recordEffectiveness("c1", false).orThrow();
-    await cases.reopen("c2").orThrow();
+    await cases
+      .linkAction({ caseId: "c1", taskId: "t2", type: "correction" })
+      .orThrow();
+
+    const recorded = await cases
+      .recordEffectiveness({ caseId: "c1", effective: false })
+      .orThrow();
+
+    await cases.reopen({ caseId: "c2" }).orThrow();
 
     const [stat] = await cases
       .stats({

@@ -134,10 +134,9 @@ describe("createBlocks hooks", () => {
       { organizations: organizationsBlock, audit: auditBlock },
     );
 
-    expect(await blocks.organizations.create({ name: "Acme" })).toMatchObject({
-      ok: false,
-      error: { kind: "forbidden" },
-    });
+    expect(
+      await blocks.organizations.create({ attributes: { name: "Acme" } }),
+    ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
     expect(before).toHaveBeenCalledWith([{ name: "Acme" }], {
       block: "organizations",
       method: "create",
@@ -157,7 +156,10 @@ describe("createBlocks hooks", () => {
       },
     );
     const port = seen[0]?.["notifier"] as Notifier;
-    await port.send("x", { recipients: [], tenant: "o", key: "k", data: {} });
+    await port.send({
+      type: "x",
+      input: { recipients: [], tenant: "o", key: "k", data: {} },
+    });
     expect(before).toHaveBeenCalledOnce();
     expect(send).toHaveBeenCalledOnce();
   });
@@ -194,11 +196,11 @@ describe("createBlocks", () => {
       { "rate-limit": rateLimitBlock },
     );
 
-    expect(await blocks["rate-limit"].check("api", "key-1").orThrow()).toEqual({
-      allowed: true,
-      remaining: 4,
-      retryAfter: 0,
-    });
+    expect(
+      await blocks["rate-limit"]
+        .check({ scope: "api", key: "key-1" })
+        .orThrow(),
+    ).toEqual({ allowed: true, remaining: 4, retryAfter: 0 });
     expect(calls).toEqual([
       [
         "better_supabase",

@@ -103,8 +103,7 @@ export interface ApiKeys<F extends object = Record<never, never>> {
    * for `grace` (one day by default).
    */
   rotate(
-    id: string,
-    options?: { readonly grace?: Temporal.Duration },
+    input: { id: string } & { readonly grace?: Temporal.Duration },
   ): AsyncResult<CreatedApiKey<F>>;
   /**
    * Checks a presented token and counts the request. Needs a service transport.
@@ -430,7 +429,7 @@ export function createApiKeys<
       ).andThen((rows) => allWithFields(fields, rows)),
     revoke: (id) =>
       call("revoke_api_key", { key: id }, (value) => value === true),
-    rotate: (id, rotateOptions = {}) =>
+    rotate: ({ id, ...rotateOptions }) =>
       AsyncResult.from(async () => {
         const { id: next, token, hash } = await fresh();
 

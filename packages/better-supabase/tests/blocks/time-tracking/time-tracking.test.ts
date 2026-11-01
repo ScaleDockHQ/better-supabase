@@ -155,17 +155,20 @@ describe("time-tracking client", () => {
       })
       .orThrow();
     await time
-      .update("e1", {
-        startedAt: start,
-        endedAt: end,
-        subject: { type: "project", id: "zeus" },
-        billable: false,
-        rate: null,
-        note: null,
+      .update({
+        entryId: "e1",
+        patch: {
+          startedAt: start,
+          endedAt: end,
+          subject: { type: "project", id: "zeus" },
+          billable: false,
+          rate: null,
+          note: null,
+        },
       })
       .orThrow();
-    await time.update("e1", { subject: null }).orThrow();
-    await time.update("e1", {}).orThrow();
+    await time.update({ entryId: "e1", patch: { subject: null } }).orThrow();
+    await time.update({ entryId: "e1", patch: {} }).orThrow();
     await time.remove("e1").orThrow();
     const listed = await time.list().orThrow();
     expect(listed.map((entry) => entry.id)).toEqual(["e1", "e2"]);
@@ -290,7 +293,7 @@ describe("time-tracking client", () => {
     });
 
     const time = createTimeTracking({ transport: fake, tenant: "o" });
-    const sheet = await time.timesheet(WEEK).orThrow();
+    const sheet = await time.timesheet({ week: WEEK }).orThrow();
     expect(sheet.week.toString()).toBe("2026-10-05");
     expect(sheet.status).toBe("submitted");
     expect(sheet.entries.map((entry) => entry.id)).toEqual(["e1"]);
@@ -299,12 +302,12 @@ describe("time-tracking client", () => {
       billableSeconds: 7200,
       amounts: [money(20_000n, "EUR"), money(5000n, "USD")],
     });
-    await time.timesheet(WEEK, "u2").orThrow();
-    expect(await time.submit(WEEK).orThrow()).toMatchObject({
+    await time.timesheet({ week: WEEK, userId: "u2" }).orThrow();
+    expect(await time.submit({ week: WEEK }).orThrow()).toMatchObject({
       id: "t1",
       approvalId: "a1",
     });
-    await time.submit(WEEK, "Week 41").orThrow();
+    await time.submit({ week: WEEK, note: "Week 41" }).orThrow();
     const reopened = await time.reopen("t1").orThrow();
     expect(reopened.status).toBe("open");
     expect(reopened.approvalId).toBeUndefined();
@@ -355,7 +358,7 @@ describe("time-tracking client", () => {
     });
 
     const time = createTimeTracking({ transport: fake, tenant: "o" });
-    const sheet = await time.timesheet(WEEK).orThrow();
+    const sheet = await time.timesheet({ week: WEEK }).orThrow();
     expect(sheet.id).toBeUndefined();
     expect(sheet.totals).toEqual({
       seconds: 0,
@@ -368,7 +371,9 @@ describe("time-tracking client", () => {
     const fake = transport({ update_time_entry: () => ENTRY });
 
     const time = createTimeTracking({ transport: fake, tenant: "o" });
-    await time.update("e1", { rate: money(12_550n, "USD") }).orThrow();
+    await time
+      .update({ entryId: "e1", patch: { rate: money(12_550n, "USD") } })
+      .orThrow();
     expect(fake.calls).toEqual([
       [
         "update_time_entry",
@@ -378,7 +383,10 @@ describe("time-tracking client", () => {
 
     for (const result of [
       await time.start({ rate: { amount: 100n, currency: "XYZ" } }),
-      await time.update("e1", { rate: { amount: 100n, currency: "XYZ" } }),
+      await time.update({
+        entryId: "e1",
+        patch: { rate: { amount: 100n, currency: "XYZ" } },
+      }),
     ]) {
       expect(result.ok ? undefined : result.error).toMatchObject({
         kind: "invalid_request",
@@ -427,10 +435,10 @@ describe("time-tracking client", () => {
     await time.list({ employeeId: "emp1" }).orThrow();
 
     expect(
-      await time.timesheet(WEEK, undefined, "emp1").orThrow(),
+      await time.timesheet({ week: WEEK, employeeId: "emp1" }).orThrow(),
     ).toMatchObject({ employeeId: "emp1", userId: "" });
 
-    await time.submit(WEEK, undefined, "emp1").orThrow();
+    await time.submit({ week: WEEK, employeeId: "emp1" }).orThrow();
     await time.timesheets({ employeeId: "emp1" }).orThrow();
 
     expect(
@@ -454,7 +462,7 @@ describe("time-tracking client", () => {
     });
 
     const time = createTimeTracking({ transport: fake, tenant: "o" });
-    expect((await time.submit(WEEK)).ok).toBe(false);
+    expect((await time.submit({ week: WEEK })).ok).toBe(false);
   });
 
   it("fails without a tenant", async () => {
@@ -470,7 +478,7 @@ describe("time-tracking client", () => {
       await time.start(),
       await time.stop(),
       await time.list(),
-      await time.submit(WEEK),
+      await time.submit({ week: WEEK }),
     ]) {
       expect(result).toMatchObject({
         ok: false,

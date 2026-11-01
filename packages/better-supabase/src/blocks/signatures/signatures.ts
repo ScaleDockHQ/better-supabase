@@ -159,19 +159,21 @@ export interface SignatureRequestListOptions {
 
 export interface Signatures<F extends object = Record<never, never>> {
   request(input: SignatureRequestInput<F>): AsyncResult<SignatureRequest<F>>;
-  sign(
-    requestId: string,
-    input: SignInput,
-  ): AsyncResult<
+  sign(input: {
+    requestId: string;
+    input: SignInput;
+  }): AsyncResult<
     Signature & { readonly requestStatus: SignatureRequestStatus }
   >;
-  decline(requestId: string, reason?: string): AsyncResult<SignatureRequest<F>>;
+  decline(input: {
+    requestId: string;
+    reason?: string | undefined;
+  }): AsyncResult<SignatureRequest<F>>;
   cancel(requestId: string): AsyncResult<SignatureRequest<F>>;
   get(requestId: string): AsyncResult<SignatureRequestDetail<F>>;
   /** Newest first. */
   list(
-    organizationId: string,
-    options?: SignatureRequestListOptions,
+    input: { organizationId: string } & SignatureRequestListOptions,
   ): AsyncResult<readonly SignatureRequest<F>[]>;
 }
 
@@ -290,7 +292,7 @@ export function createSignatures<
             (value) => requestOf(value, "create_signature_request"),
           ).andThen(fields.row),
         ),
-    sign: (requestId, input) =>
+    sign: ({ requestId, input }) =>
       call(
         "sign_signature",
         {
@@ -309,7 +311,7 @@ export function createSignatures<
           ),
         }),
       ),
-    decline: (requestId, reason) =>
+    decline: ({ requestId, reason }) =>
       call(
         "decline_signature_request",
         { request_id: requestId, reason: reason ?? null },
@@ -334,7 +336,7 @@ export function createSignatures<
           ),
         };
       }).andThen(fields.row),
-    list: (organizationId, list = {}) =>
+    list: ({ organizationId, ...list }) =>
       call(
         "list_signature_requests",
         {

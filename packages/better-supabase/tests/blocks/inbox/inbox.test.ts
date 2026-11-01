@@ -126,29 +126,42 @@ describe("createInbox", () => {
     });
 
     const updated = await inbox.inboxes
-      .update("i1", {
-        name: "Help",
-        botMode: "paused",
-        address: "+31",
-        archived: true,
+      .update({
+        id: "i1",
+        patch: {
+          name: "Help",
+          botMode: "paused",
+          address: "+31",
+          archived: true,
+        },
       })
       .orThrow();
 
     expect(updated).toMatchObject({ channel: "other", botMode: "human" });
-    expect(await inbox.inboxes.setMember("i1", "u1", "lead").orThrow()).toBe(
-      true,
-    );
-    expect(await inbox.inboxes.setMember("i1", "u1", null).orThrow()).toBe(
-      true,
-    );
-    expect(await inbox.inboxes.createTeam("org", "Tier 1").orThrow()).toEqual({
-      id: "team1",
-      name: "Tier 1",
-    });
-    await inbox.inboxes.setTeamMember("team1", "u1").orThrow();
+    expect(
+      await inbox.inboxes
+        .setMember({ inboxId: "i1", userId: "u1", role: "lead" })
+        .orThrow(),
+    ).toBe(true);
+    expect(
+      await inbox.inboxes
+        .setMember({ inboxId: "i1", userId: "u1", role: null })
+        .orThrow(),
+    ).toBe(true);
+    expect(
+      await inbox.inboxes
+        .createTeam({ tenant: "org", name: "Tier 1" })
+        .orThrow(),
+    ).toEqual({ id: "team1", name: "Tier 1" });
+    await inbox.inboxes
+      .setTeamMember({ teamId: "team1", userId: "u1" })
+      .orThrow();
 
     const open = await inbox.conversations
-      .open("i1", { contact: { email: "ada@example.test" }, message: "hi" })
+      .open({
+        inboxId: "i1",
+        input: { contact: { email: "ada@example.test" }, message: "hi" },
+      })
       .orThrow();
 
     expect(open).toMatchObject({
@@ -157,37 +170,53 @@ describe("createInbox", () => {
       inbox: { channel: "whatsapp" },
       contact: { name: "Ada" },
     });
-    await inbox.conversations.open("i1", {
-      contact: "ct1",
-      message: { body: "hi", format: "markdown" },
+    await inbox.conversations.open({
+      inboxId: "i1",
+      input: { contact: "ct1", message: { body: "hi", format: "markdown" } },
     });
 
     const [listed] = await inbox.conversations
-      .list("org", {
-        status: "all",
-        assignee: "me",
-        cursor: { id: "c0", lastMessageAt: later },
-        limit: 10,
+      .list({
+        tenant: "org",
+        filter: {
+          status: "all",
+          assignee: "me",
+          cursor: { id: "c0", lastMessageAt: later },
+          limit: 10,
+        },
       })
       .orThrow();
 
     expect(listed?.lastMessageAt?.toString()).toBe(AT);
     expect(await inbox.conversations.get("c1").orThrow()).toBeNull();
     expect(
-      (await inbox.conversations.assign("c1", { assigneeId: "u1" }).orThrow())
-        .assigneeId,
+      (
+        await inbox.conversations
+          .assign({ conversationId: "c1", to: { assigneeId: "u1" } })
+          .orThrow()
+      ).assigneeId,
     ).toBe("u1");
-    await inbox.conversations.snooze("c1", later).orThrow();
+    await inbox.conversations
+      .snooze({ conversationId: "c1", until: later })
+      .orThrow();
     await inbox.conversations.resolve("c1").orThrow();
     await inbox.conversations.reopen("c1").orThrow();
     expect(
-      (await inbox.conversations.handoff("c1", "asked").orThrow()).botMode,
+      (
+        await inbox.conversations
+          .handoff({ conversationId: "c1", reason: "asked" })
+          .orThrow()
+      ).botMode,
     ).toBe("human");
-    await inbox.conversations.setBotMode("c1", "bot").orThrow();
+    await inbox.conversations
+      .setBotMode({ conversationId: "c1", mode: "bot" })
+      .orThrow();
     expect(
       (await inbox.conversations.markRead("c1").orThrow()).toString(),
     ).toBe(AT);
-    expect(await inbox.conversations.typing("c1").orThrow()).toBe(true);
+    expect(
+      await inbox.conversations.typing({ conversationId: "c1" }).orThrow(),
+    ).toBe(true);
     const [event] = await inbox.conversations.events("c1").orThrow();
     expect(event).toMatchObject({
       id: "1",
@@ -202,16 +231,23 @@ describe("createInbox", () => {
     });
 
     const sent = await inbox.messages
-      .send("c1", {
-        body: "**hi**",
-        format: "markdown",
-        attachments: ["f2"],
-        files: [
-          { url: "https://cdn.test/a.png", contentType: "image/png", size: 1 },
-        ],
-        mentions: ["u2"],
-        authorType: "bot",
-        deliveredByCaller: true,
+      .send({
+        conversationId: "c1",
+        input: {
+          body: "**hi**",
+          format: "markdown",
+          attachments: ["f2"],
+          files: [
+            {
+              url: "https://cdn.test/a.png",
+              contentType: "image/png",
+              size: 1,
+            },
+          ],
+          mentions: ["u2"],
+          authorType: "bot",
+          deliveredByCaller: true,
+        },
       })
       .orThrow();
 
@@ -220,10 +256,16 @@ describe("createInbox", () => {
       status: "sent",
       error: null,
     });
-    await inbox.messages.note("c1", "internal", { mentions: ["u2"] }).orThrow();
+    await inbox.messages
+      .note({
+        conversationId: "c1",
+        body: "internal",
+        input: { mentions: ["u2"] },
+      })
+      .orThrow();
 
     const [message] = await inbox.messages
-      .list("c1", { cursor: later, limit: 5 })
+      .list({ conversationId: "c1", cursor: later, limit: 5 })
       .orThrow();
 
     expect(message).toMatchObject({
@@ -237,18 +279,23 @@ describe("createInbox", () => {
     expect(await inbox.messages.get("m1").orThrow()).toBeNull();
     expect(
       (
-        await inbox.messages.edit("m1", "edited").orThrow()
+        await inbox.messages.edit({ messageId: "m1", body: "edited" }).orThrow()
       ).editedAt?.toString(),
     ).toBe(AT);
     await inbox.messages.remove("m1").orThrow();
     expect(
-      await inbox.messages.react("m1", "👍", { actor: "bot" }).orThrow(),
+      await inbox.messages
+        .react({ messageId: "m1", emoji: "👍", actor: "bot" })
+        .orThrow(),
     ).toEqual([
       { emoji: "👍", count: 2, reacted: false, actors: ["u1", "bot"] },
     ]);
     expect(
       await inbox.messages
-        .createUpload("c1", { name: "a.png", mimeType: "image/png", size: 1 })
+        .createUpload({
+          conversationId: "c1",
+          file: { name: "a.png", mimeType: "image/png", size: 1 },
+        })
         .orThrow(),
     ).toEqual({
       id: "f2",
@@ -279,7 +326,7 @@ describe("createInbox", () => {
     });
     expect(bare?.source).toEqual({});
     await inbox.files.stored("f3").orThrow();
-    await inbox.files.failed("f4", "404").orThrow();
+    await inbox.files.failed({ attachmentId: "f4", detail: "404" }).orThrow();
 
     await inbox.deliveries
       .record({ messageId: "m1", channel: "whatsapp", externalId: "w1" })
@@ -292,11 +339,14 @@ describe("createInbox", () => {
 
     expect(
       await inbox.templates
-        .upsert("org", {
-          name: "follow_up",
-          channel: "whatsapp",
-          body: "Hello {{1}}",
-          variables: ["1"],
+        .upsert({
+          tenant: "org",
+          input: {
+            name: "follow_up",
+            channel: "whatsapp",
+            body: "Hello {{1}}",
+            variables: ["1"],
+          },
         })
         .orThrow(),
     ).toMatchObject({ language: "en", variables: ["1"] });
@@ -317,7 +367,9 @@ describe("createInbox", () => {
         .store({ adapter: "whatsapp", body: "{}", headers: { a: "b" } })
         .orThrow(),
     ).toEqual({ id: "e1", duplicate: false });
-    await inbox.inbound.setStatus("e1", "failed", "boom").orThrow();
+    await inbox.inbound
+      .setStatus({ id: "e1", status: "failed", error: "boom" })
+      .orThrow();
 
     const [stored] = await inbox.inbound
       .pending({ limit: 5, maxAttempts: 3 })
@@ -388,7 +440,11 @@ describe("createInbox", () => {
     const at = Temporal.Instant.from(AT);
 
     const scheduled = await inbox.messages
-      .schedule("c1", { body: "Back tomorrow", format: "markdown" }, at)
+      .schedule({
+        conversationId: "c1",
+        input: { body: "Back tomorrow", format: "markdown" },
+        at,
+      })
       .orThrow();
 
     expect(scheduled).toMatchObject({
@@ -413,7 +469,7 @@ describe("createInbox", () => {
       replyTo: null,
     });
     await inbox.messages.scheduled("c1").orThrow();
-    await inbox.messages.reschedule("s1", at).orThrow();
+    await inbox.messages.reschedule({ scheduledId: "s1", at }).orThrow();
     await inbox.messages.cancelScheduled("s1").orThrow();
     expect(await inbox.publishDue(5).orThrow()).toBe(2);
     expect(call.mock.calls.map(([, fn, args]) => [fn, args])).toEqual([

@@ -48,9 +48,11 @@ describe("createOauthServer", () => {
 
     const registered = await oauth
       .registerClient({
-        name: "CLI",
-        grantTypes: ["urn:ietf:params:oauth:grant-type:device_code"],
-        tokenEndpointAuthMethod: "none",
+        metadata: {
+          name: "CLI",
+          grantTypes: ["urn:ietf:params:oauth:grant-type:device_code"],
+          tokenEndpointAuthMethod: "none",
+        },
       })
       .orThrow();
 
@@ -63,7 +65,7 @@ describe("createOauthServer", () => {
     const { call, transport } = fake({});
     const oauth = createOauthServer({ transport });
 
-    expect(await oauth.registerClient({})).toMatchObject({
+    expect(await oauth.registerClient({ metadata: {} })).toMatchObject({
       ok: false,
       error: { kind: "invalid_input" },
     });
@@ -79,10 +81,14 @@ describe("createOauthServer", () => {
     const oauth = createOauthServer({ transport });
 
     expect(
-      await oauth.verifyClient("bsc_client", "s3cret").orThrow(),
+      await oauth
+        .verifyClient({ clientId: "bsc_client", secret: "s3cret" })
+        .orThrow(),
     ).toMatchObject({ clientId: "bsc_client" });
     expect(
-      await oauth.verifyRegistrationToken("bsc_client", "tok").orThrow(),
+      await oauth
+        .verifyRegistrationToken({ clientId: "bsc_client", token: "tok" })
+        .orThrow(),
     ).toBe(true);
     expect(call.mock.calls[0]?.[2]).toEqual({
       client_id: "bsc_client",
@@ -181,14 +187,14 @@ describe("createOauthServer", () => {
     const oauth = createOauthServer({ transport });
 
     await oauth
-      .registerClient(
-        {
+      .registerClient({
+        metadata: {
           name: "CLI",
           grantTypes: ["urn:ietf:params:oauth:grant-type:device_code"],
           tokenEndpointAuthMethod: "none",
         },
-        { clientId: "acme-cli" },
-      )
+        clientId: "acme-cli",
+      })
       .orThrow();
 
     expect(call.mock.calls[0]?.[2]).toMatchObject({ client_id: "acme-cli" });
@@ -224,7 +230,9 @@ describe("createOauthServer", () => {
     );
 
     expect(
-      await oauth.pollDeviceCode("device", "bsc_client").orThrow(),
+      await oauth
+        .pollDeviceCode({ deviceCode: "device", clientId: "bsc_client" })
+        .orThrow(),
     ).toEqual({
       status: "ok",
       authorization: {
@@ -249,7 +257,7 @@ describe("createOauthServer", () => {
 
     expect(
       await oauth
-        .revokeToken("jti-1", expiresAt, { grantId: "grant-1" })
+        .revokeToken({ jti: "jti-1", expiresAt, grantId: "grant-1" })
         .orThrow(),
     ).toBe(true);
     expect(call.mock.calls[0]?.[2]).toEqual({
@@ -281,11 +289,16 @@ describe("createOauthServer", () => {
       name: "CLI",
     });
     expect(
-      await oauth.updateClient("bsc_client", { name: "New" }).orThrow(),
+      await oauth
+        .updateClient({ clientId: "bsc_client", metadata: { name: "New" } })
+        .orThrow(),
     ).toBeNull();
     expect(await oauth.deleteClient("bsc_client").orThrow()).toBe(true);
     expect(
-      await oauth.updateClient("bsc_client", { redirectUris: ["not a url"] }),
+      await oauth.updateClient({
+        clientId: "bsc_client",
+        metadata: { redirectUris: ["not a url"] },
+      }),
     ).toMatchObject({
       ok: false,
       error: { hint: "OAUTH_REDIRECT_URI_INVALID" },
@@ -297,7 +310,11 @@ describe("createOauthServer", () => {
     const { call, transport } = fake({ verify_oauth_client: null });
     const oauth = createOauthServer({ transport });
 
-    expect(await oauth.verifyClient("bsc_client", null).orThrow()).toBeNull();
+    expect(
+      await oauth
+        .verifyClient({ clientId: "bsc_client", secret: null })
+        .orThrow(),
+    ).toBeNull();
     expect(call.mock.calls[0]?.[2]).toEqual({
       client_id: "bsc_client",
       secret_hash: null,
@@ -335,9 +352,11 @@ describe("createOauthServer", () => {
       scope: "",
     });
     expect(await none.deviceRequest("BDFGHJKL").orThrow()).toBeNull();
-    expect(await oauth.denyDeviceCode("bdfghjkl", "user-1").orThrow()).toBe(
-      true,
-    );
+    expect(
+      await oauth
+        .denyDeviceCode({ userCode: "bdfghjkl", userId: "user-1" })
+        .orThrow(),
+    ).toBe(true);
     expect(call.mock.calls[1]?.[2]).toEqual({
       user_code: "BDFGHJKL",
       user_id: "user-1",
@@ -351,7 +370,9 @@ describe("createOauthServer", () => {
     );
 
     expect(
-      await oauth.pollDeviceCode("device", "bsc_client").orThrow(),
+      await oauth
+        .pollDeviceCode({ deviceCode: "device", clientId: "bsc_client" })
+        .orThrow(),
     ).toEqual({ status: "invalid_grant" });
   });
 
@@ -376,7 +397,9 @@ describe("createOauthServer", () => {
     const oauth = createOauthServer({ transport });
 
     expect(
-      await oauth.listGrants("user-1", { includeRevoked: true }).orThrow(),
+      await oauth
+        .listGrants({ userId: "user-1", includeRevoked: true })
+        .orThrow(),
     ).toMatchObject([{ id: "grant-1", clientName: "CLI", revokedAt: null }]);
     expect(call.mock.calls[0]?.[2]).toEqual({
       user_id: "user-1",

@@ -43,10 +43,10 @@ export interface AvailableSlotsActions {
    * Holds a slot, then loads the range again. With a token, `customer` needs a
    * name and an email.
    */
-  readonly hold: (
-    slot: BookingSlot,
-    customer?: BookingCustomer,
-  ) => Promise<PlacedBooking | undefined>;
+  readonly hold: (input: {
+    slot: BookingSlot;
+    customer?: BookingCustomer | undefined;
+  }) => Promise<PlacedBooking | undefined>;
   /** Shows another range; the current slots stay until its slots arrive. */
   readonly setRange: (range: VisibleRange) => void;
 }
@@ -85,15 +85,17 @@ export function createAvailableSlotsController(
 
         const result =
           token === undefined
-            ? await client.availableSlots(serviceId, span, {
+            ? await client.availableSlots({
+                serviceId,
+                range: span,
                 ...(tz === undefined ? {} : { tz }),
                 ...(resourceId === undefined ? {} : { resourceId }),
               })
-            : await client.public.slots(
+            : await client.public.slots({
                 token,
-                span,
-                tz === undefined ? {} : { tz },
-              );
+                range: span,
+                ...(tz === undefined ? {} : { tz }),
+              });
 
         if (request !== ticket) {
           return;
@@ -122,25 +124,25 @@ export function createAvailableSlotsController(
             range = next;
             void refresh();
           },
-          hold: async (slot, customer) => {
+          hold: async ({ slot, customer }) => {
             const result =
               token === undefined
-                ? await client.hold(
+                ? await client.hold({
                     serviceId,
-                    slot.resourceId,
-                    slot.startsAt,
+                    resourceId: slot.resourceId,
+                    startsAt: slot.startsAt,
                     customer,
-                  )
-                : await client.public.hold(
+                  })
+                : await client.public.hold({
                     token,
-                    slot.resourceId,
-                    slot.startsAt,
-                    {
+                    resourceId: slot.resourceId,
+                    startsAt: slot.startsAt,
+                    customer: {
                       ...customer,
                       name: customer?.name ?? "",
                       email: customer?.email ?? "",
                     },
-                  );
+                  });
 
             if (!result.ok) {
               state.set({ error: result.error });

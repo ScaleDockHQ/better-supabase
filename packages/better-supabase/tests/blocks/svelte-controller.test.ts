@@ -130,7 +130,7 @@ describe("useBlockController (Svelte)", () => {
       ),
     );
 
-    mounted.bound.actions.push({ v: 1, calls: [] }, "Moved");
+    mounted.bound.actions.push({ token: { v: 1, calls: [] }, label: "Moved" });
     expect(mounted.read().entries.map((entry) => entry.label)).toEqual([
       "Moved",
     ]);

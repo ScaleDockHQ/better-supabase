@@ -131,14 +131,20 @@ describe("saved views client", () => {
     });
 
     const views = createSavedViews({ transport: fake, schema: "app" });
-    const [view] = await views.list("org", "tasks").orThrow();
+
+    const [view] = await views
+      .list({ organizationId: "org", list: "tasks" })
+      .orThrow();
+
     expect(view).toMatchObject({
       scope: "tenant",
       kind: "board",
       preference: { isDefault: false, hidden: false, pinned: false },
     });
-    expect(await views.reorder("v1", { previous: "V" }).orThrow()).toBe("k");
-    expect(await views.setDefault("v1").orThrow()).toBe(true);
+    expect(
+      await views.reorder({ id: "v1", neighbors: { previous: "V" } }).orThrow(),
+    ).toBe("k");
+    expect(await views.setDefault({ id: "v1" }).orThrow()).toBe(true);
     expect(await views.delete("v1").orThrow()).toBe(true);
     expect(fake.calls.map((call) => call.fn)).toEqual([
       "list_views",
@@ -166,7 +172,11 @@ describe("saved views client", () => {
     });
 
     const views = createSavedViews({ transport: fake, schema: "app" });
-    const [view] = await views.list("org", "tasks").orThrow();
+
+    const [view] = await views
+      .list({ organizationId: "org", list: "tasks" })
+      .orThrow();
+
     expect(view?.preference).toEqual({
       isDefault: true,
       hidden: false,
@@ -186,7 +196,9 @@ describe("saved views client", () => {
 
     const views = createSavedViews({ transport: fake, schema: "app" });
     expect(
-      await views.setPreference("v1", { isDefault: true }).orThrow(),
+      await views
+        .setPreference({ id: "v1", preference: { isDefault: true } })
+        .orThrow(),
     ).toEqual({ isDefault: true, hidden: false, pinned: false });
     expect(fake.calls[0]).toEqual({
       fn: "set_view_preference",
@@ -197,13 +209,16 @@ describe("saved views client", () => {
   it("duplicates a view as a personal copy by default", async () => {
     const fake = transport({ duplicate_view: { id: "v2", rank: "k" } });
     const views = createSavedViews({ transport: fake, schema: "app" });
-    expect(await views.duplicate("v1").orThrow()).toEqual({
+    expect(await views.duplicate({ id: "v1" }).orThrow()).toEqual({
       id: "v2",
       rank: "k",
       fields: {},
     });
     await views
-      .duplicate("v1", { name: "Team copy", scope: "team", teamId: "t1" })
+      .duplicate({
+        id: "v1",
+        input: { name: "Team copy", scope: "team", teamId: "t1" },
+      })
       .orThrow();
     expect(fake.calls.map((call) => call.args)).toEqual([
       { view_id: "v1", scope: "user", name: null, team: null },

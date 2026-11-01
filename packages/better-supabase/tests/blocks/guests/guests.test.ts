@@ -233,11 +233,18 @@ describe("createGuests", () => {
     const guests = createGuests({ transport: fake.transport });
     const invoice = { type: "invoice", id: "i1" };
 
-    const grant = await guests.grant("g1", invoice).orThrow();
+    const grant = await guests
+      .grant({ guestId: "g1", subject: invoice })
+      .orThrow();
+
     await guests
-      .grant("g1", invoice, {
-        actions: ["comment", "upload"],
-        expiresAt: Temporal.Instant.from(LATER),
+      .grant({
+        guestId: "g1",
+        subject: invoice,
+        input: {
+          actions: ["comment", "upload"],
+          expiresAt: Temporal.Instant.from(LATER),
+        },
       })
       .orThrow();
     const removed = await guests.revokeGrant("r1").orThrow();
@@ -283,9 +290,14 @@ describe("createGuests", () => {
 
     const guests = createGuests({ transport: fake.transport });
 
-    expect((await guests.grant("g1", { type: "invoice", id: "i1" })).ok).toBe(
-      false,
-    );
+    expect(
+      (
+        await guests.grant({
+          guestId: "g1",
+          subject: { type: "invoice", id: "i1" },
+        })
+      ).ok,
+    ).toBe(false);
   });
 
   it("reads a record's guests, the caller's access and guest_can", async () => {
@@ -302,8 +314,8 @@ describe("createGuests", () => {
 
     const grants = await guests.grants(invoice).orThrow();
     const mine = await guests.mine().orThrow();
-    const canRead = await guests.can(invoice).orThrow();
-    await guests.can(invoice, "upload").orThrow();
+    const canRead = await guests.can({ subject: invoice }).orThrow();
+    await guests.can({ subject: invoice, action: "upload" }).orThrow();
 
     expect(grants[0]?.guest.email).toBe("jane@client.example");
     expect(grants[0]?.grantedBy).toBeUndefined();
@@ -340,9 +352,9 @@ describe("createGuests", () => {
       },
     });
 
-    expect(await guests.can({ type: "invoice", id: "i1" }).orThrow()).toBe(
-      false,
-    );
+    expect(
+      await guests.can({ subject: { type: "invoice", id: "i1" } }).orThrow(),
+    ).toBe(false);
     expect(seen).toEqual(["before"]);
   });
 });

@@ -212,8 +212,7 @@ export interface BillableTime {
   invoice(input?: InvoiceFromTimeInput): AsyncResult<TimeInvoice>;
   /** The entries an invoice billed. */
   invoicedEntries(
-    invoiceId: string,
-    options?: { readonly pageSize?: number },
+    input: { invoiceId: string } & { readonly pageSize?: number },
   ): AsyncResult<readonly InvoicedTimeEntry[]>;
   /**
    * A tasks project's time at cost, billed time, accounting lines on its
@@ -450,7 +449,7 @@ export function createBillableTime(options: BillableTimeOptions): BillableTime {
           },
         ),
       ),
-    invoicedEntries: (invoiceId, list = {}) =>
+    invoicedEntries: ({ invoiceId, ...list }) =>
       call(
         "list_invoiced_time",
         { invoice: invoiceId, page_size: list.pageSize ?? null },

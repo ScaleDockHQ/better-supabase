@@ -90,7 +90,7 @@ describe("useBlockController (Vue)", () => {
       ),
     )!;
 
-    undo.actions.push({ v: 1, calls: [] }, "Moved");
+    undo.actions.push({ token: { v: 1, calls: [] }, label: "Moved" });
     await nextTick();
     expect(undo.state.value.entries.map((entry) => entry.label)).toEqual([
       "Moved",

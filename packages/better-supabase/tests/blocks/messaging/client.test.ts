@@ -54,20 +54,28 @@ function fakeClient(rows: Message[]) {
   const store = new Map(rows.map((row) => [row.id, row]));
 
   const client = {
-    list: vi.fn((_id: string, options: { before?: unknown } = {}) =>
-      resolved(options.before === undefined ? [...rows] : [message("m0", 0)]),
+    list: vi.fn(({ before }: { conversationId: string; before?: unknown }) =>
+      resolved(before === undefined ? [...rows] : [message("m0", 0)]),
     ),
     replies: vi.fn(() =>
       resolved([message("r1", 5, { threadId: "m1", authorId: USER })]),
     ),
     get: vi.fn((id: string) => resolved(store.get(id))),
-    send: vi.fn((_id: string, input: { body: string; parentId?: string }) =>
-      resolved(
-        message("s1", 9, {
-          authorId: USER,
-          ...(input.parentId === undefined ? {} : { threadId: input.parentId }),
-        }),
-      ),
+    send: vi.fn(
+      ({
+        message: input,
+      }: {
+        conversationId: string;
+        message: { body: string; parentId?: string };
+      }) =>
+        resolved(
+          message("s1", 9, {
+            authorId: USER,
+            ...(input.parentId === undefined
+              ? {}
+              : { threadId: input.parentId }),
+          }),
+        ),
     ),
     edit: vi.fn(() => failed<Message>("gone")),
     remove: vi.fn(() => resolved(true)),
@@ -149,12 +157,14 @@ describe("createMessagesController", () => {
       },
     ]);
 
-    expect((await view().send("hello")).ok).toBe(true);
+    expect((await view().send({ body: "hello" })).ok).toBe(true);
     expect(view().messages?.at(-1)?.id).toBe("s1");
-    expect((await view().edit("m1", { body: "x" })).ok).toBe(false);
+    expect((await view().edit({ id: "m1", edition: { body: "x" } })).ok).toBe(
+      false,
+    );
     expect(view().error?.message).toBe("gone");
-    expect((await view().pin("m1")).ok).toBe(true);
-    expect((await view().resolve("m1")).ok).toBe(true);
+    expect((await view().pin({ id: "m1" })).ok).toBe(true);
+    expect((await view().resolve({ id: "m1" })).ok).toBe(true);
     expect((await view().remove("m1")).ok).toBe(true);
     client.remove.mockReturnValueOnce(failed("denied"));
     expect((await view().remove("m1")).ok).toBe(false);
@@ -183,7 +193,7 @@ describe("createMessagesController", () => {
     expect(view().hasOlder).toBe(false);
     await view().loadOlder();
     expect(client.list).not.toHaveBeenCalled();
-    await view().send("reply");
+    await view().send({ body: "reply" });
     expect(client.send).toHaveBeenCalledWith("c1", {
       parentId: "m1",
       body: "reply",
@@ -203,7 +213,7 @@ describe("createMessagesController", () => {
       ),
     );
 
-    expect((await idle.view().send("x")).ok).toBe(false);
+    expect((await idle.view().send({ body: "x" })).ok).toBe(false);
     await idle.view().refresh();
     await idle.view().markRead();
     await idle.view().loadOlder();

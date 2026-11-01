@@ -228,16 +228,14 @@ export interface Passes {
    * pass the database turns away comes back with `admitted: false` and a
    * `reason`.
    */
-  checkIn(token: string, options?: PassCheckInOptions): AsyncResult<PassScan>;
+  checkIn(input: { token: string } & PassCheckInOptions): AsyncResult<PassScan>;
   /** Checks a holder in by pass id, for staff at the door. */
   checkInManually(
-    passId: string,
-    options?: PassManualCheckInOptions,
+    input: { passId: string } & PassManualCheckInOptions,
   ): AsyncResult<PassScan>;
   /** A pass's scans, newest first. */
   checkIns(
-    passId: string,
-    options?: PassCheckInListOptions,
+    input: { passId: string } & PassCheckInListOptions,
   ): AsyncResult<readonly PassCheckIn[]>;
   /** How full a resource is now. Needs the bookings block. */
   occupancy(resourceId: string): AsyncResult<PassOccupancy>;
@@ -247,10 +245,10 @@ export interface Passes {
    * booking is confirmed; cancelling it before `creditRefundBefore` gives the
    * credit back.
    */
-  bookWithCredit(
-    passId: string,
-    input: PassCreditBookingInput,
-  ): AsyncResult<PassCreditBooking>;
+  bookWithCredit(input: {
+    passId: string;
+    input: PassCreditBookingInput;
+  }): AsyncResult<PassCreditBooking>;
   /** A pass's credit ledger, newest first. */
   credits(passId: string): AsyncResult<readonly PassCreditEntry[]>;
 }
@@ -589,7 +587,7 @@ export function createPasses(options: PassesOptions): Passes {
 
       return options.signer.signJwt(claims, { typ: PASS_TOKEN_TYPE });
     },
-    checkIn: (token, scan = {}) => {
+    checkIn: ({ token, ...scan }) => {
       const { jwks } = options;
 
       if (jwks === undefined) {
@@ -614,9 +612,9 @@ export function createPasses(options: PassesOptions): Passes {
           : AsyncResult.err(read.error);
       });
     },
-    checkInManually: (passId, scan = {}) =>
+    checkInManually: ({ passId, ...scan }) =>
       checkInCall(passId, null, "manual", scan.gate, scan.resourceId),
-    checkIns: (passId, list = {}) =>
+    checkIns: ({ passId, ...list }) =>
       call(
         "list_pass_check_ins",
         {
@@ -641,7 +639,7 @@ export function createPasses(options: PassesOptions): Passes {
           free: countOf(row["free"], "free"),
         };
       }),
-    bookWithCredit: (passId, input) =>
+    bookWithCredit: ({ passId, input }) =>
       call(
         "book_with_credit",
         {

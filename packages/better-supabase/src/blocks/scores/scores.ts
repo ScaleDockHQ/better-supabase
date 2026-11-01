@@ -178,23 +178,23 @@ export interface Scores {
    * `scores.compute` or the service role.
    */
   compute(
-    modelKey: string,
-    subject: RecordRef,
-    fields: Readonly<Record<string, unknown>>,
-    options?: { readonly timeZone?: string },
+    input: {
+      modelKey: string;
+      subject: RecordRef;
+      fields: Readonly<Record<string, unknown>>;
+    } & { readonly timeZone?: string },
   ): AsyncResult<ComputedScore>;
   /** The current scores of the record `on` names, one per model. */
   list(params: { readonly on: RecordRef }): AsyncResult<readonly Score[]>;
   /** A record's scores under one model, newest first. */
   history(
-    modelKey: string,
-    subject: RecordRef,
-    options?: { readonly pageSize?: number },
+    input: { modelKey: string; subject: RecordRef } & {
+      readonly pageSize?: number;
+    },
   ): AsyncResult<readonly Score[]>;
   /** The highest current scores under one model. */
   top(
-    modelKey: string,
-    options?: {
+    input: { modelKey: string } & {
       readonly band?: string;
       readonly minScore?: number;
       readonly pageSize?: number;
@@ -408,7 +408,7 @@ export function createScores(options: ScoresOptions): Scores {
         { model_id: modelId },
         (value) => value === true,
       ),
-    compute: (modelKey, subject, fields, compute = {}) =>
+    compute: ({ modelKey, subject, fields, ...compute }) =>
       tenant().andThen((organizationId) =>
         call(
           "compute_score",
@@ -431,7 +431,7 @@ export function createScores(options: ScoresOptions): Scores {
           (value) => scoresOf(value, "subject_scores"),
         ),
       ),
-    history: (modelKey, subject, filter = {}) =>
+    history: ({ modelKey, subject, ...filter }) =>
       tenant().andThen((organizationId) =>
         call(
           "score_history",
@@ -445,7 +445,7 @@ export function createScores(options: ScoresOptions): Scores {
           (value) => scoresOf(value, "score_history"),
         ),
       ),
-    top: (modelKey, filter = {}) =>
+    top: ({ modelKey, ...filter }) =>
       tenant().andThen((organizationId) =>
         call(
           "top_scores",

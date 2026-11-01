@@ -132,16 +132,16 @@ describe("attachment versions", () => {
     });
 
     await attachments
-      .upload(
-        { type: "task", id: "t1" },
-        {
+      .upload({
+        subject: { type: "task", id: "t1" },
+        attachment: {
           name: "photo.png",
           mimeType: "image/png",
           size: 2048,
           width: 800,
           height: 600,
         },
-      )
+      })
       .orThrow();
 
     expect(calls[0]?.[1]).toMatchObject({ width: 800, height: 600 });
@@ -158,11 +158,14 @@ describe("attachment versions", () => {
     });
 
     const upload = await attachments
-      .replace("a1", {
-        name: "photo.png",
-        mimeType: "image/png",
-        size: 4096,
-        pages: 2,
+      .replace({
+        id: "a1",
+        file: {
+          name: "photo.png",
+          mimeType: "image/png",
+          size: 4096,
+          pages: 2,
+        },
       })
       .orThrow();
 
@@ -209,20 +212,28 @@ describe("attachment versions", () => {
     });
     expect(earlier[0]?.archivedAt.toString()).toBe("2026-10-06T12:00:00Z");
 
-    const old = await attachments.download("a1", { version: 1 }).orThrow();
+    const old = await attachments
+      .download({ id: "a1", options: { version: 1 } })
+      .orThrow();
 
     expect(old.signedUrl).toBe("https://s/sign/org-1/attachments/a1");
 
-    const now = await attachments.download("a1", { version: 2 }).orThrow();
+    const now = await attachments
+      .download({ id: "a1", options: { version: 2 } })
+      .orThrow();
 
     expect(now.signedUrl).toBe("https://s/sign/org-1/attachments/a1-v2");
 
-    expect(await attachments.download("a1", { version: 7 })).toMatchObject({
+    expect(
+      await attachments.download({ id: "a1", options: { version: 7 } }),
+    ).toMatchObject({
       ok: false,
       error: { kind: "not_found", hint: "ATTACHMENT_VERSION_NOT_FOUND" },
     });
 
-    expect((await attachments.restore("a1", 1).orThrow()).version).toBe(1);
+    expect(
+      (await attachments.restore({ id: "a1", version: 1 }).orThrow()).version,
+    ).toBe(1);
     expect(calls.at(-1)).toEqual([
       "restore_attachment_version",
       { id: "a1", version: 1 },
@@ -241,10 +252,9 @@ describe("attachment versions", () => {
       list_attachment_versions: [version({ status: "infected" })],
     });
 
-    expect(await attachments.download("a1", { version: 1 })).toMatchObject({
-      ok: false,
-      error: { hint: "ATTACHMENT_NOT_SCANNED" },
-    });
+    expect(
+      await attachments.download({ id: "a1", options: { version: 1 } }),
+    ).toMatchObject({ ok: false, error: { hint: "ATTACHMENT_NOT_SCANNED" } });
   });
 });
 
@@ -296,7 +306,7 @@ describe("attachment previews", () => {
 
     const attachment = await attachments.get("a1").orThrow();
 
-    expect(attachments.publicUrl(attachment)).toMatchObject({
+    expect(attachments.publicUrl({ attachment })).toMatchObject({
       ok: true,
       data: "https://s/public/org-1/attachments/a1",
     });
@@ -322,14 +332,14 @@ describe("attachment previews", () => {
       .attachments.get("a1")
       .orThrow();
 
-    expect(attachments.publicUrl(infected)).toMatchObject({
+    expect(attachments.publicUrl({ attachment: infected })).toMatchObject({
       ok: false,
       error: { hint: "ATTACHMENT_NOT_SCANNED" },
     });
 
     const closed = setup({ get_attachment: row() });
 
-    expect(closed.attachments.publicUrl(attachment)).toMatchObject({
+    expect(closed.attachments.publicUrl({ attachment })).toMatchObject({
       ok: false,
       error: { hint: "ATTACHMENT_PRIVATE" },
     });

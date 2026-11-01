@@ -38,8 +38,8 @@ describe("createQuestionnaireController", () => {
       name: ["is required"],
       email: ["is required"],
     });
-    view.setAnswer("name", "Ada");
-    view.setAnswer("email", "ada@example.com");
+    view.setAnswer({ key: "name", value: "Ada" });
+    view.setAnswer({ key: "email", value: "ada@example.com" });
     view = render();
     expect(view.issues).toEqual({});
     view.next();
@@ -78,7 +78,7 @@ describe("createQuestionnaireController", () => {
     expect(onSubmit).not.toHaveBeenCalled();
     let view = render();
     expect(Object.keys(view.issues)).toEqual(["name", "email"]);
-    view.setAnswer("name", "Ada");
+    view.setAnswer({ key: "name", value: "Ada" });
     view = render();
     expect(Object.keys(view.issues)).toEqual(["email"]);
     view.reset({ name: "Bo" });

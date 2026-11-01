@@ -64,16 +64,20 @@ describe("metrics block", () => {
 
     const metrics = createMetrics({ transport, metrics: [orders] });
     expectTypeOf<
-      Parameters<typeof metrics.series>[0]
+      Parameters<typeof metrics.series>[0]["metric"]
     >().toEqualTypeOf<"orders">();
 
     const series = await metrics
-      .series("orders", range, {
-        organizationId: "org",
-        grain: "day",
-        groupBy: "channel",
-        filter: { channel: "web" },
-        compare: "previous",
+      .series({
+        metric: "orders",
+        range,
+        options: {
+          organizationId: "org",
+          grain: "day",
+          groupBy: "channel",
+          filter: { channel: "web" },
+          compare: "previous",
+        },
       })
       .orThrow();
 
@@ -98,7 +102,7 @@ describe("metrics block", () => {
     });
 
     const plain = await metrics
-      .series("orders", range, { organizationId: "org" })
+      .series({ metric: "orders", range, options: { organizationId: "org" } })
       .orThrow();
 
     expect(plain.previous).toBeUndefined();
@@ -134,7 +138,11 @@ describe("metrics block", () => {
     const metrics = createMetrics({ transport });
     expect(
       await metrics
-        .kpi("orders", range, { organizationId: "org", compare: "previous" })
+        .kpi({
+          metric: "orders",
+          range,
+          options: { organizationId: "org", compare: "previous" },
+        })
         .orThrow(),
     ).toEqual({
       metric: "orders",
@@ -145,7 +153,9 @@ describe("metrics block", () => {
       trend: "up",
     });
     expect(
-      await metrics.kpi("orders", range, { organizationId: "org" }).orThrow(),
+      await metrics
+        .kpi({ metric: "orders", range, options: { organizationId: "org" } })
+        .orThrow(),
     ).toEqual({ metric: "orders", value: 60, count: 4 });
   });
 

@@ -32,7 +32,7 @@ export async function getDocuments(): Promise<readonly DocumentRow[]> {
   }
 
   const documents = await knowledge(supabase)
-    .documents.list(organizationId, { limit: 50 })
+    .documents.list({ organizationId, limit: 50 })
     .orThrow();
 
   return documents.map((document) => ({

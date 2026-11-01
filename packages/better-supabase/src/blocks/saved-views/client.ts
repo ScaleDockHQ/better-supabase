@@ -100,19 +100,22 @@ export interface SavedViewsActions<V extends SavedViewLike> {
   /** Puts a view's query in the URL and passes the rest to `onApplyState`. */
   readonly apply: (view: V) => void;
   /** Saves the current state as a new view, or over `id`, then loads again. */
-  readonly saveCurrent: (name: string, id?: string) => Promise<void>;
+  readonly saveCurrent: (input: {
+    name: string;
+    id?: string | undefined;
+  }) => Promise<void>;
   readonly remove: (id: string) => Promise<void>;
   /** Copies a view under `name`, then loads again. */
-  readonly duplicate: (
-    id: string,
-    name: string,
-    scope?: SavedViewScope,
-  ) => Promise<void>;
+  readonly duplicate: (input: {
+    id: string;
+    name: string;
+    scope?: SavedViewScope | undefined;
+  }) => Promise<void>;
   /** Sets the caller's own default, hidden or pinned flag, then loads again. */
-  readonly setPreference: (
-    id: string,
-    preference: SavedViewPreferenceInput,
-  ) => Promise<void>;
+  readonly setPreference: (input: {
+    id: string;
+    preference: SavedViewPreferenceInput;
+  }) => Promise<void>;
   readonly refresh: () => Promise<void>;
 }
 
@@ -191,7 +194,7 @@ export function createSavedViewsController<V extends SavedViewLike>(
         actions: {
           apply,
           refresh,
-          saveCurrent: async (name, id) => {
+          saveCurrent: async ({ name, id }) => {
             const save = needs(options.save, "save");
             const query = queryFromUrlState(options.urlState());
             await save({
@@ -209,14 +212,14 @@ export function createSavedViewsController<V extends SavedViewLike>(
             }));
             await refresh();
           },
-          duplicate: async (id, name, scope) => {
+          duplicate: async ({ id, name, scope }) => {
             await needs(
               options.duplicate,
               "duplicate",
             )({ id, name, ...(scope !== undefined && { scope }) });
             await refresh();
           },
-          setPreference: async (id, preference) => {
+          setPreference: async ({ id, preference }) => {
             await needs(options.setPreference, "setPreference")(id, preference);
             await refresh();
           },

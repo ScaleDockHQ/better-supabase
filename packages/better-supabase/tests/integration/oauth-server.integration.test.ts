@@ -29,21 +29,30 @@ describe.skipIf(!live)("oauth-server module", () => {
 
       const { client, clientSecret, registrationAccessToken } = await oauth
         .registerClient({
-          name: "Desktop",
-          redirectUris: [REDIRECT],
-          scope: "contacts:read",
+          metadata: {
+            name: "Desktop",
+            redirectUris: [REDIRECT],
+            scope: "contacts:read",
+          },
         })
         .orThrow();
 
       expect(
-        await oauth.verifyClient(client.clientId, clientSecret).orThrow(),
+        await oauth
+          .verifyClient({ clientId: client.clientId, secret: clientSecret })
+          .orThrow(),
       ).toMatchObject({ clientId: client.clientId });
       expect(
-        await oauth.verifyClient(client.clientId, "wrong").orThrow(),
+        await oauth
+          .verifyClient({ clientId: client.clientId, secret: "wrong" })
+          .orThrow(),
       ).toBeNull();
       expect(
         await oauth
-          .verifyRegistrationToken(client.clientId, registrationAccessToken)
+          .verifyRegistrationToken({
+            clientId: client.clientId,
+            token: registrationAccessToken,
+          })
           .orThrow(),
       ).toBe(true);
 
@@ -94,7 +103,9 @@ describe.skipIf(!live)("oauth-server module", () => {
       const oauth = createOauthServer({ transport: sqlTransport(s.sql) });
 
       const { client } = await oauth
-        .registerClient({ name: "Desktop", redirectUris: [REDIRECT] })
+        .registerClient({
+          metadata: { name: "Desktop", redirectUris: [REDIRECT] },
+        })
         .orThrow();
 
       const request = async () =>
@@ -155,31 +166,41 @@ describe.skipIf(!live)("oauth-server module", () => {
 
       const { client } = await oauth
         .registerClient({
-          name: "CLI",
-          grantTypes: ["urn:ietf:params:oauth:grant-type:device_code"],
-          tokenEndpointAuthMethod: "none",
+          metadata: {
+            name: "CLI",
+            grantTypes: ["urn:ietf:params:oauth:grant-type:device_code"],
+            tokenEndpointAuthMethod: "none",
+          },
         })
         .orThrow();
 
       const device = await oauth
-        .createDeviceCode(client.clientId, "contacts:read")
+        .createDeviceCode({ clientId: client.clientId, scope: "contacts:read" })
         .orThrow();
 
       expect(
         await oauth
-          .pollDeviceCode(device.deviceCode, client.clientId)
+          .pollDeviceCode({
+            deviceCode: device.deviceCode,
+            clientId: client.clientId,
+          })
           .orThrow(),
       ).toEqual({ status: "authorization_pending", interval: 5 });
       expect(
         await oauth
-          .pollDeviceCode(device.deviceCode, client.clientId)
+          .pollDeviceCode({
+            deviceCode: device.deviceCode,
+            clientId: client.clientId,
+          })
           .orThrow(),
       ).toEqual({ status: "slow_down", interval: 10 });
       expect(
         await oauth.deviceRequest(device.userCode.toLowerCase()).orThrow(),
       ).toMatchObject({ clientId: client.clientId });
       expect(
-        await oauth.approveDeviceCode(device.userCode, user.id).orThrow(),
+        await oauth
+          .approveDeviceCode({ userCode: device.userCode, userId: user.id })
+          .orThrow(),
       ).toBe(true);
 
       await s.client.query("reset role");
@@ -189,7 +210,10 @@ describe.skipIf(!live)("oauth-server module", () => {
       await s.client.query("set local role service_role");
 
       const approved = await oauth
-        .pollDeviceCode(device.deviceCode, client.clientId)
+        .pollDeviceCode({
+          deviceCode: device.deviceCode,
+          clientId: client.clientId,
+        })
         .orThrow();
 
       expect(approved).toMatchObject({
@@ -202,7 +226,9 @@ describe.skipIf(!live)("oauth-server module", () => {
 
       expect(await oauth.isRevoked("jti-1", grantId).orThrow()).toBe(false);
       await oauth
-        .revokeToken("jti-1", Temporal.Now.instant().add({ minutes: 10 }), {
+        .revokeToken({
+          jti: "jti-1",
+          expiresAt: Temporal.Now.instant().add({ minutes: 10 }),
           grantId,
         })
         .orThrow();

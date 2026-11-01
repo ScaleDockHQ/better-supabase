@@ -118,8 +118,7 @@ export interface Waitlist<F extends object = Record<never, never>> {
    * is new.
    */
   join(
-    email: string,
-    options?: {
+    input: { email: string } & {
       readonly referrer?: string;
       readonly metadata?: Readonly<Record<string, unknown>>;
       readonly fields?: Partial<F>;
@@ -230,7 +229,7 @@ export function createWaitlist<
     );
 
   const client: Waitlist<F> = {
-    join: (email, more = {}) =>
+    join: ({ email, ...more }) =>
       fields.args(more.fields).andThen((checked) =>
         call(
           "join_waitlist",

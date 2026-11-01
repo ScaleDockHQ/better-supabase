@@ -67,8 +67,7 @@ export interface Enrichment {
    * `enrichment.run`. A provider error is returned and nothing is stored.
    */
   enrich(
-    subject: EnrichmentSubject,
-    options?: EnrichOptions,
+    input: { subject: EnrichmentSubject } & EnrichOptions,
   ): AsyncResult<EnrichmentResult>;
   /**
    * Enriches the records the provider has no result for, or one older than
@@ -223,7 +222,7 @@ export function createEnrichment(options: EnrichmentOptions): Enrichment {
     });
 
   const client: Enrichment = {
-    enrich: (subject, enrich = {}) =>
+    enrich: ({ subject, ...enrich }) =>
       AsyncResult.from(async () => {
         const target = await call(
           "enrichment_target",

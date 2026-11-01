@@ -28,7 +28,9 @@ describe("createTags", () => {
     const fake = fakeTransport({ tag: true, subject_tags: [] });
     const tags = createTags({ transport: fake.transport, tenant: "org-1" });
 
-    expect(await tags.attach(DEAL, "g1").orThrow()).toBe(true);
+    expect(await tags.attach({ record: DEAL, tagId: "g1" }).orThrow()).toBe(
+      true,
+    );
     expect(await tags.list({ on: DEAL }).orThrow()).toEqual([]);
     expect(fake.calls).toEqual([
       [
@@ -60,7 +62,9 @@ describe("createTags", () => {
       ok: false,
       error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
     });
-    expect(await tags.detach(DEAL, "g1")).toMatchObject({ ok: false });
+    expect(await tags.detach({ record: DEAL, tagId: "g1" })).toMatchObject({
+      ok: false,
+    });
     expect(fake.calls).toHaveLength(0);
     expect(await tags.delete("g1").orThrow()).toBe(true);
     session.tenant = "org-2";
@@ -82,8 +86,10 @@ describe("createTags", () => {
     await tags
       .create({ kind: "deal", name: "Hot", slug: "hot-leads" })
       .orThrow();
-    await tags.update("g1", { name: "Warm" }).orThrow();
-    await tags.update("g1", { color: null, slug: "warm" }).orThrow();
+    await tags.update({ id: "g1", patch: { name: "Warm" } }).orThrow();
+    await tags
+      .update({ id: "g1", patch: { color: null, slug: "warm" } })
+      .orThrow();
 
     expect(fake.calls.map(([, args]) => args)).toEqual([
       {

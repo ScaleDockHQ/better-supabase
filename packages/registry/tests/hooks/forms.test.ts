@@ -34,7 +34,7 @@ describe("useQuestionnaire", () => {
     });
 
     expect(view.result.answers).toEqual({ name: "Ada" });
-    view.result.setAnswer("email", "ada@example.com");
+    view.result.setAnswer({ key: "email", value: "ada@example.com" });
     expect(view.result.answers).toEqual({
       name: "Ada",
       email: "ada@example.com",

@@ -60,7 +60,7 @@ async function loadFolder(folderId: string | null) {
   const drive = driveOf(db);
 
   const [children, path] = await Promise.all([
-    drive.list(tenant, { parentId: folderId }),
+    drive.list({ organizationId: tenant, options: { parentId: folderId } }),
     folderId === null ? null : drive.path(folderId),
   ]);
 
@@ -150,7 +150,7 @@ async function loadRegister(): Promise<readonly DocumentRow[] | null> {
     return null;
   }
 
-  const documents = await driveOf(db).documents(tenant);
+  const documents = await driveOf(db).documents({ organizationId: tenant });
 
   if (!documents.ok) {
     throw new Error(documents.error.message);

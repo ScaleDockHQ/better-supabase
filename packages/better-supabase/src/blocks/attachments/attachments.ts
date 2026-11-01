@@ -315,10 +315,10 @@ export interface Attachments<F extends object = Record<never, never>> {
    * a signed upload URL for its path. When Storage refuses the URL, the record
    * is deleted again.
    */
-  upload(
-    subject: RecordRef | null,
-    attachment: NewAttachment & Partial<F>,
-  ): AsyncResult<AttachmentUpload<F>>;
+  upload(input: {
+    subject: RecordRef | null;
+    attachment: NewAttachment & Partial<F>;
+  }): AsyncResult<AttachmentUpload<F>>;
   /**
    * Marks the upload done after the file is stored; emits
    * `attachment.uploaded`.
@@ -331,23 +331,25 @@ export interface Attachments<F extends object = Record<never, never>> {
    * A signed URL for a file the scanner passed. `invalid_request` with hint
    * `ATTACHMENT_NOT_SCANNED` until then, and for an infected file.
    */
-  download(
-    id: string,
-    options?: {
-      readonly as?: string | boolean;
-      /** An earlier version from `versions(id)`; default the current one. */
-      readonly version?: number;
-    },
-  ): AsyncResult<AttachmentDownload<F>>;
+  download(input: {
+    id: string;
+    options?:
+      | {
+          readonly as?: string | boolean;
+          /** An earlier version from `versions(id)`; default the current one. */
+          readonly version?: number;
+        }
+      | undefined;
+  }): AsyncResult<AttachmentDownload<F>>;
   /**
    * The public URL of a file in one of `options.publicBuckets`, which Storage
    * serves without a signed URL. A file in a private bucket is an
    * `invalid_request` error with hint `ATTACHMENT_PRIVATE`.
    */
-  publicUrl(
-    attachment: Attachment,
-    options?: { readonly as?: string | boolean },
-  ): Result<string>;
+  publicUrl(input: {
+    attachment: Attachment;
+    options?: { readonly as?: string | boolean } | undefined;
+  }): Result<string>;
   /**
    * Deletes every version's file, then the record (the uploader, or
    * `attachments.manage`). With `offline`, the record goes first and queues the
@@ -360,17 +362,17 @@ export interface Attachments<F extends object = Record<never, never>> {
    * the new one waits for its upload to the signed URL, `confirm` and the scan.
    * Emits `attachment.replaced`.
    */
-  replace(
-    id: string,
-    file: AttachmentReplacement,
-  ): AsyncResult<AttachmentUpload<F>>;
+  replace(input: {
+    id: string;
+    file: AttachmentReplacement;
+  }): AsyncResult<AttachmentUpload<F>>;
   /** The file's earlier versions, newest first. */
   versions(id: string): AsyncResult<readonly AttachmentVersion[]>;
   /**
    * Makes an earlier version current again; the current one becomes an earlier
    * version. Emits `attachment.restored`.
    */
-  restore(id: string, version: number): AsyncResult<Attachment & F>;
+  restore(input: { id: string; version: number }): AsyncResult<Attachment & F>;
   /**
    * Image previews for `useImage`, with the app's named variants (`{ thumb: {
    * width: 160, height: 160, resize: "cover" } }`).
@@ -385,11 +387,11 @@ export interface Attachments<F extends object = Record<never, never>> {
    * waits for the scan when the module requires one. When Storage refuses the
    * upload, the record is deleted again, so no pending record is left behind.
    */
-  put(
-    subject: RecordRef | null,
-    attachment: NewAttachment & Partial<F>,
-    file: Blob | ArrayBuffer | Uint8Array,
-  ): AsyncResult<Attachment & F>;
+  put(input: {
+    subject: RecordRef | null;
+    attachment: NewAttachment & Partial<F>;
+    file: Blob | ArrayBuffer | Uint8Array;
+  }): AsyncResult<Attachment & F>;
   /**
    * The file's bytes, for server-side processing, behind the same scan gate as
    * `download`: `ATTACHMENT_NOT_SCANNED` until the scan passes.
@@ -783,10 +785,13 @@ export function createAttachments<
       )
       .andThen(typed);
 
-  const upload = (
-    subject: RecordRef | null,
-    attachment: NewAttachment,
-  ): AsyncResult<AttachmentUpload<F>> =>
+  const upload = ({
+    subject,
+    attachment,
+  }: {
+    subject: RecordRef | null;
+    attachment: NewAttachment;
+  }): AsyncResult<AttachmentUpload<F>> =>
     create(subject, attachment).andThen(async (created) => {
       const url = await stored(
         bucket(created).createSignedUploadUrl(created.path),
@@ -822,7 +827,7 @@ export function createAttachments<
             ),
         ).andThen((rows) => allWithFields(fields, rows)),
       ),
-    download: (id, download = {}) =>
+    download: ({ id, options: download = {} }) =>
       find(id).andThen((attachment) => {
         const { version } = download;
 
@@ -851,7 +856,7 @@ export function createAttachments<
           ).map((url) => ({ attachment, signedUrl: url.signedUrl }));
         });
       }),
-    replace: (id, file) =>
+    replace: ({ id, file }) =>
       call(
         "replace_attachment",
         {
@@ -876,9 +881,9 @@ export function createAttachments<
           ),
         ),
     versions: listVersions,
-    publicUrl: (attachment, url = {}) =>
+    publicUrl: ({ attachment, options: url = {} }) =>
       publicUrl(attachment, url.as === undefined ? {} : { download: url.as }),
-    restore: (id, version) =>
+    restore: ({ id, version }) =>
       call(
         "restore_attachment_version",
         { id, version },
@@ -942,7 +947,7 @@ export function createAttachments<
           ).map((signed) => signed.signedUrl);
         }),
     }),
-    put: (subject, attachment, file) =>
+    put: ({ subject, attachment, file }) =>
       create(subject, attachment).andThen(async (created) => {
         const target = bucket(created);
 
@@ -1079,7 +1084,10 @@ export interface AttachmentScanJob {
 
 export interface AttachmentScanner {
   /** Scans one uploaded file and records the verdict. */
-  scan(id: string, signal?: AbortSignal): AsyncResult<Attachment>;
+  scan(input: {
+    id: string;
+    signal?: AbortSignal | undefined;
+  }): AsyncResult<Attachment>;
   /**
    * A jobs handler: `queue.work('attachment-scans', scanner.job)`. A deleted
    * attachment completes the job; other errors throw so the queue retries.
@@ -1120,7 +1128,13 @@ export function createAttachmentScanner(
       ),
     );
 
-  const scan = (id: string, signal?: AbortSignal): AsyncResult<Attachment> =>
+  const scan = ({
+    id,
+    signal,
+  }: {
+    id: string;
+    signal?: AbortSignal | undefined;
+  }): AsyncResult<Attachment> =>
     lookup(call, id).andThen((attachment) => {
       if (attachment.status === "clean" || attachment.status === "infected") {
         return Promise.resolve(ok(attachment));
@@ -1162,7 +1176,7 @@ export function createAttachmentScanner(
   return {
     scan,
     job: async (payload, _job, signal) => {
-      await settle(scan(payload.attachmentId, signal), attachmentGone);
+      await settle(scan({ id: payload.attachmentId, signal }), attachmentGone);
     },
     sink: () => ({
       async send(events) {
@@ -1176,7 +1190,7 @@ export function createAttachmentScanner(
           const id = optionalText(event.data["attachmentId"]);
 
           if (id !== undefined) {
-            await settle(scan(id), attachmentGone);
+            await settle(scan({ id }), attachmentGone);
           }
         }
       },
@@ -1223,11 +1237,11 @@ export interface ObjectScanner {
    * Scans one object and records the verdict; a clean or infected object is not
    * scanned again.
    */
-  scan(
-    bucket: string,
-    path: string,
-    signal?: AbortSignal,
-  ): AsyncResult<ScannedObject>;
+  scan(input: {
+    bucket: string;
+    path: string;
+    signal?: AbortSignal | undefined;
+  }): AsyncResult<ScannedObject>;
   /**
    * A jobs handler: `queue.work('object-scans', scanner.job)`. An object
    * deleted from storage completes the job; other errors throw.
@@ -1279,11 +1293,15 @@ export function createObjectScanner(
   ): AsyncResult<ScannedObject> =>
     call("set_object_scan", { bucket, path, status, detail }, scannedOf);
 
-  const scan = (
-    bucket: string,
-    path: string,
-    signal?: AbortSignal,
-  ): AsyncResult<ScannedObject> =>
+  const scan = ({
+    bucket,
+    path,
+    signal,
+  }: {
+    bucket: string;
+    path: string;
+    signal?: AbortSignal | undefined;
+  }): AsyncResult<ScannedObject> =>
     call("object_scan", { bucket, path }, (value) =>
       isRecord(value) ? scannedOf(value) : undefined,
     ).andThen((current) => {
@@ -1322,7 +1340,10 @@ export function createObjectScanner(
   return {
     scan,
     job: async (payload, _job, signal) => {
-      await settle(scan(payload.bucket, payload.path, signal), objectGone);
+      await settle(
+        scan({ bucket: payload.bucket, path: payload.path, signal }),
+        objectGone,
+      );
     },
     sink: () => ({
       async send(events) {
@@ -1337,7 +1358,7 @@ export function createObjectScanner(
           const path = optionalText(event.data["path"]);
 
           if (bucket !== undefined && path !== undefined) {
-            await settle(scan(bucket, path), objectGone);
+            await settle(scan({ bucket, path }), objectGone);
           }
         }
       },

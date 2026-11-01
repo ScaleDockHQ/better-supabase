@@ -77,7 +77,7 @@ export const advanceWorkOrder = bsb.action(
     permission: "dispatch.work",
   },
   async ({ id, to }, { db, auth }) => {
-    const moved = await db.dispatch.setStatus(id, to);
+    const moved = await db.dispatch.setStatus({ id, status: to });
 
     if (!moved.ok) {
       return moved;

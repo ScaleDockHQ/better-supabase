@@ -218,50 +218,61 @@ export interface Meetings<F extends object = Record<never, never>> {
    * Changes a meeting, as its creator, chair or secretary or with
    * `meetings.manage`.
    */
-  update(meetingId: string, change: MeetingChange<F>): AsyncResult<Meeting<F>>;
+  update(input: {
+    meetingId: string;
+    change: MeetingChange<F>;
+  }): AsyncResult<Meeting<F>>;
   start(meetingId: string): AsyncResult<Meeting<F>>;
   /** Closes the meeting as held, with an optional summary. */
-  hold(meetingId: string, summary?: string): AsyncResult<Meeting<F>>;
-  cancel(meetingId: string, reason?: string): AsyncResult<Meeting<F>>;
+  hold(input: {
+    meetingId: string;
+    summary?: string | undefined;
+  }): AsyncResult<Meeting<F>>;
+  cancel(input: {
+    meetingId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Meeting<F>>;
   /** Deletes a planned or cancelled meeting. */
   delete(meetingId: string): AsyncResult<Meeting<F>>;
   /** Invites a user or changes their role or attendance. */
-  setAttendee(
-    meetingId: string,
-    userId: string,
-    attendee?: {
-      readonly role?: MeetingAttendeeRole;
-      readonly attendance?: MeetingAttendance;
-    },
-  ): AsyncResult<MeetingAttendee>;
-  removeAttendee(
-    meetingId: string,
-    userId: string,
-  ): AsyncResult<MeetingAttendee>;
+  setAttendee(input: {
+    meetingId: string;
+    userId: string;
+    attendee?:
+      | {
+          readonly role?: MeetingAttendeeRole;
+          readonly attendance?: MeetingAttendance;
+        }
+      | undefined;
+  }): AsyncResult<MeetingAttendee>;
+  removeAttendee(input: {
+    meetingId: string;
+    userId: string;
+  }): AsyncResult<MeetingAttendee>;
   /** Adds an agenda item, or changes one when `item.id` is set. */
-  saveAgendaItem(
-    meetingId: string,
-    item: MeetingAgendaItemInput,
-  ): AsyncResult<MeetingAgendaItem>;
+  saveAgendaItem(input: {
+    meetingId: string;
+    item: MeetingAgendaItemInput;
+  }): AsyncResult<MeetingAgendaItem>;
   deleteAgendaItem(itemId: string): AsyncResult<MeetingAgendaItem>;
   /** Records a decision; attendees vote on it through the reactions block. */
-  recordDecision(
-    meetingId: string,
-    input: MeetingDecisionInput,
-  ): AsyncResult<MeetingDecision>;
+  recordDecision(input: {
+    meetingId: string;
+    input: MeetingDecisionInput;
+  }): AsyncResult<MeetingDecision>;
   /**
    * Decides a decision. Without a status it follows the votes: more up than
    * down passes, more down than up rejects, a tie defers.
    */
-  decide(
-    decisionId: string,
-    status?: Exclude<MeetingDecisionStatus, "proposed">,
-  ): AsyncResult<MeetingDecision>;
+  decide(input: {
+    decisionId: string;
+    status?: Exclude<MeetingDecisionStatus, "proposed"> | undefined;
+  }): AsyncResult<MeetingDecision>;
   /** Opens a task from the meeting through the tasks block. */
-  addActionItem(
-    meetingId: string,
-    input: MeetingActionItemInput,
-  ): AsyncResult<Readonly<Record<string, unknown>>>;
+  addActionItem(input: {
+    meetingId: string;
+    input: MeetingActionItemInput;
+  }): AsyncResult<Readonly<Record<string, unknown>>>;
   get(meetingId: string): AsyncResult<MeetingDetail<F>>;
   list(options?: MeetingListOptions): AsyncResult<readonly Meeting<F>[]>;
 }
@@ -472,7 +483,7 @@ export function createMeetings<
             ).andThen(fields.row),
           ),
       ),
-    update: (meetingId, change) =>
+    update: ({ meetingId, change }) =>
       fields
         .args(change.fields)
         .andThen((checked) =>
@@ -488,13 +499,13 @@ export function createMeetings<
         { meeting_id: meetingId },
         one("start_meeting"),
       ).andThen(fields.row),
-    hold: (meetingId, summary) =>
+    hold: ({ meetingId, summary }) =>
       call(
         "hold_meeting",
         { meeting_id: meetingId, summary: summary ?? null },
         one("hold_meeting"),
       ).andThen(fields.row),
-    cancel: (meetingId, reason) =>
+    cancel: ({ meetingId, reason }) =>
       call(
         "cancel_meeting",
         { meeting_id: meetingId, reason: reason ?? null },
@@ -506,7 +517,7 @@ export function createMeetings<
         { meeting_id: meetingId },
         one("delete_meeting"),
       ).andThen(fields.row),
-    setAttendee: (meetingId, userId, change = {}) =>
+    setAttendee: ({ meetingId, userId, attendee: change = {} }) =>
       call(
         "set_meeting_attendee",
         {
@@ -517,13 +528,13 @@ export function createMeetings<
         },
         attendee("set_meeting_attendee"),
       ),
-    removeAttendee: (meetingId, userId) =>
+    removeAttendee: ({ meetingId, userId }) =>
       call(
         "remove_meeting_attendee",
         { meeting_id: meetingId, user_id: userId },
         attendee("remove_meeting_attendee"),
       ),
-    saveAgendaItem: (meetingId, item) =>
+    saveAgendaItem: ({ meetingId, item }) =>
       call(
         "save_meeting_agenda_item",
         { meeting_id: meetingId, item: definedOf(item) },
@@ -535,19 +546,19 @@ export function createMeetings<
         { item_id: itemId },
         agendaItem("delete_meeting_agenda_item"),
       ),
-    recordDecision: (meetingId, input) =>
+    recordDecision: ({ meetingId, input }) =>
       call(
         "record_meeting_decision",
         { meeting_id: meetingId, input: definedOf(input) },
         decision("record_meeting_decision"),
       ),
-    decide: (decisionId, status) =>
+    decide: ({ decisionId, status }) =>
       call(
         "decide_meeting_decision",
         { decision_id: decisionId, status: status ?? null },
         decision("decide_meeting_decision"),
       ),
-    addActionItem: (meetingId, input) =>
+    addActionItem: ({ meetingId, input }) =>
       call(
         "add_meeting_action_item",
         {

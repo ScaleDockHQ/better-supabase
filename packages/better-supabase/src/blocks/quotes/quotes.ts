@@ -275,31 +275,35 @@ export interface QuoteActorOptions {
 export interface Quotes<
   F extends object = Record<never, never>,
 > extends QuoteVariants {
-  create(
-    organizationId: string,
-    input: QuoteInput<F> & { readonly title: string },
-    lines?: readonly QuoteLineInput[],
-  ): AsyncResult<Quote<F>>;
+  create(input: {
+    organizationId: string;
+    input: QuoteInput<F> & { readonly title: string };
+    lines?: readonly QuoteLineInput[] | undefined;
+  }): AsyncResult<Quote<F>>;
   /** Changes a draft, or a quote with changes requested. */
-  update(quoteId: string, input: QuoteInput<F>): AsyncResult<Quote<F>>;
-  setLines(
-    quoteId: string,
-    lines: readonly QuoteLineInput[],
-  ): AsyncResult<Totals>;
+  update(input: {
+    quoteId: string;
+    input: QuoteInput<F>;
+  }): AsyncResult<Quote<F>>;
+  setLines(input: {
+    quoteId: string;
+    lines: readonly QuoteLineInput[];
+  }): AsyncResult<Totals>;
   /**
    * Sends it: resolves to the quote and the link token, returned only now. With
    * `options.resend`, a rejected, withdrawn or expired quote is sent again in
    * the same call.
    */
   send(
-    quoteId: string,
-    options?: QuoteActorOptions,
+    input: { quoteId: string } & QuoteActorOptions,
   ): AsyncResult<{ readonly quote: Quote<F>; readonly token: string }>;
   /**
    * With `options.workingCopy`, publishes the working copy of a quote that
    * already has a link as its next revision, on the same link.
    */
-  publish(quoteId: string, options?: QuoteActorOptions): AsyncResult<Quote<F>>;
+  publish(
+    input: { quoteId: string } & QuoteActorOptions,
+  ): AsyncResult<Quote<F>>;
   /**
    * Records the customer's answer taken another way, with their name (`by`);
    * without `by` or `actor` the answer names no one. With `actor`, the app's
@@ -307,62 +311,66 @@ export interface Quotes<
    * quote past its date expires instead. The `note` is also the reason in the
    * state machine's history.
    */
-  decide(
-    quoteId: string,
-    decision: QuoteDecision,
-    options?: {
-      readonly note?: string;
-      readonly by?: string;
-      readonly selected?: readonly (number | string)[];
-      readonly actor?: TransitionActor;
-    },
-  ): AsyncResult<Quote<F>>;
+  decide(input: {
+    quoteId: string;
+    decision: QuoteDecision;
+    options?:
+      | {
+          readonly note?: string;
+          readonly by?: string;
+          readonly selected?: readonly (number | string)[];
+          readonly actor?: TransitionActor;
+        }
+      | undefined;
+  }): AsyncResult<Quote<F>>;
   /**
    * Back to draft for changes, as the next revision. The sent revision stays
    * published in `versions`; an accepted quote can't be revised. With
    * `options.workingCopy` the link stays.
    */
-  revise(quoteId: string, options?: QuoteActorOptions): AsyncResult<Quote<F>>;
+  revise(input: { quoteId: string } & QuoteActorOptions): AsyncResult<Quote<F>>;
   /**
    * Takes back a sent or expired quote the customer hasn't accepted. The
    * `reason` and `actor` go to the state machine's history.
    */
-  withdraw(
-    quoteId: string,
-    options?: QuoteActorOptions & { readonly reason?: string },
-  ): AsyncResult<Quote<F>>;
+  withdraw(input: {
+    quoteId: string;
+    options?: (QuoteActorOptions & { readonly reason?: string }) | undefined;
+  }): AsyncResult<Quote<F>>;
   /** The revisions sent so far, oldest first. */
   versions(quoteId: string): AsyncResult<readonly QuoteVersionSummary[]>;
   /** The quote as it was sent at `revision`. */
-  version(quoteId: string, revision: number): AsyncResult<QuoteVersion<F>>;
+  version(input: {
+    quoteId: string;
+    revision: number;
+  }): AsyncResult<QuoteVersion<F>>;
   /** A draft quote from a deal, once per deal. Needs the deals module. */
   fromDeal(dealId: string): AsyncResult<Quote<F>>;
   /** The quote behind a link, for the customer's page. Marks it viewed. */
   view(token: string): AsyncResult<PublicQuote>;
   /** The customer's answer through the link. */
-  respond(
-    token: string,
-    decision: QuoteDecision,
-    answer: QuoteAnswer,
-  ): AsyncResult<QuoteResponse>;
+  respond(input: {
+    token: string;
+    decision: QuoteDecision;
+    answer: QuoteAnswer;
+  }): AsyncResult<QuoteResponse>;
   /**
    * A quote shared with the signed-in guest (portal), as the customer sees it.
    * Marks it viewed. The service role passes the customer as `actor` for an
    * app's own portal.
    */
   portalView(
-    quoteId: string,
-    options?: QuoteActorOptions,
+    input: { quoteId: string } & QuoteActorOptions,
   ): AsyncResult<PublicQuote>;
   /**
    * The signed-in guest's answer, with no token. The name defaults to the
    * guest's email.
    */
-  portalRespond(
-    quoteId: string,
-    decision: QuoteDecision,
-    answer?: Partial<QuoteAnswer>,
-  ): AsyncResult<QuoteResponse>;
+  portalRespond(input: {
+    quoteId: string;
+    decision: QuoteDecision;
+    answer?: Partial<QuoteAnswer> | undefined;
+  }): AsyncResult<QuoteResponse>;
   /** Expires sent quotes past their date. Service role only. */
   expire(): AsyncResult<number>;
 }
@@ -655,7 +663,7 @@ export function createQuotes<
   };
 
   const client: Quotes<F> = {
-    create: (organizationId, input, lines) => {
+    create: ({ organizationId, input, lines }) => {
       const amounts = lineAmounts(lines ?? []);
       const invalid = amountsError(input.currency, amounts);
 
@@ -680,7 +688,7 @@ export function createQuotes<
         ),
       );
     },
-    update: (quoteId, input) =>
+    update: ({ quoteId, input }) =>
       input.currency !== undefined &&
       amountsError(input.currency, []) !== undefined
         ? AsyncResult.err(unknownCurrency(input.currency))
@@ -691,7 +699,7 @@ export function createQuotes<
               quoteOf,
             ),
           ),
-    setLines: (quoteId, lines) => {
+    setLines: ({ quoteId, lines }) => {
       const invalid = amountsError(undefined, lineAmounts(lines));
 
       return invalid === undefined
@@ -702,7 +710,7 @@ export function createQuotes<
           )
         : AsyncResult.err(invalid);
     },
-    send: (quoteId, sendOptions = {}) =>
+    send: ({ quoteId, ...sendOptions }) =>
       call(
         "send_quote",
         { quote: quoteId, ...actorArg(sendOptions) },
@@ -716,13 +724,13 @@ export function createQuotes<
           token: sent.token,
         })),
       ),
-    publish: (quoteId, publishOptions = {}) =>
+    publish: ({ quoteId, ...publishOptions }) =>
       quote(
         "send_quote",
         { quote: quoteId, ...actorArg(publishOptions) },
         quoteOf,
       ),
-    decide: (quoteId, decision, decide = {}) =>
+    decide: ({ quoteId, decision, options: decide = {} }) =>
       quote(
         "decide_quote",
         {
@@ -735,13 +743,13 @@ export function createQuotes<
         },
         quoteOf,
       ),
-    revise: (quoteId, reviseOptions = {}) =>
+    revise: ({ quoteId, ...reviseOptions }) =>
       quote(
         "revise_quote",
         { quote: quoteId, ...actorArg(reviseOptions) },
         quoteOf,
       ),
-    withdraw: (quoteId, withdrawOptions = {}) =>
+    withdraw: ({ quoteId, options: withdrawOptions = {} }) =>
       quote(
         "withdraw_quote",
         {
@@ -758,7 +766,7 @@ export function createQuotes<
       call("quote_versions", { quote: quoteId }, (value) =>
         recordsOf(value, "quote versions").map(versionSummaryOf),
       ),
-    version: (quoteId, revision) =>
+    version: ({ quoteId, revision }) =>
       call("quote_version", { quote: quoteId, revision }, (value) => {
         const row = recordOf(value, "quote version");
 
@@ -775,7 +783,7 @@ export function createQuotes<
       ),
     fromDeal: (dealId) => quote("quote_from_deal", { deal: dealId }, quoteOf),
     view: (token) => call("public_quote", { token }, publicOf),
-    respond: (token, decision, answer) =>
+    respond: ({ token, decision, answer }) =>
       call(
         "respond_to_quote",
         {
@@ -787,13 +795,13 @@ export function createQuotes<
         },
         responseOf,
       ),
-    portalView: (quoteId, viewOptions = {}) =>
+    portalView: ({ quoteId, ...viewOptions }) =>
       call(
         "portal_quote",
         { quote: quoteId, ...actorArg(viewOptions) },
         publicOf,
       ),
-    portalRespond: (quoteId, decision, answer = {}) =>
+    portalRespond: ({ quoteId, decision, answer = {} }) =>
       call(
         "respond_to_portal_quote",
         {

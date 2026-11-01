@@ -144,17 +144,25 @@ describe.skipIf(!live)("commerce recipe", () => {
         async insert(batch, { organizationId: tenant }) {
           for (const row of batch) {
             const product = await catalog
-              .createProduct(tenant, { title: row.title })
-              .orThrow();
-
-            await catalog.setProductStatus(product.id, "active").orThrow();
-
-            const variant = await catalog
-              .createVariant(product.id, { sku: row.sku })
+              .createProduct({
+                organizationId: tenant,
+                input: { title: row.title },
+              })
               .orThrow();
 
             await catalog
-              .setPrice(variant.id, { amount: money(BigInt(row.price), "EUR") })
+              .setProductStatus({ productId: product.id, status: "active" })
+              .orThrow();
+
+            const variant = await catalog
+              .createVariant({ productId: product.id, input: { sku: row.sku } })
+              .orThrow();
+
+            await catalog
+              .setPrice({
+                variantId: variant.id,
+                input: { amount: money(BigInt(row.price), "EUR") },
+              })
               .orThrow();
             variants.set(row.sku, variant.id);
           }
@@ -170,7 +178,11 @@ describe.skipIf(!live)("commerce recipe", () => {
         {
           organizationId,
           start: async () =>
-            (await imports.start(organizationId, "products").orThrow()).id,
+            (
+              await imports
+                .start({ organizationId, source: "products" })
+                .orThrow()
+            ).id,
           finish: async (id, status, count, error) => {
             await s.serviceSql.queryRaw(
               "select better_supabase.finish_import($1, $2, $3, $4)",
@@ -184,61 +196,93 @@ describe.skipIf(!live)("commerce recipe", () => {
       const tee = { id: variants.get("TEE")! };
 
       const warehouse = await inventory
-        .saveLocation(organizationId, { code: "WH", name: "Warehouse" })
+        .saveLocation({
+          organizationId,
+          input: { code: "WH", name: "Warehouse" },
+        })
         .orThrow();
 
       await inventory
-        .adjustStock(tee.id, warehouse.id, 10, "receipt")
+        .adjustStock({
+          variantId: tee.id,
+          locationId: warehouse.id,
+          quantity: 10,
+          reason: "receipt",
+        })
         .orThrow();
 
       const rate = await orders
-        .saveShippingRate(organizationId, {
-          name: "Standard",
-          countries: ["NL"],
-          amount: money(495, "EUR"),
+        .saveShippingRate({
+          organizationId,
+          input: {
+            name: "Standard",
+            countries: ["NL"],
+            amount: money(495, "EUR"),
+          },
         })
         .orThrow();
 
       const welcome = await promotions
-        .savePromotion(organizationId, {
-          name: "Welcome",
-          discount: { kind: "percentage", percent: "10" },
+        .savePromotion({
+          organizationId,
+          input: {
+            name: "Welcome",
+            discount: { kind: "percentage", percent: "10" },
+          },
         })
         .orThrow();
 
       await promotions
-        .createCodes(welcome.id, { codes: ["WELCOME10"] })
+        .createCodes({
+          promotionId: welcome.id,
+          input: { codes: ["WELCOME10"] },
+        })
         .orThrow();
 
       // The shopper left a tee in a cart on another device.
       await s.as(shopper);
 
       const saved = await orders
-        .createCart(organizationId, { currency: "EUR", email: shopper.email })
+        .createCart({
+          organizationId,
+          input: { currency: "EUR", email: shopper.email },
+        })
         .orThrow();
 
-      await orders.addToCart(saved.id, tee.id, 1).orThrow();
+      await orders
+        .addToCart({ cartId: saved.id, variantId: tee.id, quantity: 1 })
+        .orThrow();
 
       await s.as(visitor);
 
       const browsing = await orders
-        .createCart(organizationId, { currency: "EUR" })
+        .createCart({ organizationId, input: { currency: "EUR" } })
         .orThrow();
 
-      await orders.addToCart(browsing.id, tee.id, 2).orThrow();
-      await promotions.applyCode(browsing.id, "welcome10").orThrow();
+      await orders
+        .addToCart({ cartId: browsing.id, variantId: tee.id, quantity: 2 })
+        .orThrow();
+      await promotions
+        .applyCode({ cartId: browsing.id, code: "welcome10" })
+        .orThrow();
 
       // Signing in: the callback route merges the carts with the service role.
-      expect(await orders.mergeCarts(visitor.id, shopper.id).orThrow()).toBe(1);
+      expect(
+        await orders
+          .mergeCarts({ fromUserId: visitor.id, toUserId: shopper.id })
+          .orThrow(),
+      ).toBe(1);
 
       await s.as(shopper);
       await orders
-        .setCartDetails(saved.id, {
-          shippingAddress: ADDRESS,
-          billingAddress: ADDRESS,
+        .setCartDetails({
+          cartId: saved.id,
+          details: { shippingAddress: ADDRESS, billingAddress: ADDRESS },
         })
         .orThrow();
-      await orders.setShippingRate(saved.id, rate.id).orThrow();
+      await orders
+        .setShippingRate({ cartId: saved.id, rateId: rate.id })
+        .orThrow();
       const priced = await orders.priceCart(saved.id).orThrow();
       expect(priced.subtotal).toEqual(money(6000, "EUR"));
       expect(priced.discountTotal).toEqual(money(600, "EUR"));
@@ -246,7 +290,7 @@ describe.skipIf(!live)("commerce recipe", () => {
 
       const watchers = await watching(s, ORDER_EVENTS);
       await s.as(shopper);
-      const { order } = await orders.checkout(saved.id).orThrow();
+      const { order } = await orders.checkout({ cartId: saved.id }).orThrow();
       expect(order.status).toBe("paid");
       expect(order.number).toBe("SO-0001");
       expect(order.invoiceNumber).toMatch(/^INV-\d{4}-00001$/);
@@ -273,9 +317,16 @@ describe.skipIf(!live)("commerce recipe", () => {
 
       await s.watch(member, organizationId, "order", order.id);
       await s.as(owner);
-      const fulfillment = await orders.createFulfillment(order.id).orThrow();
+
+      const fulfillment = await orders
+        .createFulfillment({ orderId: order.id })
+        .orThrow();
+
       await orders
-        .shipFulfillment(fulfillment.id, { carrier: "PostNL" })
+        .shipFulfillment({
+          fulfillmentId: fulfillment.id,
+          tracking: { carrier: "PostNL" },
+        })
         .orThrow();
 
       await watchers.relay();
@@ -316,7 +367,11 @@ describe.skipIf(!live)("commerce recipe", () => {
       };
 
       const kpi = async (key: (typeof commerceMetrics)[number]["key"]) =>
-        (await app.metrics.kpi(key, today, { organizationId }).orThrow()).value;
+        (
+          await app.metrics
+            .kpi({ metric: key, range: today, options: { organizationId } })
+            .orThrow()
+        ).value;
 
       expect(await kpi("orders")).toBe(1);
       expect(await kpi("revenue")).toBe(Number(order.total.amount));
@@ -333,26 +388,26 @@ describe.skipIf(!live)("commerce recipe", () => {
       await s.as(owner);
 
       const small = await orders
-        .refund(order.id, { amount: money(1000, "EUR") })
+        .refund({ orderId: order.id, input: { amount: money(1000, "EUR") } })
         .orThrow();
 
       expect(small.status).toBe("succeeded");
-      const blocked = await orders.refund(order.id);
+      const blocked = await orders.refund({ orderId: order.id });
       expect(blocked.ok ? undefined : blocked.error.hint).toBe(
         "REFUND_APPROVAL_REQUIRED",
       );
 
       const request = await approvals
-        .request(
-          { type: "order", id: order.id },
-          { action: "refund", reason: "Damaged in transit" },
-        )
+        .request({
+          subject: { type: "order", id: order.id },
+          input: { action: "refund", reason: "Damaged in transit" },
+        })
         .orThrow();
 
       await s.as(finance);
-      await approvals.approve(request.id).orThrow();
+      await approvals.approve({ id: request.id }).orThrow();
       await s.as(owner);
-      const rest = await orders.refund(order.id).orThrow();
+      const rest = await orders.refund({ orderId: order.id }).orThrow();
       expect(rest.amount.amount).toBe(order.total.amount - 1000n);
     });
   }, 30_000);
@@ -373,16 +428,22 @@ describe.skipIf(!live)("commerce recipe", () => {
 
       await s.as(owner);
 
-      const small = await promotions.savePromotion(organizationId, {
-        name: "Spring",
-        discount: { kind: "percentage", percent: "20" },
+      const small = await promotions.savePromotion({
+        organizationId,
+        input: {
+          name: "Spring",
+          discount: { kind: "percentage", percent: "20" },
+        },
       });
 
       expect(small.ok).toBe(true);
 
-      const refused = await promotions.savePromotion(organizationId, {
-        name: "Clearance",
-        discount: { kind: "percentage", percent: "50" },
+      const refused = await promotions.savePromotion({
+        organizationId,
+        input: {
+          name: "Clearance",
+          discount: { kind: "percentage", percent: "50" },
+        },
       });
 
       expect(refused.ok ? undefined : refused.error.hint).toBe(
@@ -390,30 +451,39 @@ describe.skipIf(!live)("commerce recipe", () => {
       );
 
       const draft = await promotions
-        .savePromotion(organizationId, {
-          name: "Clearance",
-          discount: { kind: "percentage", percent: "50" },
-          active: false,
+        .savePromotion({
+          organizationId,
+          input: {
+            name: "Clearance",
+            discount: { kind: "percentage", percent: "50" },
+            active: false,
+          },
         })
         .orThrow();
 
-      const blocked = await promotions.setPromotionActive(draft.id, true);
+      const blocked = await promotions.setPromotionActive({
+        promotionId: draft.id,
+        active: true,
+      });
+
       expect(blocked.ok ? undefined : blocked.error.hint).toBe(
         "PROMOTION_APPROVAL_REQUIRED",
       );
 
       const request = await approvals
-        .request(
-          { type: "promotion", id: draft.id },
-          { action: "activate", reason: "End of season" },
-        )
+        .request({
+          subject: { type: "promotion", id: draft.id },
+          input: { action: "activate", reason: "End of season" },
+        })
         .orThrow();
 
       await s.as(finance);
-      await approvals.approve(request.id).orThrow();
+      await approvals.approve({ id: request.id }).orThrow();
       await s.as(owner);
       expect(
-        await promotions.setPromotionActive(draft.id, true).orThrow(),
+        await promotions
+          .setPromotionActive({ promotionId: draft.id, active: true })
+          .orThrow(),
       ).toBe(true);
     });
   }, 30_000);
@@ -440,27 +510,30 @@ describe.skipIf(!live)("commerce recipe", () => {
       await s.as(owner);
 
       const tee = await catalog
-        .createProduct(organizationId, {
-          title: "Linen tee",
-          description: "Washed linen with a relaxed fit",
+        .createProduct({
+          organizationId,
+          input: {
+            title: "Linen tee",
+            description: "Washed linen with a relaxed fit",
+          },
         })
         .orThrow();
 
       await catalog
-        .createProduct(organizationId, { title: "Wool scarf" })
+        .createProduct({ organizationId, input: { title: "Wool scarf" } })
         .orThrow();
 
       // "relaxed" is in the description; "linnen" is a typo of the title.
       for (const q of ["relaxed", "linnen"]) {
         expect(
-          (await search.search(q, { types: ["product"] }).orThrow()).map(
-            (hit) => [hit.subjectId, hit.url],
-          ),
+          (
+            await search.search({ q, query: { types: ["product"] } }).orThrow()
+          ).map((hit) => [hit.subjectId, hit.url]),
         ).toEqual([[tee.id, `/admin/products/${tee.id}`]]);
       }
 
       await s.as(stranger);
-      expect(await search.search("linen").orThrow()).toEqual([]);
+      expect(await search.search({ q: "linen" }).orThrow()).toEqual([]);
 
       await s.as(owner);
 
@@ -485,7 +558,11 @@ describe.skipIf(!live)("commerce recipe", () => {
           },
         })
         .orThrow();
-      const views = await savedViews.list(organizationId, "orders").orThrow();
+
+      const views = await savedViews
+        .list({ organizationId, list: "orders" })
+        .orThrow();
+
       expect(views.map((view) => [view.name, view.state.query])).toEqual([
         ["To ship", { facets: { status: ["paid"] }, sort: "oldest" }],
       ]);

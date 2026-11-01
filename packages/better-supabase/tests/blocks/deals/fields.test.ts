@@ -43,10 +43,13 @@ describe("deals fields", () => {
     const deals = createDeals({ transport: t, fields: Fields });
 
     const deal = await deals
-      .create("o", {
-        name: "Growth",
-        closeOn: Temporal.PlainDate.from("2026-11-30"),
-        fields: { region: "emea" },
+      .create({
+        organizationId: "o",
+        input: {
+          name: "Growth",
+          closeOn: Temporal.PlainDate.from("2026-11-30"),
+          fields: { region: "emea" },
+        },
       })
       .orThrow();
 
@@ -84,7 +87,7 @@ describe("deals fields", () => {
     const t = fieldsTransport({ reopen_deal: () => ({ ...ROW, region: "x" }) });
 
     const reopened = await createDeals({ transport: t, fields: Fields }).reopen(
-      "d1",
+      { dealId: "d1" },
     );
 
     expect(reopened.ok ? undefined : reopened.error.kind).toBe("validation");

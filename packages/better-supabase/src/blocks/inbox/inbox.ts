@@ -223,113 +223,118 @@ export type InboxHooks = BlockHooks<Inbox> & {
 export interface Inbox {
   readonly inboxes: {
     create(input: CreateInboxInput): AsyncResult<InboxRow>;
-    update(id: string, patch: InboxPatch): AsyncResult<InboxRow>;
+    update(input: { id: string; patch: InboxPatch }): AsyncResult<InboxRow>;
     /** `null` removes the member. */
-    setMember(
-      inboxId: string,
-      userId: string,
-      role: "agent" | "lead" | null,
-    ): AsyncResult<boolean>;
-    createTeam(
-      tenant: string,
-      name: string,
-    ): AsyncResult<{ readonly id: string; readonly name: string }>;
-    setTeamMember(
-      teamId: string,
-      userId: string,
-      present?: boolean,
-    ): AsyncResult<boolean>;
+    setMember(input: {
+      inboxId: string;
+      userId: string;
+      role: "agent" | "lead" | null;
+    }): AsyncResult<boolean>;
+    createTeam(input: {
+      tenant: string;
+      name: string;
+    }): AsyncResult<{ readonly id: string; readonly name: string }>;
+    setTeamMember(input: {
+      teamId: string;
+      userId: string;
+      present?: boolean | undefined;
+    }): AsyncResult<boolean>;
   };
   readonly conversations: {
-    open(
-      inboxId: string,
-      input?: StartConversationInput,
-    ): AsyncResult<Conversation>;
-    list(
-      tenant: string | null,
-      filter?: ConversationFilter,
-    ): AsyncResult<readonly Conversation[]>;
+    open(input: {
+      inboxId: string;
+      input?: StartConversationInput | undefined;
+    }): AsyncResult<Conversation>;
+    list(input: {
+      tenant: string | null;
+      filter?: ConversationFilter | undefined;
+    }): AsyncResult<readonly Conversation[]>;
     get(conversationId: string): AsyncResult<Conversation | null>;
-    assign(
-      conversationId: string,
+    assign(input: {
+      conversationId: string;
       to: {
         readonly assigneeId: string | null;
         readonly teamId?: string | null;
+      };
+    }): AsyncResult<Conversation>;
+    setStatus(
+      input: { conversationId: string; status: ConversationStatus } & {
+        readonly snoozedUntil?: Temporal.Instant;
       },
     ): AsyncResult<Conversation>;
-    setStatus(
-      conversationId: string,
-      status: ConversationStatus,
-      options?: { readonly snoozedUntil?: Temporal.Instant },
-    ): AsyncResult<Conversation>;
-    snooze(
-      conversationId: string,
-      until: Temporal.Instant,
-    ): AsyncResult<Conversation>;
+    snooze(input: {
+      conversationId: string;
+      until: Temporal.Instant;
+    }): AsyncResult<Conversation>;
     resolve(conversationId: string): AsyncResult<Conversation>;
     reopen(conversationId: string): AsyncResult<Conversation>;
     /** Hands a bot conversation to staff (`bot_mode = 'human'`) and tells them. */
-    handoff(conversationId: string, reason?: string): AsyncResult<Conversation>;
-    setBotMode(
-      conversationId: string,
-      mode: BotMode,
-      reason?: string,
-    ): AsyncResult<Conversation>;
+    handoff(input: {
+      conversationId: string;
+      reason?: string | undefined;
+    }): AsyncResult<Conversation>;
+    setBotMode(input: {
+      conversationId: string;
+      mode: BotMode;
+      reason?: string | undefined;
+    }): AsyncResult<Conversation>;
     markRead(conversationId: string): AsyncResult<Temporal.Instant>;
     /**
      * A typing ping on the conversation's messaging topic; the service names
      * the bot in `actor`.
      */
-    typing(
-      conversationId: string,
-      typing?: boolean,
-      actor?: string,
-    ): AsyncResult<boolean>;
+    typing(input: {
+      conversationId: string;
+      typing?: boolean | undefined;
+      actor?: string | undefined;
+    }): AsyncResult<boolean>;
     events(conversationId: string): AsyncResult<readonly ConversationEvent[]>;
     counts(tenant: string): AsyncResult<InboxCounts>;
   };
   readonly messages: {
-    send(
-      conversationId: string,
-      input: MessageInput,
-    ): AsyncResult<InboxMessage>;
+    send(input: {
+      conversationId: string;
+      input: MessageInput;
+    }): AsyncResult<InboxMessage>;
     /** An internal note only staff see. */
-    note(
-      conversationId: string,
-      body: string,
-      input?: Pick<MessageInput, "mentions" | "attachments" | "format">,
-    ): AsyncResult<InboxMessage>;
+    note(input: {
+      conversationId: string;
+      body: string;
+      input?:
+        | Pick<MessageInput, "mentions" | "attachments" | "format">
+        | undefined;
+    }): AsyncResult<InboxMessage>;
     /**
      * A page oldest first. `backward` (the default) reads the newest messages
      * sent before `cursor`; `forward` reads the oldest sent after it.
      */
     list(
-      conversationId: string,
-      options?: MessagePageOptions,
+      input: { conversationId: string } & MessagePageOptions,
     ): AsyncResult<readonly InboxMessage[]>;
     get(messageId: string): AsyncResult<InboxMessage | null>;
-    edit(messageId: string, body: string): AsyncResult<InboxMessage>;
+    edit(input: { messageId: string; body: string }): AsyncResult<InboxMessage>;
     /** Leaves a tombstone with an empty body and deletes its attachments. */
     remove(messageId: string): AsyncResult<InboxMessage>;
     /** Needs the `reactions` module; returns the message's reactions. */
     react(
-      messageId: string,
-      emoji: string,
-      options?: { readonly present?: boolean; readonly actor?: string },
+      input: { messageId: string; emoji: string } & {
+        readonly present?: boolean;
+        readonly actor?: string;
+      },
     ): AsyncResult<readonly MessageReaction[]>;
     /**
      * A pending attachment on the conversation to upload a file to. Upload it
      * to `bucket` at `path`, call `confirmUpload`, then pass its id in
      * `attachments`.
      */
-    createUpload(
-      conversationId: string,
+    createUpload(input: {
+      conversationId: string;
       file: {
         readonly name: string;
         readonly mimeType?: string;
         readonly size?: number;
-      },
-    ): AsyncResult<InboxUpload>;
+      };
+    }): AsyncResult<InboxUpload>;
     /** Marks the uploaded file as stored (the `attachments` module). */
     confirmUpload(attachmentId: string): AsyncResult<void>;
     /**
@@ -337,11 +342,11 @@ export interface Inbox {
      * caller when `publishDue` runs after that time; until then only the caller
      * sees it.
      */
-    schedule(
-      conversationId: string,
-      input: ScheduledMessageInput,
-      at: Temporal.Instant,
-    ): AsyncResult<ScheduledInboxMessage>;
+    schedule(input: {
+      conversationId: string;
+      input: ScheduledMessageInput;
+      at: Temporal.Instant;
+    }): AsyncResult<ScheduledInboxMessage>;
     /**
      * The caller's scheduled replies, soonest first, on one conversation or
      * all.
@@ -350,10 +355,10 @@ export interface Inbox {
       conversationId?: string,
     ): AsyncResult<readonly ScheduledInboxMessage[]>;
     /** Moves the caller's scheduled reply to another future time. */
-    reschedule(
-      scheduledId: string,
-      at: Temporal.Instant,
-    ): AsyncResult<ScheduledInboxMessage>;
+    reschedule(input: {
+      scheduledId: string;
+      at: Temporal.Instant;
+    }): AsyncResult<ScheduledInboxMessage>;
     /** Deletes the caller's scheduled reply before it is sent. */
     cancelScheduled(scheduledId: string): AsyncResult<void>;
   };
@@ -366,7 +371,10 @@ export interface Inbox {
     /** Confirms a fetched and uploaded file. */
     stored(attachmentId: string): AsyncResult<void>;
     /** Gives up on a file the channel no longer serves. */
-    failed(attachmentId: string, detail?: string): AsyncResult<boolean>;
+    failed(input: {
+      attachmentId: string;
+      detail?: string | undefined;
+    }): AsyncResult<boolean>;
   };
   readonly deliveries: {
     /** Service only: after posting a message on its channel. */
@@ -386,7 +394,10 @@ export interface Inbox {
     }): AsyncResult<number>;
   };
   readonly templates: {
-    upsert(tenant: string, input: TemplateInput): AsyncResult<MessageTemplate>;
+    upsert(input: {
+      tenant: string;
+      input: TemplateInput;
+    }): AsyncResult<MessageTemplate>;
     delete(id: string): AsyncResult<boolean>;
   };
   /** Service only: channel messages, the webhook store and its sweeps. */
@@ -404,11 +415,11 @@ export interface Inbox {
       readonly inboxId?: string;
       readonly tenant?: string;
     }): AsyncResult<{ readonly id: string; readonly duplicate: boolean }>;
-    setStatus(
-      id: string,
-      status: "processing" | "processed" | "ignored" | "failed",
-      error?: string,
-    ): AsyncResult<boolean>;
+    setStatus(input: {
+      id: string;
+      status: "processing" | "processed" | "ignored" | "failed";
+      error?: string | undefined;
+    }): AsyncResult<boolean>;
     pending(options?: {
       readonly limit?: number;
       readonly maxAttempts?: number;
@@ -554,21 +565,28 @@ export function createInbox(options: InboxOptions): Inbox {
       conversationOf,
     );
 
-  const setBotMode = (
-    conversationId: string,
-    mode: BotMode,
-    reason?: string,
-  ): AsyncResult<Conversation> =>
+  const setBotMode = ({
+    conversationId,
+    mode,
+    reason,
+  }: {
+    conversationId: string;
+    mode: BotMode;
+    reason?: string | undefined;
+  }): AsyncResult<Conversation> =>
     call(
       "set_bot_mode",
       { conversation: conversationId, mode, reason },
       conversationOf,
     );
 
-  const send = (
-    conversationId: string,
-    input: MessageInput,
-  ): AsyncResult<InboxMessage> =>
+  const send = ({
+    conversationId,
+    input,
+  }: {
+    conversationId: string;
+    input: MessageInput;
+  }): AsyncResult<InboxMessage> =>
     call(
       "send_inbox_message",
       { conversation: conversationId, input: compact(messageArg(input)) },
@@ -593,7 +611,7 @@ export function createInbox(options: InboxOptions): Inbox {
           },
           inboxOf,
         ),
-      update: (id, patch) =>
+      update: ({ id, patch }) =>
         call(
           "update_inbox",
           {
@@ -609,19 +627,19 @@ export function createInbox(options: InboxOptions): Inbox {
           },
           inboxOf,
         ),
-      setMember: (inboxId, userId, role) =>
+      setMember: ({ inboxId, userId, role }) =>
         call(
           "set_inbox_member",
           { inbox: inboxId, member: userId, role },
           (value) => value === true,
         ),
-      createTeam: (tenant, name) =>
+      createTeam: ({ tenant, name }) =>
         call("create_inbox_team", { tenant, name }, (value) => {
           const row = recordOf(value, "create_inbox_team");
 
           return { id: textOf(row["id"]), name: textOf(row["name"]) };
         }),
-      setTeamMember: (teamId, userId, present = true) =>
+      setTeamMember: ({ teamId, userId, present = true }) =>
         call(
           "set_inbox_team_member",
           { team: teamId, member: userId, present },
@@ -629,13 +647,13 @@ export function createInbox(options: InboxOptions): Inbox {
         ),
     },
     conversations: {
-      open: (inboxId, input = {}) =>
+      open: ({ inboxId, input = {} }) =>
         call(
           "start_conversation",
           { inbox: inboxId, input: startArg(input) },
           conversationOf,
         ),
-      list: (tenant, filter = {}) =>
+      list: ({ tenant, filter = {} }) =>
         call(
           "list_inbox_conversations",
           {
@@ -657,7 +675,7 @@ export function createInbox(options: InboxOptions): Inbox {
         call("get_conversation", { conversation: conversationId }, (value) =>
           value === null ? null : conversationOf(value),
         ),
-      assign: (conversationId, to) =>
+      assign: ({ conversationId, to }) =>
         call(
           "assign_conversation",
           {
@@ -667,14 +685,14 @@ export function createInbox(options: InboxOptions): Inbox {
           },
           conversationOf,
         ),
-      setStatus: (conversationId, status, statusOptions = {}) =>
+      setStatus: ({ conversationId, status, ...statusOptions }) =>
         setStatus(conversationId, status, statusOptions.snoozedUntil),
-      snooze: (conversationId, until) =>
+      snooze: ({ conversationId, until }) =>
         setStatus(conversationId, "snoozed", until),
       resolve: (conversationId) => setStatus(conversationId, "resolved"),
       reopen: (conversationId) => setStatus(conversationId, "open"),
-      handoff: (conversationId, reason) =>
-        setBotMode(conversationId, "human", reason),
+      handoff: ({ conversationId, reason }) =>
+        setBotMode({ conversationId, mode: "human", reason }),
       setBotMode,
       markRead: (conversationId) =>
         call(
@@ -688,7 +706,7 @@ export function createInbox(options: InboxOptions): Inbox {
             return toInstant(value);
           },
         ),
-      typing: (conversationId, typing = true, actor) =>
+      typing: ({ conversationId, typing = true, actor }) =>
         call(
           "set_typing",
           { conversation: conversationId, typing, actor },
@@ -704,9 +722,9 @@ export function createInbox(options: InboxOptions): Inbox {
     },
     messages: {
       send,
-      note: (conversationId, body, input = {}) =>
-        send(conversationId, { ...input, body, kind: "note" }),
-      list: (conversationId, page = {}) => {
+      note: ({ conversationId, body, input = {} }) =>
+        send({ conversationId, input: { ...input, body, kind: "note" } }),
+      list: ({ conversationId, ...page }) => {
         const cursor = instantArg(pageOf<Temporal.Instant>(page).cursor);
 
         return call(
@@ -725,7 +743,7 @@ export function createInbox(options: InboxOptions): Inbox {
         call("get_inbox_message", { message: messageId }, (value) =>
           value === null ? null : messageOf(value),
         ),
-      edit: (messageId, body) =>
+      edit: ({ messageId, body }) =>
         call("edit_inbox_message", { message: messageId, body }, messageOf),
       remove: (messageId) =>
         call(
@@ -733,7 +751,7 @@ export function createInbox(options: InboxOptions): Inbox {
           { message: messageId, remove: true },
           messageOf,
         ),
-      react: (messageId, emoji, reactOptions = {}) =>
+      react: ({ messageId, emoji, ...reactOptions }) =>
         call(
           "react_to_inbox_message",
           {
@@ -744,7 +762,7 @@ export function createInbox(options: InboxOptions): Inbox {
           },
           reactionsOf,
         ),
-      createUpload: (conversationId, file) =>
+      createUpload: ({ conversationId, file }) =>
         call(
           "create_inbox_attachment",
           {
@@ -756,7 +774,7 @@ export function createInbox(options: InboxOptions): Inbox {
           uploadOf,
         ),
       confirmUpload: (attachmentId) => confirm(attachmentId),
-      schedule: (conversationId, input, at) =>
+      schedule: ({ conversationId, input, at }) =>
         call(
           "schedule_inbox_message",
           {
@@ -772,7 +790,7 @@ export function createInbox(options: InboxOptions): Inbox {
           { conversation: conversationId ?? null },
           scheduledListOf,
         ),
-      reschedule: (scheduledId, at) =>
+      reschedule: ({ scheduledId, at }) =>
         call(
           "reschedule_inbox_message",
           { scheduled: scheduledId, scheduled_for: instantArg(at) },
@@ -790,7 +808,7 @@ export function createInbox(options: InboxOptions): Inbox {
       pending: (limit) =>
         call("pending_inbox_files", { max: limit }, pendingFilesOf),
       stored: (attachmentId) => confirm(attachmentId),
-      failed: (attachmentId, detail) =>
+      failed: ({ attachmentId, detail }) =>
         call(
           "inbox_file_failed",
           { attachment: attachmentId, detail },
@@ -823,7 +841,7 @@ export function createInbox(options: InboxOptions): Inbox {
         ),
     },
     templates: {
-      upsert: (tenant, input) =>
+      upsert: ({ tenant, input }) =>
         call(
           "upsert_message_template",
           {
@@ -884,7 +902,7 @@ export function createInbox(options: InboxOptions): Inbox {
             };
           },
         ),
-      setStatus: (id, status, error) =>
+      setStatus: ({ id, status, error }) =>
         call(
           "set_inbound_event_status",
           { event: id, status, error },

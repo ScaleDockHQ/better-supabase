@@ -29,7 +29,7 @@ export const holdMeeting = bsb.action(
     permission: "meetings.write",
   },
   async ({ meetingId }, { db }) => {
-    const held = await db.meetings.hold(meetingId);
+    const held = await db.meetings.hold({ meetingId });
 
     return held.ok ? ok({ title: held.data.title }) : held;
   },
@@ -43,7 +43,7 @@ export const settleDecision = bsb.action(
     permission: "meetings.write",
   },
   async ({ decisionId }, { db }) => {
-    const decided = await db.meetings.decide(decisionId);
+    const decided = await db.meetings.decide({ decisionId });
 
     return decided.ok ? ok({ status: decided.data.status }) : decided;
   },

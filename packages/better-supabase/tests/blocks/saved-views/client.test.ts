@@ -104,7 +104,7 @@ describe("createSavedViewsController", () => {
     await flush();
     expect(current().opened).toBeUndefined();
     current().apply(first);
-    await current().saveCurrent("Mine", "first");
+    await current().saveCurrent({ name: "Mine", id: "first" });
     expect(calls.save).toHaveBeenCalledWith(
       expect.objectContaining({ name: "Mine", id: "first" }),
     );
@@ -113,14 +113,17 @@ describe("createSavedViewsController", () => {
     current().apply(first);
     await current().remove("other");
     expect(current().opened).toBe(first);
-    await current().duplicate("first", "Copy", "tenant");
+    await current().duplicate({ id: "first", name: "Copy", scope: "tenant" });
     expect(calls.duplicate).toHaveBeenCalledWith({
       id: "first",
       name: "Copy",
       scope: "tenant",
     });
-    await current().duplicate("first", "Copy");
-    await current().setPreference("first", { pinned: true });
+    await current().duplicate({ id: "first", name: "Copy" });
+    await current().setPreference({
+      id: "first",
+      preference: { pinned: true },
+    });
     expect(calls.load).toHaveBeenCalledTimes(7);
     calls.load.mockRejectedValueOnce(new Error("offline"));
     await current().refresh();
@@ -138,12 +141,16 @@ describe("createSavedViewsController", () => {
     const { view: current, unmount } = mount(controller);
     await flush();
     expect(current().error).toEqual(new Error("offline"));
-    await expect(current().saveCurrent("x")).rejects.toThrow(/`save`/);
-    await expect(current().remove("x")).rejects.toThrow(/`remove`/);
-    await expect(current().duplicate("x", "y")).rejects.toThrow(/`duplicate`/);
-    await expect(current().setPreference("x", {})).rejects.toThrow(
-      /`setPreference`/,
+    await expect(current().saveCurrent({ name: "x" })).rejects.toThrow(
+      /`save`/,
     );
+    await expect(current().remove("x")).rejects.toThrow(/`remove`/);
+    await expect(current().duplicate({ id: "x", name: "y" })).rejects.toThrow(
+      /`duplicate`/,
+    );
+    await expect(
+      current().setPreference({ id: "x", preference: {} }),
+    ).rejects.toThrow(/`setPreference`/);
     unmount();
     mount(controller).unmount();
   });

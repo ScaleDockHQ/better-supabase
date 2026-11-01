@@ -182,7 +182,7 @@ describe("createWorkflows", () => {
       workflows.schedules.create({ name: "n", workflow: "w", cron: "bad" }),
     ).toThrow('Invalid cron "bad"');
     expect(await workflows.schedules.list("t1").orThrow()).toHaveLength(1);
-    expect(await workflows.schedules.pause("s1").orThrow()).toBe(true);
+    expect(await workflows.schedules.pause({ id: "s1" }).orThrow()).toBe(true);
     expect(calls.at(-1)?.args).toEqual({ schedule: "s1", paused: true });
     expect(await workflows.schedules.remove("s1").orThrow()).toBe(false);
   });
@@ -268,7 +268,9 @@ describe("createWorkflows", () => {
 
     const workflows = createWorkflows({ transport });
     expect(
-      await workflows.semaphores.acquire("k", "h", { max: 2 }).orThrow(),
+      await workflows.semaphores
+        .acquire({ key: "k", holder: "h", options: { max: 2 } })
+        .orThrow(),
     ).toBe(true);
     expect(calls[0]?.args).toEqual({
       key: "k",
@@ -276,7 +278,9 @@ describe("createWorkflows", () => {
       max: 2,
       ttl: "300 seconds",
     });
-    expect(await workflows.semaphores.release("k", "h").orThrow()).toBe(true);
+    expect(
+      await workflows.semaphores.release({ key: "k", holder: "h" }).orThrow(),
+    ).toBe(true);
     expect(
       await workflows.admission
         .request({ key: "k", workflow: "w", debounce: 5 })

@@ -115,10 +115,13 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
 
         return chat ? result(chat) : failure(dbError("not_found", "no chat"));
       },
-      create: (
-        organizationId: string | null,
-        input: { id: string; model?: string },
-      ) => {
+      create: ({
+        organizationId,
+        input,
+      }: {
+        organizationId: string | null;
+        input: { id: string; model?: string };
+      }) => {
         const chat = record(input.id, {
           organizationId: organizationId ?? undefined,
           model: input.model,
@@ -140,11 +143,15 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
       },
     },
     messages: {
-      appendUser: (
-        chatId: string,
-        message: AiMessage,
-        opts: { trigger?: string; messageId?: string; native?: unknown } = {},
-      ) => {
+      appendUser: ({
+        chatId,
+        message,
+        ...opts
+      }: { chatId: string; message: AiMessage } & {
+        trigger?: string;
+        messageId?: string;
+        native?: unknown;
+      }) => {
         appended.push(opts);
 
         if (opts.trigger === "regenerate-message") {
@@ -169,11 +176,15 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
         });
       },
       path: () => result([...tree]),
-      saveAssistant: (
-        chatId: string,
-        message: AiMessage,
-        opts: { parentId: string; native?: unknown; format?: string },
-      ) => {
+      saveAssistant: ({
+        chatId,
+        message,
+        options: opts,
+      }: {
+        chatId: string;
+        message: AiMessage;
+        options: { parentId: string; native?: unknown; format?: string };
+      }) => {
         saved.push({ chatId, message, opts });
         store(message, opts.parentId, {
           format: opts.format ?? "canonical",
@@ -188,7 +199,7 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
       },
     },
     runs: {
-      claim: (chatId: string, streamId: string) => {
+      claim: ({ chatId, streamId }: { chatId: string; streamId: string }) => {
         if (options.claimed === false) {
           return result({
             claimed: false,
@@ -209,7 +220,14 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
 
         return result({ claimed: true, streamId, runId: "run1" });
       },
-      release: (chatId: string, streamId: string, opts: unknown) => {
+      release: ({
+        chatId,
+        streamId,
+        ...opts
+      }: {
+        chatId: string;
+        streamId: string;
+      }) => {
         released.push({ chatId, streamId, opts });
 
         return result(true);

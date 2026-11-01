@@ -192,23 +192,22 @@ export interface QualifiedHoldersOptions {
 
 export interface Qualifications<F extends object = Record<never, never>> {
   /** Needs `qualifications.manage`. */
-  saveType(
-    organizationId: string,
-    input: QualificationTypeInput,
-  ): AsyncResult<QualificationType>;
+  saveType(input: {
+    organizationId: string;
+    input: QualificationTypeInput;
+  }): AsyncResult<QualificationType>;
   /** Needs `qualifications.manage`. Holdings stay. */
   archiveType(typeId: string): AsyncResult<QualificationType>;
   /** By name. */
   types(
-    organizationId: string,
-    options?: { readonly includeArchived?: boolean },
+    input: { organizationId: string } & { readonly includeArchived?: boolean },
   ): AsyncResult<readonly QualificationType[]>;
   /** Needs `qualifications.manage`. Adding the same target twice keeps one. */
-  addRequirement(
-    typeId: string,
-    targetType: QualificationTargetType,
-    targetValue: string,
-  ): AsyncResult<QualificationRequirement>;
+  addRequirement(input: {
+    typeId: string;
+    targetType: QualificationTargetType;
+    targetValue: string;
+  }): AsyncResult<QualificationRequirement>;
   /** Needs `qualifications.manage`. */
   removeRequirement(
     requirementId: string,
@@ -217,30 +216,30 @@ export interface Qualifications<F extends object = Record<never, never>> {
     typeId: string,
   ): AsyncResult<readonly QualificationRequirement[]>;
   /** Needs `qualifications.grant`. */
-  grant(
-    organizationId: string,
-    input: QualificationGrantInput<F>,
-  ): AsyncResult<Qualification<F>>;
+  grant(input: {
+    organizationId: string;
+    input: QualificationGrantInput<F>;
+  }): AsyncResult<Qualification<F>>;
   /** Needs `qualifications.grant`. Revoking twice keeps the first revocation. */
-  revoke(
-    qualificationId: string,
-    reason?: string,
-  ): AsyncResult<Qualification<F>>;
+  revoke(input: {
+    qualificationId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Qualification<F>>;
   /** Every holding of one holder, the newest grant first. */
-  of(
-    holderType: QualificationHolderType,
-    holderId: string,
-  ): AsyncResult<readonly Qualification<F>[]>;
+  of(input: {
+    holderType: QualificationHolderType;
+    holderId: string;
+  }): AsyncResult<readonly Qualification<F>[]>;
   /** The required qualifications holders lack, have let lapse or are about to. */
   gaps(
-    organizationId: string,
-    options?: QualificationGapOptions,
+    input: { organizationId: string } & QualificationGapOptions,
   ): AsyncResult<readonly QualificationGap[]>;
   /** The ids of the holders with a valid holding of `typeKey` on a day. */
   qualifiedHolders(
-    organizationId: string,
-    typeKey: string,
-    options?: QualifiedHoldersOptions,
+    input: {
+      organizationId: string;
+      typeKey: string;
+    } & QualifiedHoldersOptions,
   ): AsyncResult<readonly string[]>;
   /**
    * Reports each holding once when it starts expiring and once when it expires;
@@ -410,7 +409,7 @@ export function createQualifications<
     requirementOf(value, fn);
 
   const client: Qualifications<F> = {
-    saveType: (organizationId, input) =>
+    saveType: ({ organizationId, input }) =>
       call(
         "save_qualification_type",
         {
@@ -430,7 +429,7 @@ export function createQualifications<
       call("archive_qualification_type", { type_id: typeId }, (value) =>
         typeOf(value, "archive_qualification_type"),
       ),
-    types: (organizationId, list = {}) =>
+    types: ({ organizationId, ...list }) =>
       call(
         "list_qualification_types",
         {
@@ -439,7 +438,7 @@ export function createQualifications<
         },
         many("list_qualification_types", typeOf),
       ),
-    addRequirement: (typeId, targetType, targetValue) =>
+    addRequirement: ({ typeId, targetType, targetValue }) =>
       call(
         "add_qualification_requirement",
         { type_id: typeId, target_type: targetType, target_value: targetValue },
@@ -457,7 +456,7 @@ export function createQualifications<
         { type_id: typeId },
         many("list_qualification_requirements", requirementOf),
       ),
-    grant: (organizationId, input) =>
+    grant: ({ organizationId, input }) =>
       fields
         .args(input.fields)
         .andThen((checked) =>
@@ -476,19 +475,19 @@ export function createQualifications<
             holding("grant_qualification"),
           ).andThen(fields.row),
         ),
-    revoke: (qualificationId, reason) =>
+    revoke: ({ qualificationId, reason }) =>
       call(
         "revoke_qualification",
         { qualification_id: qualificationId, reason: reason ?? null },
         holding("revoke_qualification"),
       ).andThen(fields.row),
-    of: (holderType, holderId) =>
+    of: ({ holderType, holderId }) =>
       call(
         "qualifications_of",
         { holder_type: holderType, holder_id: holderId },
         many("qualifications_of", holdingOf),
       ).andThen(fields.rows),
-    gaps: (organizationId, list = {}) =>
+    gaps: ({ organizationId, ...list }) =>
       call(
         "qualification_gaps",
         {
@@ -503,7 +502,7 @@ export function createQualifications<
         },
         many("qualification_gaps", gapOf),
       ),
-    qualifiedHolders: (organizationId, typeKey, list = {}) =>
+    qualifiedHolders: ({ organizationId, typeKey, ...list }) =>
       call(
         "qualified_holders",
         {

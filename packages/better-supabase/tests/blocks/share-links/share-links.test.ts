@@ -39,9 +39,11 @@ describe("createShareLinks", () => {
 
     const links = createShareLinks({ transport, schema: "app", tenant: "org" });
 
-    expect((await links.create(FILE, "edit").orThrow()).token).toBe("once");
+    expect(
+      (await links.create({ subject: FILE, options: "edit" }).orThrow()).token,
+    ).toBe("once");
     expect(await links.revoke("s1").orThrow()).toBe(true);
-    const resolved = await links.resolve("once").orThrow();
+    const resolved = await links.resolve({ token: "once" }).orThrow();
     expect(resolved).toMatchObject({
       id: "s1",
       organizationId: "org",
@@ -50,12 +52,22 @@ describe("createShareLinks", () => {
       versionId: "v1",
     });
     expect(resolved?.expiresAt?.toString()).toBe("2026-11-01T00:00:00Z");
-    expect((await links.create(FILE, { versionId: "v1" }).orThrow()).id).toBe(
-      "s1",
-    );
-    expect(await links.recordView(FILE, "user", "u1").orThrow()).toBe(true);
-    expect(await links.list(FILE).orThrow()).toEqual([]);
-    expect(await links.setState(FILE, true).orThrow()).toBe(true);
+    expect(
+      (
+        await links
+          .create({ subject: FILE, options: { versionId: "v1" } })
+          .orThrow()
+      ).id,
+    ).toBe("s1");
+    expect(
+      await links
+        .recordView({ subject: FILE, viewerKind: "user", viewer: "u1" })
+        .orThrow(),
+    ).toBe(true);
+    expect(await links.list({ subject: FILE }).orThrow()).toEqual([]);
+    expect(
+      await links.setState({ subject: FILE, starred: true }).orThrow(),
+    ).toBe(true);
     expect(transport.calls).toContainEqual([
       "record_view",
       {
@@ -84,11 +96,12 @@ describe("createShareLinks", () => {
     });
 
     await links
-      .create(FILE, {
-        expiresAt: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+      .create({
+        subject: FILE,
+        options: { expiresAt: Temporal.Instant.from("2026-11-01T00:00:00Z") },
       })
       .orThrow();
-    await links.create(FILE).orThrow();
+    await links.create({ subject: FILE }).orThrow();
     expect(transport.calls.map(([, args]) => args)).toEqual([
       expect.objectContaining({
         tenant: "org",
@@ -105,8 +118,8 @@ describe("createShareLinks", () => {
     const links = createShareLinks({ transport, schema: "app" });
 
     for (const result of [
-      await links.create(FILE),
-      await links.recordView(FILE, "user"),
+      await links.create({ subject: FILE }),
+      await links.recordView({ subject: FILE, viewerKind: "user" }),
     ]) {
       expect(result.error).toMatchObject({
         kind: "invalid_request",
@@ -115,7 +128,7 @@ describe("createShareLinks", () => {
     }
 
     expect(transport.calls).toEqual([]);
-    expect(await links.list(FILE).orThrow()).toEqual([]);
+    expect(await links.list({ subject: FILE }).orThrow()).toEqual([]);
   });
 
   it("creates a link for a caller-made hash, finds it and lists full rows", async () => {
@@ -152,10 +165,11 @@ describe("createShareLinks", () => {
 
     const thread = { type: "thread", id: "t1" };
 
-    expect(await links.createHashed(thread, "a".repeat(64)).orThrow()).toEqual({
-      id: "l1",
-      fields: {},
-    });
+    expect(
+      await links
+        .createHashed({ subject: thread, tokenHash: "a".repeat(64) })
+        .orThrow(),
+    ).toEqual({ id: "l1", fields: {} });
     expect(await links.find("a".repeat(64)).orThrow()).toEqual({
       id: "l1",
       organizationId: "org-1",
@@ -166,7 +180,9 @@ describe("createShareLinks", () => {
       createdBy: "u1",
     });
 
-    const [row] = await links.list(thread, { includeRevoked: false }).orThrow();
+    const [row] = await links
+      .list({ subject: thread, includeRevoked: false })
+      .orThrow();
 
     expect(row?.subject).toEqual(thread);
     expect(row?.createdBy).toBe("u1");
@@ -211,14 +227,19 @@ describe("createShareLinks", () => {
     const links = createShareLinks({ transport, schema: "app", tenant: "org" });
 
     await links
-      .create(FILE, { password: "correct horse", downloadAllowed: false })
+      .create({
+        subject: FILE,
+        options: { password: "correct horse", downloadAllowed: false },
+      })
       .orThrow();
-    await links.create(FILE).orThrow();
+    await links.create({ subject: FILE }).orThrow();
     expect(
-      await links.resolve("once", { password: "correct horse" }).orThrow(),
+      await links
+        .resolve({ token: "once", password: "correct horse" })
+        .orThrow(),
     ).toMatchObject({ downloadAllowed: false, passwordRequired: true });
-    await links.resolve("once").orThrow();
-    expect(await links.list(FILE).orThrow()).toMatchObject([
+    await links.resolve({ token: "once" }).orThrow();
+    expect(await links.list({ subject: FILE }).orThrow()).toMatchObject([
       { downloadAllowed: false, passwordRequired: true },
     ]);
     expect(transport.calls.map(([, args]) => args)).toEqual([
@@ -240,7 +261,7 @@ describe("createShareLinks", () => {
 
     const links = createShareLinks({ transport, schema: "app", tenant: "org" });
 
-    expect((await links.resolve("once")).error).toMatchObject({
+    expect((await links.resolve({ token: "once" })).error).toMatchObject({
       kind: "unauthorized",
       code: "28P01",
       hint: "SHARE_LINK_PASSWORD_REQUIRED",

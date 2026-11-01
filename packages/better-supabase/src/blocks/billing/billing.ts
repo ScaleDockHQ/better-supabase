@@ -120,10 +120,13 @@ export function createBilling(options: BillingOptions): Billing {
       textOf,
     );
 
-  const ensureAccount = (
-    organizationId: string,
-    details: CustomerDetails = {},
-  ): AsyncResult<string> =>
+  const ensureAccount = ({
+    organizationId,
+    details = {},
+  }: {
+    organizationId: string;
+    details?: CustomerDetails | undefined;
+  }): AsyncResult<string> =>
     account(organizationId).andThen(async (existing) => {
       if (existing !== undefined) {
         return ok(existing);
@@ -168,17 +171,20 @@ export function createBilling(options: BillingOptions): Billing {
       return linked;
     });
 
-  const ensureCustomer = (
-    organizationId: string,
-    details: CustomerDetails = {},
-  ): AsyncResult<string> =>
+  const ensureCustomer = ({
+    organizationId,
+    details = {},
+  }: {
+    organizationId: string;
+    details?: CustomerDetails | undefined;
+  }): AsyncResult<string> =>
     customer(organizationId).andThen(async (existing) => {
       if (existing !== undefined) {
         return ok(existing);
       }
 
       if (accountMode) {
-        const ensured = await ensureAccount(organizationId, details);
+        const ensured = await ensureAccount({ organizationId, details });
 
         return ensured.ok
           ? err(
@@ -255,12 +261,12 @@ export function createBilling(options: BillingOptions): Billing {
     accountMode
       ? partyOf(organizationId).andThen(async (found) =>
           found === undefined
-            ? ensureAccount(organizationId, details).map(
+            ? ensureAccount({ organizationId, details }).map(
                 (accountId): BillingParty => ({ customer_account: accountId }),
               )
             : ok(found),
         )
-      : ensureCustomer(organizationId, details).map(
+      : ensureCustomer({ organizationId, details }).map(
           (customerId): BillingParty => ({ customer: customerId }),
         );
 
@@ -281,10 +287,12 @@ export function createBilling(options: BillingOptions): Billing {
       subscriptionItemOf,
     );
 
-  const syncSeats = (
-    organizationId: string,
-    sync: { readonly key?: string } = {},
-  ): AsyncResult<SeatSync> =>
+  const syncSeats = ({
+    organizationId,
+    ...sync
+  }: { organizationId: string } & {
+    readonly key?: string;
+  }): AsyncResult<SeatSync> =>
     seats(organizationId).andThen(
       async (quantity): Promise<Result<SeatSync>> => {
         const current = await item(organizationId);
@@ -684,10 +692,12 @@ export function createBilling(options: BillingOptions): Billing {
     before_created: pageOf(list).cursor,
   });
 
-  const invoices = (
-    organizationId: string,
-    list: { readonly limit?: number } = {},
-  ): AsyncResult<readonly StripeRow[]> =>
+  const invoices = ({
+    organizationId,
+    ...list
+  }: { organizationId: string } & { readonly limit?: number }): AsyncResult<
+    readonly StripeRow[]
+  > =>
     call(
       "billing_invoices",
       { tenant: organizationId, max_rows: list.limit ?? 50 },
@@ -698,7 +708,7 @@ export function createBilling(options: BillingOptions): Billing {
     organizationId: string,
     invoiceId: string,
   ): AsyncResult<string> =>
-    invoices(organizationId, { limit: 500 }).andThen((list) =>
+    invoices({ organizationId, limit: 500 }).andThen((list) =>
       Promise.resolve(
         list.some((row) => row["id"] === invoiceId)
           ? ok(invoiceId)
@@ -715,7 +725,7 @@ export function createBilling(options: BillingOptions): Billing {
     account,
     ensureCustomer,
     ensureAccount,
-    changePlan: (organizationId, change) =>
+    changePlan: ({ organizationId, change }) =>
       priceOf(change).andThen((price) =>
         subscription(organizationId).andThen(async (found) => {
           const updated = await withStripe(async (client) =>
@@ -751,7 +761,7 @@ export function createBilling(options: BillingOptions): Billing {
           return ok({ ...found, price });
         }),
       ),
-    cancelAtPeriodEnd: (organizationId, cancel) =>
+    cancelAtPeriodEnd: ({ organizationId, cancel }) =>
       subscription(organizationId).andThen(async (found) => {
         const updated = await withStripe(async (client) =>
           client.subscriptions.update?.(found.subscriptionId, {
@@ -770,7 +780,7 @@ export function createBilling(options: BillingOptions): Billing {
     invoices,
     paymentMethods: (organizationId) =>
       call("billing_payment_methods", { tenant: organizationId }, rows),
-    voidInvoice: (organizationId, invoiceId) =>
+    voidInvoice: ({ organizationId, invoiceId }) =>
       ownInvoice(organizationId, invoiceId).andThen(async () => {
         const voided = await withStripe(async (client) =>
           client.invoices?.voidInvoice(invoiceId),
@@ -784,7 +794,7 @@ export function createBilling(options: BillingOptions): Billing {
           ? missing("invoices.voidInvoice")
           : ok(voided.data.id);
       }),
-    markInvoiceUncollectible: (organizationId, invoiceId) =>
+    markInvoiceUncollectible: ({ organizationId, invoiceId }) =>
       ownInvoice(organizationId, invoiceId).andThen(async () => {
         const marked = await withStripe(async (client) =>
           client.invoices?.markUncollectible(invoiceId),
@@ -802,7 +812,7 @@ export function createBilling(options: BillingOptions): Billing {
       call("billing_customer_details", { tenant: organizationId }, (value) =>
         isRecord(value) ? value : undefined,
       ),
-    taxIds: (organizationId, taxOptions = {}) =>
+    taxIds: ({ organizationId, options: taxOptions = {} }) =>
       taxOptions.from === "sync"
         ? call("billing_tax_ids", { tenant: organizationId }, (value) =>
             Array.isArray(value) ? value.filter(isRecord).map(syncedTaxId) : [],
@@ -824,8 +834,8 @@ export function createBilling(options: BillingOptions): Billing {
               ? missing("customers.listTaxIds")
               : ok(listed.data.data);
           }),
-    addTaxId: (organizationId, taxId) =>
-      ensureCustomer(organizationId).andThen(async (customerId) => {
+    addTaxId: ({ organizationId, taxId }) =>
+      ensureCustomer({ organizationId }).andThen(async (customerId) => {
         const created = await withStripe(async (client) =>
           client.customers.createTaxId?.(customerId, {
             type: taxId.type,
@@ -841,7 +851,7 @@ export function createBilling(options: BillingOptions): Billing {
           ? missing("customers.createTaxId")
           : ok(created.data);
       }),
-    removeTaxId: (organizationId, taxId) =>
+    removeTaxId: ({ organizationId, taxId }) =>
       customer(organizationId).andThen(async (customerId) => {
         if (customerId === undefined) {
           return err(
@@ -863,8 +873,8 @@ export function createBilling(options: BillingOptions): Billing {
           ? missing("customers.deleteTaxId")
           : ok(deleted.data.id);
       }),
-    updateCustomer: (organizationId, update) =>
-      ensureCustomer(organizationId).andThen(async (customerId) => {
+    updateCustomer: ({ organizationId, update }) =>
+      ensureCustomer({ organizationId }).andThen(async (customerId) => {
         const updated = await withStripe(async (client) =>
           client.customers.update?.(customerId, {
             ...(update.email === undefined ? {} : { email: update.email }),
@@ -885,7 +895,7 @@ export function createBilling(options: BillingOptions): Billing {
           ? missing("customers.update")
           : ok(updated.data.id);
       }),
-    checkout: (organizationId, checkout) =>
+    checkout: ({ organizationId, options: checkout }) =>
       checkoutBlock(organizationId)
         .andThen(() => priceOf(checkout))
         .andThen((price) =>
@@ -943,7 +953,7 @@ export function createBilling(options: BillingOptions): Billing {
             });
           }),
         ),
-    portal: (organizationId, portal) =>
+    portal: ({ organizationId, options: portal }) =>
       partyOf(organizationId).andThen(async (party) => {
         if (party === undefined) {
           return err(
@@ -1023,7 +1033,7 @@ export function createBilling(options: BillingOptions): Billing {
         }
 
         for (const [tenant, id] of latest) {
-          await syncSeats(tenant, { key: id }).orThrow();
+          await syncSeats({ organizationId: tenant, key: id }).orThrow();
         }
       },
     }),

@@ -112,28 +112,34 @@ describe("createQualifications", () => {
     const qualifications = createQualifications({ transport: t });
 
     const saved = await qualifications
-      .saveType("org-1", {
-        key: "forklift",
-        name: "Forklift licence",
-        holderTypes: ["member"],
-        validForMonths: 12,
-        evidenceRequired: true,
-        courseId: "c1",
-        description: "Counterbalance trucks",
-        typeId: "t1",
+      .saveType({
+        organizationId: "org-1",
+        input: {
+          key: "forklift",
+          name: "Forklift licence",
+          holderTypes: ["member"],
+          validForMonths: 12,
+          evidenceRequired: true,
+          courseId: "c1",
+          description: "Counterbalance trucks",
+          typeId: "t1",
+        },
       })
       .orThrow();
 
     await qualifications
-      .saveType("org-1", {
-        key: "insurance",
-        name: "Liability insurance",
-        holderTypes: ["company"],
+      .saveType({
+        organizationId: "org-1",
+        input: {
+          key: "insurance",
+          name: "Liability insurance",
+          holderTypes: ["company"],
+        },
       })
       .orThrow();
 
     const [, bare] = await qualifications
-      .types("org-1", { includeArchived: true })
+      .types({ organizationId: "org-1", includeArchived: true })
       .orThrow();
 
     const archived = await qualifications.archiveType("t1").orThrow();
@@ -198,7 +204,11 @@ describe("createQualifications", () => {
     const qualifications = createQualifications({ transport: t });
 
     const added = await qualifications
-      .addRequirement("t1", "role", "member")
+      .addRequirement({
+        typeId: "t1",
+        targetType: "role",
+        targetValue: "member",
+      })
       .orThrow();
 
     const listed = await qualifications.requirements("t1").orThrow();
@@ -228,38 +238,43 @@ describe("createQualifications", () => {
     });
 
     const granted = await qualifications
-      .grant("org-1", {
-        typeKey: "forklift",
-        holderType: "member",
-        holderId: "u1",
-        grantedOn: Temporal.PlainDate.from("2026-01-10"),
-        evidenceAttachmentId: "a1",
-        evidenceNote: "Card scanned",
-        fields: { licence: "FL-1" },
+      .grant({
+        organizationId: "org-1",
+        input: {
+          typeKey: "forklift",
+          holderType: "member",
+          holderId: "u1",
+          grantedOn: Temporal.PlainDate.from("2026-01-10"),
+          evidenceAttachmentId: "a1",
+          evidenceNote: "Card scanned",
+          fields: { licence: "FL-1" },
+        },
       })
       .orThrow();
 
     await qualifications
-      .grant("org-1", {
-        typeKey: "insurance",
-        holderType: "company",
-        holderId: "co1",
+      .grant({
+        organizationId: "org-1",
+        input: { typeKey: "insurance", holderType: "company", holderId: "co1" },
       })
       .orThrow();
 
-    const refused = await qualifications.grant("org-1", {
-      typeKey: "forklift",
-      holderType: "member",
-      holderId: "u1",
-      // SAFETY: a value the schema refuses, to prove the client checks it.
-      fields: { licence: 1 } as unknown as { licence: string },
+    const refused = await qualifications.grant({
+      organizationId: "org-1",
+      input: {
+        typeKey: "forklift",
+        holderType: "member",
+        holderId: "u1",
+        // SAFETY: a value the schema refuses, to prove the client checks it.
+        fields: { licence: 1 } as unknown as { licence: string },
+      },
     });
 
     const revoked = await qualifications
-      .revoke("q2", "Policy lapsed")
+      .revoke({ qualificationId: "q2", reason: "Policy lapsed" })
       .orThrow();
 
-    await qualifications.revoke("q2").orThrow();
+    await qualifications.revoke({ qualificationId: "q2" }).orThrow();
 
     expect(granted.fields.licence).toBe("FL-1");
     expect(granted.expiresOn?.toString()).toBe("2027-01-10");
@@ -314,10 +329,13 @@ describe("createQualifications", () => {
 
     const qualifications = createQualifications({ transport: t });
 
-    const held = await qualifications.of("member", "u1").orThrow();
+    const held = await qualifications
+      .of({ holderType: "member", holderId: "u1" })
+      .orThrow();
 
     const gaps = await qualifications
-      .gaps("org-1", {
+      .gaps({
+        organizationId: "org-1",
         holderType: "member",
         holderId: "u1",
         teamId: "team-1",
@@ -326,16 +344,20 @@ describe("createQualifications", () => {
       })
       .orThrow();
 
-    await qualifications.gaps("org-1").orThrow();
+    await qualifications.gaps({ organizationId: "org-1" }).orThrow();
 
     const holders = await qualifications
-      .qualifiedHolders("org-1", "forklift", {
+      .qualifiedHolders({
+        organizationId: "org-1",
+        typeKey: "forklift",
         holderType: "member",
         on: Temporal.PlainDate.from("2026-12-01"),
       })
       .orThrow();
 
-    await qualifications.qualifiedHolders("org-1", "forklift").orThrow();
+    await qualifications
+      .qualifiedHolders({ organizationId: "org-1", typeKey: "forklift" })
+      .orThrow();
     const notified = await qualifications.notifyExpiring().orThrow();
 
     expect(held.map((row) => row.status)).toEqual(["valid", "revoked"]);
@@ -392,10 +414,18 @@ describe("createQualifications", () => {
       fields: Fields,
     });
 
-    expect((await qualifications.of("member", "u1")).ok).toBe(false);
-    expect((await qualifications.gaps("org-1")).ok).toBe(false);
-    expect((await qualifications.types("org-1")).ok).toBe(false);
-    expect((await qualifications.revoke("q1")).ok).toBe(false);
+    expect(
+      (await qualifications.of({ holderType: "member", holderId: "u1" })).ok,
+    ).toBe(false);
+    expect((await qualifications.gaps({ organizationId: "org-1" })).ok).toBe(
+      false,
+    );
+    expect((await qualifications.types({ organizationId: "org-1" })).ok).toBe(
+      false,
+    );
+    expect((await qualifications.revoke({ qualificationId: "q1" })).ok).toBe(
+      false,
+    );
   });
 
   it("runs the hooks", async () => {

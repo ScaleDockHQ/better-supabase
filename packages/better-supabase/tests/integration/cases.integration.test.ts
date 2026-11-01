@@ -85,14 +85,19 @@ describe.skipIf(!live)("cases", () => {
         "CASE_ACTIONS_REQUIRED",
         "CASE_EFFECTIVENESS_REQUIRED",
       ]);
-      expect(await cases.close(spill.id).then(hint)).toBe(
+      expect(await cases.close({ caseId: spill.id }).then(hint)).toBe(
         "CASE_ROOT_CAUSE_REQUIRED",
       );
 
-      await cases.recordRootCause(spill.id, "Loose drum bung").orThrow();
+      await cases
+        .recordRootCause({ caseId: spill.id, rootCause: "Loose drum bung" })
+        .orThrow();
 
       const action = await cases
-        .createAction(spill.id, { type: "corrective", title: "Fit bung locks" })
+        .createAction({
+          caseId: spill.id,
+          input: { type: "corrective", title: "Fit bung locks" },
+        })
         .orThrow();
 
       expect(await cases.blockers(spill.id).orThrow()).toEqual([
@@ -105,10 +110,15 @@ describe.skipIf(!live)("cases", () => {
       const page = await cases.list().orThrow();
 
       expect(page.items.map((row) => row.id)).toEqual([spill.id]);
-      expect(await cases.close(spill.id).then(hint)).toBe("CASE_FORBIDDEN");
+      expect(await cases.close({ caseId: spill.id }).then(hint)).toBe(
+        "CASE_FORBIDDEN",
+      );
       expect(
         await cases
-          .createAction(spill.id, { type: "containment", title: "Sneaky" })
+          .createAction({
+            caseId: spill.id,
+            input: { type: "containment", title: "Sneaky" },
+          })
           .then(hint),
       ).toBe("CASE_FORBIDDEN");
 
@@ -117,7 +127,9 @@ describe.skipIf(!live)("cases", () => {
         .orThrow();
 
       expect(door.reporterId).toBe(analyst.id);
-      expect(await cases.close(door.id).then(hint)).toBe("CASE_FORBIDDEN");
+      expect(await cases.close({ caseId: door.id }).then(hint)).toBe(
+        "CASE_FORBIDDEN",
+      );
 
       await s.service();
       await s.rows(
@@ -152,24 +164,37 @@ describe.skipIf(!live)("cases", () => {
 
       await s.as(owner);
       await cases
-        .recordEffectiveness(spill.id, true, { note: "No spills since" })
+        .recordEffectiveness({
+          caseId: spill.id,
+          effective: true,
+          note: "No spills since",
+        })
         .orThrow();
 
-      const closed = await cases.close(spill.id, "Locks fitted").orThrow();
+      const closed = await cases
+        .close({ caseId: spill.id, note: "Locks fitted" })
+        .orThrow();
 
       expect(closed).toMatchObject({
         status: "closed",
         closeNote: "Locks fitted",
       });
-      expect(await cases.recordRootCause(spill.id, "Other").then(hint)).toBe(
-        "CASE_CLOSED",
-      );
-      expect((await cases.reopen(spill.id, "Came back").orThrow()).status).toBe(
-        "open",
-      );
-      expect((await cases.cancel(door.id, "Duplicate").orThrow()).status).toBe(
-        "canceled",
-      );
+      expect(
+        await cases
+          .recordRootCause({ caseId: spill.id, rootCause: "Other" })
+          .then(hint),
+      ).toBe("CASE_CLOSED");
+      expect(
+        (
+          await cases
+            .reopen({ caseId: spill.id, reason: "Came back" })
+            .orThrow()
+        ).status,
+      ).toBe("open");
+      expect(
+        (await cases.cancel({ caseId: door.id, reason: "Duplicate" }).orThrow())
+          .status,
+      ).toBe("canceled");
       expect(await cases.stats({ groupBy: "kind" }).orThrow()).toEqual(
         expect.arrayContaining([
           { key: "spill", count: 1 },

@@ -78,13 +78,13 @@ export interface EntitlementsOptions {
  */
 export interface Entitlements {
   /** Whether the tenant has `key`; `false` when the caller is not a member. */
-  has(organizationId: string, key: string): AsyncResult<boolean>;
+  has(input: { organizationId: string; key: string }): AsyncResult<boolean>;
   /**
    * The feature's value: a number or text from the plan catalog's value column,
    * `true` for a feature without one, and `undefined` when the tenant lacks it
    * or the caller is not a member.
    */
-  value(organizationId: string, key: string): AsyncResult<unknown>;
+  value(input: { organizationId: string; key: string }): AsyncResult<unknown>;
 }
 
 /**
@@ -95,13 +95,13 @@ export function createEntitlements(options: EntitlementsOptions): Entitlements {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const client: Entitlements = {
-    has: (organizationId, key) =>
+    has: ({ organizationId, key }) =>
       call(
         "has_entitlement",
         { tenant: organizationId, key },
         (value) => value === true,
       ),
-    value: (organizationId, key) =>
+    value: ({ organizationId, key }) =>
       call("entitlement_value", { tenant: organizationId, key }, (value) =>
         value === null ? undefined : value,
       ),

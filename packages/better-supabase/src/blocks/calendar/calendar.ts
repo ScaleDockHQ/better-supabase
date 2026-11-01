@@ -206,21 +206,23 @@ export interface CalendarImport {
 
 /** `F` is the extra event fields `options.fields` describes. */
 export interface Calendar<F extends object = Record<never, never>> {
-  createCalendar(
-    organizationId: string,
-    name: string,
-    options?: {
-      readonly tz?: string;
-      readonly ownerType?: string;
-      readonly ownerId?: string;
-      /** With `options.calendarExtraColumns`: values for those columns. */
-      readonly fields?: Readonly<Record<string, unknown>>;
-    } & Omit<CalendarAttributes, "name" | "tz">,
-  ): AsyncResult<{ readonly id: string }>;
-  updateCalendar(
-    id: string,
-    attributes: CalendarAttributes,
-  ): AsyncResult<boolean>;
+  createCalendar(input: {
+    organizationId: string;
+    name: string;
+    options?:
+      | ({
+          readonly tz?: string;
+          readonly ownerType?: string;
+          readonly ownerId?: string;
+          /** With `options.calendarExtraColumns`: values for those columns. */
+          readonly fields?: Readonly<Record<string, unknown>>;
+        } & Omit<CalendarAttributes, "name" | "tz">)
+      | undefined;
+  }): AsyncResult<{ readonly id: string }>;
+  updateCalendar(input: {
+    id: string;
+    attributes: CalendarAttributes;
+  }): AsyncResult<boolean>;
   deleteCalendar(id: string): AsyncResult<boolean>;
   listCalendars(organizationId: string): AsyncResult<CalendarInfo[]>;
   /**
@@ -228,9 +230,10 @@ export interface Calendar<F extends object = Record<never, never>> {
    * own are the event's extra columns.
    */
   upsert(
-    calendarId: string,
-    input: CalendarEventInput & Partial<F> & { readonly id?: string },
-    options?: CalendarSaveOptions,
+    input: {
+      calendarId: string;
+      input: CalendarEventInput & Partial<F> & { readonly id?: string };
+    } & CalendarSaveOptions,
   ): AsyncResult<SavedCalendarEvent>;
   /** With `options.defaultAlarms`: the alarms a new event of the calendar gets. */
   defaultAlarms(calendarId: string): AsyncResult<CalendarDefaultAlarm[]>;
@@ -238,61 +241,74 @@ export interface Calendar<F extends object = Record<never, never>> {
    * With `options.defaultAlarms`: replaces the calendar's default alarms, for
    * events saved from now on. Needs the right to manage the calendar.
    */
-  setDefaultAlarms(
-    calendarId: string,
-    alarms: readonly CalendarDefaultAlarm[],
-  ): AsyncResult<CalendarDefaultAlarm[]>;
+  setDefaultAlarms(input: {
+    calendarId: string;
+    alarms: readonly CalendarDefaultAlarm[];
+  }): AsyncResult<CalendarDefaultAlarm[]>;
   delete(eventId: string): AsyncResult<boolean>;
   /** The rows that can fall in the range: events, series and their overrides. */
-  events(
-    calendarIds: readonly string[],
-    range: OccurrenceRange,
-  ): AsyncResult<(CalendarEvent & F)[]>;
+  events(input: {
+    calendarIds: readonly string[];
+    range: OccurrenceRange;
+  }): AsyncResult<(CalendarEvent & F)[]>;
   /** The occurrences in the range, series expanded. */
   occurrences(
-    calendarIds: readonly string[],
-    range: OccurrenceRange,
-    options?: OccurrenceOptions,
+    input: {
+      calendarIds: readonly string[];
+      range: OccurrenceRange;
+    } & OccurrenceOptions,
   ): AsyncResult<CalendarOccurrence[]>;
   /** Changes one occurrence: an override for a series, else the event. */
-  editOccurrence(
-    occurrence: CalendarOccurrence,
-    changes: CalendarEventInput & Partial<F>,
-  ): AsyncResult<SavedCalendarEvent>;
+  editOccurrence(input: {
+    occurrence: CalendarOccurrence;
+    changes: CalendarEventInput & Partial<F>;
+  }): AsyncResult<SavedCalendarEvent>;
   /**
    * Changes an occurrence and every later one: splits the series, unless the
    * occurrence is its first. Pass `rrule` when the change moves the weekday.
    */
-  editFollowing(
-    occurrence: CalendarOccurrence,
-    changes: CalendarEventInput & Partial<F>,
-  ): AsyncResult<{ readonly id: string }>;
+  editFollowing(input: {
+    occurrence: CalendarOccurrence;
+    changes: CalendarEventInput & Partial<F>;
+  }): AsyncResult<{ readonly id: string }>;
   /** Removes one occurrence of a series (an `EXDATE`), or a single event. */
   cancelOccurrence(
     occurrence: CalendarOccurrence | CalendarOccurrenceRef,
   ): AsyncResult<boolean>;
-  setAttendee(
-    eventId: string,
-    attendee: CalendarAttendeeInput,
-  ): AsyncResult<boolean>;
-  removeAttendee(eventId: string, email: string): AsyncResult<boolean>;
+  setAttendee(input: {
+    eventId: string;
+    attendee: CalendarAttendeeInput;
+  }): AsyncResult<boolean>;
+  removeAttendee(input: {
+    eventId: string;
+    email: string;
+  }): AsyncResult<boolean>;
   removeAttendeeById(attendeeId: string): AsyncResult<boolean>;
-  setGrant(
-    calendarId: string,
-    userId: string,
-    role: CalendarGrantRole,
-  ): AsyncResult<boolean>;
-  removeGrant(calendarId: string, userId: string): AsyncResult<boolean>;
+  setGrant(input: {
+    calendarId: string;
+    userId: string;
+    role: CalendarGrantRole;
+  }): AsyncResult<boolean>;
+  removeGrant(input: {
+    calendarId: string;
+    userId: string;
+  }): AsyncResult<boolean>;
   grants(calendarId: string): AsyncResult<CalendarGrant[]>;
   /** The signed-in user answers an invitation. */
-  respond(eventId: string, response: AttendeeResponse): AsyncResult<boolean>;
+  respond(input: {
+    eventId: string;
+    response: AttendeeResponse;
+  }): AsyncResult<boolean>;
   /** Upserts the events of an iCalendar file by UID. */
-  importIcs(calendarId: string, text: string): AsyncResult<CalendarImport>;
+  importIcs(input: {
+    calendarId: string;
+    text: string;
+  }): AsyncResult<CalendarImport>;
   /** The calendar's events as an iCalendar file. */
-  exportIcs(
-    calendar: CalendarInfo,
-    range?: OccurrenceRange,
-  ): AsyncResult<string>;
+  exportIcs(input: {
+    calendar: CalendarInfo;
+    range?: OccurrenceRange | undefined;
+  }): AsyncResult<string>;
   /**
    * The iCalendar feed of a share link to a calendar (`subjectType:
    * "calendar"`), or `null` when the token is unknown, revoked or expired.
@@ -308,26 +324,26 @@ export interface Calendar<F extends object = Record<never, never>> {
   /** What `userFeed` serializes, parsed. */
   userFeedData(token: string): AsyncResult<CalendarUserFeedData<F> | null>;
   /** Replaces a member's weekly working hours. Returns how many stretches. */
-  setWorkingHours(
-    organizationId: string,
-    input: WorkingHoursInput,
-  ): AsyncResult<number>;
+  setWorkingHours(input: {
+    organizationId: string;
+    input: WorkingHoursInput;
+  }): AsyncResult<number>;
   /** The working hours of the members that set them (all when omitted). */
-  workingHours(
-    organizationId: string,
-    userIds?: readonly string[],
-  ): AsyncResult<WorkingHours[]>;
+  workingHours(input: {
+    organizationId: string;
+    userIds?: readonly string[] | undefined;
+  }): AsyncResult<WorkingHours[]>;
   /**
    * When each member is busy in the range (at most 62 days, 100 members):
    * events on calendars they own, invitations they haven't declined,
    * out-of-office and focus-time blocks, and approved leave. It returns ranges,
    * never titles.
    */
-  freeBusy(
-    organizationId: string,
-    userIds: readonly string[],
-    range: OccurrenceRange,
-  ): AsyncResult<FreeBusy[]>;
+  freeBusy(input: {
+    organizationId: string;
+    userIds: readonly string[];
+    range: OccurrenceRange;
+  }): AsyncResult<FreeBusy[]>;
 }
 
 const ROLES: readonly AttendeeRole[] = [
@@ -632,11 +648,14 @@ export function createCalendar<
     };
   };
 
-  const save = (
-    calendarId: string,
-    input: Parameters<typeof itemOf>[0],
-    saveOptions: CalendarSaveOptions = {},
-  ): AsyncResult<SavedCalendarEvent> =>
+  const save = ({
+    calendarId,
+    input,
+    ...saveOptions
+  }: {
+    calendarId: string;
+    input: Parameters<typeof itemOf>[0];
+  } & CalendarSaveOptions): AsyncResult<SavedCalendarEvent> =>
     checked(input).andThen((item) =>
       call(
         "save_calendar_event",
@@ -654,10 +673,13 @@ export function createCalendar<
   const defaultAlarmsOf = (value: unknown): CalendarDefaultAlarm[] =>
     recordsOf(value, "calendar default alarms").map(defaultAlarmOf);
 
-  const list = (
-    calendarIds: readonly string[],
-    range: OccurrenceRange | typeof INFINITE,
-  ): AsyncResult<(CalendarEvent & F)[]> =>
+  const list = ({
+    calendarIds,
+    range,
+  }: {
+    calendarIds: readonly string[];
+    range: OccurrenceRange | typeof INFINITE;
+  }): AsyncResult<(CalendarEvent & F)[]> =>
     call(
       "list_calendar_events",
       {
@@ -683,7 +705,7 @@ export function createCalendar<
     );
 
   const client: Calendar<F> = {
-    createCalendar: (organizationId, name, extra = {}) => {
+    createCalendar: ({ organizationId, name, options: extra = {} }) => {
       const attrs = attributesOf(extra);
 
       return call(
@@ -700,7 +722,7 @@ export function createCalendar<
         (value) => ({ id: textOf(recordOf(value, "create_calendar")["id"]) }),
       );
     },
-    updateCalendar: (id, attributes) =>
+    updateCalendar: ({ id, attributes }) =>
       call(
         "update_calendar",
         {
@@ -764,7 +786,7 @@ export function createCalendar<
         { calendar_id: calendarId },
         defaultAlarmsOf,
       ),
-    setDefaultAlarms: (calendarId, alarms) =>
+    setDefaultAlarms: ({ calendarId, alarms }) =>
       call(
         "set_calendar_default_alarms",
         {
@@ -784,53 +806,57 @@ export function createCalendar<
         (value) => value === true,
       ),
     events: list,
-    occurrences: (calendarIds, range, occurrenceOptions) =>
-      list(calendarIds, range).map((events) =>
+    occurrences: ({ calendarIds, range, ...occurrenceOptions }) =>
+      list({ calendarIds, range }).map((events) =>
         expandOccurrences(events, range, occurrenceOptions),
       ),
-    editOccurrence: (occurrence, changes) => {
+    editOccurrence: ({ occurrence, changes }) => {
       const series = occurrence.series;
 
       if (!occurrence.recurring || series === undefined) {
-        return save(occurrence.event.calendarId, {
-          ...changes,
-          id: occurrence.event.id,
+        return save({
+          calendarId: occurrence.event.calendarId,
+          input: { ...changes, id: occurrence.event.id },
         });
       }
 
       if (occurrence.event.recurrenceId !== undefined) {
-        return save(occurrence.event.calendarId, {
-          ...changes,
-          id: occurrence.event.id,
+        return save({
+          calendarId: occurrence.event.calendarId,
+          input: { ...changes, id: occurrence.event.id },
         });
       }
 
-      return save(series.calendarId, {
-        ...copyOf(series),
-        startsAt: occurrence.start,
-        endsAt: occurrence.end,
-        ...changes,
-        rrule: null,
-        exdates: [],
-        ...(series.rdates === undefined ? {} : { rdates: [] }),
-        recurrenceId: series.id,
-        originalStart: occurrence.originalStart,
+      return save({
+        calendarId: series.calendarId,
+        input: {
+          ...copyOf(series),
+          startsAt: occurrence.start,
+          endsAt: occurrence.end,
+          ...changes,
+          rrule: null,
+          exdates: [],
+          ...(series.rdates === undefined ? {} : { rdates: [] }),
+          recurrenceId: series.id,
+          originalStart: occurrence.originalStart,
+        },
       });
     },
-    editFollowing: (occurrence, changes) => {
+    editFollowing: ({ occurrence, changes }) => {
       const series = occurrence.series;
 
       if (!occurrence.recurring || series?.rrule === undefined) {
-        return save(occurrence.event.calendarId, {
-          ...changes,
-          id: occurrence.event.id,
+        return save({
+          calendarId: occurrence.event.calendarId,
+          input: { ...changes, id: occurrence.event.id },
         }).map(({ id }) => ({ id }));
       }
 
       if (occurrence.originalStart.equals(series.startsAt)) {
-        return save(series.calendarId, { ...changes, id: series.id }).map(
-          ({ id }) => ({ id }),
-        );
+        return save({
+          calendarId: series.calendarId,
+          input: { ...changes, id: series.id },
+        }).map(({ id }) => ({ id }));
       }
 
       let rules: ReturnType<typeof splitRule>;
@@ -905,7 +931,7 @@ export function createCalendar<
         (value) => value === true,
       );
     },
-    setAttendee: (eventId, attendee) =>
+    setAttendee: ({ eventId, attendee }) =>
       attendee.email === undefined ||
       attendee.subjectType !== undefined ||
       attendee.subjectId !== undefined ||
@@ -927,7 +953,7 @@ export function createCalendar<
             },
             (value) => value === true,
           ),
-    removeAttendee: (eventId, email) =>
+    removeAttendee: ({ eventId, email }) =>
       call(
         "remove_calendar_attendee",
         { event_id: eventId, email },
@@ -939,13 +965,13 @@ export function createCalendar<
         { attendee_id: attendeeId },
         (value) => value === true,
       ),
-    setGrant: (calendarId, userId, role) =>
+    setGrant: ({ calendarId, userId, role }) =>
       call(
         "set_calendar_grant",
         { calendar_id: calendarId, user_id: userId, role },
         (value) => value === true,
       ),
-    removeGrant: (calendarId, userId) =>
+    removeGrant: ({ calendarId, userId }) =>
       call(
         "remove_calendar_grant",
         { calendar_id: calendarId, user_id: userId },
@@ -958,13 +984,13 @@ export function createCalendar<
           role: oneOf(row["role"], ["viewer", "editor"] as const, "viewer"),
         })),
       ),
-    respond: (eventId, response) =>
+    respond: ({ eventId, response }) =>
       call(
         "respond_calendar_event",
         { event_id: eventId, response },
         (value) => value === true,
       ),
-    importIcs: (calendarId, text) => {
+    importIcs: ({ calendarId, text }) => {
       const parsed = parseIcs(text);
 
       return call(
@@ -984,9 +1010,9 @@ export function createCalendar<
         },
       );
     },
-    exportIcs: (calendar, range) =>
-      list([calendar.id], range ?? INFINITE).map((events) =>
-        toIcs(events, { name: calendar.name, tz: calendar.tz }),
+    exportIcs: ({ calendar, range }) =>
+      list({ calendarIds: [calendar.id], range: range ?? INFINITE }).map(
+        (events) => toIcs(events, { name: calendar.name, tz: calendar.tz }),
       ),
     feed: (token) =>
       client
@@ -1042,7 +1068,7 @@ export function createCalendar<
           );
         },
       ),
-    setWorkingHours: (organizationId, input) =>
+    setWorkingHours: ({ organizationId, input }) =>
       call(
         "set_calendar_working_hours",
         {
@@ -1053,7 +1079,7 @@ export function createCalendar<
         },
         (value) => Number(value ?? 0),
       ),
-    workingHours: (organizationId, userIds) =>
+    workingHours: ({ organizationId, userIds }) =>
       call(
         "list_calendar_working_hours",
         {
@@ -1062,7 +1088,7 @@ export function createCalendar<
         },
         workingHoursOf,
       ),
-    freeBusy: (organizationId, userIds, range) =>
+    freeBusy: ({ organizationId, userIds, range }) =>
       call(
         "calendar_free_busy",
         {

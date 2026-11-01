@@ -191,45 +191,50 @@ export interface BookingExpirePayload {
 
 /** `F` is the extra booking fields `options.fields` describes. */
 export interface Bookings<F extends object = Record<never, never>> {
-  saveResource(
-    organizationId: string,
-    input: BookingResourceInput,
-  ): AsyncResult<{ readonly id: string }>;
+  saveResource(input: {
+    organizationId: string;
+    input: BookingResourceInput;
+  }): AsyncResult<{ readonly id: string }>;
   /** Replaces a resource's weekly hours. Resolves to the number of rows. */
-  setAvailability(
-    resourceId: string,
-    hours: readonly WeeklyHours[],
-  ): AsyncResult<number>;
-  addException(
-    resourceId: string,
-    exception: BookingExceptionInput,
-  ): AsyncResult<{ readonly id: string }>;
+  setAvailability(input: {
+    resourceId: string;
+    hours: readonly WeeklyHours[];
+  }): AsyncResult<number>;
+  addException(input: {
+    resourceId: string;
+    exception: BookingExceptionInput;
+  }): AsyncResult<{ readonly id: string }>;
   deleteException(id: string): AsyncResult<boolean>;
-  saveService(
-    organizationId: string,
-    input: BookingServiceInput,
-  ): AsyncResult<{ readonly id: string }>;
+  saveService(input: {
+    organizationId: string;
+    input: BookingServiceInput;
+  }): AsyncResult<{ readonly id: string }>;
   /** The open slots of a service, at most 62 days at a time. */
   availableSlots(
-    serviceId: string,
-    range: BookingRange,
-    options?: { readonly tz?: string; readonly resourceId?: string },
+    input: { serviceId: string; range: BookingRange } & {
+      readonly tz?: string;
+      readonly resourceId?: string;
+    },
   ): AsyncResult<BookingSlot[]>;
   /** Holds a slot for the service's `holdFor`, or books it with `confirm`. */
   hold(
-    serviceId: string,
-    resourceId: string,
-    startsAt: Temporal.Instant,
-    customer?: BookingCustomer & Partial<F>,
-    options?: { readonly confirm?: boolean },
+    input: {
+      serviceId: string;
+      resourceId: string;
+      startsAt: Temporal.Instant;
+      customer?: (BookingCustomer & Partial<F>) | undefined;
+    } & { readonly confirm?: boolean },
   ): AsyncResult<PlacedBooking & F>;
   confirm(bookingId: string): AsyncResult<Booking & F>;
-  cancel(bookingId: string, reason?: string): AsyncResult<Booking & F>;
+  cancel(input: {
+    bookingId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Booking & F>;
   /** The bookings that overlap the range, as the caller's policies allow. */
   list(
-    organizationId: string,
-    range: BookingRange,
-    options?: { readonly resourceId?: string },
+    input: { organizationId: string; range: BookingRange } & {
+      readonly resourceId?: string;
+    },
   ): AsyncResult<(Booking & F)[]>;
   /** Cancels every hold whose time is up. Service only. */
   expireHolds(): AsyncResult<number>;
@@ -239,12 +244,13 @@ export interface Bookings<F extends object = Record<never, never>> {
    * `BOOKING_SERIES_CONFLICT`, unless `skipConflicts` leaves it out.
    */
   bookSeries(
-    serviceId: string,
-    resourceId: string,
-    startsAt: Temporal.Instant,
-    rule: BookingRecurrence,
-    customer?: BookingCustomer & Partial<F>,
-    options?: { readonly skipConflicts?: boolean },
+    input: {
+      serviceId: string;
+      resourceId: string;
+      startsAt: Temporal.Instant;
+      rule: BookingRecurrence;
+      customer?: (BookingCustomer & Partial<F>) | undefined;
+    } & { readonly skipConflicts?: boolean },
   ): AsyncResult<BookedSeries<Booking & F>>;
   /**
    * Moves a booking to `startsAt`, or with `scope: "following"` this one and
@@ -252,17 +258,19 @@ export interface Bookings<F extends object = Record<never, never>> {
    * Resolves to the moved bookings.
    */
   reschedule(
-    bookingId: string,
-    startsAt: Temporal.Instant,
-    options?: { readonly scope?: BookingSeriesScope },
+    input: { bookingId: string; startsAt: Temporal.Instant } & {
+      readonly scope?: BookingSeriesScope;
+    },
   ): AsyncResult<(Booking & F)[]>;
   /**
    * Cancels this occurrence and, by default, every later one of its series.
    * Resolves to the number of bookings cancelled.
    */
   cancelSeries(
-    bookingId: string,
-    options?: { readonly scope?: BookingSeriesScope; readonly reason?: string },
+    input: { bookingId: string } & {
+      readonly scope?: BookingSeriesScope;
+      readonly reason?: string;
+    },
   ): AsyncResult<number>;
   /** A series with its occurrences, as the caller's policies allow. */
   series(
@@ -277,20 +285,24 @@ export interface Bookings<F extends object = Record<never, never>> {
   readonly public: {
     service(token: string): AsyncResult<PublicBookingService>;
     slots(
-      token: string,
-      range: BookingRange,
-      options?: { readonly tz?: string },
+      input: { token: string; range: BookingRange } & { readonly tz?: string },
     ): AsyncResult<BookingSlot[]>;
     /** Holds a slot for a guest, who must give a name and an email. */
-    hold(
-      token: string,
-      resourceId: string,
-      startsAt: Temporal.Instant,
+    hold(input: {
+      token: string;
+      resourceId: string;
+      startsAt: Temporal.Instant;
       customer: BookingCustomer &
-        Partial<F> & { readonly name: string; readonly email: string },
-    ): AsyncResult<PlacedBooking & F>;
-    confirm(bookingId: string, accessToken: string): AsyncResult<Booking & F>;
-    cancel(bookingId: string, accessToken: string): AsyncResult<Booking & F>;
+        Partial<F> & { readonly name: string; readonly email: string };
+    }): AsyncResult<PlacedBooking & F>;
+    confirm(input: {
+      bookingId: string;
+      accessToken: string;
+    }): AsyncResult<Booking & F>;
+    cancel(input: {
+      bookingId: string;
+      accessToken: string;
+    }): AsyncResult<Booking & F>;
   };
 }
 
@@ -406,19 +418,19 @@ export function createBookings<
     });
 
   const client: Bookings<F> = {
-    saveResource: (organizationId, input) =>
+    saveResource: ({ organizationId, input }) =>
       call(
         "save_booking_resource",
         { tenant: organizationId, item: itemOf(input) },
         idOf,
       ),
-    setAvailability: (resourceId, hours) =>
+    setAvailability: ({ resourceId, hours }) =>
       call(
         "set_booking_availability",
         { resource: resourceId, source: { hours } },
         Number,
       ),
-    addException: (resourceId, exception) =>
+    addException: ({ resourceId, exception }) =>
       call(
         "add_booking_exception",
         {
@@ -436,46 +448,46 @@ export function createBookings<
         { exception_id: id },
         (value) => value === true,
       ),
-    saveService: (organizationId, input) =>
+    saveService: ({ organizationId, input }) =>
       call(
         "save_booking_service",
         { tenant: organizationId, item: itemOf(input) },
         idOf,
       ),
-    availableSlots: (serviceId, range, slotOptions) =>
+    availableSlots: ({ serviceId, range, ...slotOptions }) =>
       call(
         "available_slots",
         {
           service: serviceId,
           range_start: String(range.from),
           range_end: String(range.until),
-          tz: slotOptions?.tz ?? null,
-          resource: slotOptions?.resourceId ?? null,
+          tz: slotOptions.tz ?? null,
+          resource: slotOptions.resourceId ?? null,
         },
         slotsOf,
       ),
-    hold: (serviceId, resourceId, startsAt, customer, holdOptions) =>
+    hold: ({ serviceId, resourceId, startsAt, customer, ...holdOptions }) =>
       placed(
         "hold_booking",
         {
           service: serviceId,
           resource: resourceId,
           starts_at: String(startsAt),
-          confirm: holdOptions?.confirm ?? false,
+          confirm: holdOptions.confirm ?? false,
         },
         customer,
       ),
     confirm: (bookingId) => one("confirm_booking", { booking: bookingId }),
-    cancel: (bookingId, reason) =>
+    cancel: ({ bookingId, reason }) =>
       one("cancel_booking", { booking: bookingId, reason: reason ?? null }),
-    list: (organizationId, range, listOptions) =>
+    list: ({ organizationId, range, ...listOptions }) =>
       call(
         "list_bookings",
         {
           tenant: organizationId,
           range_start: String(range.from),
           range_end: String(range.until),
-          resource: listOptions?.resourceId ?? null,
+          resource: listOptions.resourceId ?? null,
         },
         (value) =>
           recordsOf(value, "bookings").map(
@@ -483,14 +495,14 @@ export function createBookings<
           ),
       ).andThen((rows) => allWithFields(fields, rows)),
     expireHolds,
-    bookSeries: (
+    bookSeries: ({
       serviceId,
       resourceId,
       startsAt,
       rule,
       customer,
-      seriesOptions,
-    ) =>
+      ...seriesOptions
+    }) =>
       customerOf(customer).andThen((item) =>
         call(
           "book_series",
@@ -500,7 +512,7 @@ export function createBookings<
             starts_at: String(startsAt),
             rule: recurrenceItem(rule),
             customer: item,
-            skip_conflicts: seriesOptions?.skipConflicts ?? false,
+            skip_conflicts: seriesOptions.skipConflicts ?? false,
           },
           (value) => recordOf(value, "booked series"),
         ).andThen((row) =>
@@ -513,23 +525,23 @@ export function createBookings<
           })),
         ),
       ),
-    reschedule: (bookingId, startsAt, moveOptions) =>
+    reschedule: ({ bookingId, startsAt, ...moveOptions }) =>
       call(
         "reschedule_booking",
         {
           booking: bookingId,
           starts_at: String(startsAt),
-          scope: moveOptions?.scope ?? "one",
+          scope: moveOptions.scope ?? "one",
         },
         (value) => value,
       ).andThen((value) => many(value, "bookings")),
-    cancelSeries: (bookingId, cancelOptions) =>
+    cancelSeries: ({ bookingId, ...cancelOptions }) =>
       call(
         "cancel_booking_series",
         {
           booking: bookingId,
-          scope: cancelOptions?.scope ?? "following",
-          reason: cancelOptions?.reason ?? null,
+          scope: cancelOptions.scope ?? "following",
+          reason: cancelOptions.reason ?? null,
         },
         Number,
       ),
@@ -564,26 +576,26 @@ export function createBookings<
             ),
           };
         }),
-      slots: (token, range, slotOptions) =>
+      slots: ({ token, range, ...slotOptions }) =>
         call(
           "public_available_slots",
           {
             token,
             range_start: String(range.from),
             range_end: String(range.until),
-            tz: slotOptions?.tz ?? null,
+            tz: slotOptions.tz ?? null,
           },
           slotsOf,
         ),
-      hold: (token, resourceId, startsAt, customer) =>
+      hold: ({ token, resourceId, startsAt, customer }) =>
         placed(
           "public_hold_booking",
           { token, resource: resourceId, starts_at: String(startsAt) },
           customer,
         ),
-      confirm: (bookingId, accessToken) =>
+      confirm: ({ bookingId, accessToken }) =>
         change(bookingId, accessToken, "confirmed"),
-      cancel: (bookingId, accessToken) =>
+      cancel: ({ bookingId, accessToken }) =>
         change(bookingId, accessToken, "cancelled"),
     },
   };

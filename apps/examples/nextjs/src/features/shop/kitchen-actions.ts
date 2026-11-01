@@ -29,7 +29,7 @@ export const sendToKitchen = bsb.action(
     authorize: canPrepare,
   },
   async ({ orderId }, { supabase, auth }) => {
-    const sent = await shopOrders(supabase).kitchen.send(orderId);
+    const sent = await shopOrders(supabase).kitchen.send({ orderId });
 
     if (!sent.ok) {
       return sent;
@@ -56,11 +56,11 @@ export const bumpTicket = bsb.action(
     authorize: canPrepare,
   },
   async ({ orderId, state, stationId }, { supabase, auth }) => {
-    const bumped = await shopOrders(supabase).kitchen.bump(
+    const bumped = await shopOrders(supabase).kitchen.bump({
       orderId,
       state,
-      stationId ?? undefined,
-    );
+      stationId: stationId ?? undefined,
+    });
 
     if (!bumped.ok) {
       return bumped;
@@ -80,7 +80,7 @@ export const setLineState = bsb.action(
     authorize: canPrepare,
   },
   async ({ lineId, state }, { supabase, auth }) => {
-    const line = await shopOrders(supabase).kitchen.setState(lineId, state);
+    const line = await shopOrders(supabase).kitchen.setState({ lineId, state });
 
     if (!line.ok) {
       return line;

@@ -157,10 +157,16 @@ describe("createDataLifecycle", () => {
     const lifecycle = createDataLifecycle({ transport });
 
     const pending = await lifecycle
-      .requestSubjectExport("chart", "c1", { format: "csv" })
+      .requestSubjectExport({
+        subjectType: "chart",
+        subjectId: "c1",
+        format: "csv",
+      })
       .orThrow();
 
-    await lifecycle.requestSubjectExport("chart", "c1").orThrow();
+    await lifecycle
+      .requestSubjectExport({ subjectType: "chart", subjectId: "c1" })
+      .orThrow();
 
     expect(pending).toMatchObject({
       subject: "record",
@@ -270,13 +276,16 @@ describe("createDataLifecycle", () => {
     const lifecycle = createDataLifecycle({ transport });
 
     const deletion = await lifecycle
-      .requestOrganizationDeletion("org-1", {
-        grace: Temporal.Duration.from({ days: 30 }),
+      .requestOrganizationDeletion({
+        organizationId: "org-1",
+        options: { grace: Temporal.Duration.from({ days: 30 }) },
       })
       .orThrow();
 
     expect(deletion.purgeAfter.toString()).toBe("2026-11-05T12:00:00Z");
-    await lifecycle.requestOrganizationDeletion("org-1").orThrow();
+    await lifecycle
+      .requestOrganizationDeletion({ organizationId: "org-1" })
+      .orThrow();
     expect(
       await lifecycle.cancelOrganizationDeletion("org-1").orThrow(),
     ).toBeUndefined();
@@ -322,7 +331,7 @@ describe("createDataExporter", () => {
       concurrency: 1,
     });
 
-    const done = await exporter.run("x1").orThrow();
+    const done = await exporter.run({ exportId: "x1" }).orThrow();
     expect(done.files).toEqual([
       "x1/public.projects.ndjson",
       "x1/public.empty.ndjson",
@@ -384,7 +393,7 @@ describe("createDataExporter", () => {
         transport,
         storage: fakeStorage().storage,
         ...(concurrency === undefined ? {} : { concurrency }),
-      }).run("x1");
+      }).run({ exportId: "x1" });
 
       return { result, peak, started, calls };
     };
@@ -433,7 +442,7 @@ describe("createDataExporter", () => {
       storage: storage.storage,
       format: "csv",
     })
-      .run("x1")
+      .run({ exportId: "x1" })
       .orThrow();
 
     expect(done.files).toEqual([
@@ -467,7 +476,7 @@ describe("createDataExporter", () => {
         storage: fakeStorage().storage,
       });
 
-      const result = await exporter.run("x1");
+      const result = await exporter.run({ exportId: "x1" });
       const failed = calls.some(([fn]) => fn === "fail_data_export");
       expect(result.ok ? !failed : failed).toBe(true);
     }
@@ -486,7 +495,7 @@ describe("createDataExporter", () => {
           error: { message: "Payload too large", statusCode: "413" },
         },
       }).storage,
-    }).run("x1");
+    }).run({ exportId: "x1" });
 
     expect(uploadFails.ok ? undefined : uploadFails.error.kind).toBe(
       "invalid_input",
@@ -502,7 +511,7 @@ describe("createDataExporter", () => {
         fail_data_export: null,
       }).transport,
       storage: fakeStorage().storage,
-    }).run("x1", controller.signal);
+    }).run({ exportId: "x1", signal: controller.signal });
 
     expect(aborted.ok ? undefined : aborted.error).toMatchObject({
       kind: "aborted",
@@ -520,7 +529,7 @@ describe("createDataExporter", () => {
           throw new Error("disk full");
         },
       }).storage,
-    }).run("x1");
+    }).run({ exportId: "x1" });
 
     expect(thrown.ok ? undefined : thrown.error).toMatchObject({
       kind: "raised",
@@ -533,7 +542,7 @@ describe("createDataExporter", () => {
       storage: fakeStorage().storage,
     });
 
-    const result = await missing.run("x1");
+    const result = await missing.run({ exportId: "x1" });
     expect(result.ok ? undefined : result.error.hint).toBe(
       "DATA_EXPORT_NOT_FOUND",
     );

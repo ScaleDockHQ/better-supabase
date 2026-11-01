@@ -143,17 +143,22 @@ describe("createConsents", () => {
       evidence: { submissionId: "s1" },
     });
 
-    expect(await consents.isActive(subject, "marketing.email").orThrow()).toBe(
-      true,
-    );
-    expect(await consents.list(subject).orThrow()).toHaveLength(1);
+    expect(
+      await consents
+        .isActive({ subject, purposeKey: "marketing.email" })
+        .orThrow(),
+    ).toBe(true);
+    expect(await consents.list({ subject }).orThrow()).toHaveLength(1);
     expect(call).toHaveBeenLastCalledWith("better_supabase", "list_consents", {
       subject_type: "people",
       subject_id: "person-1",
       include_history: false,
     });
 
-    const withdrawn = await consents.withdraw("c1", "asked").orThrow();
+    const withdrawn = await consents
+      .withdraw({ consentId: "c1", reason: "asked" })
+      .orThrow();
+
     expect(withdrawn).toMatchObject({
       status: "withdrawn",
       withdrawnReason: "asked",

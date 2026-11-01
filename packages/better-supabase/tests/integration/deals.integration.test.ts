@@ -60,13 +60,19 @@ describe.skipIf(!live)("deals", () => {
       const pipelines = createPipelines({ transport });
 
       await s.as(rep);
-      const acme = await parties.saveCompany(org, { name: "Acme" }).orThrow();
-      const ada = await parties.savePerson(org, { name: "Ada" }).orThrow();
+
+      const acme = await parties
+        .saveCompany({ organizationId: org, input: { name: "Acme" } })
+        .orThrow();
+
+      const ada = await parties
+        .savePerson({ organizationId: org, input: { name: "Ada" } })
+        .orThrow();
 
       const deal = await deals
-        .create(
-          org,
-          {
+        .create({
+          organizationId: org,
+          input: {
             name: "Growth plan, 60 seats",
             closeOn: day("2026-11-30"),
             amount: eur(4_800_000n),
@@ -74,8 +80,10 @@ describe.skipIf(!live)("deals", () => {
             motion: "new_logo",
             forecast: "pipeline",
           },
-          [{ type: "person", id: ada.id, role: "Champion", primary: true }],
-        )
+          contacts: [
+            { type: "person", id: ada.id, role: "Champion", primary: true },
+          ],
+        })
         .orThrow();
 
       expect(deal).toMatchObject({
@@ -88,7 +96,11 @@ describe.skipIf(!live)("deals", () => {
           { type: "person", id: ada.id, role: "Champion", primary: true },
         ],
       });
-      const [pipeline] = await pipelines.list(org, "deal").orThrow();
+
+      const [pipeline] = await pipelines
+        .list({ organizationId: org, subjectType: "deal" })
+        .orThrow();
+
       expect(pipeline?.stages.map((stage) => stage.key)).toEqual([
         "qualified",
         "discovery",
@@ -129,19 +141,22 @@ describe.skipIf(!live)("deals", () => {
       ]);
 
       const totals = await deals
-        .setLines(deal.id, [
-          {
-            description: "Pro, annual seat",
-            quantity: 60,
-            unitAmount: eur(80_000n),
-            discountBps: 1000,
-          },
-          {
-            description: "Onboarding",
-            unitAmount: eur(250_000n),
-            taxRateBps: 2100,
-          },
-        ])
+        .setLines({
+          dealId: deal.id,
+          lines: [
+            {
+              description: "Pro, annual seat",
+              quantity: 60,
+              unitAmount: eur(80_000n),
+              discountBps: 1000,
+            },
+            {
+              description: "Onboarding",
+              unitAmount: eur(250_000n),
+              taxRateBps: 2100,
+            },
+          ],
+        })
         .orThrow();
 
       expect(totals).toEqual({
@@ -157,9 +172,12 @@ describe.skipIf(!live)("deals", () => {
         ])
         .orThrow();
       await deals
-        .setLines(deal.id, [
-          { description: "Pro", quantity: 10, unitAmount: eur(100_000n) },
-        ])
+        .setLines({
+          dealId: deal.id,
+          lines: [
+            { description: "Pro", quantity: 10, unitAmount: eur(100_000n) },
+          ],
+        })
         .orThrow();
 
       const health = await deals.health(pipeline?.id ?? "").orThrow();
@@ -171,26 +189,29 @@ describe.skipIf(!live)("deals", () => {
         }),
       ]);
       await createActivities({ transport })
-        .log(
-          org,
-          {
+        .log({
+          organizationId: org,
+          input: {
             type: "call",
             title: "Pricing call",
             dueAt: Temporal.Now.instant().add({ hours: 3 }),
           },
-          [{ type: "deal", id: deal.id }],
-        )
+          subjects: [{ type: "deal", id: deal.id }],
+        })
         .orThrow();
       expect(
         (await deals.health(pipeline?.id ?? "").orThrow())[0]?.noNextStep,
       ).toBe(false);
 
       const forecast = await deals
-        .forecast(org, {
-          since: day("2026-10-01"),
-          until: day("2026-12-31"),
-          currency: "EUR",
-          target: eur(2_000_000n),
+        .forecast({
+          organizationId: org,
+          period: {
+            since: day("2026-10-01"),
+            until: day("2026-12-31"),
+            currency: "EUR",
+            target: eur(2_000_000n),
+          },
         })
         .orThrow();
 
@@ -204,7 +225,10 @@ describe.skipIf(!live)("deals", () => {
         expect.objectContaining({ ownerId: rep.id, commit: eur(1_000_000n) }),
       ]);
 
-      const won = await deals.win(deal.id, "Order form signed").orThrow();
+      const won = await deals
+        .win({ dealId: deal.id, note: "Order form signed" })
+        .orThrow();
+
       expect(won).toMatchObject({ outcome: "won", note: "Order form signed" });
       expect(won.closedAt).toBeDefined();
 
@@ -215,21 +239,28 @@ describe.skipIf(!live)("deals", () => {
       expect(closedEdit.rejected[0]?.hint).toBe("DEAL_FORECAST_CLOSED");
 
       const wonForecast = await deals
-        .forecast(org, {
-          since: day("2026-01-01"),
-          until: day("2026-12-31"),
-          currency: "EUR",
+        .forecast({
+          organizationId: org,
+          period: {
+            since: day("2026-01-01"),
+            until: day("2026-12-31"),
+            currency: "EUR",
+          },
         })
         .orThrow();
 
       expect(wonForecast.won).toEqual(eur(1_000_000n));
-      const reopened = await deals.reopen(deal.id).orThrow();
+      const reopened = await deals.reopen({ dealId: deal.id }).orThrow();
       expect(reopened).toMatchObject({
         outcome: "open",
         stageId: pipeline?.stages[0]?.id,
       });
       expect(reopened.closedAt).toBeUndefined();
-      const lost = await deals.lose(deal.id, "Budget").orThrow();
+
+      const lost = await deals
+        .lose({ dealId: deal.id, reason: "Budget" })
+        .orThrow();
+
       expect(lost).toMatchObject({ outcome: "lost", lostReason: "Budget" });
 
       const outcomes = await s.rows<{ type: string }>(
@@ -271,10 +302,13 @@ describe.skipIf(!live)("deals", () => {
       await s.as(rep);
 
       const deal = await deals
-        .create(org, {
-          name: "Renewal",
-          closeOn: day("2026-12-01"),
-          currency: "USD",
+        .create({
+          organizationId: org,
+          input: {
+            name: "Renewal",
+            closeOn: day("2026-12-01"),
+            currency: "USD",
+          },
         })
         .orThrow();
 
@@ -286,7 +320,10 @@ describe.skipIf(!live)("deals", () => {
       ).toHaveLength(0);
       await s.as(rep);
       await deals
-        .setMembers(deal.id, [{ userId: peer.id, role: "SE" }])
+        .setMembers({
+          dealId: deal.id,
+          members: [{ userId: peer.id, role: "SE" }],
+        })
         .orThrow();
       await s.asRole(peer);
       expect(
@@ -313,9 +350,10 @@ describe.skipIf(!live)("deals", () => {
       expect(locked.accepted.map((item) => item.field)).toEqual(["note"]);
       expect(
         hint(
-          await deals.setLines(deal.id, [
-            { description: "x", unitAmount: eur(1n) },
-          ]),
+          await deals.setLines({
+            dealId: deal.id,
+            lines: [{ description: "x", unitAmount: eur(1n) }],
+          }),
         ),
       ).toBe("LINES_RECORD_INVALID");
 
@@ -327,10 +365,13 @@ describe.skipIf(!live)("deals", () => {
       await s.as(rep);
 
       const second = await deals
-        .create(org, {
-          name: "Upsell",
-          closeOn: day("2026-12-02"),
-          amount: money(9_007_199_254_740_993n, "USD"),
+        .create({
+          organizationId: org,
+          input: {
+            name: "Upsell",
+            closeOn: day("2026-12-02"),
+            amount: money(9_007_199_254_740_993n, "USD"),
+          },
         })
         .orThrow();
 
@@ -348,10 +389,18 @@ describe.skipIf(!live)("deals", () => {
       );
 
       await createRank({ transport })
-        .move("deal", second.id, { group: discovery })
+        .move({
+          subjectType: "deal",
+          subjectId: second.id,
+          target: { group: discovery },
+        })
         .orThrow();
       await createRank({ transport })
-        .move("deal", deal.id, { previous: second.id, group: discovery })
+        .move({
+          subjectType: "deal",
+          subjectId: deal.id,
+          target: { previous: second.id, group: discovery },
+        })
         .orThrow();
       expect(
         (
@@ -364,10 +413,13 @@ describe.skipIf(!live)("deals", () => {
 
       expect(
         hint(
-          await deals.create(org, {
-            name: "x",
-            closeOn: day("2026-12-01"),
-            company: { type: "company", id: crypto.randomUUID() },
+          await deals.create({
+            organizationId: org,
+            input: {
+              name: "x",
+              closeOn: day("2026-12-01"),
+              company: { type: "company", id: crypto.randomUUID() },
+            },
           }),
         ),
       ).toBe("DEAL_COMPANY_FORBIDDEN");

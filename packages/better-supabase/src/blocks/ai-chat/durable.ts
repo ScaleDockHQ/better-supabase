@@ -86,10 +86,13 @@ export interface AiRuns {
   get(runId: string): AsyncResult<AiRun>;
   list(query?: AiRunQuery): AsyncResult<readonly AiRun[]>;
   /** Records the durable engine's run id on a claimed run (service role). */
-  attach(runId: string, externalRunId: string): AsyncResult<boolean>;
+  attach(input: { runId: string; externalRunId: string }): AsyncResult<boolean>;
   readonly steps: {
     /** Records or updates one step by its key (service role). */
-    record(runId: string, step: AiRunStepInput): AsyncResult<AiRunStep>;
+    record(input: {
+      runId: string;
+      step: AiRunStepInput;
+    }): AsyncResult<AiRunStep>;
     list(runId: string): AsyncResult<readonly AiRunStep[]>;
   };
   /** The caller's undecided approvals across chats, newest first. */
@@ -185,14 +188,14 @@ export function aiRunLookups(
         { chat: query.chatId, active: query.active, size: pageOf(query).limit },
         (value) => recordsOf(value, "list_ai_runs").map(runOf),
       ),
-    attach: (runId, externalRunId) =>
+    attach: ({ runId, externalRunId }) =>
       service(
         "attach_ai_run",
         { run: runId, external_run_id: externalRunId },
         (value) => value === true,
       ),
     steps: {
-      record: (runId, step) =>
+      record: ({ runId, step }) =>
         service(
           "record_ai_run_step",
           {
@@ -259,28 +262,28 @@ export interface AiHarnessSessionPatch {
  * locked (`AI_HARNESS_LOCKED`).
  */
 export interface AiHarnessSessions {
-  load(
-    chatId: string,
-    harnessId: string,
-  ): AsyncResult<AiHarnessSession | undefined>;
+  load(input: {
+    chatId: string;
+    harnessId: string;
+  }): AsyncResult<AiHarnessSession | undefined>;
   upsert(
-    chatId: string,
-    harnessId: string,
-    patch: AiHarnessSessionPatch,
-    options?: { readonly holder?: string },
+    input: {
+      chatId: string;
+      harnessId: string;
+      patch: AiHarnessSessionPatch;
+    } & { readonly holder?: string },
   ): AsyncResult<AiHarnessSession>;
   /** `true` when `holder` holds the lock for `ttlSeconds` (default 300). */
   lock(
-    chatId: string,
-    harnessId: string,
-    holder: string,
-    options?: { readonly ttlSeconds?: number },
+    input: { chatId: string; harnessId: string; holder: string } & {
+      readonly ttlSeconds?: number;
+    },
   ): AsyncResult<boolean>;
-  unlock(
-    chatId: string,
-    harnessId: string,
-    holder: string,
-  ): AsyncResult<boolean>;
+  unlock(input: {
+    chatId: string;
+    harnessId: string;
+    holder: string;
+  }): AsyncResult<boolean>;
 }
 
 function harnessOf(value: unknown): AiHarnessSession {
@@ -336,13 +339,13 @@ export function createHarnessSessions(
   const isTrue = (value: unknown): boolean => value === true;
 
   return {
-    load: (chatId, harnessId) =>
+    load: ({ chatId, harnessId }) =>
       service(
         "load_ai_harness_session",
         { chat: chatId, harness: harnessId },
         (value) => (value === null ? undefined : harnessOf(value)),
       ),
-    upsert: (chatId, harnessId, patch, saveOptions = {}) =>
+    upsert: ({ chatId, harnessId, patch, ...saveOptions }) =>
       service(
         "save_ai_harness_session",
         {
@@ -353,7 +356,7 @@ export function createHarnessSessions(
         },
         harnessOf,
       ),
-    lock: (chatId, harnessId, holder, lockOptions = {}) =>
+    lock: ({ chatId, harnessId, holder, ...lockOptions }) =>
       service(
         "lock_ai_harness_session",
         {
@@ -364,7 +367,7 @@ export function createHarnessSessions(
         },
         isTrue,
       ),
-    unlock: (chatId, harnessId, holder) =>
+    unlock: ({ chatId, harnessId, holder }) =>
       service(
         "unlock_ai_harness_session",
         { chat: chatId, harness: harnessId, holder },

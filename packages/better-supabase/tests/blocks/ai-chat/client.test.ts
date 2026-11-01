@@ -84,7 +84,9 @@ describe("createAiChatsController", () => {
     chats.create.mockReturnValue(resolved(chat("tmp", true)));
     await view().create();
     expect(view().items).toHaveLength(3);
-    expect((await view().update("a", { title: "Renamed" }))?.id).toBe("a");
+    expect(
+      (await view().update({ chatId: "a", patch: { title: "Renamed" } }))?.id,
+    ).toBe("a");
     await view().remove("b");
     expect(view().items?.map((item) => item.id)).toEqual(["new", "a"]);
     chats.remove.mockReturnValue(failed("denied"));
@@ -132,7 +134,7 @@ describe("createAiChatsController", () => {
     chats.update.mockReturnValueOnce(write.result);
     auth.set(signedIn(OTHER));
     await flush();
-    const updating = view().update("a", {});
+    const updating = view().update({ chatId: "a", patch: {} });
     auth.set(signedIn(USER));
     write.release();
     await updating;
@@ -145,7 +147,9 @@ describe("createAiChatsController", () => {
 describe("createAiChatTreeController", () => {
   function messages() {
     return {
-      path: vi.fn((chatId: string) => resolved([message(`${chatId}-u`)])),
+      path: vi.fn(({ chatId }: { chatId: string }) =>
+        resolved([message(`${chatId}-u`)]),
+      ),
       switchBranch: vi.fn(() => resolved("a2")),
       siblings: vi.fn(() => resolved([message("a1"), message("a2")])),
     };
@@ -171,15 +175,15 @@ describe("createAiChatTreeController", () => {
     topic.rejoin("ai-chat:c1");
     expect(calls.path).toHaveBeenCalledTimes(4);
 
-    await view().step("a1", 1);
+    await view().step({ messageId: "a1", offset: 1 });
     expect(calls.switchBranch).toHaveBeenCalledExactlyOnceWith("c1", "a2");
     expect(calls.path).toHaveBeenLastCalledWith("c1", { leafId: "a2" });
-    await view().step("a2", 1);
-    await view().step("zz", 0);
+    await view().step({ messageId: "a2", offset: 1 });
+    await view().step({ messageId: "zz", offset: 0 });
     expect(calls.switchBranch).toHaveBeenCalledExactlyOnceWith("c1", "a2");
 
     calls.siblings.mockReturnValue(failed("gone"));
-    await view().step("a1", 1);
+    await view().step({ messageId: "a1", offset: 1 });
     expect(view().error?.message).toBe("gone");
     calls.switchBranch.mockReturnValue(failed("no branch"));
     await view().switchBranch("a1");
@@ -203,7 +207,7 @@ describe("createAiChatTreeController", () => {
 
     await idle.view().refresh();
     await idle.view().switchBranch("a");
-    await idle.view().step("a", 1);
+    await idle.view().step({ messageId: "a", offset: 1 });
     idle.unmount();
     expect(calls.path).not.toHaveBeenCalled();
 
@@ -222,7 +226,7 @@ describe("createAiChatTreeController", () => {
     const mounted = mount(controller);
     await flush();
     const switching = mounted.view().switchBranch("a2");
-    const stepping = mounted.view().step("a1", 1);
+    const stepping = mounted.view().step({ messageId: "a1", offset: 1 });
     mounted.unmount();
     branch.release();
     siblings.release();

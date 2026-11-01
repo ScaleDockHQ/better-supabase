@@ -327,10 +327,10 @@ export interface StepUpActions {
    * Challenges a verified factor (the first one by default) with `code`, then
    * reads the session's level again.
    */
-  readonly verify: (
-    code: string,
-    factorId?: string,
-  ) => Promise<Result<MfaAssurance>>;
+  readonly verify: (input: {
+    code: string;
+    factorId?: string | undefined;
+  }) => Promise<Result<MfaAssurance>>;
   readonly dismiss: () => void;
   readonly refresh: () => Promise<void>;
 }
@@ -401,7 +401,7 @@ export function createStepUpController(
           dismiss: () => {
             state.set({ error: undefined });
           },
-          verify: async (code, factorId) => {
+          verify: async ({ code, factorId }) => {
             const id = factorId ?? state.get().factors?.[0]?.id;
 
             if (id === undefined) {

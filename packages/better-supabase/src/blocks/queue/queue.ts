@@ -212,17 +212,18 @@ export function createQueue<const Q extends QueueSchemas>(
   const complete = (job: Job): AsyncResult<boolean> =>
     run(() => transport.complete(job));
 
-  const fail = (
-    job: Job,
-    error: unknown,
-    failOptions: FailOptions = {},
-  ): AsyncResult<"queued" | "dead" | null> =>
-    run(() => transport.fail(job, errorText(error), failOptions.retryIn));
+  const fail = ({
+    job,
+    error,
+    ...failOptions
+  }: { job: Job; error: unknown } & FailOptions): AsyncResult<
+    "queued" | "dead" | null
+  > => run(() => transport.fail(job, errorText(error), failOptions.retryIn));
 
-  const claim = (
-    queue: string,
-    claimOptions: ClaimOptions = {},
-  ): AsyncResult<Job[]> =>
+  const claim = ({
+    queue,
+    ...claimOptions
+  }: { queue: string } & ClaimOptions): AsyncResult<Job[]> =>
     run(async () => {
       schemaOf(queue);
 
@@ -332,7 +333,7 @@ export function createQueue<const Q extends QueueSchemas>(
       );
 
       if (!executed.ok) {
-        await fail(job, executed.error.message);
+        await fail({ job, error: executed.error.message });
         workOptions.onError?.(executed.error, job);
 
         return false;
@@ -358,7 +359,7 @@ export function createQueue<const Q extends QueueSchemas>(
       }
 
       controller.abort();
-      await fail(job, cause);
+      await fail({ job, error: cause });
       // SAFETY: repositories only reject with DbError objects, which carry a kind field.
       workOptions.onError?.(
         typeof cause === "object" && cause !== null && "kind" in cause
@@ -400,7 +401,8 @@ export function createQueue<const Q extends QueueSchemas>(
           return;
         }
 
-        const claimed = await claim(queue, {
+        const claimed = await claim({
+          queue,
           ...workOptions,
           batch: workOptions.batch ?? 1,
         });
@@ -668,7 +670,7 @@ export function createQueue<const Q extends QueueSchemas>(
   };
 
   const client: Queue<Q> = {
-    enqueue(queue, payload, enqueueOptions = {}) {
+    enqueue({ queue, payload, ...enqueueOptions }) {
       return AsyncResult.from(async () => {
         const prepared = await prepareSend(queue, payload, enqueueOptions);
 
@@ -690,7 +692,7 @@ export function createQueue<const Q extends QueueSchemas>(
         );
       });
     },
-    enqueueOnce(queue, payload, enqueueOptions) {
+    enqueueOnce({ queue, payload, options: enqueueOptions }) {
       return AsyncResult.from(async () => {
         const prepared = await prepareSend(queue, payload, enqueueOptions);
 
@@ -718,7 +720,7 @@ export function createQueue<const Q extends QueueSchemas>(
     claim,
     complete,
     fail,
-    extend: (job, lease) => run(() => transport.extend(job, lease)),
+    extend: ({ job, lease }) => run(() => transport.extend(job, lease)),
     stats: (names) =>
       run(async () => {
         const stats = (queue: string): Promise<QueueStats> =>
@@ -740,7 +742,7 @@ export function createQueue<const Q extends QueueSchemas>(
           QueueStats
         >;
       }),
-    listDead: (queue, listOptions = {}) =>
+    listDead: ({ queue, ...listOptions }) =>
       run(async () => {
         if (!transport.listDead) {
           sqlOnly("listDead");
@@ -772,7 +774,7 @@ export function createQueue<const Q extends QueueSchemas>(
           };
         });
       }),
-    retryDead: (queue, retryOptions = {}) =>
+    retryDead: ({ queue, ...retryOptions }) =>
       run(async () => {
         if (!transport.retryDead) {
           sqlOnly("retryDead");
@@ -788,7 +790,7 @@ export function createQueue<const Q extends QueueSchemas>(
       }),
     purge,
     purgeJob: (purgeOptions) => async () => purge(purgeOptions).orThrow(),
-    replay: (queue, id) =>
+    replay: ({ queue, id }) =>
       run(() => {
         if (!transport.replay) {
           sqlOnly("replay");
@@ -796,7 +798,7 @@ export function createQueue<const Q extends QueueSchemas>(
 
         return transport.replay(queue, id);
       }),
-    schedule(name, cron, queue, payload, scheduleOptions = {}) {
+    schedule({ name, cron, queue, payload, ...scheduleOptions }) {
       return AsyncResult.from(async () => {
         const prepared = await prepare(
           name,
@@ -814,7 +816,7 @@ export function createQueue<const Q extends QueueSchemas>(
       });
     },
     unschedule: (name) => run(() => transport.unschedule(name)),
-    ensureSchedules(definitions, ensureOptions) {
+    ensureSchedules({ definitions, options: ensureOptions }) {
       return AsyncResult.from(async () => {
         const { prefix, tenant } = ensureOptions;
 
@@ -911,11 +913,11 @@ export function createQueue<const Q extends QueueSchemas>(
       }),
     runSchedules: (scheduleOptions = {}) =>
       run(() => runSchedules(scheduleOptions)),
-    drain: (queue, handler, drainOptions = {}) =>
+    drain: ({ queue, handler, ...drainOptions }) =>
       loop(queue, handler, drainOptions, false, budget(drainOptions.budgetMs)),
-    work: (queue, handler, workOptions = {}) =>
+    work: ({ queue, handler, ...workOptions }) =>
       loop(queue, handler, workOptions, true),
-    runJob: (queue, delivery, handler, runOptions = {}) =>
+    runJob: ({ queue, delivery, handler, ...runOptions }) =>
       run(async () => {
         const job = toJob(queue, {
           id: delivery.id,

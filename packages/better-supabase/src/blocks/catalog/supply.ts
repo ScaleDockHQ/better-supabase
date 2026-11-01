@@ -147,16 +147,14 @@ export interface MappedSupplierItem {
 
 export interface CatalogSupply {
   /** Adds an EAN, a supplier code or another identifier to a variant. */
-  saveProductIdentifier(
-    organizationId: string,
-    input: IdentifierInput,
-  ): AsyncResult<SavedIdentifier>;
+  saveProductIdentifier(input: {
+    organizationId: string;
+    input: IdentifierInput;
+  }): AsyncResult<SavedIdentifier>;
   deleteProductIdentifier(identifierId: string): AsyncResult<boolean>;
   /** The variants that carry a code. */
   findVariantsByIdentifier(
-    organizationId: string,
-    value: string,
-    options?: FindByIdentifierOptions,
+    input: { organizationId: string; value: string } & FindByIdentifierOptions,
   ): AsyncResult<readonly IdentifierMatch[]>;
   variantIdentifiers(
     variantId: string,
@@ -165,60 +163,60 @@ export interface CatalogSupply {
    * Links one variant to another. A `superseded_by` link can't point back along
    * its own chain.
    */
-  saveProductRelation(
-    organizationId: string,
-    input: RelationInput,
-  ): AsyncResult<{ readonly created: boolean }>;
+  saveProductRelation(input: {
+    organizationId: string;
+    input: RelationInput;
+  }): AsyncResult<{ readonly created: boolean }>;
   deleteProductRelation(input: RelationInput): AsyncResult<boolean>;
-  variantRelations(
-    variantId: string,
-    kind?: RelationKind,
-  ): AsyncResult<readonly VariantRelation[]>;
+  variantRelations(input: {
+    variantId: string;
+    kind?: RelationKind | undefined;
+  }): AsyncResult<readonly VariantRelation[]>;
   /**
    * The end of the variant's `superseded_by` chain; the variant itself when
    * none.
    */
   replacementVariant(variantId: string): AsyncResult<string>;
-  saveSupplierItem(
-    organizationId: string,
-    input: SupplierItemInput,
-  ): AsyncResult<SavedSupplierItem>;
+  saveSupplierItem(input: {
+    organizationId: string;
+    input: SupplierItemInput;
+  }): AsyncResult<SavedSupplierItem>;
   deleteSupplierItem(itemId: string): AsyncResult<boolean>;
   /** Words in the code, description and keywords, and the start of a code. */
   searchSupplierItems(
-    organizationId: string,
-    query: string,
-    options?: SupplierItemSearchOptions,
+    input: {
+      organizationId: string;
+      query: string;
+    } & SupplierItemSearchOptions,
   ): AsyncResult<readonly SupplierItem[]>;
   /** Makes a supplier item a product and variant on first use. */
   promoteSupplierItem(
-    itemId: string,
-    options?: { readonly sku?: string },
+    input: { itemId: string } & { readonly sku?: string },
   ): AsyncResult<PromotedSupplierItem>;
-  setSupplierItemMapping(
-    organizationId: string,
-    supplierId: string,
-    input: SupplierItemMappingInput,
-  ): AsyncResult<SupplierItemMapping>;
-  supplierItemMapping(
-    organizationId: string,
-    supplierId: string,
-  ): AsyncResult<SupplierItemMapping | null>;
-  deleteSupplierItemMapping(
-    organizationId: string,
-    supplierId: string,
-  ): AsyncResult<boolean>;
+  setSupplierItemMapping(input: {
+    organizationId: string;
+    supplierId: string;
+    input: SupplierItemMappingInput;
+  }): AsyncResult<SupplierItemMapping>;
+  supplierItemMapping(input: {
+    organizationId: string;
+    supplierId: string;
+  }): AsyncResult<SupplierItemMapping | null>;
+  deleteSupplierItemMapping(input: {
+    organizationId: string;
+    supplierId: string;
+  }): AsyncResult<boolean>;
   /** One price list row through the supplier's mapping, price in minor units. */
-  mapSupplierRow(
-    organizationId: string,
-    supplierId: string,
-    row: Readonly<Record<string, unknown>>,
-  ): AsyncResult<MappedSupplierItem>;
+  mapSupplierRow(input: {
+    organizationId: string;
+    supplierId: string;
+    row: Readonly<Record<string, unknown>>;
+  }): AsyncResult<MappedSupplierItem>;
   /** Sets the variant's Combined Nomenclature code, or clears it with null. */
-  setVariantTradeCode(
-    variantId: string,
-    tradeCode: string | null,
-  ): AsyncResult<boolean>;
+  setVariantTradeCode(input: {
+    variantId: string;
+    tradeCode: string | null;
+  }): AsyncResult<boolean>;
 }
 
 const nullable = (value: unknown): string | null =>
@@ -268,7 +266,7 @@ export function catalogSupply(
   call: ReturnType<typeof blockCall>,
 ): CatalogSupply {
   return {
-    saveProductIdentifier: (organizationId, input) =>
+    saveProductIdentifier: ({ organizationId, input }) =>
       call(
         "save_product_identifier",
         {
@@ -290,7 +288,7 @@ export function catalogSupply(
         { identifier: identifierId },
         (value) => value === true,
       ),
-    findVariantsByIdentifier: (organizationId, value, options = {}) =>
+    findVariantsByIdentifier: ({ organizationId, value, ...options }) =>
       call(
         "find_variants_by_identifier",
         {
@@ -319,7 +317,7 @@ export function catalogSupply(
           partyId: nullable(row["partyId"]),
         })),
       ),
-    saveProductRelation: (organizationId, input) =>
+    saveProductRelation: ({ organizationId, input }) =>
       call(
         "save_product_relation",
         {
@@ -342,7 +340,7 @@ export function catalogSupply(
         },
         (value) => value === true,
       ),
-    variantRelations: (variantId, kind) =>
+    variantRelations: ({ variantId, kind }) =>
       call(
         "variant_relations",
         { variant: variantId, kind: kind ?? null },
@@ -357,7 +355,7 @@ export function catalogSupply(
       ),
     replacementVariant: (variantId) =>
       call("replacement_variant", { variant: variantId }, textOf),
-    saveSupplierItem: (organizationId, input) =>
+    saveSupplierItem: ({ organizationId, input }) =>
       call(
         "save_supplier_item",
         {
@@ -379,7 +377,7 @@ export function catalogSupply(
       ),
     deleteSupplierItem: (itemId) =>
       call("delete_supplier_item", { item: itemId }, (value) => value === true),
-    searchSupplierItems: (organizationId, query, options = {}) =>
+    searchSupplierItems: ({ organizationId, query, ...options }) =>
       call(
         "search_supplier_items",
         {
@@ -400,7 +398,7 @@ export function catalogSupply(
             variantId: nullable(row["variantId"]),
           })),
       ),
-    promoteSupplierItem: (itemId, options = {}) =>
+    promoteSupplierItem: ({ itemId, ...options }) =>
       call(
         "promote_supplier_item",
         { item: itemId, sku: options.sku ?? null },
@@ -414,7 +412,7 @@ export function catalogSupply(
           };
         },
       ),
-    setSupplierItemMapping: (organizationId, supplierId, input) =>
+    setSupplierItemMapping: ({ organizationId, supplierId, input }) =>
       call(
         "set_supplier_item_mapping",
         {
@@ -425,20 +423,20 @@ export function catalogSupply(
         },
         (value) => mappingOf(value, "set_supplier_item_mapping"),
       ),
-    supplierItemMapping: (organizationId, supplierId) =>
+    supplierItemMapping: ({ organizationId, supplierId }) =>
       call(
         "supplier_item_mapping",
         { tenant: organizationId, supplier: supplierId },
         (value) =>
           value === null ? null : mappingOf(value, "supplier_item_mapping"),
       ),
-    deleteSupplierItemMapping: (organizationId, supplierId) =>
+    deleteSupplierItemMapping: ({ organizationId, supplierId }) =>
       call(
         "delete_supplier_item_mapping",
         { tenant: organizationId, supplier: supplierId },
         (value) => value === true,
       ),
-    mapSupplierRow: (organizationId, supplierId, row) =>
+    mapSupplierRow: ({ organizationId, supplierId, row }) =>
       call(
         "supplier_item_from_row",
         { tenant: organizationId, supplier: supplierId, source: row },
@@ -455,7 +453,7 @@ export function catalogSupply(
           };
         },
       ),
-    setVariantTradeCode: (variantId, tradeCode) =>
+    setVariantTradeCode: ({ variantId, tradeCode }) =>
       call(
         "set_variant_trade_code",
         { variant: variantId, trade_code: tradeCode },

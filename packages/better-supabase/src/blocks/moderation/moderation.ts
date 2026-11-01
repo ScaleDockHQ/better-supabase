@@ -148,10 +148,10 @@ export interface Moderation {
    * returns that report. `autoHidden` is true when this report reached the
    * auto-hide threshold.
    */
-  report(
-    subject: RecordRef,
-    report: { readonly reason: string; readonly note?: string },
-  ): AsyncResult<ModerationReport & { readonly autoHidden: boolean }>;
+  report(input: {
+    subject: RecordRef;
+    report: { readonly reason: string; readonly note?: string };
+  }): AsyncResult<ModerationReport & { readonly autoHidden: boolean }>;
   /** The review queue, most recently changed first. */
   queue(filter?: ModerationQueueFilter): AsyncResult<readonly ModerationItem[]>;
   /**
@@ -161,22 +161,21 @@ export interface Moderation {
   item(subject: RecordRef): AsyncResult<ModerationItemDetail | null>;
   /** Decides on an item. `ban` needs the ban permission as well. */
   decide(
-    itemId: string,
-    decision: ModerationDecision,
-    options?: { readonly reason?: string },
+    input: { itemId: string; decision: ModerationDecision } & {
+      readonly reason?: string;
+    },
   ): AsyncResult<ModerationItem>;
   /**
    * The statuses of the subjects that are not visible, by id, for filtering a
    * list. Visible and unmoderated subjects are left out. At most 500 ids.
    */
-  statuses(
-    subjectType: string,
-    ids: readonly string[],
-  ): AsyncResult<Readonly<Record<string, ModerationStatus>>>;
+  statuses(input: {
+    subjectType: string;
+    ids: readonly string[];
+  }): AsyncResult<Readonly<Record<string, ModerationStatus>>>;
   /** Bans a user in the organization, until `expiresAt` or for good. */
   ban(
-    userId: string,
-    options?: {
+    input: { userId: string } & {
       readonly reason?: string;
       readonly expiresAt?: Temporal.Instant;
     },
@@ -296,7 +295,7 @@ export function createModeration(options: ModerationOptions): Moderation {
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const client: Moderation = {
-    report: (subject, report) =>
+    report: ({ subject, report }) =>
       tenant().andThen((organizationId) =>
         call(
           "report_content",
@@ -359,13 +358,13 @@ export function createModeration(options: ModerationOptions): Moderation {
           },
         ),
       ),
-    decide: (itemId, decision, decide = {}) =>
+    decide: ({ itemId, decision, ...decide }) =>
       call(
         "moderate",
         { item_id: itemId, action: decision, reason: decide.reason ?? null },
         (value) => itemOf(value, "moderate"),
       ),
-    statuses: (subjectType, ids) =>
+    statuses: ({ subjectType, ids }) =>
       tenant().andThen((organizationId) =>
         call(
           "moderation_statuses",
@@ -377,7 +376,7 @@ export function createModeration(options: ModerationOptions): Moderation {
           statusesOf,
         ),
       ),
-    ban: (userId, ban = {}) =>
+    ban: ({ userId, ...ban }) =>
       tenant().andThen((organizationId) =>
         call(
           "ban_user",

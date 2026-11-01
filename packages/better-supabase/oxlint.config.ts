@@ -100,6 +100,12 @@ export default defineConfig({
       rules: { "eslint/max-lines": "off" },
     },
     {
+      // The drive client takes one object per method (ADR 0177), which
+      // expands its declarations; 1,021 code lines, 1 finding when measured.
+      files: ["src/blocks/drive/drive.ts"],
+      rules: { "eslint/max-lines": "off" },
+    },
+    {
       // Relation counts and aggregates are part of the repository API.
       files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
       rules: {

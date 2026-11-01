@@ -38,7 +38,7 @@ function memoryCache(fail?: "get" | "set") {
                 }
               : undefined,
           ),
-    upsert: (key, value, options) => {
+    upsert: ({ key, value, options }) => {
       if (fail === "set") {
         return AsyncResult.err(dbError("network", "down"));
       }

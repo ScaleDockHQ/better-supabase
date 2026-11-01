@@ -85,7 +85,7 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
         call("list_ai_provider_keys", { tenant: organizationId }, (value) =>
           recordsOf(value, "list_ai_provider_keys").map(keyOf),
         ),
-      upsert: (organizationId, key) =>
+      upsert: ({ organizationId, key }) =>
         call(
           "save_ai_provider_key",
           {
@@ -120,7 +120,7 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
           { tenant: organizationId },
           (value) => recordsOf(value, "delete_ai_provider_keys").map(keyOf),
         ).andThen(revokeAll),
-      resolve: (organizationId, resolveOptions = {}) =>
+      resolve: ({ organizationId, ...resolveOptions }) =>
         service(
           "ai_provider_keys_for",
           { tenant: organizationId, providers: resolveOptions.providers },
@@ -188,7 +188,7 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
         ),
     },
     batches: {
-      record: (organizationId, batch) =>
+      record: ({ organizationId, batch }) =>
         call(
           "record_ai_batch",
           {
@@ -219,7 +219,7 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
         call("get_ai_batch", { id: batchId }, (value) =>
           value === null || value === undefined ? undefined : batchOf(value),
         ),
-      list: (organizationId, listOptions = {}) =>
+      list: ({ organizationId, ...listOptions }) =>
         call(
           "list_ai_batches",
           {
@@ -229,7 +229,7 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
           },
           (value) => recordsOf(value, "list_ai_batches").map(batchOf),
         ),
-      items: (batchId, itemOptions = {}) =>
+      items: ({ batchId, ...itemOptions }) =>
         call(
           "list_ai_batch_items",
           {
@@ -245,7 +245,7 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
           { batch: dueOptions.batch, lease_seconds: dueOptions.leaseSeconds },
           (value) => recordsOf(value, "due_ai_batches").map(batchOf),
         ),
-      update: (batchId, patch) => {
+      update: ({ batchId, patch }) => {
         const fields: Record<string, unknown> = {};
 
         if (patch.status !== undefined) {
@@ -278,7 +278,7 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
 
         return service("update_ai_batch", { id: batchId, fields }, batchOf);
       },
-      saveItems: (batchId, items) =>
+      saveItems: ({ batchId, items }) =>
         service(
           "save_ai_batch_items",
           {

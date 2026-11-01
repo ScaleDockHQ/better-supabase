@@ -71,7 +71,7 @@ describe("approvals client", () => {
       },
     });
 
-    const refused = await approvals.approve("r1");
+    const refused = await approvals.approve({ id: "r1" });
     expect(!refused.ok && refused.error.hint).toBe("APPROVAL_FORBIDDEN");
     expect(seen[0]).toEqual([
       "u2",
@@ -79,8 +79,10 @@ describe("approvals client", () => {
     ]);
     expect(fake.calls.map(([fn]) => fn)).toEqual(["get_approval"]);
     allow = true;
-    expect((await approvals.approve("r1").orThrow()).status).toBe("approved");
-    await approvals.delegate("r1", "u3").orThrow();
+    expect((await approvals.approve({ id: "r1" }).orThrow()).status).toBe(
+      "approved",
+    );
+    await approvals.delegate({ id: "r1", userId: "u3" }).orThrow();
     expect(fake.calls.map(([fn]) => fn)).toEqual([
       "get_approval",
       "get_approval",
@@ -110,7 +112,7 @@ describe("approvals client", () => {
       },
     });
 
-    const result = await approvals.reject("r1");
+    const result = await approvals.reject({ id: "r1" });
     expect(!result.ok && result.error.kind).toBe("forbidden");
     expect(asked).toBe(false);
     expect(() =>
@@ -143,10 +145,13 @@ describe("approvals client", () => {
     });
 
     const request = await approvals
-      .request(INVOICE, {
-        action: "send",
-        reason: "Q3 invoice",
-        payload: { total: 100 },
+      .request({
+        subject: INVOICE,
+        input: {
+          action: "send",
+          reason: "Q3 invoice",
+          payload: { total: 100 },
+        },
       })
       .orThrow();
 
@@ -162,11 +167,19 @@ describe("approvals client", () => {
     });
     expect(request.expiresAt?.toString()).toBe("2026-10-08T00:00:00Z");
     expect(request.decidedAt).toBeUndefined();
-    const approved = await approvals.approve("r1", "ok").orThrow();
+
+    const approved = await approvals
+      .approve({ id: "r1", comment: "ok" })
+      .orThrow();
+
     expect(approved.status).toBe("approved");
     expect(approved.decidedAt?.toString()).toBe("2026-10-02T00:00:00Z");
-    expect((await approvals.reject("r1").orThrow()).status).toBe("rejected");
-    await approvals.delegate("r1", "u3", "on leave").orThrow();
+    expect((await approvals.reject({ id: "r1" }).orThrow()).status).toBe(
+      "rejected",
+    );
+    await approvals
+      .delegate({ id: "r1", userId: "u3", comment: "on leave" })
+      .orThrow();
     expect((await approvals.cancel("r1").orThrow()).status).toBe("cancelled");
     expect(fake.calls).toEqual([
       [
@@ -245,7 +258,11 @@ describe("approvals client", () => {
         before: Temporal.Instant.from("2026-10-02T00:00:00Z"),
       })
       .orThrow();
-    expect(await approvals.isApproved(INVOICE, "send").orThrow()).toBe(true);
+    expect(
+      await approvals
+        .isApproved({ subject: INVOICE, action: "send" })
+        .orThrow(),
+    ).toBe(true);
     expect(fake.calls.slice(1, 3)).toEqual([
       [
         "list_approvals",
@@ -278,13 +295,19 @@ describe("approvals client", () => {
     const fake = transport({ is_approved: () => false });
     const approvals = createApprovals({ transport: fake, schema: "app" });
 
-    expect(await approvals.request(INVOICE, { action: "send" })).toMatchObject({
+    expect(
+      await approvals.request({ subject: INVOICE, input: { action: "send" } }),
+    ).toMatchObject({
       ok: false,
       error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
     });
     expect((await approvals.list()).ok).toBe(false);
     expect(fake.calls).toHaveLength(0);
-    expect(await approvals.isApproved(INVOICE, "send").orThrow()).toBe(false);
+    expect(
+      await approvals
+        .isApproved({ subject: INVOICE, action: "send" })
+        .orThrow(),
+    ).toBe(false);
   });
 
   it("checks requirements, consumes once and manages tenant policies", async () => {
@@ -363,7 +386,13 @@ describe("approvals client", () => {
     });
 
     expect(
-      await approvals.requirement("invoice", "send", { amount: 5 }).orThrow(),
+      await approvals
+        .requirement({
+          subjectType: "invoice",
+          action: "send",
+          payload: { amount: 5 },
+        })
+        .orThrow(),
     ).toEqual({
       mode: "confirm",
       steps: [],
@@ -372,20 +401,27 @@ describe("approvals client", () => {
       policies: ["p1"],
     });
     required = false;
-    expect(await approvals.requirement("invoice", "send").orThrow()).toBeNull();
+    expect(
+      await approvals
+        .requirement({ subjectType: "invoice", action: "send" })
+        .orThrow(),
+    ).toBeNull();
 
     const fingerprint = await approvalFingerprint({ b: 1, a: [1, undefined] });
 
     const request = await approvals
-      .request(INVOICE, { action: "send", fingerprint })
+      .request({ subject: INVOICE, input: { action: "send", fingerprint } })
       .orThrow();
 
     expect(request).toMatchObject({ mode: "confirm", fingerprint: "ab" });
 
-    const consumed = await approvals.consume("r1", fingerprint).orThrow();
+    const consumed = await approvals
+      .consume({ id: "r1", fingerprint })
+      .orThrow();
+
     expect(consumed.consumedAt?.toString()).toBe("2026-10-03T00:00:00Z");
     expect(consumed.mode).toBe("authorize");
-    await approvals.consume("r1").orThrow();
+    await approvals.consume({ id: "r1" }).orThrow();
 
     const [first, second] = await approvals.listPolicies().orThrow();
     expect(first).toMatchObject({
@@ -402,7 +438,9 @@ describe("approvals client", () => {
       .orThrow();
 
     const saved = await approvals
-      .savePolicy({ subjectType: "invoice", action: "send", name: "Large" })
+      .savePolicy({
+        input: { subjectType: "invoice", action: "send", name: "Large" },
+      })
       .orThrow();
 
     expect(saved.name).toBe("Large invoices");

@@ -65,7 +65,9 @@ export async function loadDirectory(): Promise<
     return null;
   }
 
-  const chart = await db.employees.orgChart(tenant).orThrow();
+  const chart = await db.employees
+    .orgChart({ organizationId: tenant })
+    .orThrow();
 
   return chart.map((employee) => ({
     id: employee.id,
@@ -124,7 +126,7 @@ export async function loadTimesheet(
   const { timeTracking } = db;
 
   const [sheet, running] = await Promise.all([
-    timeTracking.timesheet(Temporal.PlainDate.from(week)).orThrow(),
+    timeTracking.timesheet({ week: Temporal.PlainDate.from(week) }).orThrow(),
     timeTracking.running().orThrow(),
   ]);
 

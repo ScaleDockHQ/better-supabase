@@ -310,77 +310,76 @@ export interface PublicStatusPage {
 
 export interface Incidents<F extends object = Record<never, never>> {
   /** Needs `incidents.manage`. */
-  saveComponent(
-    organizationId: string,
-    input: StatusComponentInput,
-  ): AsyncResult<StatusComponent>;
+  saveComponent(input: {
+    organizationId: string;
+    input: StatusComponentInput;
+  }): AsyncResult<StatusComponent>;
   /** Needs `incidents.manage`. */
   deleteComponent(componentId: string): AsyncResult<{ readonly id: string }>;
   components(organizationId: string): AsyncResult<readonly StatusComponent[]>;
   /** Needs `incidents.write`. */
-  open(
-    organizationId: string,
-    input: IncidentInput<F>,
-  ): AsyncResult<Incident<F>>;
+  open(input: {
+    organizationId: string;
+    input: IncidentInput<F>;
+  }): AsyncResult<Incident<F>>;
   /** Needs `incidents.write`. */
-  update(
-    incidentId: string,
-    changes: IncidentChanges<F>,
-  ): AsyncResult<Incident<F>>;
+  update(input: {
+    incidentId: string;
+    changes: IncidentChanges<F>;
+  }): AsyncResult<Incident<F>>;
   /**
    * Adds a timeline entry and moves the incident to its status; `resolved`
    * closes the incident and restores its components. Needs `incidents.write`.
    */
-  postUpdate(
-    incidentId: string,
-    input: IncidentUpdateInput,
-  ): AsyncResult<IncidentUpdate>;
+  postUpdate(input: {
+    incidentId: string;
+    input: IncidentUpdateInput;
+  }): AsyncResult<IncidentUpdate>;
   /** Replaces the affected components. Needs `incidents.write`. */
-  setImpacts(
-    incidentId: string,
-    impacts: readonly IncidentImpactInput[],
-  ): AsyncResult<Incident<F>>;
+  setImpacts(input: {
+    incidentId: string;
+    impacts: readonly IncidentImpactInput[];
+  }): AsyncResult<Incident<F>>;
   get(incidentId: string): AsyncResult<IncidentDetail<F> | undefined>;
   /** Newest first. */
   list(
-    organizationId: string,
-    options?: IncidentListOptions,
+    input: { organizationId: string } & IncidentListOptions,
   ): AsyncResult<readonly Incident<F>[]>;
   /** Creates or changes the draft. Needs `incidents.write`. */
-  savePostmortem(
-    incidentId: string,
-    input: PostmortemInput,
-  ): AsyncResult<Postmortem>;
+  savePostmortem(input: {
+    incidentId: string;
+    input: PostmortemInput;
+  }): AsyncResult<Postmortem>;
   /** Needs `incidents.manage` and a resolved incident. */
   publishPostmortem(incidentId: string): AsyncResult<Postmortem>;
   /**
    * Adds an action item to a postmortem as a task, created through the tasks
    * block. Needs `incidents.write` and the tasks block's create permission.
    */
-  addPostmortemAction(
-    postmortemId: string,
-    input: PostmortemActionInput,
-  ): AsyncResult<PostmortemAction>;
+  addPostmortemAction(input: {
+    postmortemId: string;
+    input: PostmortemActionInput;
+  }): AsyncResult<PostmortemAction>;
   /**
    * Unlinks an action item and returns the postmortem; the task stays. Needs
    * `incidents.write`.
    */
   removePostmortemAction(actionId: string): AsyncResult<Postmortem>;
   /** Needs `incidents.manage`. */
-  saveStatusPage(
-    organizationId: string,
-    input: StatusPageInput,
-  ): AsyncResult<StatusPage>;
+  saveStatusPage(input: {
+    organizationId: string;
+    input: StatusPageInput;
+  }): AsyncResult<StatusPage>;
   statusPage(organizationId: string): AsyncResult<StatusPage | undefined>;
   /**
    * The published status page behind a slug, readable without signing in:
    * public components, their uptime over `days` (1 to 90, default 90) and
    * public incidents. `undefined` when no published page has the slug.
    */
-  publicStatusPage(
-    slug: string,
-    days?: number,
-  ): AsyncResult<PublicStatusPage | undefined>;
+  publicStatusPage(input: {
+    slug: string;
+    days?: number | undefined;
+  }): AsyncResult<PublicStatusPage | undefined>;
 }
 
 const SEVERITIES: readonly IncidentSeverity[] = [
@@ -672,7 +671,7 @@ export function createIncidents<
     postmortemOf(value, fn);
 
   const client: Incidents<F> = {
-    saveComponent: (organizationId, input) =>
+    saveComponent: ({ organizationId, input }) =>
       call(
         "save_status_component",
         {
@@ -700,7 +699,7 @@ export function createIncidents<
           componentOf(row, "list_status_components"),
         ),
       ),
-    open: (organizationId, input) =>
+    open: ({ organizationId, input }) =>
       fields
         .args(input.fields)
         .andThen((checked) =>
@@ -714,7 +713,7 @@ export function createIncidents<
             incident("open_incident"),
           ).andThen(fields.row),
         ),
-    update: (incidentId, changes) =>
+    update: ({ incidentId, changes }) =>
       fields
         .args(changes.fields)
         .andThen((checked) =>
@@ -728,7 +727,7 @@ export function createIncidents<
             incident("update_incident"),
           ).andThen(fields.row),
         ),
-    postUpdate: (incidentId, input) =>
+    postUpdate: ({ incidentId, input }) =>
       call(
         "post_incident_update",
         {
@@ -739,7 +738,7 @@ export function createIncidents<
         },
         (value) => updateOf(value, "post_incident_update"),
       ),
-    setImpacts: (incidentId, impacts) =>
+    setImpacts: ({ incidentId, impacts }) =>
       call(
         "set_incident_impacts",
         { incident_id: incidentId, impacts },
@@ -751,7 +750,7 @@ export function createIncidents<
       ).andThen((row) =>
         row === undefined ? AsyncResult.ok(undefined) : fields.row(row),
       ),
-    list: (organizationId, list = {}) =>
+    list: ({ organizationId, ...list }) =>
       call(
         "list_incidents",
         {
@@ -767,7 +766,7 @@ export function createIncidents<
             incidentOf(row, "list_incidents"),
           ),
       ).andThen(fields.rows),
-    savePostmortem: (incidentId, input) =>
+    savePostmortem: ({ incidentId, input }) =>
       call(
         "save_incident_postmortem",
         {
@@ -787,7 +786,7 @@ export function createIncidents<
         { incident_id: incidentId },
         postmortem("publish_incident_postmortem"),
       ),
-    addPostmortemAction: (postmortemId, input) =>
+    addPostmortemAction: ({ postmortemId, input }) =>
       call(
         "add_incident_postmortem_action",
         {
@@ -804,7 +803,7 @@ export function createIncidents<
         { action_id: actionId },
         postmortem("remove_incident_postmortem_action"),
       ),
-    saveStatusPage: (organizationId, input) =>
+    saveStatusPage: ({ organizationId, input }) =>
       call(
         "save_status_page",
         {
@@ -822,7 +821,7 @@ export function createIncidents<
           ? undefined
           : pageOf(value, "get_status_page"),
       ),
-    publicStatusPage: (slug, days) =>
+    publicStatusPage: ({ slug, days }) =>
       call("public_status_page", { slug, days: days ?? null }, (value) =>
         publicPageOf(value, "public_status_page"),
       ),

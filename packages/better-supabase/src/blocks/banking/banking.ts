@@ -324,10 +324,10 @@ export interface BankFeedSync {
 }
 
 export interface Banking<F extends object = Record<never, never>> {
-  saveAccount(
-    input: BankAccountInput<F>,
-    accountId?: string,
-  ): AsyncResult<BankAccount<F>>;
+  saveAccount(input: {
+    input: BankAccountInput<F>;
+    accountId?: string | undefined;
+  }): AsyncResult<BankAccount<F>>;
   accounts(options?: {
     readonly includeArchived?: boolean;
   }): AsyncResult<readonly BankAccount<F>[]>;
@@ -336,14 +336,13 @@ export interface Banking<F extends object = Record<never, never>> {
    * `externalId` the account has seen is skipped, so importing twice adds
    * nothing.
    */
-  importStatement(
-    accountId: string,
-    statement: BankStatementInput,
-  ): AsyncResult<BankStatementImport>;
+  importStatement(input: {
+    accountId: string;
+    statement: BankStatementInput;
+  }): AsyncResult<BankStatementImport>;
   statements(accountId: string): AsyncResult<readonly BankStatement[]>;
   transactions(
-    accountId: string,
-    options?: BankTransactionListOptions,
+    input: { accountId: string } & BankTransactionListOptions,
   ): AsyncResult<readonly BankTransaction[]>;
   getTransaction(
     transactionId: string,
@@ -361,26 +360,29 @@ export interface Banking<F extends object = Record<never, never>> {
    * reports. An invoice match records an invoice payment. The amounts add up to
    * the transaction's, or it fails with `BANK_TRANSACTION_MATCH_INVALID`.
    */
-  match(
-    transactionId: string,
-    matches: readonly BankMatchInput[],
-  ): AsyncResult<BankTransaction>;
+  match(input: {
+    transactionId: string;
+    matches: readonly BankMatchInput[];
+  }): AsyncResult<BankTransaction>;
   /** Undoes the matches: invoice payments are refunded, a rule's entry reversed. */
   unmatch(transactionId: string): AsyncResult<BankTransaction>;
   /** `false` puts an ignored transaction back as unmatched. */
-  ignore(
-    transactionId: string,
-    ignored?: boolean,
-  ): AsyncResult<BankTransaction>;
-  saveRule(input: BankRuleInput, ruleId?: string): AsyncResult<BankRule>;
+  ignore(input: {
+    transactionId: string;
+    ignored?: boolean | undefined;
+  }): AsyncResult<BankTransaction>;
+  saveRule(input: {
+    input: BankRuleInput;
+    ruleId?: string | undefined;
+  }): AsyncResult<BankRule>;
   rules(): AsyncResult<readonly BankRule[]>;
   deleteRule(ruleId: string): AsyncResult<void>;
   /** Runs the active rules over the account's unmatched transactions. */
   applyRules(accountId: string): AsyncResult<BankRuleRun>;
-  reconciliation(
-    accountId: string,
-    asOf?: BankDate,
-  ): AsyncResult<BankReconciliation>;
+  reconciliation(input: {
+    accountId: string;
+    asOf?: BankDate | undefined;
+  }): AsyncResult<BankReconciliation>;
   /**
    * Selects the approved open supplier bills due by a date into a draft payment
    * batch of one bank account. A bill whose early payment discount is still
@@ -408,15 +410,14 @@ export interface Banking<F extends object = Record<never, never>> {
    * written from the bank account's name, IBAN and BIC. Only euro batches.
    */
   exportSepaCreditTransfer(
-    batchId: string,
-    options?: SepaExportOptions,
+    input: { batchId: string } & SepaExportOptions,
   ): AsyncResult<string>;
   /** Reads a bank feed's transactions since a day and imports them. */
-  syncFeed(
-    accountId: string,
-    feed: BankFeed,
-    sync: BankFeedSync,
-  ): AsyncResult<BankStatementImport>;
+  syncFeed(input: {
+    accountId: string;
+    feed: BankFeed;
+    sync: BankFeedSync;
+  }): AsyncResult<BankStatementImport>;
 }
 
 export interface BankingOptions<
@@ -844,7 +845,7 @@ export function createBanking<
   );
 
   const client: Banking<F> = {
-    saveAccount: ({ fields: extra, ...input }, accountId) =>
+    saveAccount: ({ input: { fields: extra, ...input }, accountId }) =>
       tenant().andThen((organizationId) =>
         fields
           .args(extra)
@@ -874,7 +875,7 @@ export function createBanking<
             ),
         ).andThen(fields.rows),
       ),
-    importStatement: (accountId, statement) =>
+    importStatement: ({ accountId, statement }) =>
       call(
         "import_bank_statement",
         { account_id: accountId, statement: statementArg(statement) },
@@ -886,7 +887,7 @@ export function createBanking<
           statementOf(row, "list_bank_statements"),
         ),
       ),
-    transactions: (accountId, list = {}) =>
+    transactions: ({ accountId, ...list }) =>
       call(
         "list_bank_transactions",
         {
@@ -919,7 +920,7 @@ export function createBanking<
           suggestionOf(row, "suggest_bank_matches"),
         ),
       ),
-    match: (transactionId, matches) =>
+    match: ({ transactionId, matches }) =>
       call(
         "match_bank_transaction",
         {
@@ -941,13 +942,13 @@ export function createBanking<
         { transaction_id: transactionId },
         transaction("unmatch_bank_transaction"),
       ),
-    ignore: (transactionId, ignored = true) =>
+    ignore: ({ transactionId, ignored = true }) =>
       call(
         "ignore_bank_transaction",
         { transaction_id: transactionId, ignored },
         transaction("ignore_bank_transaction"),
       ),
-    saveRule: (input, ruleId) =>
+    saveRule: ({ input, ruleId }) =>
       tenant().andThen((organizationId) =>
         call(
           "save_bank_rule",
@@ -978,7 +979,7 @@ export function createBanking<
           ignored: Number(row["ignored"]),
         };
       }),
-    reconciliation: (accountId, asOf) =>
+    reconciliation: ({ accountId, asOf }) =>
       call(
         "bank_reconciliation_status",
         { account_id: accountId, as_of: dateText(asOf) ?? null },
@@ -1029,7 +1030,7 @@ export function createBanking<
       call("cancel_payment_batch", { batch_id: batchId }, (value) =>
         batchOf(value, "cancel_payment_batch"),
       ),
-    exportSepaCreditTransfer: (batchId, sepa = {}) =>
+    exportSepaCreditTransfer: ({ batchId, ...sepa }) =>
       client
         .getPaymentBatch(batchId)
         .andThen((batch) =>
@@ -1037,15 +1038,18 @@ export function createBanking<
             .accounts({ includeArchived: true })
             .andThen((accounts) => sepaFile(batch, accounts, sepa)),
         ),
-    syncFeed: (accountId, feed, sync) =>
+    syncFeed: ({ accountId, feed, sync }) =>
       AsyncResult.ok(bankFeedOf(feed))
         .andThen((checked) => checked.transactions(sync.accountRef, sync.since))
         .andThen((transactions) =>
-          client.importStatement(accountId, {
-            reference: `${feed.name}:${sync.accountRef}:${String(sync.since)}`,
-            fromOn: sync.since,
-            format: "feed",
-            transactions,
+          client.importStatement({
+            accountId,
+            statement: {
+              reference: `${feed.name}:${sync.accountRef}:${String(sync.since)}`,
+              fromOn: sync.since,
+              format: "feed",
+              transactions,
+            },
           }),
         ),
   };

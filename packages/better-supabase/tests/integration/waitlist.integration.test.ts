@@ -44,16 +44,21 @@ describe.skipIf(!live)("waitlist", () => {
 
       await s.as("anon");
       const waitlist = createWaitlist({ transport: sqlTransport(s.sql) });
-      const place = await waitlist.join(` ${first.toUpperCase()} `).orThrow();
+
+      const place = await waitlist
+        .join({ email: ` ${first.toUpperCase()} ` })
+        .orThrow();
 
       const next = await waitlist
-        .join(second, { referrer: "friend", metadata: { plan: "team" } })
+        .join({ email: second, referrer: "friend", metadata: { plan: "team" } })
         .orThrow();
 
       expect(next.position).toBe((place.position ?? 0) + 1);
-      expect(await waitlist.join(first).orThrow()).toEqual(place);
+      expect(await waitlist.join({ email: first }).orThrow()).toEqual(place);
       expect(
-        await waitlist.join("nope").then((r) => !r.ok && r.error.hint),
+        await waitlist
+          .join({ email: "nope" })
+          .then((r) => !r.ok && r.error.hint),
       ).toBe("WAITLIST_EMAIL_INVALID");
       expect(await waitlist.entries().then((r) => !r.ok && r.error.hint)).toBe(
         "WAITLIST_FORBIDDEN",
@@ -84,7 +89,9 @@ describe.skipIf(!live)("waitlist", () => {
       });
       expect(await admit(s, second)).toMatchObject({ allowed: false });
       await s.as("anon");
-      expect((await waitlist.join(second).orThrow()).status).toBe("waiting");
+      expect((await waitlist.join({ email: second }).orThrow()).status).toBe(
+        "waiting",
+      );
       await s.service();
       expect(
         await s.rows(
@@ -138,7 +145,7 @@ describe.skipIf(!live)("waitlist", () => {
       await s.as("anon");
 
       for (const email of [approved, joined, rejected]) {
-        await waitlist.join(email).orThrow();
+        await waitlist.join({ email }).orThrow();
       }
 
       await s.service();
@@ -151,17 +158,21 @@ describe.skipIf(!live)("waitlist", () => {
       await waitlist.approve(idOf(joined)).orThrow();
       await waitlist.reject(idOf(rejected)).orThrow();
       await signUp(s, joined);
-      expect((await waitlist.join(joined).orThrow()).status).toBe("joined");
+      expect((await waitlist.join({ email: joined }).orThrow()).status).toBe(
+        "joined",
+      );
 
       for (const caller of ["anon", await s.user("someone")] as const) {
         await s.as(caller);
 
         const fresh = await waitlist
-          .join(`fresh-${crypto.randomUUID().slice(0, 8)}@example.test`)
+          .join({
+            email: `fresh-${crypto.randomUUID().slice(0, 8)}@example.test`,
+          })
           .orThrow();
 
         for (const email of [approved, joined, rejected]) {
-          expect(await waitlist.join(email).orThrow()).toEqual({
+          expect(await waitlist.join({ email }).orThrow()).toEqual({
             status: "waiting",
             position: (fresh.position ?? 0) + 1,
           });

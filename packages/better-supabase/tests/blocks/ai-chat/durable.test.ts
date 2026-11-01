@@ -150,7 +150,9 @@ describe("ai-chat runs", () => {
 
   it("attaches the external run id on the service transport", async () => {
     const { runs, server } = fake();
-    expect(await runs.attach("r1", "wrun_1").orThrow()).toBe(true);
+    expect(
+      await runs.attach({ runId: "r1", externalRunId: "wrun_1" }).orThrow(),
+    ).toBe(true);
     expect(server).toHaveBeenCalledWith("better_supabase", "attach_ai_run", {
       run: "r1",
       external_run_id: "wrun_1",
@@ -161,11 +163,14 @@ describe("ai-chat runs", () => {
     const { runs, server, user } = fake();
 
     const step = await runs.steps
-      .record("r1", {
-        key: "search",
-        label: "Search the web",
-        status: "done",
-        detail: { sources: 4 },
+      .record({
+        runId: "r1",
+        step: {
+          key: "search",
+          label: "Search the web",
+          status: "done",
+          detail: { sources: 4 },
+        },
       })
       .orThrow();
 
@@ -180,7 +185,7 @@ describe("ai-chat runs", () => {
         detail: { sources: 4 },
       },
     });
-    await runs.steps.record("r1", { key: "plan" }).orThrow();
+    await runs.steps.record({ runId: "r1", step: { key: "plan" } }).orThrow();
     expect(lastArgs(server)).toEqual({ run: "r1", step: { key: "plan" } });
     expect(await runs.steps.list("r1").orThrow()).toHaveLength(1);
     expect(lastArgs(user)).toEqual({ run: "r1" });
@@ -208,7 +213,11 @@ describe("ai-chat runs", () => {
 describe("createHarnessSessions", () => {
   it("loads a session or nothing", async () => {
     const { sessions, server } = fake();
-    const session = await sessions.load("c1", "claude-code").orThrow();
+
+    const session = await sessions
+      .load({ chatId: "c1", harnessId: "claude-code" })
+      .orThrow();
+
     expect(session).toMatchObject({
       harnessId: "claude-code",
       resumeState: { session: "abc" },
@@ -218,18 +227,24 @@ describe("createHarnessSessions", () => {
     });
     expect(lastArgs(server)).toEqual({ chat: "c1", harness: "claude-code" });
     const none = fake({ load_ai_harness_session: null });
-    expect(await none.sessions.load("c1", "x").orThrow()).toBeUndefined();
+    expect(
+      await none.sessions.load({ chatId: "c1", harnessId: "x" }).orThrow(),
+    ).toBeUndefined();
   });
 
   it("saves only the fields it is given", async () => {
     const { sessions, server } = fake();
     await sessions
-      .upsert(
-        "c1",
-        "claude-code",
-        { resumeState: { session: "b" }, sandboxId: null, status: "idle" },
-        { holder: "turn-1" },
-      )
+      .upsert({
+        chatId: "c1",
+        harnessId: "claude-code",
+        patch: {
+          resumeState: { session: "b" },
+          sandboxId: null,
+          status: "idle",
+        },
+        holder: "turn-1",
+      })
       .orThrow();
     expect(lastArgs(server)).toEqual({
       chat: "c1",
@@ -242,7 +257,11 @@ describe("createHarnessSessions", () => {
       holder: "turn-1",
     });
     await sessions
-      .upsert("c1", "claude-code", { continueState: undefined })
+      .upsert({
+        chatId: "c1",
+        harnessId: "claude-code",
+        patch: { continueState: undefined },
+      })
       .orThrow();
     expect(lastArgs(server)).toMatchObject({
       fields: { continue_state: null },
@@ -254,7 +273,12 @@ describe("createHarnessSessions", () => {
     const { sessions, server } = fake();
     expect(
       await sessions
-        .lock("c1", "claude-code", "turn-1", { ttlSeconds: 60 })
+        .lock({
+          chatId: "c1",
+          harnessId: "claude-code",
+          holder: "turn-1",
+          ttlSeconds: 60,
+        })
         .orThrow(),
     ).toBe(true);
     expect(lastArgs(server)).toEqual({
@@ -263,8 +287,10 @@ describe("createHarnessSessions", () => {
       holder: "turn-1",
       ttl_seconds: 60,
     });
-    expect(await sessions.unlock("c1", "claude-code", "turn-1").orThrow()).toBe(
-      false,
-    );
+    expect(
+      await sessions
+        .unlock({ chatId: "c1", harnessId: "claude-code", holder: "turn-1" })
+        .orThrow(),
+    ).toBe(false);
   });
 });

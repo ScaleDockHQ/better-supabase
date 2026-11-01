@@ -168,13 +168,17 @@ export function cacheMiddleware(
     call: CacheCall,
     kind: "generate" | "stream",
   ): Promise<void> => {
-    const saved = await options.cache.upsert(key, encode(value), {
-      ttl: options.ttl,
-      kind,
-      model: `${call.model.provider}/${call.model.modelId}`,
-      ...(options.organizationId === undefined
-        ? {}
-        : { organizationId: options.organizationId }),
+    const saved = await options.cache.upsert({
+      key,
+      value: encode(value),
+      options: {
+        ttl: options.ttl,
+        kind,
+        model: `${call.model.provider}/${call.model.modelId}`,
+        ...(options.organizationId === undefined
+          ? {}
+          : { organizationId: options.organizationId }),
+      },
     });
 
     if (!saved.ok) {

@@ -181,21 +181,26 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       const runs = ai.runs;
 
       const claim = await ai.runs
-        .claim(chat, "stream-1", { model: "openai/gpt-5" })
+        .claim({ chatId: chat, streamId: "stream-1", model: "openai/gpt-5" })
         .orThrow();
 
       expect(claim.runId).toBeDefined();
       const runId = claim.runId ?? "";
-      expect(await runs.attach(runId, "wrun_9").orThrow()).toBe(true);
+      expect(
+        await runs.attach({ runId, externalRunId: "wrun_9" }).orThrow(),
+      ).toBe(true);
 
       const step = await runs.steps
-        .record(runId, { key: "plan", label: "Plan" })
+        .record({ runId, step: { key: "plan", label: "Plan" } })
         .orThrow();
 
       expect(step).toMatchObject({ key: "plan", status: "running" });
       expect(step.endedAt).toBeUndefined();
       await runs.steps
-        .record(runId, { key: "plan", status: "done", detail: { n: 1 } })
+        .record({
+          runId,
+          step: { key: "plan", status: "done", detail: { n: 1 } },
+        })
         .orThrow();
 
       const run = await runs.get(runId).orThrow();
@@ -221,22 +226,30 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       expect(steps[0]?.endedAt).toBeDefined();
 
       await ai.approvals
-        .request(chat, {
-          approvalId: "ap-1",
-          tool: "deleteFile",
-          toolCallId: "t1",
-          input: { path: "/tmp/x" },
+        .request({
+          chatId: chat,
+          request: {
+            approvalId: "ap-1",
+            tool: "deleteFile",
+            toolCallId: "t1",
+            input: { path: "/tmp/x" },
+          },
         })
         .orThrow();
       await ai.approvals
-        .request(chat, {
-          approvalId: "ap-2",
-          tool: "deleteFile",
-          toolCallId: "t2",
-          input: { path: "/tmp/y" },
+        .request({
+          chatId: chat,
+          request: {
+            approvalId: "ap-2",
+            tool: "deleteFile",
+            toolCallId: "t2",
+            input: { path: "/tmp/y" },
+          },
         })
         .orThrow();
-      await ai.approvals.decide("ap-2", true).orThrow();
+      await ai.approvals
+        .decide({ approvalId: "ap-2", approved: true })
+        .orThrow();
       const pending = await runs.pendingApprovals().orThrow();
       expect(pending).toEqual([
         expect.objectContaining({
@@ -253,10 +266,10 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       const hidden = await runs.get(runId);
       expect(hidden.ok ? undefined : hidden.error.kind).toBe("not_found");
 
-      const denied = await createAiChat({ transport: user }).runs.attach(
+      const denied = await createAiChat({ transport: user }).runs.attach({
         runId,
-        "x",
-      );
+        externalRunId: "x",
+      });
 
       expect(denied.ok ? undefined : denied.error.kind).toBe("forbidden");
     } finally {
@@ -409,7 +422,11 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       const sessions = createHarnessSessions({ transport: user, service });
 
       await sessions
-        .upsert(chat, "claude", { sandboxId: "sbx_race" })
+        .upsert({
+          chatId: chat,
+          harnessId: "claude",
+          patch: { sandboxId: "sbx_race" },
+        })
         .orThrow();
       await s.service();
       await s.rows(
@@ -417,22 +434,30 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
         [chat],
       );
       await s.as(owner);
-      expect(await sessions.load(chat, "claude").orThrow()).toMatchObject({
-        status: "idle",
-      });
+      expect(
+        await sessions.load({ chatId: chat, harnessId: "claude" }).orThrow(),
+      ).toMatchObject({ status: "idle" });
 
-      expect(await sessions.lock(chat, "claude", "turn-1").orThrow()).toBe(
-        true,
-      );
+      expect(
+        await sessions
+          .lock({ chatId: chat, harnessId: "claude", holder: "turn-1" })
+          .orThrow(),
+      ).toBe(true);
       await sessions
-        .upsert(chat, "claude", { resumeState: { b: 2 } }, { holder: "turn-1" })
+        .upsert({
+          chatId: chat,
+          harnessId: "claude",
+          patch: { resumeState: { b: 2 } },
+          holder: "turn-1",
+        })
         .orThrow();
-      await sessions.unlock(chat, "claude", "turn-1").orThrow();
+      await sessions
+        .unlock({ chatId: chat, harnessId: "claude", holder: "turn-1" })
+        .orThrow();
 
-      expect(await sessions.load(chat, "claude").orThrow()).toMatchObject({
-        status: "active",
-        sandboxId: "sbx_race",
-      });
+      expect(
+        await sessions.load({ chatId: chat, harnessId: "claude" }).orThrow(),
+      ).toMatchObject({ status: "active", sandboxId: "sbx_race" });
     } finally {
       await s.close();
     }

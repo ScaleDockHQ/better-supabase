@@ -130,10 +130,9 @@ describe("createPosts", () => {
     });
 
     const created = await posts
-      .create("b1", {
-        title: "Dark mode",
-        body: "Please",
-        fields: { area: "ui" },
+      .create({
+        boardId: "b1",
+        input: { title: "Dark mode", body: "Please", fields: { area: "ui" } },
       })
       .orThrow();
 
@@ -150,7 +149,9 @@ describe("createPosts", () => {
       post: { title: "Dark mode", body: "Please", fields: { area: "ui" } },
     });
 
-    await posts.update("p1", { title: "Dark theme" }).orThrow();
+    await posts
+      .update({ postId: "p1", input: { title: "Dark theme" } })
+      .orThrow();
     expect(call).toHaveBeenLastCalledWith("better_supabase", "update_post", {
       post_id: "p1",
       attrs: { title: "Dark theme" },
@@ -179,18 +180,22 @@ describe("createPosts", () => {
     });
     await posts.list().orThrow();
 
-    await posts.setState("p1", { status: "planned", locked: true }).orThrow();
+    await posts
+      .setState({ postId: "p1", input: { status: "planned", locked: true } })
+      .orThrow();
     expect(call).toHaveBeenLastCalledWith("better_supabase", "set_post_state", {
       post_id: "p1",
       attrs: { status: "planned", locked: true },
     });
-    expect(await posts.vote("p1", 1).orThrow()).toEqual({
+    expect(await posts.vote({ postId: "p1", value: 1 }).orThrow()).toEqual({
       score: 1,
       up: 1,
       down: 0,
       vote: 1,
     });
-    expect((await posts.merge("p2", "p1").orThrow()).id).toBe("p1");
+    expect(
+      (await posts.merge({ sourceId: "p2", targetId: "p1" }).orThrow()).id,
+    ).toBe("p1");
     expect(call).toHaveBeenLastCalledWith("better_supabase", "merge_posts", {
       source_id: "p2",
       target_id: "p1",
@@ -206,7 +211,7 @@ describe("createPosts", () => {
       await createPosts({
         transport: fakeTransport({ vote_on_post: null }).transport,
       })
-        .vote("p1", 0)
+        .vote({ postId: "p1", value: 0 })
         .orThrow(),
     ).toEqual({ score: 0, up: 0, down: 0, vote: 0 });
   });
@@ -220,9 +225,9 @@ describe("createPosts", () => {
     });
 
     // SAFETY: the test passes a value the schema must reject.
-    const result = await posts.create("b1", {
-      title: "x",
-      fields: { area: "db" as "ui" },
+    const result = await posts.create({
+      boardId: "b1",
+      input: { title: "x", fields: { area: "db" as "ui" } },
     });
 
     expect(result.ok).toBe(false);

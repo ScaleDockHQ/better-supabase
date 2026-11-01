@@ -104,18 +104,24 @@ export interface Sla<F extends object = Record<never, never>> {
    * Starts a record's clocks, or recomputes them for a new priority. The tenant
    * comes from the record.
    */
-  start(subject: RecordRef, priority?: string): AsyncResult<SlaClock[]>;
+  start(input: {
+    subject: RecordRef;
+    priority?: string | undefined;
+  }): AsyncResult<SlaClock[]>;
   /** Moves a record's clocks: a reply, a resolution, a pause. */
-  record(subject: RecordRef, event: SlaEvent): AsyncResult<SlaClock[]>;
+  record(input: {
+    subject: RecordRef;
+    event: SlaEvent;
+  }): AsyncResult<SlaClock[]>;
   clocks(subject: RecordRef): AsyncResult<SlaClock[]>;
   /** Records warnings and breaches. Service role only; run it from a job. */
   check(): AsyncResult<number>;
   /** The time `minutes` of working time after `start`. */
-  dueAt(
-    start: Temporal.Instant,
-    minutes: number,
-    businessHours: boolean,
-  ): AsyncResult<Temporal.Instant>;
+  dueAt(input: {
+    start: Temporal.Instant;
+    minutes: number;
+    businessHours: boolean;
+  }): AsyncResult<Temporal.Instant>;
 }
 
 export interface SlaOptions<
@@ -212,7 +218,7 @@ export function createSla<S extends StandardSchemaV1 | undefined = undefined>(
           ),
       );
     },
-    start: (subject, priority) =>
+    start: ({ subject, priority }) =>
       call(
         "start_sla_clocks",
         {
@@ -222,7 +228,7 @@ export function createSla<S extends StandardSchemaV1 | undefined = undefined>(
         },
         clocks,
       ),
-    record: (subject, event) =>
+    record: ({ subject, event }) =>
       call(
         "record_sla_event",
         { subject_type: subject.type, subject_id: subject.id, event },
@@ -235,7 +241,7 @@ export function createSla<S extends StandardSchemaV1 | undefined = undefined>(
         clocks,
       ),
     check: () => call("check_sla_clocks", {}, (value) => Number(value ?? 0)),
-    dueAt: (start, total, businessHours) =>
+    dueAt: ({ start, minutes: total, businessHours }) =>
       call(
         "sla_due_at",
         { start: instantArg(start), minutes: total, business: businessHours },

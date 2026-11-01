@@ -28,7 +28,7 @@ describe("subjects reads", () => {
     const fake = fakeTransport({ record_subject_read: null });
     const { reads } = createSubjects({ transport: fake.transport });
 
-    const result = await reads.log(patient, { purpose: "treatment" });
+    const result = await reads.log({ subject: patient, purpose: "treatment" });
 
     expect(result.ok).toBe(true);
     expect(fake.calls).toEqual([
@@ -47,7 +47,7 @@ describe("subjects reads", () => {
     const fake = fakeTransport({ record_subject_read: null });
     const { reads } = createSubjects({ transport: fake.transport });
 
-    await reads.log(patient).orThrow();
+    await reads.log({ subject: patient }).orThrow();
 
     expect(fake.calls[0]?.args["purpose"]).toBeNull();
   });
@@ -81,7 +81,8 @@ describe("subjects reads", () => {
     const { reads } = createSubjects({ transport: fake.transport });
 
     const entries = await reads
-      .list(patient, {
+      .list({
+        subject: patient,
         since: Temporal.Instant.from("2026-10-01T00:00:00Z"),
         limit: 10,
       })
@@ -121,7 +122,7 @@ describe("subjects reads", () => {
     const fake = fakeTransport({ subject_access_log: null });
     const { reads } = createSubjects({ transport: fake.transport });
 
-    const entries = await reads.list(patient).orThrow();
+    const entries = await reads.list({ subject: patient }).orThrow();
 
     expect(entries).toEqual([]);
     expect(fake.calls[0]?.args).toMatchObject({ since: null, max_rows: 100 });
@@ -131,7 +132,7 @@ describe("subjects reads", () => {
     const fake = fakeTransport({ subject_access_log: [{ id: "e1" }] });
     const { reads } = createSubjects({ transport: fake.transport });
 
-    const result = await reads.list(patient);
+    const result = await reads.list({ subject: patient });
 
     expect(result.ok).toBe(false);
   });

@@ -63,19 +63,19 @@ describe("block hooks", () => {
     });
 
     const refused = [
-      createRank({ transport, hooks: { move: { before: refuse } } }).move(
-        "task",
-        "t1",
-        {},
-      ),
+      createRank({ transport, hooks: { move: { before: refuse } } }).move({
+        subjectType: "task",
+        subjectId: "t1",
+        target: {},
+      }),
       createRateLimit({
         transport,
         hooks: { check: { before: refuse } },
-      }).check("api", "k"),
-      createNumbering({ transport, hooks: { next: { before: refuse } } }).next(
-        "o",
-        "invoice",
-      ),
+      }).check({ scope: "api", key: "k" }),
+      createNumbering({ transport, hooks: { next: { before: refuse } } }).next({
+        organizationId: "o",
+        entity: "invoice",
+      }),
       createPush({
         transport,
         hooks: { register: { before: refuse } },
@@ -84,16 +84,16 @@ describe("block hooks", () => {
         transport,
         tenant: "o",
         hooks: { unlink: { before: refuse } },
-      }).unlink(
-        { type: "task", id: "a" },
-        { type: "task", id: "b" },
-        { kind: "blocks" },
-      ),
+      }).unlink({
+        source: { type: "task", id: "a" },
+        target: { type: "task", id: "b" },
+        input: { kind: "blocks" },
+      }),
       createReminders({
         transport,
         tenant: "o",
         hooks: { upsert: { before: refuse } },
-      }).upsert({ type: "task", id: "t1" }),
+      }).upsert({ subject: { type: "task", id: "t1" } }),
       createSavedViews({
         transport,
         hooks: { delete: { before: refuse } },
@@ -113,12 +113,12 @@ describe("block hooks", () => {
           user: { theme: { schema: v.string(), default: "light" } },
         }),
         hooks: { setUser: { before: refuse } },
-      }).setUser("theme", "dark"),
+      }).setUser({ key: "theme", value: "dark" }),
       createOutbox({
         transport,
         source: "https://app.example.test",
         hooks: { emit: { before: refuse } },
-      }).emit("invoice.paid"),
+      }).emit({ type: "invoice.paid" }),
     ];
 
     for (const result of await Promise.all(refused)) {
@@ -200,7 +200,10 @@ describe("block fields", () => {
     >();
     expect(principal?.fields).toEqual({ region: "eu" });
 
-    const bad = await principals.create("o", "Bot", "member", {
+    const bad = await principals.create({
+      organizationId: "o",
+      name: "Bot",
+      role: "member",
       // @ts-expect-error not one of the regions
       fields: { region: "apac" },
     });
@@ -242,17 +245,19 @@ describe("block fields", () => {
     });
 
     const linked = await relations
-      .link(
-        { type: "task", id: "a" },
-        { type: "task", id: "b" },
-        { kind: "blocks", fields: { region: "us" } },
-      )
+      .link({
+        source: { type: "task", id: "a" },
+        target: { type: "task", id: "b" },
+        input: { kind: "blocks", fields: { region: "us" } },
+      })
       .orThrow();
 
     expect(call.mock.calls[0]?.[2]).toMatchObject({ fields: { region: "us" } });
     expect(linked.fields).toEqual({ region: "us" });
 
-    const [relation] = await relations.of({ type: "task", id: "a" }).orThrow();
+    const [relation] = await relations
+      .of({ subject: { type: "task", id: "a" } })
+      .orThrow();
 
     expect(relation?.fields.region).toBe("us");
   });
@@ -284,7 +289,11 @@ describe("block fields", () => {
 
     expect(
       await reminders
-        .upsert({ type: "task", id: "t1" }, 15, { region: "eu" })
+        .upsert({
+          subject: { type: "task", id: "t1" },
+          when: 15,
+          fields: { region: "eu" },
+        })
         .orThrow(),
     ).toEqual({ id: "r1", fields: { region: "eu" } });
     expect(call.mock.calls[0]?.[2]).toMatchObject({ fields: { region: "eu" } });
@@ -301,7 +310,11 @@ describe("block fields", () => {
       .orThrow();
 
     expect(saved.fields).toEqual({ region: "eu" });
-    const [view] = await views.list("o", "tasks").orThrow();
+
+    const [view] = await views
+      .list({ organizationId: "o", list: "tasks" })
+      .orThrow();
+
     expect(view?.fields.region).toBe("us");
   });
 
@@ -336,26 +349,36 @@ describe("block fields", () => {
     const promotions = createPromotions({ transport, fields: region });
 
     const promotion = await promotions
-      .savePromotion("o", {
-        name: "Free shipping",
-        discount: { kind: "free_shipping" },
-        fields: { region: "eu" },
+      .savePromotion({
+        organizationId: "o",
+        input: {
+          name: "Free shipping",
+          discount: { kind: "free_shipping" },
+          fields: { region: "eu" },
+        },
       })
       .orThrow();
 
     expect(promotion).toEqual({ id: "p1", fields: { region: "eu" } });
     expect(call.mock.calls[0]?.[2]).toMatchObject({ fields: { region: "eu" } });
     const pipelines = createPipelines({ transport, fields: region });
-    const [pipeline] = await pipelines.list("o", "deal").orThrow();
+
+    const [pipeline] = await pipelines
+      .list({ organizationId: "o", subjectType: "deal" })
+      .orThrow();
+
     expect(pipeline?.fields.region).toBe("us");
     const parties = createContacts({ transport, fields: region });
-    const page = await parties.listCompanies("o").orThrow();
+    const page = await parties.listCompanies({ organizationId: "o" }).orThrow();
     expect(page.items[0]?.fields.region).toBe("eu");
 
-    const bad = await parties.saveCompany("o", {
-      name: "Acme",
-      // @ts-expect-error not one of the regions
-      fields: { region: "apac" },
+    const bad = await parties.saveCompany({
+      organizationId: "o",
+      input: {
+        name: "Acme",
+        // @ts-expect-error not one of the regions
+        fields: { region: "apac" },
+      },
     });
 
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
@@ -385,10 +408,13 @@ describe("block fields", () => {
     });
 
     await notifications
-      .send("task.assigned", {
-        recipients: ["u1"],
-        data: { title: "Hi" },
-        fields: { region: "us" },
+      .send({
+        type: "task.assigned",
+        input: {
+          recipients: ["u1"],
+          data: { title: "Hi" },
+          fields: { region: "us" },
+        },
       })
       .orThrow();
     expect(call.mock.calls[0]?.[2]).toMatchObject({

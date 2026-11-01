@@ -94,9 +94,10 @@ export interface Subjects {
    * the caller can't read the subject.
    */
   summary(
-    subject: RecordRef,
-    sections: readonly string[],
-    options?: RecordSummaryOptions,
+    input: {
+      subject: RecordRef;
+      sections: readonly string[];
+    } & RecordSummaryOptions,
   ): AsyncResult<RecordSummary | undefined>;
   /**
    * What waits on the caller across the installed blocks, newest first: open
@@ -263,7 +264,7 @@ export function createSubjects(options: SubjectsOptions): Subjects {
 
         return ok(found);
       }),
-    summary: (subject, sections, summaryOptions = {}) =>
+    summary: ({ subject, sections, ...summaryOptions }) =>
       call(
         "record_summary",
         {

@@ -54,7 +54,10 @@ describe("createServiceAccounts", () => {
     const principals = createServiceAccounts({ transport: t, admin: auth });
 
     const created = await principals
-      .create("org-1", "Automations", "member", {
+      .create({
+        organizationId: "org-1",
+        name: "Automations",
+        role: "member",
         default: true,
         createdBy: "u-1",
       })
@@ -102,7 +105,10 @@ describe("createServiceAccounts", () => {
 
     const principals = createServiceAccounts({ transport: t, admin: auth });
 
-    const result = await principals.create("org-1", "Bot", "owner", {
+    const result = await principals.create({
+      organizationId: "org-1",
+      name: "Bot",
+      role: "owner",
       createdBy: "u-2",
     });
 
@@ -114,7 +120,13 @@ describe("createServiceAccounts", () => {
     const auth = admin("email exists");
     const { call, transport: t } = transport(() => REGISTERED);
     const principals = createServiceAccounts({ transport: t, admin: auth });
-    const result = await principals.create("org-1", "Bot", "member");
+
+    const result = await principals.create({
+      organizationId: "org-1",
+      name: "Bot",
+      role: "member",
+    });
+
     expect(!result.ok && result.error.message).toContain("email exists");
     expect(call).not.toHaveBeenCalled();
   });
@@ -148,9 +160,11 @@ describe("createServiceAccounts", () => {
 
     const principals = createServiceAccounts({ transport: t, admin: admin() });
 
-    expect(await principals.setRole("sp-1", "admin").orThrow()).toBe(true);
     expect(
-      await principals.disable("sp-1", { createdBy: "u-1" }).orThrow(),
+      await principals.setRole({ id: "sp-1", role: "admin" }).orThrow(),
+    ).toBe(true);
+    expect(
+      await principals.disable({ id: "sp-1", createdBy: "u-1" }).orThrow(),
     ).toBe(true);
     expect(await principals.defaultFor("org-1").orThrow()).toBe("sp-1");
     const [listed] = await principals.list("org-1").orThrow();

@@ -136,10 +136,10 @@ export interface PushDevices<F extends object = Record<never, never>> {
    * Service role: stores Expo's tickets for one notification delivery. Needs
    * push module version 2 with the notifications block.
    */
-  readonly recordTickets: (
-    deliveryId: string,
-    tickets: readonly ExpoPushTicket[],
-  ) => AsyncResult<number>;
+  readonly recordTickets: (input: {
+    deliveryId: string;
+    tickets: readonly ExpoPushTicket[];
+  }) => AsyncResult<number>;
   /** Service role: the tickets already stored for a delivery. */
   readonly ticketsFor: (
     deliveryId: string,
@@ -288,7 +288,7 @@ export function createPush<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     prune: (tokens) =>
       call("prune_push_tokens", { tokens: [...tokens] }, countOf),
-    recordTickets: (deliveryId, tickets) =>
+    recordTickets: ({ deliveryId, tickets }) =>
       call(
         "record_push_tickets",
         {
@@ -915,7 +915,7 @@ export function expoPushChannel(
 
       if (store) {
         await options.devices
-          .recordTickets(message.deliveryId, tickets)
+          .recordTickets({ deliveryId: message.deliveryId, tickets })
           .orThrow();
       }
 

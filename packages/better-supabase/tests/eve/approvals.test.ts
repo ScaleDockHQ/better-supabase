@@ -56,7 +56,7 @@ function fakeApprovals(steps: number) {
   };
 
   const client: EveApprovalsClient = {
-    request: vi.fn((subject, input) => {
+    request: vi.fn(({ subject, input }) => {
       const request: ApprovalRequest = {
         id: `req_${String(requests.length + 1)}`,
         organizationId: ORG,
@@ -84,7 +84,7 @@ function fakeApprovals(steps: number) {
         ),
       ),
     ),
-    approve: vi.fn((id: string) => {
+    approve: vi.fn(({ id }: { id: string }) => {
       if (caller === requests.find((r) => r.id === id)?.requestedBy) {
         return AsyncResult.err(dbError("forbidden", "not an approver"));
       }
@@ -96,7 +96,9 @@ function fakeApprovals(steps: number) {
         step >= steps ? { step, status: "approved" } : { step },
       );
     }),
-    reject: vi.fn((id: string) => update(id, { status: "rejected" })),
+    reject: vi.fn(({ id }: { id: string }) =>
+      update(id, { status: "rejected" }),
+    ),
     cancel: vi.fn((id: string) => update(id, { status: "cancelled" })),
   };
 

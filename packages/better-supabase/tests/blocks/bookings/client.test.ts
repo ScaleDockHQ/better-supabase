@@ -63,7 +63,9 @@ describe("createAvailableSlotsController", () => {
       { tz: "Europe/Amsterdam", resourceId: "r1" },
     );
 
-    expect(await view().hold(view().slots![0]!, { name: "Ada" })).toBe(booking);
+    expect(
+      await view().hold({ slot: view().slots![0]!, customer: { name: "Ada" } }),
+    ).toBe(booking);
     expect(client.availableSlots).toHaveBeenCalledTimes(2);
 
     view().setRange({ ...range });
@@ -78,7 +80,7 @@ describe("createAvailableSlotsController", () => {
     expect(view().loading).toBe(false);
 
     client.hold.mockReturnValue(failed("taken"));
-    expect(await view().hold(view().slots![0]!)).toBeUndefined();
+    expect(await view().hold({ slot: view().slots![0]! })).toBeUndefined();
     expect(view().error?.message).toBe("taken");
     client.availableSlots.mockReturnValue(failed("closed"));
     await view().refresh();
@@ -113,7 +115,7 @@ describe("createAvailableSlotsController", () => {
       expect.anything(),
       {},
     );
-    await view().hold(view().slots![0]!);
+    await view().hold({ slot: view().slots![0]! });
     expect(client.public.hold).toHaveBeenCalledWith(
       "share",
       "r1",

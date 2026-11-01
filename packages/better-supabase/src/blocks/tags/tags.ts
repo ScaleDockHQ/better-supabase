@@ -105,17 +105,17 @@ export interface Tags<F extends object = Record<never, never>> {
    * Renames a tag, sets its slug, kind, color or description, and sets the
    * extra columns `fields` names.
    */
-  update(id: string, patch: UpdateTagInput<F>): AsyncResult<boolean>;
+  update(input: { id: string; patch: UpdateTagInput<F> }): AsyncResult<boolean>;
   /**
    * Moves a tag between the tags with rank keys `previous` and `next`. Resolves
    * to its new key.
    */
-  reorder(id: string, neighbors: RankNeighbors): AsyncResult<string>;
+  reorder(input: { id: string; neighbors: RankNeighbors }): AsyncResult<string>;
   delete(id: string): AsyncResult<boolean>;
   /** Puts a tag on `record`. */
-  attach(record: RecordRef, tagId: string): AsyncResult<boolean>;
+  attach(input: { record: RecordRef; tagId: string }): AsyncResult<boolean>;
   /** Takes a tag off `record`. */
-  detach(record: RecordRef, tagId: string): AsyncResult<boolean>;
+  detach(input: { record: RecordRef; tagId: string }): AsyncResult<boolean>;
   /**
    * The tenant's tags in rank order: every kind, the tags of `kind`, or the
    * tags on the record `on` names.
@@ -189,7 +189,7 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
             ).andThen(fields.row),
           ),
       ),
-    update: (id, patch) =>
+    update: ({ id, patch }) =>
       fields
         .args(patch.fields)
         .andThen((checked) =>
@@ -204,7 +204,7 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
             (value) => value === true,
           ),
         ),
-    reorder: (id, neighbors) => {
+    reorder: ({ id, neighbors }) => {
       const key = rankBetweenResult(neighbors);
 
       if (!key.ok) {
@@ -215,7 +215,7 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
     },
     delete: (id) =>
       call("delete_tag", { tag_id: id }, (value) => value === true),
-    attach: (record, tagId) =>
+    attach: ({ record, tagId }) =>
       tenant().andThen((organizationId) =>
         call(
           "tag",
@@ -228,7 +228,7 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
           (value) => value === true,
         ),
       ),
-    detach: (record, tagId) =>
+    detach: ({ record, tagId }) =>
       tenant().andThen((organizationId) =>
         call(
           "untag",

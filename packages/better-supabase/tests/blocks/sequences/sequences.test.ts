@@ -197,11 +197,11 @@ describe("createSequences", () => {
     const sequences = createSequences({ transport, tenant: "org" });
 
     const run = await sequences
-      .enroll(
-        "s1",
-        { type: "person", id: "p1" },
-        { variables: { name: "Ada" } },
-      )
+      .enroll({
+        sequenceId: "s1",
+        subject: { type: "person", id: "p1" },
+        input: { variables: { name: "Ada" } },
+      })
       .orThrow();
 
     expect(run).toMatchObject({
@@ -225,7 +225,9 @@ describe("createSequences", () => {
         attrs: { variables: { name: "Ada" } },
       },
     );
-    await sequences.enroll("s1", { type: "person", id: "p1" }).orThrow();
+    await sequences
+      .enroll({ sequenceId: "s1", subject: { type: "person", id: "p1" } })
+      .orThrow();
 
     const ended = await sequences.exit("e1").orThrow();
 
@@ -303,10 +305,11 @@ describe("createSequences", () => {
       sequence_step_failed: true,
     });
 
-    const send = vi.fn((_account: string, draft: MailSendDraft) =>
-      JSON.stringify(draft.to).includes("b@x.test")
-        ? AsyncResult.err<MailMessage>(dbError("network", "down"))
-        : AsyncResult.ok(message),
+    const send = vi.fn(
+      ({ draft }: { accountId: string; draft: MailSendDraft }) =>
+        JSON.stringify(draft.to).includes("b@x.test")
+          ? AsyncResult.err<MailMessage>(dbError("network", "down"))
+          : AsyncResult.ok(message),
     );
 
     const sequences = createSequences({

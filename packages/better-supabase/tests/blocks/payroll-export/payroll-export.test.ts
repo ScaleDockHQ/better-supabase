@@ -110,7 +110,10 @@ describe("createPayrollExport", () => {
     });
 
     const payroll = createPayrollExport({ transport: t, tenant: "org-1" });
-    const result = await payroll.exportRun("r1", csvPayrollFormat()).orThrow();
+
+    const result = await payroll
+      .exportRun({ runId: "r1", format: csvPayrollFormat() })
+      .orThrow();
 
     expect(result.file.filename).toBe("payroll-2026-10-01-2026-10-31.csv");
     expect(result.file.contentType).toBe("text/csv");
@@ -211,18 +214,25 @@ describe("createPayrollExport", () => {
     const t = fieldsTransport({ get_payroll_run: () => null });
     const payroll = createPayrollExport({ transport: t, tenant: "org-1" });
 
-    const missing = await payroll.exportRun("nope", csvPayrollFormat());
+    const missing = await payroll.exportRun({
+      runId: "nope",
+      format: csvPayrollFormat(),
+    });
+
     expect(missing.ok).toBe(false);
     expect(missing.ok ? undefined : missing.error).toMatchObject({
       kind: "not_found",
       hint: "PAYROLL_RUN_NOT_FOUND",
     });
 
-    const future = await payroll.exportRun("r1", {
-      // SAFETY: a format built for a later API version.
-      apiVersion: 2 as unknown as 1,
-      name: "future",
-      render: () => ({ filename: "f", contentType: "text/plain", body: "" }),
+    const future = await payroll.exportRun({
+      runId: "r1",
+      format: {
+        // SAFETY: a format built for a later API version.
+        apiVersion: 2 as unknown as 1,
+        name: "future",
+        render: () => ({ filename: "f", contentType: "text/plain", body: "" }),
+      },
     });
 
     expect(future.ok).toBe(false);

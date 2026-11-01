@@ -226,7 +226,10 @@ export interface MembersSnapshot<T> {
 
 export interface MembersActions<Role extends string = string> {
   /** Changes a member's role, shown at once and put back when it fails. */
-  readonly setRole: (userId: string, role: Role) => Promise<Result<true>>;
+  readonly setRole: (input: {
+    userId: string;
+    role: Role;
+  }) => Promise<Result<true>>;
   /** Removes a member from the organization, then loads the table again. */
   readonly remove: (userId: string) => Promise<Result<true>>;
   readonly refresh: () => Promise<void>;
@@ -299,7 +302,7 @@ export function createMembersController<
       return {
         actions: {
           refresh,
-          setRole: async (userId, role) => {
+          setRole: async ({ userId, role }) => {
             if (organizationId === null) {
               return noOrganization();
             }
@@ -316,11 +319,11 @@ export function createMembersController<
               error: undefined,
             }));
 
-            const result = await client.updateMemberRole(
+            const result = await client.updateMemberRole({
               organizationId,
               userId,
               role,
-            );
+            });
 
             state.set((current) => ({
               ...(result.ok || before === undefined
@@ -345,7 +348,12 @@ export function createMembersController<
               pending: [...current.pending, userId],
               error: undefined,
             }));
-            const result = await client.removeMember(organizationId, userId);
+
+            const result = await client.removeMember({
+              organizationId,
+              userId,
+            });
+
             ticket += 1;
             state.set((current) => ({
               pending: without(current.pending, userId),

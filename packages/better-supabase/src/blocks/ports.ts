@@ -17,7 +17,7 @@ export interface NotifierInput {
 
 /** Sends notifications for a block that consumes `notifier`. */
 export interface Notifier {
-  send(type: string, input: NotifierInput): unknown;
+  send(input: { type: string; input: NotifierInput }): unknown;
 }
 
 /**

@@ -18,9 +18,14 @@ import {
 
 const source = (granted: readonly string[]) => ({
   permissions: vi.fn(
-    (keys?: readonly string[], options?: { readonly tenant?: unknown }) =>
+    ({
+      keys,
+      ...options
+    }: { keys?: readonly string[] | undefined } & {
+      readonly tenant?: unknown;
+    } = {}) =>
       resolved<PermissionSet>({
-        tenant: String(options?.tenant),
+        tenant: String(options.tenant),
         keys: (keys ?? []).filter((key) => granted.includes(key)),
       }),
   ),
@@ -32,9 +37,9 @@ describe("batchPermissions", () => {
     const batched = batchPermissions(inner);
 
     const [first, second, other] = await Promise.all([
-      batched.permissions(["a", "b"], { tenant: "org-1" }),
-      batched.permissions(["c"], { tenant: "org-1" }),
-      batched.permissions(["a"], { tenant: "org-2" }),
+      batched.permissions({ keys: ["a", "b"], tenant: "org-1" }),
+      batched.permissions({ keys: ["c"], tenant: "org-1" }),
+      batched.permissions({ keys: ["a"], tenant: "org-2" }),
     ]);
 
     expect(inner.permissions).toHaveBeenCalledTimes(2);
@@ -52,8 +57,8 @@ describe("batchPermissions", () => {
     });
 
     const results = await Promise.all([
-      batched.permissions(["a"], { tenant: "org-1" }),
-      batched.permissions(["b"], { tenant: "org-1" }),
+      batched.permissions({ keys: ["a"], tenant: "org-1" }),
+      batched.permissions({ keys: ["b"], tenant: "org-1" }),
     ]);
 
     expect(results.map((result) => result.ok)).toEqual([false, false]);
@@ -62,7 +67,7 @@ describe("batchPermissions", () => {
   it("passes a call without keys straight through", async () => {
     const inner = source(["a"]);
 
-    await batchPermissions(inner).permissions(undefined, { tenant: "org-1" });
+    await batchPermissions(inner).permissions({ tenant: "org-1" });
 
     expect(inner.permissions).toHaveBeenCalledWith(undefined, {
       tenant: "org-1",

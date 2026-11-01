@@ -109,14 +109,13 @@ export interface VersionListOptions {
  */
 export interface Versions<F extends object = Record<never, never>> {
   /** Records a version of `subject`. */
-  snapshot(
-    subject: RecordRef,
-    input?: SnapshotInput<F>,
-  ): AsyncResult<SnapshotResult>;
+  snapshot(input: {
+    subject: RecordRef;
+    input?: SnapshotInput<F> | undefined;
+  }): AsyncResult<SnapshotResult>;
   /** A subject's versions, newest first, without content. */
   list(
-    subject: RecordRef,
-    options?: VersionListOptions,
+    input: { subject: RecordRef } & VersionListOptions,
   ): AsyncResult<readonly Version<F>[]>;
   get(id: string): AsyncResult<Version<F>>;
   /**
@@ -131,15 +130,18 @@ export interface Versions<F extends object = Record<never, never>> {
    * Writes only `fields` of the version back; the subject's other columns keep
    * their current values. Needs a subject type with `columns`.
    */
-  restoreFields(
-    id: string,
-    fields: readonly string[],
-  ): AsyncResult<RestoreResult>;
+  restoreFields(input: {
+    id: string;
+    fields: readonly string[];
+  }): AsyncResult<RestoreResult>;
   /** Names a version, which keeps it; `null` removes the name. */
-  label(id: string, label: string | null): AsyncResult<boolean>;
+  label(input: { id: string; label: string | null }): AsyncResult<boolean>;
   delete(id: string): AsyncResult<boolean>;
   /** The RFC 6902 patch from version `fromId` to version `toId`. */
-  diff(fromId: string, toId: string): AsyncResult<JsonPatchOperation[]>;
+  diff(input: {
+    fromId: string;
+    toId: string;
+  }): AsyncResult<JsonPatchOperation[]>;
 }
 
 function versionOf(value: unknown, fn: string): Version {
@@ -212,7 +214,7 @@ export function createVersions<
           ? null
           : versionOf(value, "get_shared_version"),
       ),
-    snapshot: (subject, input = {}) =>
+    snapshot: ({ subject, input = {} }) =>
       tenant().andThen((organizationId) =>
         fields
           .args(input.fields)
@@ -232,7 +234,7 @@ export function createVersions<
             ),
           ),
       ),
-    list: (subject, page = {}) =>
+    list: ({ subject, ...page }) =>
       tenant().andThen((organizationId) =>
         call(
           "list_versions",
@@ -251,13 +253,13 @@ export function createVersions<
       ),
     get,
     restore: (id) => call("restore_version", { version_id: id }, restoreOf),
-    restoreFields: (id, fields) =>
+    restoreFields: ({ id, fields }) =>
       call(
         "restore_version",
         { version_id: id, fields: [...fields] },
         restoreOf,
       ),
-    label: (id, label) =>
+    label: ({ id, label }) =>
       call(
         "label_version",
         { version_id: id, label },
@@ -265,7 +267,7 @@ export function createVersions<
       ),
     delete: (id) =>
       call("delete_version", { version_id: id }, (value) => value === true),
-    diff: (fromId, toId) =>
+    diff: ({ fromId, toId }) =>
       get(fromId).andThen((from) =>
         get(toId).map((to) =>
           createPatch(from.content ?? null, to.content ?? null),

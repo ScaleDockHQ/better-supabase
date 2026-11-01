@@ -203,16 +203,16 @@ export interface Enrollments {
    * cancelled one starts again with its completed steps. With `dates`, it sets
    * them as `setDates` does.
    */
-  enroll(
-    program: string,
-    subject: RecordRef,
-    dates?: EnrollmentDates,
-  ): AsyncResult<Enrollment>;
+  enroll(input: {
+    program: string;
+    subject: RecordRef;
+    dates?: EnrollmentDates | undefined;
+  }): AsyncResult<Enrollment>;
   /** Sets the dates its due dates count from and renders them again. */
-  setDates(
-    enrollmentId: string,
-    dates: EnrollmentDates,
-  ): AsyncResult<Enrollment>;
+  setDates(input: {
+    enrollmentId: string;
+    dates: EnrollmentDates;
+  }): AsyncResult<Enrollment>;
   /**
    * Open steps of active enrollments that have an assignee or a due date,
    * soonest due first. Without `enrollments.read`, the caller's own.
@@ -221,19 +221,22 @@ export interface Enrollments {
     filter?: EnrollmentOpenStepsFilter,
   ): AsyncResult<readonly EnrollmentOpenStep[]>;
   /** A subject's enrollment in a program, or `null`. */
-  enrollment(
-    program: string,
-    subject: RecordRef,
-  ): AsyncResult<Enrollment | null>;
+  enrollment(input: {
+    program: string;
+    subject: RecordRef;
+  }): AsyncResult<Enrollment | null>;
   /**
    * The organization's enrollments, most recently changed first. Without
    * `enrollments.read`, the caller's own.
    */
   list(filter?: EnrollmentsFilter): AsyncResult<readonly Enrollment[]>;
   /** Marks a step done; completing the last step completes the enrollment. */
-  complete(enrollmentId: string, step: string): AsyncResult<Enrollment>;
+  complete(input: {
+    enrollmentId: string;
+    step: string;
+  }): AsyncResult<Enrollment>;
   /** Marks a step not done again. */
-  reset(enrollmentId: string, step: string): AsyncResult<Enrollment>;
+  reset(input: { enrollmentId: string; step: string }): AsyncResult<Enrollment>;
   /** Cancels an active enrollment; its completed steps stay. */
   cancel(enrollmentId: string): AsyncResult<Enrollment>;
 }
@@ -449,7 +452,7 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
         { program_id: programId },
         (value) => value === true,
       ),
-    enroll: (program, subject, dates) =>
+    enroll: ({ program, subject, dates }) =>
       tenant()
         .andThen((organizationId) =>
           call(
@@ -468,7 +471,7 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
             ? AsyncResult.ok(enrollment)
             : setDates(enrollment.id, dates),
         ),
-    setDates: (enrollmentId, dates) => setDates(enrollmentId, dates),
+    setDates: ({ enrollmentId, dates }) => setDates(enrollmentId, dates),
     openSteps: (filter = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -486,7 +489,7 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
             ),
         ),
       ),
-    enrollment: (program, subject) =>
+    enrollment: ({ program, subject }) =>
       tenant().andThen((organizationId) =>
         call(
           "enrollment",
@@ -519,13 +522,13 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
             ),
         ),
       ),
-    complete: (enrollmentId, step) =>
+    complete: ({ enrollmentId, step }) =>
       call(
         "complete_enrollment_step",
         { enrollment_id: enrollmentId, step },
         one("complete_enrollment_step"),
       ),
-    reset: (enrollmentId, step) =>
+    reset: ({ enrollmentId, step }) =>
       call(
         "reset_enrollment_step",
         { enrollment_id: enrollmentId, step },

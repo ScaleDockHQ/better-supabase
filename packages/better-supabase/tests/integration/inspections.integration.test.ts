@@ -137,37 +137,51 @@ describe.skipIf(!live)("inspections", () => {
       await inspections.start(audit.id).orThrow();
 
       const labels = await inspections
-        .addFinding(audit.id, {
-          type: "major_nonconformity",
-          title: "Unlabelled stock",
-          clause: "ISO 9001 8.5.2",
-          controlId: control.id,
+        .addFinding({
+          inspectionId: audit.id,
+          input: {
+            type: "major_nonconformity",
+            title: "Unlabelled stock",
+            clause: "ISO 9001 8.5.2",
+            controlId: control.id,
+          },
         })
         .orThrow();
 
       const tidy = await inspections
-        .addFinding(audit.id, { type: "positive", title: "Tidy aisles" })
+        .addFinding({
+          inspectionId: audit.id,
+          input: { type: "positive", title: "Tidy aisles" },
+        })
         .orThrow();
 
       expect(labels).toMatchObject({ number: 1, needsCase: true });
       expect(tidy).toMatchObject({ number: 2, needsCase: false });
-      expect(await inspections.complete(audit.id).then(hint)).toBe(
-        "INSPECTION_FORBIDDEN",
-      );
+      expect(
+        await inspections.complete({ inspectionId: audit.id }).then(hint),
+      ).toBe("INSPECTION_FORBIDDEN");
 
       await s.asRole(owner);
-      expect(await inspections.complete(audit.id).then(hint)).toBe(
-        "INSPECTION_CHECKLIST_INCOMPLETE",
-      );
+      expect(
+        await inspections.complete({ inspectionId: audit.id }).then(hint),
+      ).toBe("INSPECTION_CHECKLIST_INCOMPLETE");
 
       await s.asRole(auditor);
       await inspections
-        .saveChecklist(audit.id, { labelled: false }, { draft: false })
+        .saveChecklist({
+          inspectionId: audit.id,
+          answers: { labelled: false },
+          draft: false,
+        })
         .orThrow();
 
       await s.asRole(owner);
       expect(
-        (await inspections.complete(audit.id, "One major").orThrow()).status,
+        (
+          await inspections
+            .complete({ inspectionId: audit.id, summary: "One major" })
+            .orThrow()
+        ).status,
       ).toBe("reporting");
 
       await s.asRole(outsider);
@@ -181,7 +195,9 @@ describe.skipIf(!live)("inspections", () => {
         "INSPECTION_FINDINGS_OPEN",
       );
 
-      const raised = await inspections.raiseCase(labels.id).orThrow();
+      const raised = await inspections
+        .raiseCase({ findingId: labels.id })
+        .orThrow();
 
       expect(raised.caseId).toBeDefined();
       expect(await inspections.deleteFinding(labels.id).then(hint)).toBe(
@@ -261,12 +277,15 @@ describe.skipIf(!live)("inspections", () => {
       await inspections.start(audit.id).orThrow();
 
       const finding = await inspections
-        .addFinding(audit.id, { type: "minor_nonconformity", title: "No CoC" })
+        .addFinding({
+          inspectionId: audit.id,
+          input: { type: "minor_nonconformity", title: "No CoC" },
+        })
         .orThrow();
 
-      expect(await inspections.raiseCase(finding.id).then(hint)).toBe(
-        "INSPECTION_CASES_NOT_INSTALLED",
-      );
+      expect(
+        await inspections.raiseCase({ findingId: finding.id }).then(hint),
+      ).toBe("INSPECTION_CASES_NOT_INSTALLED");
     } finally {
       await s.close();
     }

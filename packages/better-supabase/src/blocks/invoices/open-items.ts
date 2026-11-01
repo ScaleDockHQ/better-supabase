@@ -209,8 +209,7 @@ export interface InvoiceOpenItems<I> {
    * for every party of the organization.
    */
   openItems(
-    organizationId: string,
-    options?: {
+    input: { organizationId: string } & {
       readonly partyId?: string;
       readonly asOf?: Temporal.PlainDate;
       readonly side?: OpenItemSide;
@@ -218,8 +217,7 @@ export interface InvoiceOpenItems<I> {
   ): AsyncResult<readonly OpenItem[]>;
   /** Open items summed per party, currency and ageing bucket. */
   openItemAgeing(
-    organizationId: string,
-    options?: {
+    input: { organizationId: string } & {
       readonly asOf?: Temporal.PlainDate;
       readonly side?: OpenItemSide;
     },
@@ -230,20 +228,22 @@ export interface InvoiceOpenItems<I> {
    * takes the early-payment discount. A replay of the same reference adds
    * nothing.
    */
-  allocatePayment(
-    organizationId: string,
-    payment: PaymentAllocationInput,
-  ): AsyncResult<PaymentAllocation>;
+  allocatePayment(input: {
+    organizationId: string;
+    payment: PaymentAllocationInput;
+  }): AsyncResult<PaymentAllocation>;
   /** Reverses every allocation of a reference; the invoices reopen. */
   unallocatePayment(
-    organizationId: string,
-    reference: string,
-    options?: { readonly actor?: TransitionActor },
+    input: { organizationId: string; reference: string } & {
+      readonly actor?: TransitionActor;
+    },
   ): AsyncResult<number>;
   /** The allocations of a payment reference or of one invoice. */
   allocations(
-    organizationId: string,
-    options?: { readonly reference?: string; readonly invoiceId?: string },
+    input: { organizationId: string } & {
+      readonly reference?: string;
+      readonly invoiceId?: string;
+    },
   ): AsyncResult<readonly InvoiceAllocation[]>;
   /** The approval levels of an organization. */
   approvalLevels(
@@ -251,9 +251,10 @@ export interface InvoiceOpenItems<I> {
   ): AsyncResult<readonly InvoiceApprovalLevel[]>;
   /** Replaces the levels of an organization, or of one legal entity. */
   setApprovalLevels(
-    organizationId: string,
-    levels: readonly InvoiceApprovalLevelInput[],
-    options?: { readonly legalEntityId?: string },
+    input: {
+      organizationId: string;
+      levels: readonly InvoiceApprovalLevelInput[];
+    } & { readonly legalEntityId?: string },
   ): AsyncResult<readonly InvoiceApprovalLevel[]>;
   /** Where a purchase invoice stands in approval. */
   approvalStatus(invoiceId: string): AsyncResult<InvoiceApproval>;
@@ -262,8 +263,7 @@ export interface InvoiceOpenItems<I> {
    * `invoices.approve`. Payment batches skip bills until every level is done.
    */
   approvePurchaseInvoice(
-    invoiceId: string,
-    options?: { readonly comment?: string },
+    input: { invoiceId: string } & { readonly comment?: string },
   ): AsyncResult<I>;
   /**
    * Recounts the header totals of issued invoices with the credit restriction
@@ -276,8 +276,7 @@ export interface InvoiceOpenItems<I> {
    * `invoices.manage`.
    */
   recomputeTotals(
-    organizationId: string,
-    options?: {
+    input: { organizationId: string } & {
       /** Limits the repair to these invoices; unset checks every issued one. */
       readonly invoiceIds?: readonly string[];
       /** Defaults to `true`. */
@@ -467,7 +466,7 @@ export function invoiceOpenItems<I>(
   ) => AsyncResult<I>,
 ): InvoiceOpenItems<I> {
   return {
-    openItems: (organizationId, options = {}) =>
+    openItems: ({ organizationId, ...options }) =>
       call(
         "open_items_for_party",
         {
@@ -478,7 +477,7 @@ export function invoiceOpenItems<I>(
         },
         (value) => recordsOf(value, "open items").map(openItemOf),
       ),
-    openItemAgeing: (organizationId, options = {}) =>
+    openItemAgeing: ({ organizationId, ...options }) =>
       call(
         "open_item_ageing",
         {
@@ -488,7 +487,7 @@ export function invoiceOpenItems<I>(
         },
         ageingOf,
       ),
-    allocatePayment: (organizationId, payment) =>
+    allocatePayment: ({ organizationId, payment }) =>
       call(
         "allocate_payment",
         {
@@ -529,7 +528,7 @@ export function invoiceOpenItems<I>(
           });
         },
       ),
-    unallocatePayment: (organizationId, reference, options = {}) =>
+    unallocatePayment: ({ organizationId, reference, ...options }) =>
       call(
         "unallocate_payment",
         {
@@ -539,7 +538,7 @@ export function invoiceOpenItems<I>(
         },
         (value) => Number(recordOf(value, "unallocate_payment")["unallocated"]),
       ),
-    allocations: (organizationId, options = {}) =>
+    allocations: ({ organizationId, ...options }) =>
       call(
         "list_invoice_allocations",
         {
@@ -555,7 +554,7 @@ export function invoiceOpenItems<I>(
         { tenant: organizationId },
         levelsOf,
       ),
-    setApprovalLevels: (organizationId, levels, options = {}) =>
+    setApprovalLevels: ({ organizationId, levels, ...options }) =>
       call(
         "set_invoice_approval_levels",
         {
@@ -577,12 +576,12 @@ export function invoiceOpenItems<I>(
         { invoice: invoiceId },
         approvalOf,
       ),
-    approvePurchaseInvoice: (invoiceId, options = {}) =>
+    approvePurchaseInvoice: ({ invoiceId, ...options }) =>
       invoice("approve_purchase_invoice", {
         invoice: invoiceId,
         comment: options.comment ?? null,
       }),
-    recomputeTotals: (organizationId, options = {}) =>
+    recomputeTotals: ({ organizationId, ...options }) =>
       call(
         "recompute_invoice_totals",
         {

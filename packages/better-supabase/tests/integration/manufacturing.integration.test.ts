@@ -201,13 +201,15 @@ describe.skipIf(!live)("manufacturing module in Postgres", () => {
 
     expect(draft).toBeDefined();
 
-    const released = await manufacturing.release(draft!.id).orThrow();
+    const released = await manufacturing
+      .release({ orderId: draft!.id })
+      .orThrow();
 
     expect(released.status).toBe("released");
     expect(released.bomId).toBe(bom);
 
     const done = await manufacturing
-      .complete(draft!.id, 2, { lot: { code: "TABLE-A" } })
+      .complete({ orderId: draft!.id, produced: 2, lot: { code: "TABLE-A" } })
       .orThrow();
 
     expect(done.status).toBe("done");
@@ -216,13 +218,17 @@ describe.skipIf(!live)("manufacturing module in Postgres", () => {
     expect(await onHand(table)).toBe(2);
     expect(done.outputLotId).not.toBeNull();
 
-    const tree = await manufacturing.lotGenealogy(done.outputLotId!).orThrow();
+    const tree = await manufacturing
+      .lotGenealogy({ lotId: done.outputLotId! })
+      .orThrow();
 
     expect(tree.lots.map((lot) => lot.lotId).toSorted()).toEqual(
       [legLot, topLot].toSorted(),
     );
 
-    const up = await manufacturing.lotGenealogy(legLot, "up").orThrow();
+    const up = await manufacturing
+      .lotGenealogy({ lotId: legLot, direction: "up" })
+      .orThrow();
 
     expect(up.lots.map((lot) => lot.lotId)).toEqual([done.outputLotId]);
     expect((await events("production_order.completed")).at(-1)).toMatchObject({

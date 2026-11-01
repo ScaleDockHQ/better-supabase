@@ -139,14 +139,14 @@ export interface Promotions<F extends object = Record<never, never>> {
    * Refused with `PROMOTIONS_INVALID` when the discount, limits or targets
    * don't fit.
    */
-  savePromotion(
-    organizationId: string,
-    input: PromotionInput<F>,
-  ): AsyncResult<SavedPromotion<F>>;
-  setPromotionActive(
-    promotionId: string,
-    active: boolean,
-  ): AsyncResult<boolean>;
+  savePromotion(input: {
+    organizationId: string;
+    input: PromotionInput<F>;
+  }): AsyncResult<SavedPromotion<F>>;
+  setPromotionActive(input: {
+    promotionId: string;
+    active: boolean;
+  }): AsyncResult<boolean>;
   /**
    * Refused with `PROMOTIONS_IN_USE` once an order redeemed it; deactivate it
    * instead.
@@ -156,15 +156,15 @@ export interface Promotions<F extends object = Record<never, never>> {
    * Codes are stored upper case. Refused with `PROMOTIONS_CODE_TAKEN` for a
    * code the organization has.
    */
-  createCodes(
-    promotionId: string,
-    input: CodesInput,
-  ): AsyncResult<readonly PromotionCode[]>;
+  createCodes(input: {
+    promotionId: string;
+    input: CodesInput;
+  }): AsyncResult<readonly PromotionCode[]>;
   deleteCode(codeId: string): AsyncResult<boolean>;
   /** Adds a code to the shopper's cart; `priceCart` then shows the discount. */
-  applyCode(cartId: string, code: string): AsyncResult<AppliedCode>;
+  applyCode(input: { cartId: string; code: string }): AsyncResult<AppliedCode>;
   /** Resolves to `false` when the cart didn't hold the code. */
-  removeCode(cartId: string, code: string): AsyncResult<boolean>;
+  removeCode(input: { cartId: string; code: string }): AsyncResult<boolean>;
 }
 
 const isTrue = (value: unknown): boolean => value === true;
@@ -237,7 +237,7 @@ export function createPromotions<
   );
 
   const promotions: Promotions<F> = {
-    savePromotion: (organizationId, input) => {
+    savePromotion: ({ organizationId, input }) => {
       const data = promotionData(input);
 
       if (typeof data === "string") {
@@ -263,11 +263,11 @@ export function createPromotions<
         ),
       ).andThen((saved) => readFields(fields, saved));
     },
-    setPromotionActive: (promotionId, active) =>
+    setPromotionActive: ({ promotionId, active }) =>
       call("set_promotion_active", { promotion: promotionId, active }, isTrue),
     deletePromotion: (promotionId) =>
       call("delete_promotion", { promotion: promotionId }, isTrue),
-    createCodes: (promotionId, input) =>
+    createCodes: ({ promotionId, input }) =>
       call(
         "create_promotion_codes",
         {
@@ -281,7 +281,7 @@ export function createPromotions<
       ),
     deleteCode: (codeId) =>
       call("delete_promotion_code", { code: codeId }, isTrue),
-    applyCode: (cartId, code) =>
+    applyCode: ({ cartId, code }) =>
       call("apply_promotion_code", { cart: cartId, code }, (value) => {
         const row = recordOf(value, "apply_promotion_code");
 
@@ -291,7 +291,7 @@ export function createPromotions<
           promotionId: textOf(row["promotionId"]),
         };
       }),
-    removeCode: (cartId, code) =>
+    removeCode: ({ cartId, code }) =>
       call("remove_promotion_code", { cart: cartId, code }, isTrue),
   };
 

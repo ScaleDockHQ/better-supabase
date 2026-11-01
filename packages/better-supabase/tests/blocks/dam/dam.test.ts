@@ -72,7 +72,11 @@ describe("createDam", () => {
     const dam = createDam({ transport: t, tenant: "org-1" });
 
     const recorded = await dam
-      .recordRendition("n1", "thumbnail", { width: 200, height: 100 })
+      .recordRendition({
+        nodeId: "n1",
+        kind: "thumbnail",
+        input: { width: 200, height: 100 },
+      })
       .orThrow();
 
     const listed = await dam.listRenditions("n1").orThrow();
@@ -134,7 +138,11 @@ describe("createDam", () => {
       .orThrow();
 
     const check = await dam
-      .checkUsage("n1", { on: PlainDate.from("2026-12-01"), territory: "NL" })
+      .checkUsage({
+        nodeId: "n1",
+        on: PlainDate.from("2026-12-01"),
+        territory: "NL",
+      })
       .orThrow();
 
     const reported = await dam.notifyExpiring().orThrow();
@@ -175,7 +183,7 @@ describe("createDam", () => {
     });
 
     const check = await createDam({ transport: t, tenant: "org-1" })
-      .checkUsage("n1")
+      .checkUsage({ nodeId: "n1" })
       .orThrow();
 
     expect(check).toEqual({ allowed: false });

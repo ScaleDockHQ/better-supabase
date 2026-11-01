@@ -77,41 +77,56 @@ describe.skipIf(!live)("representatives", () => {
       await s.asRole(owner);
 
       const ada = await contacts
-        .savePerson(tenant, { name: "Ada", email: guardian.email })
+        .savePerson({
+          organizationId: tenant,
+          input: { name: "Ada", email: guardian.email },
+        })
         .orThrow();
 
       const person = { type: "person", id: ada.id };
 
       expect(
         await relations
-          .link(person, client, {
-            kind: "represents",
-            data: { role: "uncle", authority: "act" },
+          .link({
+            source: person,
+            target: client,
+            input: {
+              kind: "represents",
+              data: { role: "uncle", authority: "act" },
+            },
           })
           .then((r) => (r.ok ? "ok" : r.error.hint)),
       ).toBe("RELATION_DATA_INVALID");
       expect(
         await relations
-          .link(person, client, {
-            kind: "represents",
-            data: {
-              role: "guardian",
-              authority: "inform",
-              valid_from: "2026-12-01",
-              valid_until: "2026-01-01",
+          .link({
+            source: person,
+            target: client,
+            input: {
+              kind: "represents",
+              data: {
+                role: "guardian",
+                authority: "inform",
+                valid_from: "2026-12-01",
+                valid_until: "2026-01-01",
+              },
             },
           })
           .then((r) => (r.ok ? "ok" : r.error.hint)),
       ).toBe("RELATION_DATA_INVALID");
       await relations
-        .link(person, client, {
-          kind: "represents",
-          data: { role: "guardian", authority: "inform" },
+        .link({
+          source: person,
+          target: client,
+          input: {
+            kind: "represents",
+            data: { role: "guardian", authority: "inform" },
+          },
         })
         .orThrow();
 
       const [representative] = await contacts
-        .representativesOf("client", client.id)
+        .representativesOf({ subjectType: "client", subjectId: client.id })
         .orThrow();
 
       expect(representative).toMatchObject({
@@ -128,8 +143,10 @@ describe.skipIf(!live)("representatives", () => {
 
       await s.asRole(guardian);
       await guests.accept(invite.token!).orThrow();
-      expect(await guests.can(client).orThrow()).toBe(true);
-      expect(await guests.can(client, "comment").orThrow()).toBe(false);
+      expect(await guests.can({ subject: client }).orThrow()).toBe(true);
+      expect(
+        await guests.can({ subject: client, action: "comment" }).orThrow(),
+      ).toBe(false);
       expect(await contacts.representedByMe(tenant).orThrow()).toEqual([
         expect.objectContaining({
           subjectType: "client",
@@ -141,43 +158,67 @@ describe.skipIf(!live)("representatives", () => {
 
       await s.asRole(owner);
       await relations
-        .link(person, client, {
-          kind: "represents",
-          data: { role: "guardian", authority: "act" },
+        .link({
+          source: person,
+          target: client,
+          input: {
+            kind: "represents",
+            data: { role: "guardian", authority: "act" },
+          },
         })
         .orThrow();
       await s.asRole(guardian);
-      expect(await guests.can(client, "comment").orThrow()).toBe(true);
-      await comments.create(client, { body: "Signed for her" }).orThrow();
+      expect(
+        await guests.can({ subject: client, action: "comment" }).orThrow(),
+      ).toBe(true);
+      await comments
+        .create({ subject: client, comment: { body: "Signed for her" } })
+        .orThrow();
 
       await s.asRole(owner);
       await relations
-        .link(person, client, {
-          kind: "represents",
-          data: {
-            role: "guardian",
-            authority: "act",
-            valid_until: "2020-01-01",
+        .link({
+          source: person,
+          target: client,
+          input: {
+            kind: "represents",
+            data: {
+              role: "guardian",
+              authority: "act",
+              valid_until: "2020-01-01",
+            },
           },
         })
         .orThrow();
       expect(
-        await contacts.representativesOf("client", client.id).orThrow(),
+        await contacts
+          .representativesOf({ subjectType: "client", subjectId: client.id })
+          .orThrow(),
       ).toEqual([expect.objectContaining({ active: false })]);
       await s.asRole(guardian);
-      expect(await guests.can(client).orThrow()).toBe(false);
+      expect(await guests.can({ subject: client }).orThrow()).toBe(false);
       expect(await contacts.representedByMe(tenant).orThrow()).toEqual([]);
 
       await s.asRole(owner);
       await relations
-        .link(person, client, {
-          kind: "represents",
-          data: { role: "guardian", authority: "inform" },
+        .link({
+          source: person,
+          target: client,
+          input: {
+            kind: "represents",
+            data: { role: "guardian", authority: "inform" },
+          },
         })
         .orThrow();
-      await relations.unlink(person, client, { kind: "represents" }).orThrow();
+      await relations
+        .unlink({
+          source: person,
+          target: client,
+          input: { kind: "represents" },
+        })
+        .orThrow();
       await s.asRole(guardian);
-      expect(await guests.can(client).orThrow()).toBe(false);
+      expect(await guests.can({ subject: client }).orThrow()).toBe(false);
     } finally {
       await s.close();
     }

@@ -165,12 +165,13 @@ function members(
   const load = vi.fn(async (_organizationId: string) => rows);
 
   const updateMemberRole = vi.fn(
-    (_organizationId: string, _userId: string, _role: string) =>
+    (_input: { organizationId: string; userId: string; role: string }) =>
       resolved(true as const),
   );
 
-  const removeMember = vi.fn((_organizationId: string, _userId: string) =>
-    resolved(true as const),
+  const removeMember = vi.fn(
+    (_input: { organizationId: string; userId: string }) =>
+      resolved(true as const),
   );
 
   const onChanged = vi.fn();
@@ -208,10 +209,9 @@ describe("createMembersController", () => {
     const idleView = mount(idle.controller);
     await flush();
     expect(idle.load).not.toHaveBeenCalled();
-    expect(await idleView.view().setRole("u-2", "admin")).toMatchObject({
-      ok: false,
-      error: { kind: "invalid_input" },
-    });
+    expect(
+      await idleView.view().setRole({ userId: "u-2", role: "admin" }),
+    ).toMatchObject({ ok: false, error: { kind: "invalid_input" } });
     expect(await idleView.view().remove("u-2")).toMatchObject({ ok: false });
     await idleView.view().refresh();
     idleView.unmount();
@@ -223,7 +223,7 @@ describe("createMembersController", () => {
     await flush();
     const write = held(true as const);
     updateMemberRole.mockReturnValueOnce(write.result);
-    const changing = view().setRole("u-2", "admin");
+    const changing = view().setRole({ userId: "u-2", role: "admin" });
     expect(view().members?.[1]?.role).toBe("admin");
     expect(view().pending).toEqual(["u-2"]);
     write.release();
@@ -244,7 +244,9 @@ describe("createMembersController", () => {
     const { view, unmount } = mount(controller);
     await flush();
     updateMemberRole.mockReturnValueOnce(failed("not allowed"));
-    expect((await view().setRole("u-2", "admin")).ok).toBe(false);
+    expect((await view().setRole({ userId: "u-2", role: "admin" })).ok).toBe(
+      false,
+    );
     expect(view().members?.[1]?.role).toBe("member");
     expect(view().error?.message).toBe("not allowed");
     expect(onChanged).not.toHaveBeenCalled();
@@ -284,7 +286,9 @@ describe("createMembersController", () => {
     expect(view().members).toEqual([{ userId: "u-9", role: "admin" }]);
 
     onChanged.mockRejectedValueOnce(new Error("session refresh failed"));
-    expect((await view().setRole("u-9", "member")).ok).toBe(true);
+    expect((await view().setRole({ userId: "u-9", role: "member" })).ok).toBe(
+      true,
+    );
     expect(view().error?.message).toBe("session refresh failed");
 
     load.mockRejectedValueOnce(new DbException(dbError("forbidden", "nope")));

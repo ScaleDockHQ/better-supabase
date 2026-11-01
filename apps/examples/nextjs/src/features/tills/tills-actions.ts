@@ -29,7 +29,7 @@ export const createTill = bsb.action(
     }
 
     if (settings.data === undefined) {
-      const setup = await db.accounting.setup(organizationId);
+      const setup = await db.accounting.setup({ organizationId });
 
       if (!setup.ok) {
         return setup;
@@ -37,7 +37,7 @@ export const createTill = bsb.action(
     }
 
     const [accounts, tills] = await Promise.all([
-      db.accounting.accounts(organizationId),
+      db.accounting.accounts({ organizationId }),
       db.tills.listTills({ includeArchived: true }),
     ]);
 
@@ -60,11 +60,14 @@ export const createTill = bsb.action(
     if (plan.kind === "map") {
       accountId = plan.accountId;
     } else {
-      const created = await db.accounting.saveAccount(organizationId, {
-        code: plan.code,
-        name: plan.name,
-        type: "asset",
-        currency: "EUR",
+      const created = await db.accounting.saveAccount({
+        organizationId,
+        input: {
+          code: plan.code,
+          name: plan.name,
+          type: "asset",
+          currency: "EUR",
+        },
       });
 
       if (!created.ok) {

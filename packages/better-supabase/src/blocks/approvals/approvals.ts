@@ -311,31 +311,27 @@ export interface Approvals<F extends object = Record<never, never>> {
    * Files a request on `subject` under its type's policy for the action. Keys
    * besides the input's own are the request's extra columns.
    */
-  request(
-    subject: RecordRef,
-    input: ApprovalRequestInput & Partial<F>,
-  ): AsyncResult<ApprovalRequest & F>;
+  request(input: {
+    subject: RecordRef;
+    input: ApprovalRequestInput & Partial<F>;
+  }): AsyncResult<ApprovalRequest & F>;
   /**
    * Approves the current step; the last step runs the policy's action. The
    * service role passes `decidedBy` to decide for a user.
    */
   approve(
-    id: string,
-    comment?: string,
-    options?: ApprovalDecideOptions,
+    input: { id: string; comment?: string | undefined } & ApprovalDecideOptions,
   ): AsyncResult<ApprovalRequest & F>;
   /** Rejects the request. */
   reject(
-    id: string,
-    comment?: string,
-    options?: ApprovalDecideOptions,
+    input: { id: string; comment?: string | undefined } & ApprovalDecideOptions,
   ): AsyncResult<ApprovalRequest & F>;
   /** Hands the caller's place on the current step to another member. */
-  delegate(
-    id: string,
-    userId: string,
-    comment?: string,
-  ): AsyncResult<ApprovalRequest & F>;
+  delegate(input: {
+    id: string;
+    userId: string;
+    comment?: string | undefined;
+  }): AsyncResult<ApprovalRequest & F>;
   /** The requester or a manager closes a pending request. */
   cancel(id: string): AsyncResult<ApprovalRequest & F>;
   get(id: string): AsyncResult<ApprovalRequestDetail & F>;
@@ -344,24 +340,31 @@ export interface Approvals<F extends object = Record<never, never>> {
     options?: ApprovalListOptions,
   ): AsyncResult<readonly (ApprovalRequest & F)[]>;
   /** Whether the subject's latest request for the action was approved. */
-  isApproved(subject: RecordRef, action: string): AsyncResult<boolean>;
+  isApproved(input: {
+    subject: RecordRef;
+    action: string;
+  }): AsyncResult<boolean>;
   /**
    * What a request would need for the subject type and action, with `payload`
    * as the request payload tenant conditions read; `null` when nothing is
    * required, so the action can run without a request.
    */
   requirement(
-    subjectType: string,
-    action: string,
-    payload?: Readonly<Record<string, unknown>>,
-    options?: { readonly tenantless?: boolean },
+    input: {
+      subjectType: string;
+      action: string;
+      payload?: Readonly<Record<string, unknown>> | undefined;
+    } & { readonly tenantless?: boolean },
   ): AsyncResult<ApprovalRequirement | null>;
   /**
    * Uses an approved request once, before its action runs. A second call fails
    * with `APPROVAL_CONSUMED`, and a fingerprint other than the request's with
    * `APPROVAL_FINGERPRINT_MISMATCH`.
    */
-  consume(id: string, fingerprint?: string): AsyncResult<ApprovalRequest & F>;
+  consume(input: {
+    id: string;
+    fingerprint?: string | undefined;
+  }): AsyncResult<ApprovalRequest & F>;
   /**
    * The tenant's policies (`options.tenantPolicies`), or with `platform` the
    * platform policies.
@@ -376,8 +379,7 @@ export interface Approvals<F extends object = Record<never, never>> {
    * policy (`platform: true`) needs it as platform staff.
    */
   savePolicy(
-    input: ApprovalPolicyInput,
-    options?: { readonly platform?: boolean },
+    input: { input: ApprovalPolicyInput } & { readonly platform?: boolean },
   ): AsyncResult<ApprovalTenantPolicy>;
   /** Deletes a tenant policy; `false` when it did not exist. */
   removePolicy(id: string): AsyncResult<boolean>;
@@ -725,9 +727,9 @@ export function createApprovals<
     tenantless === true ? AsyncResult.ok(null) : tenant();
 
   const client: Approvals<F> = {
-    request: (
+    request: ({
       subject,
-      {
+      input: {
         action,
         reason,
         payload,
@@ -737,7 +739,7 @@ export function createApprovals<
         requestedBy,
         ...extra
       },
-    ) =>
+    }) =>
       tenantOr(tenantless).andThen((organizationId) =>
         AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen((more) =>
           one("request_approval", {
@@ -754,11 +756,11 @@ export function createApprovals<
           }),
         ),
       ),
-    approve: (id, comment, decideOptions) =>
+    approve: ({ id, comment, ...decideOptions }) =>
       decide(id, "approved", comment, decideOptions),
-    reject: (id, comment, decideOptions) =>
+    reject: ({ id, comment, ...decideOptions }) =>
       decide(id, "rejected", comment, decideOptions),
-    delegate: (id, userId, comment) =>
+    delegate: ({ id, userId, comment }) =>
       asApprover(id, () =>
         one("delegate_approval", {
           request_id: id,
@@ -787,14 +789,14 @@ export function createApprovals<
             ),
         ).andThen((rows) => allWithFields(fields, rows)),
       ),
-    isApproved: (subject, action) =>
+    isApproved: ({ subject, action }) =>
       call(
         "is_approved",
         { subject_type: subject.type, subject_id: subject.id, action },
         (value) => value === true,
       ),
-    requirement: (subjectType, action, payload, requirementOptions) =>
-      tenantOr(requirementOptions?.tenantless).andThen((organizationId) =>
+    requirement: ({ subjectType, action, payload, ...requirementOptions }) =>
+      tenantOr(requirementOptions.tenantless).andThen((organizationId) =>
         call(
           "approval_requirement",
           {
@@ -806,7 +808,7 @@ export function createApprovals<
           requirementOf,
         ),
       ),
-    consume: (id, fingerprint) =>
+    consume: ({ id, fingerprint }) =>
       one("consume_approval", {
         request_id: id,
         fingerprint: fingerprint ?? null,
@@ -826,8 +828,8 @@ export function createApprovals<
             ),
         ),
       ),
-    savePolicy: (input, saveOptions) =>
-      tenantOr(saveOptions?.platform).andThen((organizationId) =>
+    savePolicy: ({ input, ...saveOptions }) =>
+      tenantOr(saveOptions.platform).andThen((organizationId) =>
         call(
           "save_approval_policy",
           { tenant: organizationId, policy: input },

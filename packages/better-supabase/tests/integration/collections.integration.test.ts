@@ -80,51 +80,84 @@ describe.skipIf(!live)("collections", () => {
       const collections = createCollections({ transport });
 
       await s.as(rep);
-      const acme = await companies.saveCompany(org, { name: "Acme" }).orThrow();
+
+      const acme = await companies
+        .saveCompany({ organizationId: org, input: { name: "Acme" } })
+        .orThrow();
 
       const globex = await companies
-        .saveCompany(org, { name: "Globex" })
+        .saveCompany({ organizationId: org, input: { name: "Globex" } })
         .orThrow();
 
       const first = await collections
-        .star(org, { type: "company", id: acme.id })
+        .star({
+          organizationId: org,
+          subject: { type: "company", id: acme.id },
+        })
         .orThrow();
 
       expect(first.rank).toBe("V");
 
       const second = await collections
-        .star(org, { type: "company", id: globex.id })
+        .star({
+          organizationId: org,
+          subject: { type: "company", id: globex.id },
+        })
         .orThrow();
 
       expect(
         (
           await collections
-            .star(org, { type: "company", id: acme.id })
+            .star({
+              organizationId: org,
+              subject: { type: "company", id: acme.id },
+            })
             .orThrow()
         ).rank,
       ).toBe("V");
 
       const moved = await collections
-        .reorderStar({ type: "company", id: globex.id }, { next: first.rank })
+        .reorderStar({
+          subject: { type: "company", id: globex.id },
+          neighbors: { next: first.rank },
+        })
         .orThrow();
 
       expect(moved < first.rank).toBe(true);
-      const stars = await collections.starred(org).orThrow();
+
+      const stars = await collections
+        .starred({ organizationId: org })
+        .orThrow();
+
       expect(stars.map((star) => star.title)).toEqual(["Globex", "Acme"]);
       expect(second.starredAt).toBeInstanceOf(Temporal.Instant);
       expect(
-        await collections.starred(org, { type: "memo" }).orThrow(),
+        await collections
+          .starred({ organizationId: org, type: "memo" })
+          .orThrow(),
       ).toHaveLength(0);
 
       await s.as(owner);
-      expect(await collections.starred(org).orThrow()).toHaveLength(0);
+      expect(
+        await collections.starred({ organizationId: org }).orThrow(),
+      ).toHaveLength(0);
 
       await s.as(stranger);
       expect(
-        hint(await collections.star(other, { type: "company", id: acme.id })),
+        hint(
+          await collections.star({
+            organizationId: other,
+            subject: { type: "company", id: acme.id },
+          }),
+        ),
       ).toBe("FAVORITE_SUBJECT_FORBIDDEN");
       expect(
-        hint(await collections.star(org, { type: "company", id: acme.id })),
+        hint(
+          await collections.star({
+            organizationId: org,
+            subject: { type: "company", id: acme.id },
+          }),
+        ),
       ).toBe("FAVORITE_FORBIDDEN");
 
       await s.as(rep);
@@ -136,10 +169,10 @@ describe.skipIf(!live)("collections", () => {
       ).toBe(false);
       expect(
         hint(
-          await collections.reorderStar(
-            { type: "company", id: acme.id },
-            { previous: "not a key" },
-          ),
+          await collections.reorderStar({
+            subject: { type: "company", id: acme.id },
+            neighbors: { previous: "not a key" },
+          }),
         ),
       ).toBe("RANK_KEY_INVALID");
 
@@ -149,7 +182,9 @@ describe.skipIf(!live)("collections", () => {
         [globex.id],
       );
       await s.as(rep);
-      expect(await collections.starred(org).orThrow()).toHaveLength(0);
+      expect(
+        await collections.starred({ organizationId: org }).orThrow(),
+      ).toHaveLength(0);
     } finally {
       await s.close();
     }
@@ -187,44 +222,68 @@ describe.skipIf(!live)("collections", () => {
       const ids: string[] = [];
 
       for (const name of ["Acme", "Globex", "Initech"]) {
-        ids.push((await companies.saveCompany(org, { name }).orThrow()).id);
+        ids.push(
+          (
+            await companies
+              .saveCompany({ organizationId: org, input: { name } })
+              .orThrow()
+          ).id,
+        );
       }
 
       const mine = await collections
-        .create(org, { name: "My accounts", subjectType: "company" })
+        .create({
+          organizationId: org,
+          input: { name: "My accounts", subjectType: "company" },
+        })
         .orThrow();
 
       expect(mine.scope).toBe("user");
       expect(mine.ownerId).toBe(rep.id);
       expect(
         hint(
-          await collections.create(org, {
-            name: "Everyone",
-            subjectType: "company",
-            scope: "tenant",
+          await collections.create({
+            organizationId: org,
+            input: {
+              name: "Everyone",
+              subjectType: "company",
+              scope: "tenant",
+            },
           }),
         ),
       ).toBe("COLLECTION_FORBIDDEN");
       expect(
-        hint(await collections.create(org, { name: "x", subjectType: "deal" })),
+        hint(
+          await collections.create({
+            organizationId: org,
+            input: { name: "x", subjectType: "deal" },
+          }),
+        ),
       ).toBe("COLLECTION_SUBJECT_TYPE_UNKNOWN");
       expect(
         hint(
-          await collections.create(org, { name: " ", subjectType: "company" }),
+          await collections.create({
+            organizationId: org,
+            input: { name: " ", subjectType: "company" },
+          }),
         ),
       ).toBe("COLLECTION_NAME_REQUIRED");
 
       const added = await collections
-        .add(mine.id, [ids[2]!, ids[0]!, ids[2]!])
+        .add({ id: mine.id, subjectIds: [ids[2]!, ids[0]!, ids[2]!] })
         .orThrow();
 
       expect(added.added).toEqual([ids[2], ids[0]]);
       expect(
-        (await collections.add(mine.id, [ids[0]!, ids[1]!]).orThrow()).added,
+        (
+          await collections
+            .add({ id: mine.id, subjectIds: [ids[0]!, ids[1]!] })
+            .orThrow()
+        ).added,
       ).toEqual([ids[1]]);
 
       const firstPage = await collections
-        .entries(mine.id, { limit: 2 })
+        .entries({ id: mine.id, limit: 2 })
         .orThrow();
 
       expect(firstPage.items.map((entry) => entry.title)).toEqual([
@@ -234,7 +293,8 @@ describe.skipIf(!live)("collections", () => {
       expect(firstPage.items[0]?.addedBy).toBe(rep.id);
 
       const rest = await collections
-        .entries(mine.id, {
+        .entries({
+          id: mine.id,
           limit: 2,
           ...(firstPage.next && { cursor: firstPage.next }),
         })
@@ -243,101 +303,133 @@ describe.skipIf(!live)("collections", () => {
       expect(rest.items.map((entry) => entry.title)).toEqual(["Globex"]);
       expect(rest.next).toBeUndefined();
       await collections
-        .reorder(mine.id, ids[1]!, { next: firstPage.items[0]!.rank })
+        .reorder({
+          id: mine.id,
+          subjectId: ids[1]!,
+          neighbors: { next: firstPage.items[0]!.rank },
+        })
         .orThrow();
-      expect(await collections.subjectIds(mine.id).orThrow()).toEqual([
+      expect(await collections.subjectIds({ id: mine.id }).orThrow()).toEqual([
         ids[1],
         ids[2],
         ids[0],
       ]);
       expect(
-        await collections.where(mine.id, { column: "company_id" }).orThrow(),
+        await collections
+          .where({ id: mine.id, column: "company_id" })
+          .orThrow(),
       ).toEqual({ company_id: { in: [ids[1], ids[2], ids[0]] } });
 
       const foreign = await s.value<string>("(select gen_random_uuid()::text)");
-      expect(hint(await collections.add(mine.id, [foreign]))).toBe(
-        "COLLECTION_SUBJECT_FORBIDDEN",
-      );
+      expect(
+        hint(await collections.add({ id: mine.id, subjectIds: [foreign] })),
+      ).toBe("COLLECTION_SUBJECT_FORBIDDEN");
       expect(
         hint(
-          await collections.add(
-            mine.id,
-            Array.from({ length: 1001 }, () => foreign),
-          ),
+          await collections.add({
+            id: mine.id,
+            subjectIds: Array.from({ length: 1001 }, () => foreign),
+          }),
         ),
       ).toBe("COLLECTION_TOO_MANY");
 
       await s.asRole(peer);
-      expect(await collections.list(org).orThrow()).toHaveLength(0);
-      expect(hint(await collections.entries(mine.id))).toBe("ok");
-      expect((await collections.entries(mine.id).orThrow()).items).toEqual([]);
-      expect(hint(await collections.add(mine.id, [ids[0]!]))).toBe(
-        "COLLECTION_NOT_FOUND",
-      );
+      expect(
+        await collections.list({ organizationId: org }).orThrow(),
+      ).toHaveLength(0);
+      expect(hint(await collections.entries({ id: mine.id }))).toBe("ok");
+      expect(
+        (await collections.entries({ id: mine.id }).orThrow()).items,
+      ).toEqual([]);
+      expect(
+        hint(await collections.add({ id: mine.id, subjectIds: [ids[0]!] })),
+      ).toBe("COLLECTION_NOT_FOUND");
 
       await s.as(owner);
 
       const shared = await collections
-        .create(org, {
-          name: "Key accounts",
-          subjectType: "company",
-          scope: "team",
-          teamId: team,
+        .create({
+          organizationId: org,
+          input: {
+            name: "Key accounts",
+            subjectType: "company",
+            scope: "team",
+            teamId: team,
+          },
         })
         .orThrow();
 
       const everyone = await collections
-        .create(org, {
-          name: "Watchlist",
-          subjectType: "company",
-          scope: "tenant",
+        .create({
+          organizationId: org,
+          input: { name: "Watchlist", subjectType: "company", scope: "tenant" },
         })
         .orThrow();
 
       await s.as(rep);
-      await collections.add(shared.id, [ids[0]!]).orThrow();
+      await collections.add({ id: shared.id, subjectIds: [ids[0]!] }).orThrow();
       expect(
         (await collections.listsOf({ type: "company", id: ids[0]! }).orThrow())
           .map((list) => list.name)
           .toSorted(),
       ).toEqual(["Key accounts", "My accounts"]);
-      expect(hint(await collections.rename(shared.id, { name: "Mine" }))).toBe(
-        "COLLECTION_FORBIDDEN",
-      );
+      expect(
+        hint(
+          await collections.rename({ id: shared.id, input: { name: "Mine" } }),
+        ),
+      ).toBe("COLLECTION_FORBIDDEN");
       await s.asRole(peer);
       expect(
-        (await collections.list(org).orThrow()).map((list) => list.name),
+        (await collections.list({ organizationId: org }).orThrow()).map(
+          (list) => list.name,
+        ),
       ).toEqual(["Watchlist"]);
-      await collections.add(everyone.id, [ids[1]!]).orThrow();
+      await collections
+        .add({ id: everyone.id, subjectIds: [ids[1]!] })
+        .orThrow();
       expect(
-        await collections.remove(everyone.id, [ids[1]!, ids[2]!]).orThrow(),
+        await collections
+          .remove({ id: everyone.id, subjectIds: [ids[1]!, ids[2]!] })
+          .orThrow(),
       ).toBe(1);
 
       await s.as(rep);
 
       const renamed = await collections
-        .rename(mine.id, { name: "Top accounts", description: "Q4" })
+        .rename({
+          id: mine.id,
+          input: { name: "Top accounts", description: "Q4" },
+        })
         .orThrow();
 
       expect(renamed.description).toBe("Q4");
       expect(
-        (await collections.rename(mine.id, { description: null }).orThrow())
-          .description,
+        (
+          await collections
+            .rename({ id: mine.id, input: { description: null } })
+            .orThrow()
+        ).description,
       ).toBeUndefined();
-      expect(await collections.archive(mine.id).orThrow()).toBe(true);
-      expect(hint(await collections.add(mine.id, [ids[0]!]))).toBe(
-        "COLLECTION_ARCHIVED",
-      );
+      expect(await collections.archive({ id: mine.id }).orThrow()).toBe(true);
       expect(
-        (await collections.list(org).orThrow()).map((list) => list.name),
+        hint(await collections.add({ id: mine.id, subjectIds: [ids[0]!] })),
+      ).toBe("COLLECTION_ARCHIVED");
+      expect(
+        (await collections.list({ organizationId: org }).orThrow()).map(
+          (list) => list.name,
+        ),
       ).not.toContain("Top accounts");
 
       const archived = await collections
-        .list(org, { includeArchived: true, subjectType: "company" })
+        .list({
+          organizationId: org,
+          includeArchived: true,
+          subjectType: "company",
+        })
         .orThrow();
 
       expect(archived.find((list) => list.id === mine.id)?.archived).toBe(true);
-      await collections.archive(mine.id, false).orThrow();
+      await collections.archive({ id: mine.id, archived: false }).orThrow();
 
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where payload ->> 'collectionId' = $1 order by type",
@@ -381,10 +473,15 @@ describe.skipIf(!live)("collections", () => {
       await s.as(owner);
 
       const list = await collections
-        .create(org, { name: "Memos", subjectType: "memo", scope: "tenant" })
+        .create({
+          organizationId: org,
+          input: { name: "Memos", subjectType: "memo", scope: "tenant" },
+        })
         .orThrow();
 
-      await collections.add(list.id, [own!.id, secret!.id]).orThrow();
+      await collections
+        .add({ id: list.id, subjectIds: [own!.id, secret!.id] })
+        .orThrow();
 
       await s.asRole(rep);
       expect(
@@ -393,7 +490,7 @@ describe.skipIf(!live)("collections", () => {
           [list.id],
         ),
       ).toEqual([{ subject_id: own!.id }]);
-      const page = await collections.entries(list.id).orThrow();
+      const page = await collections.entries({ id: list.id }).orThrow();
       expect(page.items.map((entry) => entry.title)).toEqual(["Rep notes"]);
       expect(page.items[0]?.url).toBe(`/memos/${own!.id}`);
 
@@ -421,7 +518,10 @@ describe.skipIf(!live)("collections", () => {
       await s.as(owner);
 
       const picks = await collections
-        .create(org, { name: "Picks", subjectType: "memo" })
+        .create({
+          organizationId: org,
+          input: { name: "Picks", subjectType: "memo" },
+        })
         .orThrow();
 
       const run = await bulk
@@ -435,7 +535,7 @@ describe.skipIf(!live)("collections", () => {
         .orThrow();
 
       expect(run.failed).toBe(1);
-      expect(await collections.subjectIds(picks.id).orThrow()).toEqual([
+      expect(await collections.subjectIds({ id: picks.id }).orThrow()).toEqual([
         secret!.id,
       ]);
 
@@ -474,7 +574,7 @@ describe.skipIf(!live)("collections", () => {
         transport,
         notification: "saved_item.reminder",
         notifier: {
-          send: (_type, input) => {
+          send: ({ input }) => {
             sent.push({ key: input.key, recipients: input.recipients });
 
             return { ok: true };
@@ -483,43 +583,64 @@ describe.skipIf(!live)("collections", () => {
       });
 
       await s.as(rep);
-      const acme = await companies.saveCompany(org, { name: "Acme" }).orThrow();
+
+      const acme = await companies
+        .saveCompany({ organizationId: org, input: { name: "Acme" } })
+        .orThrow();
+
       const company = { type: "company", id: acme.id };
 
       expect(
         hint(
-          await collections.saveForLater(org, company, {
-            remindAt: Temporal.Now.instant().subtract({ minutes: 1 }),
+          await collections.saveForLater({
+            organizationId: org,
+            subject: company,
+            input: {
+              remindAt: Temporal.Now.instant().subtract({ minutes: 1 }),
+            },
           }),
         ),
       ).toBe("SAVED_ITEM_INVALID");
       expect(
         hint(
-          await collections.saveForLater(org, company, {
-            note: "x".repeat(1001),
+          await collections.saveForLater({
+            organizationId: org,
+            subject: company,
+            input: { note: "x".repeat(1001) },
           }),
         ),
       ).toBe("SAVED_ITEM_INVALID");
 
       const item = await collections
-        .saveForLater(org, company, {
-          note: "Call back",
-          remindAt: Temporal.Now.instant().add({ hours: 1 }),
+        .saveForLater({
+          organizationId: org,
+          subject: company,
+          input: {
+            note: "Call back",
+            remindAt: Temporal.Now.instant().add({ hours: 1 }),
+          },
         })
         .orThrow();
 
       expect(item.note).toBe("Call back");
-      const page = await collections.saved(org).orThrow();
+      const page = await collections.saved({ organizationId: org }).orThrow();
       expect(page.items.map((saved) => saved.title)).toEqual(["Acme"]);
 
       await s.as(owner);
-      expect((await collections.saved(org).orThrow()).items).toHaveLength(0);
+      expect(
+        (await collections.saved({ organizationId: org }).orThrow()).items,
+      ).toHaveLength(0);
       expect(await collections.removeSaved(item.id).orThrow()).toBe(false);
 
       await s.as(stranger);
-      expect(hint(await collections.saveForLater(org, company))).toBe(
-        "SAVED_ITEM_FORBIDDEN",
-      );
+      expect(
+        hint(
+          await collections.saveForLater({
+            organizationId: org,
+            subject: company,
+          }),
+        ),
+      ).toBe("SAVED_ITEM_FORBIDDEN");
 
       await s.as(rep);
       expect(hint(await collections.remindDue())).toBe("SAVED_ITEM_FORBIDDEN");
@@ -538,14 +659,26 @@ describe.skipIf(!live)("collections", () => {
       expect(await collections.remindDue().orThrow()).toHaveLength(0);
 
       await s.as(rep);
-      expect(await collections.completeSaved(item.id).orThrow()).toBe(true);
-      expect((await collections.saved(org).orThrow()).items).toHaveLength(0);
+      expect(await collections.completeSaved({ id: item.id }).orThrow()).toBe(
+        true,
+      );
       expect(
-        (await collections.saved(org, { completed: true }).orThrow()).items,
+        (await collections.saved({ organizationId: org }).orThrow()).items,
+      ).toHaveLength(0);
+      expect(
+        (
+          await collections
+            .saved({ organizationId: org, options: { completed: true } })
+            .orThrow()
+        ).items,
       ).toHaveLength(1);
 
-      await collections.saveForLater(org, company).orThrow();
-      expect((await collections.saved(org).orThrow()).items).toHaveLength(1);
+      await collections
+        .saveForLater({ organizationId: org, subject: company })
+        .orThrow();
+      expect(
+        (await collections.saved({ organizationId: org }).orThrow()).items,
+      ).toHaveLength(1);
       expect(await collections.removeSaved(item.id).orThrow()).toBe(true);
     } finally {
       await s.close();

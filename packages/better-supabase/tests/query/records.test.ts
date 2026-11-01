@@ -62,11 +62,15 @@ const notesBlock = defineBlock({
           title: "NoteInput",
           fields: { body: { kind: "string", minLength: 1 } },
         }),
-        run: (
-          client: Notes,
-          subject: RecordRef,
-          input: { readonly body: string },
-        ) => client.add(subject, input.body),
+        run: ({
+          organizationId: client,
+          command: subject,
+          ns: input,
+        }: {
+          organizationId: Notes;
+          command: RecordRef;
+          ns: { readonly body: string };
+        }) => client.add(subject, input.body),
       },
     },
   }),

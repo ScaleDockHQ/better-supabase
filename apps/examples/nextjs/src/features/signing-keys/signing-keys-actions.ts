@@ -19,7 +19,9 @@ import {
 export const rotateSigningKey = bsb.action(
   { requireTenant: true, permission: SIGNING_KEYS_PERMISSION },
   async (_input, { tenant, auth }) => {
-    const rotated = await signingKeys().rotate(organizationOwner(tenant));
+    const rotated = await signingKeys().rotate({
+      owner: organizationOwner(tenant),
+    });
 
     if (!rotated.ok) {
       return rotated;

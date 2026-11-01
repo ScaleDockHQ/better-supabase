@@ -65,7 +65,7 @@ describe.skipIf(!live)(
         await s.as(owner);
 
         const item = await createTasks({ transport: sqlTransport(s.sql) })
-          .create(org, { title: "Renamed later" })
+          .create({ organizationId: org, input: { title: "Renamed later" } })
           .orThrow();
 
         await s.client.query(

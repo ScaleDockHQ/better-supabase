@@ -191,10 +191,13 @@ describe("createMailSync", () => {
     const mail = createMailSync({ transport });
 
     const account = await mail
-      .connect("org", {
-        provider: "gmail",
-        address: "me@acme.test",
-        credentialRef: accountRow.credential_ref,
+      .connect({
+        organizationId: "org",
+        input: {
+          provider: "gmail",
+          address: "me@acme.test",
+          credentialRef: accountRow.credential_ref,
+        },
       })
       .orThrow();
 
@@ -213,19 +216,24 @@ describe("createMailSync", () => {
     );
 
     await mail
-      .connect("org", {
-        provider: "gmail",
-        address: "me@acme.test",
-        credentialRef: accountRow.credential_ref,
-        share: "private",
+      .connect({
+        organizationId: "org",
+        input: {
+          provider: "gmail",
+          address: "me@acme.test",
+          credentialRef: accountRow.credential_ref,
+          share: "private",
+        },
       })
       .orThrow();
     expect(
-      await mail.update("a1", { share: "private", paused: true }).orThrow(),
+      await mail
+        .update({ accountId: "a1", input: { share: "private", paused: true } })
+        .orThrow(),
     ).toMatchObject({ share: "private", status: "paused" });
-    await mail.update("a1", {}).orThrow();
-    expect(await mail.disconnect("a1").orThrow()).toBe(true);
-    await mail.disconnect("a1", { purge: true }).orThrow();
+    await mail.update({ accountId: "a1", input: {} }).orThrow();
+    expect(await mail.disconnect({ accountId: "a1" }).orThrow()).toBe(true);
+    await mail.disconnect({ accountId: "a1", purge: true }).orThrow();
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",
       "disconnect_mail_account",
@@ -246,7 +254,7 @@ describe("createMailSync", () => {
     });
     expect(accounts[2]?.reconnect).toBe(true);
 
-    const threads = await mail.threads("org").orThrow();
+    const threads = await mail.threads({ organizationId: "org" }).orThrow();
 
     expect(threads[0]).toMatchObject({
       id: "t1",
@@ -256,7 +264,8 @@ describe("createMailSync", () => {
       subjects: [{ type: "person", id: "p1" }],
     });
     await mail
-      .threads("org", {
+      .threads({
+        organizationId: "org",
         accountId: "a1",
         before: Temporal.Instant.from(AT),
         limit: 5,
@@ -268,15 +277,18 @@ describe("createMailSync", () => {
       { tenant: "org", account: "a1", before: AT, page_size: 5 },
     );
 
-    const of = await mail.threadsOf({ type: "person", id: "p1" }).orThrow();
+    const of = await mail
+      .threadsOf({ subject: { type: "person", id: "p1" } })
+      .orThrow();
 
     expect(of[0]?.subjects).toEqual([]);
     expect(of[0]?.engagementId).toBeUndefined();
     await mail
-      .threadsOf(
-        { type: "person", id: "p1" },
-        { before: Temporal.Instant.from(AT), limit: 2 },
-      )
+      .threadsOf({
+        subject: { type: "person", id: "p1" },
+        before: Temporal.Instant.from(AT),
+        limit: 2,
+      })
       .orThrow();
 
     const detail = await mail.thread("t1").orThrow();
@@ -296,10 +308,16 @@ describe("createMailSync", () => {
     expect(await mail.thread("nope").orThrow()).toBeUndefined();
 
     expect(
-      (await mail.link("t1", [{ type: "person", id: "p1" }]).orThrow()).id,
+      (
+        await mail
+          .link({ threadId: "t1", subjects: [{ type: "person", id: "p1" }] })
+          .orThrow()
+      ).id,
     ).toBe("t1");
     expect(
-      await mail.unlink("t1", { type: "person", id: "p1" }).orThrow(),
+      await mail
+        .unlink({ threadId: "t1", subject: { type: "person", id: "p1" } })
+        .orThrow(),
     ).toBe(true);
   });
 
@@ -312,10 +330,13 @@ describe("createMailSync", () => {
 
     const mail = createMailSync({ transport });
 
-    const connected = await mail.connect("org", {
-      provider: "gmail",
-      address: "me@acme.test",
-      credentialRef: accountRow.credential_ref,
+    const connected = await mail.connect({
+      organizationId: "org",
+      input: {
+        provider: "gmail",
+        address: "me@acme.test",
+        credentialRef: accountRow.credential_ref,
+      },
     });
 
     expect(connected.ok).toBe(false);
@@ -334,12 +355,15 @@ describe("createMailSync", () => {
     });
 
     const sent = await mail
-      .send("a1", {
-        to: [{ address: "bob@globex.test" }],
-        subject: "Re: Hi",
-        text: "Thanks",
-        html: "<p>Thanks</p>",
-        threadId: "t1",
+      .send({
+        accountId: "a1",
+        draft: {
+          to: [{ address: "bob@globex.test" }],
+          subject: "Re: Hi",
+          text: "Thanks",
+          html: "<p>Thanks</p>",
+          threadId: "t1",
+        },
       })
       .orThrow();
 
@@ -372,7 +396,10 @@ describe("createMailSync", () => {
     );
 
     await mail
-      .send("a1", { to: [{ address: "bob@globex.test" }], subject: "New" })
+      .send({
+        accountId: "a1",
+        draft: { to: [{ address: "bob@globex.test" }], subject: "New" },
+      })
       .orThrow();
     expect(gmail.send).toHaveBeenLastCalledWith(
       expect.not.objectContaining({ reply: expect.anything() }),
@@ -395,7 +422,12 @@ describe("createMailSync", () => {
       providers: [gmail],
     });
 
-    await mail.send("a1", { to: [], subject: "Re", threadId: "t1" }).orThrow();
+    await mail
+      .send({
+        accountId: "a1",
+        draft: { to: [], subject: "Re", threadId: "t1" },
+      })
+      .orThrow();
 
     expect(gmail.send).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -430,29 +462,37 @@ describe("createMailSync", () => {
         : (settled.error.hint ?? settled.error.kind);
     };
 
-    expect(await kind(ready.send("missing", draft))).toBe(
+    expect(await kind(ready.send({ accountId: "missing", draft }))).toBe(
       "MAIL_ACCOUNT_NOT_FOUND",
     );
-    expect(await kind(ready.send("gone", draft))).toBe(
+    expect(await kind(ready.send({ accountId: "gone", draft }))).toBe(
       "MAIL_ACCOUNT_NOT_FOUND",
     );
-    expect(await kind(ready.send("outlook", draft))).toBe(
+    expect(await kind(ready.send({ accountId: "outlook", draft }))).toBe(
       "MAIL_PROVIDER_MISSING",
     );
-    expect(await kind(ready.send("foreign", draft))).toBe(
+    expect(await kind(ready.send({ accountId: "foreign", draft }))).toBe(
       "CREDENTIAL_REF_FOREIGN",
     );
-    expect(await kind(ready.send("a1", { ...draft, threadId: "nope" }))).toBe(
-      "MAIL_THREAD_NOT_FOUND",
+    expect(
+      await kind(
+        ready.send({ accountId: "a1", draft: { ...draft, threadId: "nope" } }),
+      ),
+    ).toBe("MAIL_THREAD_NOT_FOUND");
+    expect(
+      await kind(
+        ready.send({ accountId: "a1", draft: { ...draft, threadId: "empty" } }),
+      ),
+    ).toBe("MAIL_THREAD_NOT_FOUND");
+    expect(await kind(ready.send({ accountId: "a1", draft }))).toBe(
+      "unauthorized",
     );
-    expect(await kind(ready.send("a1", { ...draft, threadId: "empty" }))).toBe(
-      "MAIL_THREAD_NOT_FOUND",
-    );
-    expect(await kind(ready.send("a1", draft))).toBe("unauthorized");
 
     const bare = createMailSync({ transport, providers: [provider()] });
 
-    expect(await kind(bare.send("a1", draft))).toBe("MAIL_CREDENTIALS_MISSING");
+    expect(await kind(bare.send({ accountId: "a1", draft }))).toBe(
+      "MAIL_CREDENTIALS_MISSING",
+    );
 
     const refusing = credentials();
     refusing.getToken.mockReturnValue(
@@ -465,7 +505,7 @@ describe("createMailSync", () => {
           transport,
           credentials: refusing,
           providers: [provider()],
-        }).send("a1", draft),
+        }).send({ accountId: "a1", draft }),
       ),
     ).toBe("not_found");
   });
@@ -489,14 +529,17 @@ describe("createMailSync", () => {
     });
 
     const account = await mail
-      .connect("org", {
-        provider: "gmail",
-        address: "me@acme.test",
-        credentialRef: accountRow.credential_ref,
+      .connect({
+        organizationId: "org",
+        input: {
+          provider: "gmail",
+          address: "me@acme.test",
+          credentialRef: accountRow.credential_ref,
+        },
       })
       .orThrow();
 
-    expect(await mail.sync(account, { pages: 2, limit: 10 }).orThrow()).toBe(2);
+    expect(await mail.sync({ account, pages: 2, limit: 10 }).orThrow()).toBe(2);
     expect(gmail.list).toHaveBeenNthCalledWith(1, {
       token: { token: "t", headers: { authorization: "Bearer t" } },
       limit: 10,
@@ -514,7 +557,9 @@ describe("createMailSync", () => {
       next_cursor: "c2",
     });
 
-    expect(await mail.sync({ ...account, cursor: "c9" }).orThrow()).toBe(1);
+    expect(
+      await mail.sync({ account: { ...account, cursor: "c9" } }).orThrow(),
+    ).toBe(1);
     expect(gmail.list).toHaveBeenLastCalledWith(
       expect.objectContaining({ cursor: "c9", limit: 50 }),
     );
@@ -549,23 +594,23 @@ describe("createMailSync", () => {
       transport: failingIngest.transport,
       credentials: credentials(),
       providers: [provider()],
-    }).sync(account);
+    }).sync({ account });
 
     const list = await createMailSync({
       transport: failingIngest.transport,
       credentials: credentials(),
       providers: [listFails],
-    }).sync(account);
+    }).sync({ account });
 
     const unknown = await createMailSync({
       transport: failingIngest.transport,
       credentials: credentials(),
-    }).sync(account);
+    }).sync({ account });
 
     const tokenless = await createMailSync({
       transport: failingIngest.transport,
       providers: [provider()],
-    }).sync(account);
+    }).sync({ account });
 
     expect(ingest.ok).toBe(false);
     expect(!list.ok && list.error.kind).toBe("network");

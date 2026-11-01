@@ -34,12 +34,12 @@ describe("drive fields", () => {
 
     const drive = createDrive({ transport: t, fields: Fields });
     expect((await drive.get("f1").orThrow()).fields.client_code).toBe("acme");
-    const list = await drive.list("o").orThrow();
+    const list = await drive.list({ organizationId: "o" }).orThrow();
     expect(list.map((node) => node.fields.client_code)).toEqual([
       "acme",
       "acme",
     ]);
-    const view = await drive.link("token").orThrow();
+    const view = await drive.link({ token: "token" }).orThrow();
     expect(view.node.fields.client_code).toBe("acme");
     expect(view.children?.[0]?.fields.client_code).toBe("acme");
   });
@@ -52,15 +52,18 @@ describe("drive fields", () => {
       fields: v.object({ client_code: v.pipe(v.string(), v.length(4)) }),
     });
 
-    const refused = await drive.createFolder("o", {
-      name: "Projects",
-      fields: { client_code: "ACMEX" },
+    const refused = await drive.createFolder({
+      organizationId: "o",
+      folder: { name: "Projects", fields: { client_code: "ACMEX" } },
     });
 
     expect(refused.ok ? undefined : refused.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);
     await drive
-      .createFolder("o", { name: "Projects", fields: { client_code: "ACME" } })
+      .createFolder({
+        organizationId: "o",
+        folder: { name: "Projects", fields: { client_code: "ACME" } },
+      })
       .orThrow();
     expect(t.calls[0]?.[1]["fields"]).toEqual({ client_code: "ACME" });
   });

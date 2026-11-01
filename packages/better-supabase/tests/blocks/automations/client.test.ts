@@ -68,7 +68,13 @@ function setup(
   const get = vi.fn(() => resolved(stored()));
 
   const save = vi.fn(
-    (org: string, input: RuleInput): AsyncResult<Rule> =>
+    ({
+      organizationId: org,
+      input,
+    }: {
+      organizationId: string;
+      input: RuleInput;
+    }): AsyncResult<Rule> =>
       options.save?.(org, input) ??
       resolved(stored({ version: 2, name: input.name ?? "" })),
   );
@@ -127,8 +133,8 @@ describe("createRuleBuilderController", () => {
     const { view, unmount } = setup();
     await flush();
 
-    const group = view().addGroup(undefined, "or");
-    const added = view().addRule(group, "note");
+    const group = view().addGroup({ combinator: "or" });
+    const added = view().addRule({ group, field: "note" });
     expect([group, added]).toEqual(["n1", "n2"]);
     expect(view().dirty).toBe(true);
     expect(view().conditions.rules[1]).toMatchObject({
@@ -137,27 +143,27 @@ describe("createRuleBuilderController", () => {
       rules: [{ id: "n2", path: ["note"], operator: "contains" }],
     });
 
-    view().setValue("n2", "taxi");
-    view().setOperator("n2", "starts_with");
-    view().setNegated("n2", true);
+    view().setValue({ id: "n2", value: "taxi" });
+    view().setOperator({ id: "n2", operator: "starts_with" });
+    view().setNegated({ id: "n2", negated: true });
     expect(view().conditions.rules[1]).toMatchObject({
       rules: [{ operator: "starts_with", value: "taxi", negated: true }],
     });
 
-    view().setField("n2", "amount");
+    view().setField({ id: "n2", field: "amount" });
     expect(view().conditions.rules[1]).toMatchObject({
       rules: [{ path: ["amount"], operator: "eq" }],
     });
-    view().setField("n2", "missing");
-    view().setCombinator(group, "and");
-    view().move("n2", "root", 0);
+    view().setField({ id: "n2", field: "missing" });
+    view().setCombinator({ group, combinator: "and" });
+    view().move({ id: "n2", group: "root", index: 0 });
     expect(view().conditions.rules.map((node) => node.id)).toEqual([
       "n2",
       "r1",
       "n1",
     ]);
 
-    view().addRule(undefined, "unknown");
+    view().addRule({ field: "unknown" });
     expect(view().issues.length).toBeGreaterThan(0);
 
     view().reset();
@@ -178,23 +184,23 @@ describe("createRuleBuilderController", () => {
     const { view, unmount } = setup({ locked: ["r1"] });
     await flush();
 
-    view().setValue("r1", 5);
+    view().setValue({ id: "r1", value: 5 });
     view().remove("r1");
     view().remove("root");
-    view().move("r1", "root", 1);
+    view().move({ id: "r1", group: "root", index: 1 });
     expect(view().conditions).toBe(conditions);
 
     view().unlock("r1");
     view().lock("root");
     view().lock("root");
     expect(view().locked).toEqual(["root"]);
-    view().setCombinator("root", "or");
+    view().setCombinator({ group: "root", combinator: "or" });
     expect(view().conditions.combinator).toBe("and");
     view().remove("r1");
     expect(view().conditions.rules).toEqual([]);
 
     view().unlock("root");
-    view().setCombinator("root", "or");
+    view().setCombinator({ group: "root", combinator: "or" });
     expect(view().conditions.combinator).toBe("or");
     unmount();
   });
@@ -233,7 +239,7 @@ describe("createRuleBuilderController", () => {
         trigger: "expense.submitted",
       }),
     );
-    expect(save.mock.calls[0]?.[1]).not.toHaveProperty("id");
+    expect(save.mock.calls[0]?.[0]?.input).not.toHaveProperty("id");
     unmount();
   });
 

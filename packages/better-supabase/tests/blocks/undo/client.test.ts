@@ -12,10 +12,10 @@ describe("createUndoController", () => {
   it("pushes, caps and undoes the newest token", async () => {
     const apply = vi.fn(async () => undefined);
     const { view } = mount(createUndoController({ apply, limit: 2 }));
-    view().push(null);
-    view().push(token("a"), "A");
-    view().push(token("b"));
-    view().push(token("c"), "C");
+    view().push({ token: null });
+    view().push({ token: token("a"), label: "A" });
+    view().push({ token: token("b") });
+    view().push({ token: token("c"), label: "C" });
     expect(view().entries.map((entry) => entry.label)).toEqual(["", "C"]);
     expect(view().canUndo).toBe(true);
     const undoing = view().undo();
@@ -35,13 +35,13 @@ describe("createUndoController", () => {
       }),
     );
 
-    view().push(token("a"));
+    view().push({ token: token("a") });
     expect(await view().undo()).toBe(false);
     expect(view()).toMatchObject({
       entries: [],
       error: new Error("changed since"),
     });
-    view().push(token("b"));
+    view().push({ token: token("b") });
     expect(view().error).toBeUndefined();
   });
 });

@@ -129,12 +129,18 @@ describe("useCalendar", () => {
 
     await settle(view);
     const [, second, third] = view.result.occurrences!;
-    expect(await view.result.editOccurrence(second!, { title: "Moved" })).toBe(
-      true,
-    );
-    expect(await view.result.editFollowing(third!, { title: "Later" })).toBe(
-      true,
-    );
+    expect(
+      await view.result.editOccurrence({
+        occurrence: second!,
+        changes: { title: "Moved" },
+      }),
+    ).toBe(true);
+    expect(
+      await view.result.editFollowing({
+        occurrence: third!,
+        changes: { title: "Later" },
+      }),
+    ).toBe(true);
     expect(await view.result.cancelOccurrence(second!)).toBe(true);
     expect(rpc.calls.map((call) => call.fn)).toEqual([
       "list_calendar_events",

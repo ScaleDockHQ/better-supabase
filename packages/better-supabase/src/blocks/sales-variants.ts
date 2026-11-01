@@ -33,19 +33,19 @@ export interface QuoteVariants {
    * selected until `selectVariant`, and an unselected variant can't become an
    * order or an invoice.
    */
-  createVariant(
-    quoteId: string,
-    label: string,
-  ): AsyncResult<{ readonly id: string }>;
+  createVariant(input: {
+    quoteId: string;
+    label: string;
+  }): AsyncResult<{ readonly id: string }>;
   listVariants(quoteId: string): AsyncResult<readonly DocumentVariant[]>;
   /**
    * Marks the variant selected and its siblings not selected. With `forward` it
    * also makes the order or the invoice from the selected variant.
    */
-  selectVariant(
-    quoteId: string,
-    options?: { readonly forward?: "order" | "invoice" },
-  ): AsyncResult<QuoteVariantSelection>;
+  selectVariant(input: {
+    quoteId: string;
+    options?: { readonly forward?: "order" | "invoice" } | undefined;
+  }): AsyncResult<QuoteVariantSelection>;
 }
 
 /** Variants of an order: alternatives of which one is invoiced. */
@@ -55,11 +55,11 @@ export interface OrderVariants {
    * first order), or takes it out of its group with `null`. Only the selected
    * order of a group can be invoiced.
    */
-  setVariant(
-    orderId: string,
-    variantOf: string | null,
-    label?: string,
-  ): AsyncResult<DocumentVariant>;
+  setVariant(input: {
+    orderId: string;
+    variantOf: string | null;
+    label?: string | undefined;
+  }): AsyncResult<DocumentVariant>;
   listVariants(orderId: string): AsyncResult<readonly DocumentVariant[]>;
   /** Marks the order selected and the rest of its group not selected. */
   selectVariant(orderId: string): AsyncResult<readonly DocumentVariant[]>;
@@ -95,13 +95,13 @@ const variantsOf = (value: unknown): readonly DocumentVariant[] =>
 
 export function quoteVariants(call: BlockCall): QuoteVariants {
   return {
-    createVariant: (quoteId, label) =>
+    createVariant: ({ quoteId, label }) =>
       call("create_quote_variant", { quote: quoteId, label }, (value) => ({
         id: textOf(recordOf(value, "create_quote_variant")["id"]),
       })),
     listVariants: (quoteId) =>
       call("list_quote_variants", { quote: quoteId }, variantsOf),
-    selectVariant: (quoteId, options = {}) =>
+    selectVariant: ({ quoteId, options = {} }) =>
       call(
         "select_quote_variant",
         {
@@ -137,7 +137,7 @@ export function quoteVariants(call: BlockCall): QuoteVariants {
 
 export function orderVariants(call: BlockCall): OrderVariants {
   return {
-    setVariant: (orderId, parent, label) =>
+    setVariant: ({ orderId, variantOf: parent, label }) =>
       call(
         "set_order_variant",
         { id: orderId, variant_of: parent, label: label ?? null },

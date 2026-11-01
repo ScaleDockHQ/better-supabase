@@ -32,11 +32,21 @@ describe("inventory block", () => {
     const inventory = createInventory({ transport });
     expect(
       await inventory
-        .saveLocation("org", { code: "WH-1", name: "Main" })
+        .saveLocation({
+          organizationId: "org",
+          input: { code: "WH-1", name: "Main" },
+        })
         .orThrow(),
     ).toEqual({ id: "l1", code: "WH-1", active: true });
     expect(
-      await inventory.adjustStock("v1", "l1", 10, "receipt").orThrow(),
+      await inventory
+        .adjustStock({
+          variantId: "v1",
+          locationId: "l1",
+          quantity: 10,
+          reason: "receipt",
+        })
+        .orThrow(),
     ).toEqual({ movementId: "m1", onHand: 10, available: 8 });
     expect(calls).toEqual([
       {
@@ -66,7 +76,9 @@ describe("inventory block", () => {
   it("reads a count that wrote no movement", async () => {
     const { transport } = recorder({ movementId: null, delta: 0, onHand: 5 });
     expect(
-      await createInventory({ transport }).countStock("v1", "l1", 5).orThrow(),
+      await createInventory({ transport })
+        .countStock({ variantId: "v1", locationId: "l1", counted: 5 })
+        .orThrow(),
     ).toEqual({ movementId: null, delta: 0, onHand: 5 });
   });
 
@@ -79,11 +91,15 @@ describe("inventory block", () => {
     const inventory = createInventory({ transport });
 
     const held = await inventory
-      .reserve("v1", "l1", {
-        quantity: 2,
-        referenceType: "cart",
-        referenceId: "c1",
-        expiresAt: Temporal.Instant.from("2026-10-14T10:15:00Z"),
+      .reserve({
+        variantId: "v1",
+        locationId: "l1",
+        input: {
+          quantity: 2,
+          referenceType: "cart",
+          referenceId: "c1",
+          expiresAt: Temporal.Instant.from("2026-10-14T10:15:00Z"),
+        },
       })
       .orThrow();
 
@@ -122,13 +138,16 @@ describe("inventory block", () => {
     const { calls, transport } = recorder({ id: "po1", status: "draft" });
     const inventory = createInventory({ transport });
     await inventory
-      .savePurchaseOrder("org", {
-        locationId: "l1",
-        supplier: { type: "company", id: "acme" },
-        currency: "EUR",
-        lines: [
-          { variantId: "v1", quantity: 10, unitCost: money(450n, "EUR") },
-        ],
+      .savePurchaseOrder({
+        organizationId: "org",
+        input: {
+          locationId: "l1",
+          supplier: { type: "company", id: "acme" },
+          currency: "EUR",
+          lines: [
+            { variantId: "v1", quantity: 10, unitCost: money(450n, "EUR") },
+          ],
+        },
       })
       .orThrow();
     expect(calls[0]?.args).toMatchObject({
@@ -137,10 +156,13 @@ describe("inventory block", () => {
       lines: [{ variantId: "v1", quantity: 10, unitCost: "450" }],
     });
 
-    const mixed = await inventory.savePurchaseOrder("org", {
-      locationId: "l1",
-      currency: "EUR",
-      lines: [{ variantId: "v1", quantity: 1, unitCost: money(450n, "USD") }],
+    const mixed = await inventory.savePurchaseOrder({
+      organizationId: "org",
+      input: {
+        locationId: "l1",
+        currency: "EUR",
+        lines: [{ variantId: "v1", quantity: 1, unitCost: money(450n, "USD") }],
+      },
     });
 
     expect(mixed).toMatchObject({
@@ -159,10 +181,20 @@ describe("inventory block", () => {
     const inventory = createInventory({ transport });
     expect(
       await inventory
-        .receivePurchaseOrder("po1", [{ lineId: "x1", quantity: 6 }])
+        .receivePurchaseOrder({
+          purchaseOrderId: "po1",
+          lines: [{ lineId: "x1", quantity: 6 }],
+        })
         .orThrow(),
     ).toEqual({ status: "partially_received", backordered: 4 });
-    expect((await inventory.receivePurchaseOrder("po1", [])).ok).toBe(false);
+    expect(
+      (
+        await inventory.receivePurchaseOrder({
+          purchaseOrderId: "po1",
+          lines: [],
+        })
+      ).ok,
+    ).toBe(false);
   });
 
   it("runs hooks around methods", async () => {
@@ -173,9 +205,8 @@ describe("inventory block", () => {
       transport,
       hooks: {
         createTransfer: {
-          before: ([organizationId, input]) => [
-            organizationId,
-            { ...input, note: "checked" },
+          before: ([{ organizationId, input }]) => [
+            { organizationId, input: { ...input, note: "checked" } },
           ],
           after: (result, _args, info) => {
             seen.push(`${info.method} ${String(result.ok)}`);
@@ -185,10 +216,13 @@ describe("inventory block", () => {
     });
 
     await inventory
-      .createTransfer("org", {
-        fromLocationId: "a",
-        toLocationId: "b",
-        lines: [{ variantId: "v1", quantity: 1 }],
+      .createTransfer({
+        organizationId: "org",
+        input: {
+          fromLocationId: "a",
+          toLocationId: "b",
+          lines: [{ variantId: "v1", quantity: 1 }],
+        },
       })
       .orThrow();
     expect(calls[0]?.args).toMatchObject({ note: "checked" });
@@ -204,21 +238,32 @@ describe("inventory block", () => {
       [
         "set_location_active",
         true,
-        (i) => i.setLocationActive("l1", false).orThrow(),
+        (i) =>
+          i.setLocationActive({ locationId: "l1", active: false }).orThrow(),
       ],
       [
         "set_location_address",
         true,
         (i) =>
           i
-            .setLocationAddress("l1", { city: "Amsterdam", country: "NL" })
+            .setLocationAddress({
+              locationId: "l1",
+              address: { city: "Amsterdam", country: "NL" },
+            })
             .orThrow(),
       ],
       ["delete_location", true, (i) => i.deleteLocation("l1").orThrow()],
       [
         "set_reorder_point",
         true,
-        (i) => i.setReorderPoint("v1", "l1", 10).orThrow(),
+        (i) =>
+          i
+            .setReorderPoint({
+              variantId: "v1",
+              locationId: "l1",
+              reorderPoint: 10,
+            })
+            .orThrow(),
       ],
       [
         "release_reservation",

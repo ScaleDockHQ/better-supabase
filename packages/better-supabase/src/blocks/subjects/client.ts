@@ -36,8 +36,8 @@ export function batchSubjects(source: Subjects): Subjects {
   };
 
   return {
-    summary: (subject, sections, options) =>
-      source.summary(subject, sections, options),
+    summary: ({ subject, sections, ...options }) =>
+      source.summary({ subject, sections, ...options }),
     myWork: (options) => source.myWork(options),
     members: source.members,
     reads: source.reads,

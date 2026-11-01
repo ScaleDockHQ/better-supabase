@@ -84,7 +84,10 @@ describe.skipIf(!live)("approvals with the provider's isApprover", () => {
       await s.service();
 
       const request = await approvals
-        .request({ type: "refund", id: "r-1" }, { action: "approve" })
+        .request({
+          subject: { type: "refund", id: "r-1" },
+          input: { action: "approve" },
+        })
         .orThrow();
 
       const canDecide = async () =>
@@ -102,9 +105,9 @@ describe.skipIf(!live)("approvals with the provider's isApprover", () => {
       expect(await canDecide()).toBe(false);
       await s.asRole(reviewer);
       expect(await canDecide()).toBe(true);
-      expect((await approvals.approve(request.id).orThrow()).status).toBe(
-        "approved",
-      );
+      expect(
+        (await approvals.approve({ id: request.id }).orThrow()).status,
+      ).toBe("approved");
     } finally {
       await s.close();
     }

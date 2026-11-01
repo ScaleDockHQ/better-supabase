@@ -329,7 +329,9 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     const streamId = newId();
     const messageId = newId();
 
-    const claim = await context.chats.runs.claim(chat.id, streamId, {
+    const claim = await context.chats.runs.claim({
+      chatId: chat.id,
+      streamId,
       model,
       messageId,
       engine: WORKFLOW_ENGINE,
@@ -373,7 +375,9 @@ export function durableChat(options: DurableChatOptions): DurableChat {
 
       workflowRunId = run.runId;
     } catch (cause) {
-      await context.chats.runs.release(chat.id, streamId, {
+      await context.chats.runs.release({
+        chatId: chat.id,
+        streamId,
         status: "failed",
         error: String(cause),
       });
@@ -385,14 +389,19 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       );
     }
 
-    const attached = await context.chats.runs.attach(runId, workflowRunId);
+    const attached = await context.chats.runs.attach({
+      runId,
+      externalRunId: workflowRunId,
+    });
 
     if (!attached.ok) {
       // Without the link, stop and resume can't find the run: end it.
       await getRun(workflowRunId)
         .cancel()
         .catch(() => undefined);
-      await context.chats.runs.release(chat.id, streamId, {
+      await context.chats.runs.release({
+        chatId: chat.id,
+        streamId,
         status: "failed",
         error: attached.error.message,
       });
@@ -454,11 +463,11 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     const decided: AiToolApproval[] = [];
 
     for (const decision of decisions) {
-      const row = await context.chats.approvals.decide(
-        decision.approvalId,
-        decision.approved,
-        decision.reason,
-      );
+      const row = await context.chats.approvals.decide({
+        approvalId: decision.approvalId,
+        approved: decision.approved,
+        reason: decision.reason,
+      });
 
       if (!row.ok) {
         return problemResponse(row.error);
@@ -477,7 +486,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       return run;
     }
 
-    const all = await context.chats.approvals.list(chatId);
+    const all = await context.chats.approvals.list({ chatId });
 
     if (!all.ok) {
       return problemResponse(all.error);
@@ -492,7 +501,9 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     const workflowRunId = run.externalRunId ?? "";
     const streamId = newId();
 
-    const claim = await context.chats.runs.claim(chatId, streamId, {
+    const claim = await context.chats.runs.claim({
+      chatId,
+      streamId,
       engine: WORKFLOW_ENGINE,
       externalRunId: workflowRunId,
       ...(run.model === undefined ? {} : { model: run.model }),
@@ -516,7 +527,9 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     try {
       await resumeHook(durableTurnToken(workflowRunId), resume);
     } catch (cause) {
-      await context.chats.runs.release(chatId, streamId, {
+      await context.chats.runs.release({
+        chatId,
+        streamId,
         status: "failed",
         error: String(cause),
       });
@@ -716,7 +729,9 @@ export function durableChat(options: DurableChatOptions): DurableChat {
         cancelled = false;
       }
 
-      await context.chats.runs.release(chatId, stopped.data.streamId, {
+      await context.chats.runs.release({
+        chatId,
+        streamId: stopped.data.streamId,
         status: "cancelled",
       });
 

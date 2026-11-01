@@ -128,51 +128,57 @@ export interface Reviews<F extends object = Record<never, never>> {
    * Writes the caller's review of a subject, or replaces it (one per user and
    * subject). It waits for `publish` under pre-moderation.
    */
-  submit(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
-    input: ReviewInput<F>,
-  ): AsyncResult<Review<F>>;
+  submit(input: {
+    organizationId: string;
+    subjectType: string;
+    subjectId: string;
+    input: ReviewInput<F>;
+  }): AsyncResult<Review<F>>;
   /** The caller's review of the subject in any status. */
-  mine(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
-  ): AsyncResult<Review<F> | undefined>;
+  mine(input: {
+    organizationId: string;
+    subjectType: string;
+    subjectId: string;
+  }): AsyncResult<Review<F> | undefined>;
   /**
    * The subject's published reviews, newest first. Anonymous visitors can call
    * it for a public storefront's products.
    */
   list(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
-    options?: ReviewListOptions,
+    input: {
+      organizationId: string;
+      subjectType: string;
+      subjectId: string;
+    } & ReviewListOptions,
   ): AsyncResult<readonly Review<F>[]>;
   /**
    * The rating aggregate of up to 200 subjects of one type, by subject id.
    * Subjects without published reviews are left out.
    */
-  summary(
-    organizationId: string,
-    subjectType: string,
-    subjectIds: readonly string[],
-  ): AsyncResult<Readonly<Record<string, ReviewSummary>>>;
+  summary(input: {
+    organizationId: string;
+    subjectType: string;
+    subjectIds: readonly string[];
+  }): AsyncResult<Readonly<Record<string, ReviewSummary>>>;
   /** Reviews for moderators, newest first; needs `reviews.manage`. */
   queue(
-    organizationId: string,
-    options?: ReviewQueueOptions,
+    input: { organizationId: string } & ReviewQueueOptions,
   ): AsyncResult<readonly Review<F>[]>;
   /** Needs `reviews.manage`. */
   publish(reviewId: string): AsyncResult<Review<F>>;
   /** Needs `reviews.manage`. */
-  reject(reviewId: string, reason?: string): AsyncResult<Review<F>>;
+  reject(input: {
+    reviewId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Review<F>>;
   /**
    * Sets the organization's public reply; `null` removes it. Needs
    * `reviews.manage`.
    */
-  reply(reviewId: string, reply: string | null): AsyncResult<Review<F>>;
+  reply(input: {
+    reviewId: string;
+    reply: string | null;
+  }): AsyncResult<Review<F>>;
   /** The author or a moderator; `false` when the review is gone. */
   remove(reviewId: string): AsyncResult<boolean>;
 }
@@ -261,7 +267,7 @@ export function createReviews<
       recordsOf(value, fn).map((row) => reviewOf(row, fn));
 
   const client: Reviews<F> = {
-    submit: (organizationId, subjectType, subjectId, input) =>
+    submit: ({ organizationId, subjectType, subjectId, input }) =>
       fields
         .args(input.fields)
         .andThen((checked) =>
@@ -280,7 +286,7 @@ export function createReviews<
             one("submit_review"),
           ).andThen(fields.row),
         ),
-    mine: (organizationId, subjectType, subjectId) =>
+    mine: ({ organizationId, subjectType, subjectId }) =>
       call(
         "my_review",
         {
@@ -295,7 +301,7 @@ export function createReviews<
       ).andThen((review) =>
         review === undefined ? AsyncResult.ok(undefined) : fields.row(review),
       ),
-    list: (organizationId, subjectType, subjectId, list = {}) =>
+    list: ({ organizationId, subjectType, subjectId, ...list }) =>
       call(
         "list_reviews",
         {
@@ -309,7 +315,7 @@ export function createReviews<
         },
         many("list_reviews"),
       ).andThen(fields.rows),
-    summary: (organizationId, subjectType, subjectIds) =>
+    summary: ({ organizationId, subjectType, subjectIds }) =>
       call(
         "review_summary",
         {
@@ -319,7 +325,7 @@ export function createReviews<
         },
         summaryOf,
       ),
-    queue: (organizationId, queue = {}) =>
+    queue: ({ organizationId, ...queue }) =>
       call(
         "review_queue",
         {
@@ -338,13 +344,13 @@ export function createReviews<
         { review_id: reviewId },
         one("publish_review"),
       ).andThen(fields.row),
-    reject: (reviewId, reason) =>
+    reject: ({ reviewId, reason }) =>
       call(
         "reject_review",
         { review_id: reviewId, reason: reason ?? null },
         one("reject_review"),
       ).andThen(fields.row),
-    reply: (reviewId, reply) =>
+    reply: ({ reviewId, reply }) =>
       call(
         "reply_to_review",
         { review_id: reviewId, reply },

@@ -38,7 +38,9 @@ describe("batches", () => {
     const usage = createUsage({ transport });
     expect(
       await usage
-        .consumeMany("org", [{ meter: "a", quantity: 1.5 }, { meter: "b" }], {
+        .consumeMany({
+          organizationId: "org",
+          entries: [{ meter: "a", quantity: 1.5 }, { meter: "b" }],
           idempotencyKey: "k",
           source: "s",
         })
@@ -55,11 +57,13 @@ describe("batches", () => {
       check: true,
       source: "s",
     });
-    await usage.recordMany("org", [{ meter: "a" }]).orThrow();
+    await usage
+      .recordMany({ organizationId: "org", entries: [{ meter: "a" }] })
+      .orThrow();
     expect(calls[1]![2]).toMatchObject({ check: false });
     expect(
       await createUsage(fakeTransport(() => ({ recorded: false })))
-        .recordMany("org", [{ meter: "a" }])
+        .recordMany({ organizationId: "org", entries: [{ meter: "a" }] })
         .orThrow(),
     ).toEqual({ recorded: false, today: {}, used: {} });
   });
@@ -100,7 +104,9 @@ describe("usage history", () => {
 
     const usage = createUsage({ transport });
     await usage
-      .record("org", "tokens", {
+      .record({
+        organizationId: "org",
+        meter: "tokens",
         quantity: 1.5,
         source: "feature:summary",
         metadata: { doc: "d1" },
@@ -118,7 +124,7 @@ describe("usage history", () => {
     });
 
     const [first, second] = await usage
-      .history("org", { meter: "tokens", limit: 2, cursor: 9 })
+      .history({ organizationId: "org", meter: "tokens", limit: 2, cursor: 9 })
       .orThrow();
 
     expect(calls[1]![2]).toEqual({
@@ -140,14 +146,20 @@ describe("usage history", () => {
       source: undefined,
       metadata: {},
     });
-    await usage.history("org").orThrow();
+    await usage.history({ organizationId: "org" }).orThrow();
     expect(calls[2]![2]).toMatchObject({ max_rows: 100 });
-    expect(await usage.breakdown("org", "tokens").orThrow()).toEqual([
-      { actor: "u1", source: undefined, quantity: 3.5 },
-    ]);
+    expect(
+      await usage
+        .breakdown({ organizationId: "org", meter: "tokens" })
+        .orThrow(),
+    ).toEqual([{ actor: "u1", source: undefined, quantity: 3.5 }]);
     const empty = createUsage(fakeTransport(() => null));
-    expect(await empty.history("org").orThrow()).toEqual([]);
-    expect(await empty.breakdown("org", "x").orThrow()).toEqual([]);
+    expect(await empty.history({ organizationId: "org" }).orThrow()).toEqual(
+      [],
+    );
+    expect(
+      await empty.breakdown({ organizationId: "org", meter: "x" }).orThrow(),
+    ).toEqual([]);
   });
 });
 
@@ -160,13 +172,18 @@ describe("createUsage", () => {
     }));
 
     const usage = createUsage({ transport, schema: "app" });
-    expect(await usage.record("org", "api_calls").orThrow()).toEqual({
-      recorded: true,
-      today: 4,
-      used: 40,
-    });
+    expect(
+      await usage
+        .record({ organizationId: "org", meter: "api_calls" })
+        .orThrow(),
+    ).toEqual({ recorded: true, today: 4, used: 40 });
     await usage
-      .consume("org", "seats", { quantity: 2, idempotencyKey: "k" })
+      .consume({
+        organizationId: "org",
+        meter: "seats",
+        quantity: 2,
+        idempotencyKey: "k",
+      })
       .orThrow();
     expect(calls).toEqual([
       [
@@ -196,7 +213,11 @@ describe("createUsage", () => {
     }));
 
     const usage = createUsage({ transport });
-    const status = await usage.current("org", "api_calls").orThrow();
+
+    const status = await usage
+      .current({ organizationId: "org", meter: "api_calls" })
+      .orThrow();
+
     expect(status).toMatchObject({
       used: 4,
       limit: 10,
@@ -206,11 +227,16 @@ describe("createUsage", () => {
     });
     expect(status.resetsAt.toString()).toBe("2026-10-12T00:00:00Z");
     limit = null;
-    expect(await usage.remaining("org", "api_calls").orThrow()).toBeUndefined();
-    expect(await usage.current("org", "api_calls").orThrow()).toMatchObject({
-      limit: undefined,
-      unlimited: true,
-    });
+    expect(
+      await usage
+        .remaining({ organizationId: "org", meter: "api_calls" })
+        .orThrow(),
+    ).toBeUndefined();
+    expect(
+      await usage
+        .current({ organizationId: "org", meter: "api_calls" })
+        .orThrow(),
+    ).toMatchObject({ limit: undefined, unlimited: true });
   });
 
   it("reads every meter's status in one call", async () => {
@@ -271,7 +297,11 @@ describe("createUsage", () => {
     );
 
     const usage = createUsage({ transport });
-    const status = await usage.current("org", "ai.tokens").orThrow();
+
+    const status = await usage
+      .current({ organizationId: "org", meter: "ai.tokens" })
+      .orThrow();
+
     expect(status).toMatchObject({
       period: "billing",
       unit: "tokens",
@@ -293,7 +323,10 @@ describe("createUsage", () => {
       resets_at: "2026-11-01T00:00:00Z",
     }));
 
-    const status = await createUsage({ transport }).current("o", "m").orThrow();
+    const status = await createUsage({ transport })
+      .current({ organizationId: "o", meter: "m" })
+      .orThrow();
+
     expect(status.period).toBe("month");
   });
 
@@ -308,7 +341,12 @@ describe("createUsage", () => {
         ),
     };
 
-    expect(await createUsage({ transport }).consume("o", "m")).toMatchObject({
+    expect(
+      await createUsage({ transport }).consume({
+        organizationId: "o",
+        meter: "m",
+      }),
+    ).toMatchObject({
       ok: false,
       error: { kind: "quota_exceeded", meter: "m", limit: 1, retryAfter: 5 },
     });

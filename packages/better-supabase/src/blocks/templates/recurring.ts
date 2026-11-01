@@ -109,10 +109,10 @@ export interface TemplateRecurring {
   /** Creates or changes a schedule. `templates.manage` in its organization. */
   upsert(input: TemplateScheduleInput): AsyncResult<TemplateSchedule>;
   /** The organization's schedules, of one template when given. */
-  list(
-    organizationId: string,
-    template?: string,
-  ): AsyncResult<readonly TemplateSchedule[]>;
+  list(input: {
+    organizationId: string;
+    template?: string | undefined;
+  }): AsyncResult<readonly TemplateSchedule[]>;
   remove(id: string): AsyncResult<boolean>;
   /**
    * Service role. Expands every enabled schedule and enqueues one
@@ -127,10 +127,10 @@ export interface TemplateRecurring {
    * schedule's input under the key `template-schedule:<id>:<occurrence>`, and
    * records the application. An occurrence that already made one is skipped.
    */
-  run(
-    schedule: string,
-    occurrenceAt: Temporal.Instant,
-  ): AsyncResult<TemplateOccurrence>;
+  run(input: {
+    schedule: string;
+    occurrenceAt: Temporal.Instant;
+  }): AsyncResult<TemplateOccurrence>;
   /** The handler for the `templates.recur` queue. */
   readonly job: JobHandler<unknown>;
 }
@@ -230,7 +230,7 @@ export function createTemplateRecurring(
 ): TemplateRecurring {
   const { call } = deps;
 
-  const run: TemplateRecurring["run"] = (schedule, occurrenceAt) =>
+  const run: TemplateRecurring["run"] = ({ schedule, occurrenceAt }) =>
     call(
       "claim_template_occurrence",
       { schedule_id: schedule, occurrence_at: occurrenceAt.toString() },
@@ -278,7 +278,7 @@ export function createTemplateRecurring(
         },
         (value) => scheduleOf(recordOf(value, "save_template_schedule")),
       ),
-    list: (organizationId, template) =>
+    list: ({ organizationId, template }) =>
       call(
         "template_schedules_list",
         { tenant: organizationId, template_id: template ?? null },
@@ -354,7 +354,7 @@ export function createTemplateRecurring(
     job: async (payload) => {
       const { schedule, occurrenceAt } = payloadOf(payload);
 
-      await run(schedule, occurrenceAt).orThrow();
+      await run({ schedule, occurrenceAt }).orThrow();
     },
   };
 }

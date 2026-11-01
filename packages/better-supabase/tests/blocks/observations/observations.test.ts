@@ -98,19 +98,23 @@ describe("createObservations", () => {
     const observations = createObservations({ transport: t });
 
     const saved = await observations
-      .saveDefinition("org-1", "mews", {
-        title: "MEWS",
-        valueType: "integer",
-        validLow: 0,
-        validHigh: 14,
-        criticalHigh: 7,
+      .saveDefinition({
+        organizationId: "org-1",
+        key: "mews",
+        input: {
+          title: "MEWS",
+          valueType: "integer",
+          validLow: 0,
+          validHigh: 14,
+          criticalHigh: 7,
+        },
       })
       .orThrow();
 
     const archived = await observations.archiveDefinition("d1").orThrow();
 
     const listed = await observations
-      .definitions("org-1", { includeArchived: true })
+      .definitions({ organizationId: "org-1", includeArchived: true })
       .orThrow();
 
     expect(saved).toMatchObject({
@@ -166,35 +170,41 @@ describe("createObservations", () => {
     const observedAt = Temporal.Instant.from(AT);
 
     const recorded = await observations
-      .record("org-1", {
-        subjectType: "patient",
-        subjectId: "p1",
-        definitionKey: "heart_rate",
-        value: 135,
-        observedAt,
-        method: "manual",
-        note: "after a walk",
-        fields: { ward: "north" },
-      })
-      .orThrow();
-
-    const batch = await observations
-      .recordMany("org-1", [
-        {
+      .record({
+        organizationId: "org-1",
+        input: {
           subjectType: "patient",
           subjectId: "p1",
           definitionKey: "heart_rate",
           value: 135,
+          observedAt,
+          method: "manual",
+          note: "after a walk",
           fields: { ward: "north" },
         },
-        {
-          subjectType: "patient",
-          subjectId: "p1",
-          definitionKey: "blood_pressure",
-          value: { systolic: 120, diastolic: 80 },
-          fields: { ward: "north" },
-        },
-      ])
+      })
+      .orThrow();
+
+    const batch = await observations
+      .recordMany({
+        organizationId: "org-1",
+        inputs: [
+          {
+            subjectType: "patient",
+            subjectId: "p1",
+            definitionKey: "heart_rate",
+            value: 135,
+            fields: { ward: "north" },
+          },
+          {
+            subjectType: "patient",
+            subjectId: "p1",
+            definitionKey: "blood_pressure",
+            value: { systolic: 120, diastolic: 80 },
+            fields: { ward: "north" },
+          },
+        ],
+      })
       .orThrow();
 
     expect(recorded).toMatchObject({
@@ -256,13 +266,16 @@ describe("createObservations", () => {
     const t = fieldsTransport({});
     const observations = createObservations({ transport: t, fields: Fields });
 
-    const result = await observations.record("org-1", {
-      subjectType: "patient",
-      subjectId: "p1",
-      definitionKey: "heart_rate",
-      value: 70,
-      // SAFETY: a value outside the schema, to show it is refused.
-      fields: { ward: "east" } as unknown as { ward: "north" },
+    const result = await observations.record({
+      organizationId: "org-1",
+      input: {
+        subjectType: "patient",
+        subjectId: "p1",
+        definitionKey: "heart_rate",
+        value: 70,
+        // SAFETY: a value outside the schema, to show it is refused.
+        fields: { ward: "east" } as unknown as { ward: "north" },
+      },
     });
 
     expect(result.ok).toBe(false);
@@ -277,17 +290,20 @@ describe("createObservations", () => {
     const observations = createObservations({ transport: t });
 
     const result = await observations
-      .ingest("org-1", [
-        {
-          subjectType: "patient",
-          subjectId: "p1",
-          definitionKey: "oxygen_saturation",
-          value: 97,
-          externalId: "oximeter-1",
-          source: "device",
-          device: "oximeter",
-        },
-      ])
+      .ingest({
+        organizationId: "org-1",
+        items: [
+          {
+            subjectType: "patient",
+            subjectId: "p1",
+            definitionKey: "oxygen_saturation",
+            value: 97,
+            externalId: "oximeter-1",
+            source: "device",
+            device: "oximeter",
+          },
+        ],
+      })
       .orThrow();
 
     expect(result).toEqual({ inserted: 1, skipped: 1, ids: ["o3"] });
@@ -332,11 +348,15 @@ describe("createObservations", () => {
     const observations = createObservations({ transport: t });
 
     const amended = await observations
-      .amend("o1", { value: 115, note: "rechecked" }, "wrong monitor")
+      .amend({
+        observationId: "o1",
+        changes: { value: 115, note: "rechecked" },
+        reason: "wrong monitor",
+      })
       .orThrow();
 
     const marked = await observations
-      .markError("o1", "cuff too small")
+      .markError({ observationId: "o1", reason: "cuff too small" })
       .orThrow();
 
     expect(amended).toMatchObject({
@@ -385,18 +405,36 @@ describe("createObservations", () => {
     const since = Temporal.Instant.from("2026-10-29T00:00:00Z");
 
     const listed = await observations
-      .list("patient", "p1", { definitionKey: "heart_rate", limit: 10 })
+      .list({
+        subjectType: "patient",
+        subjectId: "p1",
+        definitionKey: "heart_rate",
+        limit: 10,
+      })
       .orThrow();
 
     const points = await observations
-      .series("patient", "p1", "heart_rate", { since })
+      .series({
+        subjectType: "patient",
+        subjectId: "p1",
+        definitionKey: "heart_rate",
+        since,
+      })
       .orThrow();
 
     const buckets = await observations
-      .buckets("patient", "p1", "heart_rate", "day")
+      .buckets({
+        subjectType: "patient",
+        subjectId: "p1",
+        definitionKey: "heart_rate",
+        bucket: "day",
+      })
       .orThrow();
 
-    const latest = await observations.latest("patient", "p1").orThrow();
+    const latest = await observations
+      .latest({ subjectType: "patient", subjectId: "p1" })
+      .orThrow();
+
     const mapped = await observations.fromSubmission("s1").orThrow();
 
     expect(listed).toHaveLength(1);
@@ -462,7 +500,10 @@ describe("createObservations", () => {
 
     const observations = createObservations({ transport: t });
 
-    const result = await observations.list("patient", "p1");
+    const result = await observations.list({
+      subjectType: "patient",
+      subjectId: "p1",
+    });
 
     expect(result.ok).toBe(false);
   });
@@ -481,7 +522,9 @@ describe("createObservations", () => {
       },
     });
 
-    await observations.latest("patient", "p1").orThrow();
+    await observations
+      .latest({ subjectType: "patient", subjectId: "p1" })
+      .orThrow();
 
     expect(seen).toEqual(["latest"]);
   });

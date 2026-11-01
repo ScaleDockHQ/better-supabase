@@ -15,7 +15,7 @@ export const createRfq = bsb.action(
     permission: "rfqs.write",
   },
   async ({ title }, { db }) => {
-    const rfq = await db.rfqs.createRfq({ title, currency: "EUR" });
+    const rfq = await db.rfqs.createRfq({ input: { title, currency: "EUR" } });
 
     return rfq.ok ? ok({ id: rfq.data.id }) : rfq;
   },

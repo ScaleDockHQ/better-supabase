@@ -163,8 +163,7 @@ export interface Automations {
   fields(subjectType?: string): AsyncResult<readonly RuleField[]>;
   /** The organization's rules in evaluation order (needs `automations.read`). */
   list(
-    organizationId: string,
-    options?: RuleListOptions,
+    input: { organizationId: string } & RuleListOptions,
   ): AsyncResult<readonly Rule[]>;
   /** `undefined` when the caller can't read a rule with this id. */
   get(id: string): AsyncResult<Rule | undefined>;
@@ -172,11 +171,14 @@ export interface Automations {
    * Creates or changes a rule. `automations.write` covers disabled rules;
    * enabling a rule or changing an enabled one takes `automations.publish`.
    */
-  upsert(organizationId: string, input: RuleInput): AsyncResult<Rule>;
+  upsert(input: {
+    organizationId: string;
+    input: RuleInput;
+  }): AsyncResult<Rule>;
   /** Turns a rule on or off (needs `automations.publish`). */
-  setEnabled(id: string, enabled: boolean): AsyncResult<Rule>;
+  setEnabled(input: { id: string; enabled: boolean }): AsyncResult<Rule>;
   /** Moves a rule to a rank key from `rankBetween` over its neighbours. */
-  move(id: string, rank: string): AsyncResult<Rule>;
+  move(input: { id: string; rank: string }): AsyncResult<Rule>;
   /**
    * Removes a rule with its history (needs `automations.manage`); `false` when
    * there is none to remove. A default automation fails with
@@ -193,26 +195,23 @@ export interface Automations {
   versions(id: string): AsyncResult<readonly RuleVersion[]>;
   /** The evaluation log, newest first. */
   evaluations(
-    id: string,
-    options?: {
+    input: { id: string } & {
       readonly before?: Temporal.Instant;
       readonly pageSize?: number;
     },
   ): AsyncResult<readonly RuleEvaluationEntry[]>;
   /** The enabled rules for the trigger that match, evaluated in the database. */
-  matching(
-    organizationId: string,
-    input: RuleSubject,
-  ): AsyncResult<readonly RuleMatch[]>;
+  matching(input: {
+    organizationId: string;
+    input: RuleSubject;
+  }): AsyncResult<readonly RuleMatch[]>;
   /**
    * Runs a rule's stored conditions on a sample record and logs it as a test
    * (needs `automations.write`). Nothing runs; the result says what would
    * match.
    */
   test(
-    rule: Rule,
-    subject: Readonly<Record<string, unknown>>,
-    options?: {
+    input: { rule: Rule; subject: Readonly<Record<string, unknown>> } & {
       readonly fields?: readonly RuleField[];
       readonly subjectId?: string;
       readonly clock?: FilterClock;
@@ -423,7 +422,7 @@ export function createAutomations(options: AutomationsOptions): Automations {
 
   const client: Automations = {
     fields,
-    list: (organizationId, filter = {}) =>
+    list: ({ organizationId, ...filter }) =>
       call(
         "rules_list",
         {
@@ -438,22 +437,22 @@ export function createAutomations(options: AutomationsOptions): Automations {
       call("rule_get", { id }, (value) =>
         isRecord(value) ? ruleOf(value) : undefined,
       ),
-    upsert: (organizationId, input) =>
+    upsert: ({ organizationId, input }) =>
       call(
         "save_rule",
         { tenant: organizationId, rule: inputArg(input) },
         ruleOf,
       ),
-    setEnabled: (id, enabled) =>
+    setEnabled: ({ id, enabled }) =>
       call("set_rule_enabled", { id, enabled }, ruleOf),
-    move: (id, rank) => call("rank_rule", { id, rank }, ruleOf),
+    move: ({ id, rank }) => call("rank_rule", { id, rank }, ruleOf),
     remove: (id) => call("remove_rule", { id }, (value) => value === true),
     resetDefault: (id) => call("reset_default_rule", { id }, ruleOf),
     versions: (id) =>
       call("rule_versions_list", { id }, (value) =>
         recordsOf(value, "rule_versions_list").map(versionOf),
       ),
-    evaluations: (id, page = {}) =>
+    evaluations: ({ id, ...page }) =>
       call(
         "rule_evaluations_list",
         {
@@ -463,7 +462,7 @@ export function createAutomations(options: AutomationsOptions): Automations {
         },
         (value) => recordsOf(value, "rule_evaluations_list").map(evaluationOf),
       ),
-    matching: (organizationId, input) =>
+    matching: ({ organizationId, input }) =>
       call(
         "matching_rules",
         {
@@ -475,7 +474,7 @@ export function createAutomations(options: AutomationsOptions): Automations {
         },
         matchesOf,
       ),
-    test: (rule, subject, test = {}) => {
+    test: ({ rule, subject, ...test }) => {
       const catalog: AsyncResult<readonly RuleField[]> =
         test.fields === undefined
           ? fields(rule.subjectType)
@@ -540,10 +539,10 @@ export interface AutomationsAdmin {
    * Evaluates the enabled rules for the trigger, logs each one live and returns
    * the matches.
    */
-  run(
-    organizationId: string,
-    input: RuleRun,
-  ): AsyncResult<readonly RuleMatch[]>;
+  run(input: {
+    organizationId: string;
+    input: RuleRun;
+  }): AsyncResult<readonly RuleMatch[]>;
 }
 
 /** The field sync and live evaluation, with a service-role client. */
@@ -577,7 +576,7 @@ export function createAutomationsAdmin(
         },
         Number,
       ),
-    run: (organizationId, input) =>
+    run: ({ organizationId, input }) =>
       call(
         "run_rules",
         {
@@ -623,10 +622,10 @@ export interface RuleDispatcher {
    * is an `invalid_request` outcome with the hint `ACTION_UNKNOWN`. An empty
    * `subjectType` in `context` takes each rule's.
    */
-  dispatch(
-    matches: readonly RuleMatch[],
-    context: ActionContext,
-  ): AsyncResult<readonly RuleActionOutcome[]>;
+  dispatch(input: {
+    matches: readonly RuleMatch[];
+    context: ActionContext;
+  }): AsyncResult<readonly RuleActionOutcome[]>;
 }
 
 /** Runs matched rules' actions through the action registry. */
@@ -663,7 +662,7 @@ export function createRuleDispatcher(
   };
 
   return {
-    dispatch: (matches, context) =>
+    dispatch: ({ matches, context }) =>
       AsyncResult.from(async () => {
         const outcomes: RuleActionOutcome[] = [];
 
@@ -783,16 +782,19 @@ export function createRuleSink(
         : [event.type, legacy]) {
         matches.push(
           ...(await options.rules
-            .run(target.organizationId, {
-              subjectType: target.subjectType ?? null,
-              trigger,
-              subject: target.subject,
-              ...(target.subjectId === undefined
-                ? {}
-                : { subjectId: target.subjectId }),
-              ...(target.timeZone === undefined
-                ? {}
-                : { timeZone: target.timeZone }),
+            .run({
+              organizationId: target.organizationId,
+              input: {
+                subjectType: target.subjectType ?? null,
+                trigger,
+                subject: target.subject,
+                ...(target.subjectId === undefined
+                  ? {}
+                  : { subjectId: target.subjectId }),
+                ...(target.timeZone === undefined
+                  ? {}
+                  : { timeZone: target.timeZone }),
+              },
             })
             .orThrow()),
         );
@@ -811,7 +813,7 @@ export function createRuleSink(
       };
 
       const outcomes = await options.dispatcher
-        .dispatch(matches, context)
+        .dispatch({ matches, context })
         .orThrow();
 
       options.onOutcomes?.(event, outcomes);

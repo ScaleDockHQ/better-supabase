@@ -64,27 +64,37 @@ describe.skipIf(!live)("purchase costs by project", () => {
       const expenses = createExpenses({ transport, tenant });
 
       await s.as(owner);
-      await books.setup(tenant, { functionalCurrency: "EUR" }).orThrow();
-      await books.openFiscalYear(tenant, 2026).orThrow();
+      await books
+        .setup({ organizationId: tenant, input: { functionalCurrency: "EUR" } })
+        .orThrow();
+      await books
+        .openFiscalYear({ organizationId: tenant, fiscalYear: 2026 })
+        .orThrow();
 
       const apollo = await tasks
-        .saveProject(tenant, { key: "apo", name: "Apollo" })
+        .saveProject({
+          organizationId: tenant,
+          project: { key: "apo", name: "Apollo" },
+        })
         .orThrow();
 
       const gemini = await tasks
-        .saveProject(tenant, { key: "gem", name: "Gemini" })
+        .saveProject({
+          organizationId: tenant,
+          project: { key: "gem", name: "Gemini" },
+        })
         .orThrow();
 
       const draft = await invoices
-        .create(
-          tenant,
-          {
+        .create({
+          organizationId: tenant,
+          input: {
             title: "Parts",
             direction: "purchase",
             supplierReference: "S-1",
             dimensions: { project: gemini.id },
           },
-          [
+          lines: [
             {
               description: "Antenna",
               quantity: 1,
@@ -93,13 +103,13 @@ describe.skipIf(!live)("purchase costs by project", () => {
             },
             { description: "Cable", quantity: 2, unitAmount: eur(500n) },
           ],
-        )
+        })
         .orThrow();
 
       expect(draft.lines[0]?.dimensions).toEqual({ project: apollo.id });
       expect(draft.lines[1]?.dimensions).toBeUndefined();
 
-      await invoices.issue(draft.id).orThrow();
+      await invoices.issue({ invoiceId: draft.id }).orThrow();
 
       const category = await expenses
         .saveCategory({ key: "travel", name: "Travel" })
@@ -112,33 +122,45 @@ describe.skipIf(!live)("purchase costs by project", () => {
         .orThrow();
 
       const withProject = await expenses
-        .addLine(report.id, {
-          categoryId: category.id,
-          spentOn: day("2026-10-02"),
-          amount: eur(2500n),
-          description: "Train",
-          dimensions: { project: apollo.id },
+        .addLine({
+          reportId: report.id,
+          line: {
+            categoryId: category.id,
+            spentOn: day("2026-10-02"),
+            amount: eur(2500n),
+            description: "Train",
+            dimensions: { project: apollo.id },
+          },
         })
         .orThrow();
 
       expect(withProject.dimensions).toEqual({ project: apollo.id });
 
       await expenses
-        .addLine(report.id, {
-          categoryId: category.id,
-          spentOn: day("2026-10-02"),
-          amount: eur(700n),
-          description: "Lunch",
+        .addLine({
+          reportId: report.id,
+          line: {
+            categoryId: category.id,
+            spentOn: day("2026-10-02"),
+            amount: eur(700n),
+            description: "Lunch",
+          },
         })
         .orThrow();
 
       const moved = await expenses
-        .updateLine(withProject.id, { dimensions: { project: gemini.id } })
+        .updateLine({
+          lineId: withProject.id,
+          update: { dimensions: { project: gemini.id } },
+        })
         .orThrow();
 
       expect(moved.dimensions).toEqual({ project: gemini.id });
       await expenses
-        .updateLine(withProject.id, { dimensions: { project: apollo.id } })
+        .updateLine({
+          lineId: withProject.id,
+          update: { dimensions: { project: apollo.id } },
+        })
         .orThrow();
 
       const submitted = await expenses.submit(report.id).orThrow();

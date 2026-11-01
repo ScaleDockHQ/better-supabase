@@ -93,7 +93,7 @@ describe("createMemory", () => {
     } as const;
 
     const run = (command: MemoryCommand) =>
-      memory.run("o1", command, ns).orThrow();
+      memory.run({ organizationId: "o1", command, ns }).orThrow();
 
     expect(await run({ command: "view", path: "/memories" })).toBe(
       "Here are the files in /memories:\n5\t/memories/a.md",
@@ -151,16 +151,21 @@ describe("createMemory", () => {
       }),
     ).toBe("Successfully renamed /memories/a.md to /memories/b.md");
 
-    const unknown = await memory.run(
-      "o1",
-      // SAFETY: an unknown command from a model that ignored the schema.
-      { command: "copy" } as unknown as MemoryCommand,
-    );
+    const unknown = await memory.run({
+      organizationId: "o1",
+      command: { command: "copy" } as unknown as MemoryCommand,
+    });
 
     expect(unknown.ok ? undefined : unknown.error.hint).toBe("MEMORY_COMMAND");
 
     const written = await memory.core
-      .write("o1", "/memories/a.md", "x", {}, { expectedVersion: 2 })
+      .write({
+        organizationId: "o1",
+        path: "/memories/a.md",
+        content: "x",
+        ns: {},
+        expectedVersion: 2,
+      })
       .orThrow();
 
     expect(written).toMatchObject({
@@ -170,15 +175,15 @@ describe("createMemory", () => {
       agentId: undefined,
     });
     expect(calls.at(-1)?.args).toMatchObject({ expected_version: 2, ns: {} });
-    const listed = await memory.core.list("o1").orThrow();
+    const listed = await memory.core.list({ organizationId: "o1" }).orThrow();
     expect(listed[0]).toMatchObject({
       scope: "user",
       kind: "archival",
       path: undefined,
     });
-    expect(await memory.core.view("o1").orThrow()).toMatchObject({
-      type: "directory",
-    });
+    expect(
+      await memory.core.view({ organizationId: "o1" }).orThrow(),
+    ).toMatchObject({ type: "directory" });
   });
 
   it("renders core memory with escaped content and a size cap", async () => {
@@ -189,7 +194,7 @@ describe("createMemory", () => {
 
     const { transport } = fakeTransport({ memory_list: () => files });
     const memory = createMemory({ transport, maxRender: 120 });
-    const text = await memory.render("o1").orThrow();
+    const text = await memory.render({ organizationId: "o1" }).orThrow();
     expect(text).toContain(
       '<memory path="/memories/a.md">\nx <\\/memory> y\n</memory>',
     );
@@ -200,8 +205,12 @@ describe("createMemory", () => {
       transport: fakeTransport({ memory_list: () => [] }).transport,
     });
 
-    expect(await empty.render("o1").orThrow()).toBe("");
-    const all = await createMemory({ transport }).render("o1").orThrow();
+    expect(await empty.render({ organizationId: "o1" }).orThrow()).toBe("");
+
+    const all = await createMemory({ transport })
+      .render({ organizationId: "o1" })
+      .orThrow();
+
     expect(all).not.toContain("cut");
   });
 
@@ -225,7 +234,11 @@ describe("createMemory", () => {
     const memory = createMemory({ transport, embedder });
 
     const saved = await memory.archival
-      .upsert("o1", "likes tea", undefined, { sourceMessageId: "msg1" })
+      .upsert({
+        organizationId: "o1",
+        content: "likes tea",
+        sourceMessageId: "msg1",
+      })
       .orThrow();
 
     expect(saved.embeddingModel).toBe("m1");
@@ -236,7 +249,7 @@ describe("createMemory", () => {
     });
 
     const hits = await memory.archival
-      .search("o1", "tea", {}, { k: 2 })
+      .search({ organizationId: "o1", query: "tea", ns: {}, k: 2 })
       .orThrow();
 
     expect(hits.map((hit) => hit.similarity)).toEqual([0.8, undefined]);
@@ -246,16 +259,22 @@ describe("createMemory", () => {
       k: 2,
     });
     expect(
-      await memory.archival.list("o1", {}, { limit: 3 }).orThrow(),
+      await memory.archival
+        .list({ organizationId: "o1", ns: {}, limit: 3 })
+        .orThrow(),
     ).toEqual([]);
     expect(calls[2]?.args).toMatchObject({ kind: "archival", max_rows: 3 });
     expect(
-      await memory.archival.forget("m1", { supersededBy: "m2" }).orThrow(),
+      await memory.archival
+        .forget({ memoryId: "m1", supersededBy: "m2" })
+        .orThrow(),
     ).toBe(true);
     expect(calls[3]?.args).toEqual({ memory_id: "m1", superseded_by: "m2" });
 
     const plain = createMemory({ transport });
-    await plain.archival.upsert("o1", "x").orThrow();
+    await plain.archival
+      .upsert({ organizationId: "o1", content: "x" })
+      .orThrow();
     expect(calls.at(-1)?.args).toMatchObject({
       embedding: undefined,
       model: undefined,
@@ -290,7 +309,10 @@ describe("createMemory", () => {
     } as const;
 
     const saved = await memory.archival
-      .upsert("o1", "prefers email", ns, {
+      .upsert({
+        organizationId: "o1",
+        content: "prefers email",
+        ns,
         category: "preference",
         confidence: 0.5,
         expiresAt: Temporal.Instant.from("2026-02-01T00:00:00Z"),
@@ -326,7 +348,11 @@ describe("createMemory", () => {
 
   it("reads a row without the version 3 columns", async () => {
     const { transport } = fakeTransport({ memory_list: () => [memoryRow()] });
-    const [row] = await createMemory({ transport }).core.list("o1").orThrow();
+
+    const [row] = await createMemory({ transport })
+      .core.list({ organizationId: "o1" })
+      .orThrow();
+
     expect(row).toMatchObject({
       subject: undefined,
       category: undefined,
@@ -345,7 +371,10 @@ describe("createMemory", () => {
     });
 
     const [listed] = await createMemory({ transport })
-      .archival.list("o1", { scope: "project", projectId: "p1" })
+      .archival.list({
+        organizationId: "o1",
+        ns: { scope: "project", projectId: "p1" },
+      })
       .orThrow();
 
     expect(calls[0]?.args["ns"]).toEqual({
@@ -402,11 +431,11 @@ describe("createMemory", () => {
     });
 
     const saved = await counting
-      .saveExtracted(
-        "o1",
-        ["likes tea", "drinks tea", "", "lives in Utrecht"],
-        { ownerId: "u1" },
-      )
+      .saveExtracted({
+        organizationId: "o1",
+        facts: ["likes tea", "drinks tea", "", "lives in Utrecht"],
+        ns: { ownerId: "u1" },
+      })
       .orThrow();
 
     expect(saved.map((record) => record.content)).toEqual(["lives in Utrecht"]);
@@ -417,21 +446,30 @@ describe("createMemory", () => {
       searched.at(-1)?.args["query_embedding"],
     );
     expect(user.calls).toEqual([]);
-    expect(await memory.saveExtracted("o1", ["  ", ""]).orThrow()).toEqual([]);
+    expect(
+      await memory
+        .saveExtracted({ organizationId: "o1", facts: ["  ", ""] })
+        .orThrow(),
+    ).toEqual([]);
 
     const failing = createMemory({
       transport: fakeTransport({}).transport,
       embedder,
     });
 
-    expect((await failing.saveExtracted("o1", ["x"])).ok).toBe(false);
+    expect(
+      (await failing.saveExtracted({ organizationId: "o1", facts: ["x"] })).ok,
+    ).toBe(false);
 
     const saveFails = createMemory({
       transport: fakeTransport({ memory_search: () => [] }).transport,
       embedder,
     });
 
-    expect((await saveFails.saveExtracted("o1", ["x"])).ok).toBe(false);
+    expect(
+      (await saveFails.saveExtracted({ organizationId: "o1", facts: ["x"] }))
+        .ok,
+    ).toBe(false);
   });
 
   it("indexes and recalls messages, and needs an embedder for it", async () => {
@@ -464,7 +502,13 @@ describe("createMemory", () => {
     });
     expect(
       await memory.recall
-        .search("o1", "hi", { k: 2, excludeChat: "c9", ownerId: "u1" })
+        .search({
+          organizationId: "o1",
+          query: "hi",
+          k: 2,
+          excludeChat: "c9",
+          ownerId: "u1",
+        })
         .orThrow(),
     ).toEqual([{ chatId: "c1", messageId: "m1", similarity: 0.7 }]);
     expect(calls[1]?.args).toMatchObject({
@@ -483,7 +527,7 @@ describe("createMemory", () => {
         userId: "u1",
         text: "hi",
       }),
-      await bare.recall.search("o1", "hi"),
+      await bare.recall.search({ organizationId: "o1", query: "hi" }),
       await bare.embedPending(),
     ]) {
       expect(result.ok ? undefined : result.error.hint).toBe(

@@ -151,9 +151,9 @@ export function approvalPolicy<D extends DbTransportSource>(
       const request =
         existing ??
         (await approvals
-          .request(
-            { type: subjectType, id: ctx.callId },
-            {
+          .request({
+            subject: { type: subjectType, id: ctx.callId },
+            input: {
               action: actionOf(ctx.toolName),
               reason: `${options.agent} wants to run ${ctx.toolName}`,
               payload: {
@@ -162,7 +162,7 @@ export function approvalPolicy<D extends DbTransportSource>(
                 session: ctx.session.id,
               },
             },
-          )
+          })
           .orThrow());
 
       return statusOf(request);
@@ -207,10 +207,10 @@ export function approvalPolicy<D extends DbTransportSource>(
 
       if (current.status === "pending") {
         const decided = await (response.decision === "approve"
-          ? approvals.approve(current.id)
+          ? approvals.approve({ id: current.id })
           : current.requestedBy === responder.principalId
             ? approvals.cancel(current.id)
-            : approvals.reject(current.id));
+            : approvals.reject({ id: current.id }));
 
         if (!decided.ok) {
           return rejected(decided.error.message);

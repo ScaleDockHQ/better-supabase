@@ -88,10 +88,13 @@ describe("createAppraisals", () => {
       .orThrow();
 
     const opened = await appraisals
-      .openCycle("c1", [
-        { subjectUserId: "u1", managerId: "u2", peerIds: ["u4"] },
-        { subjectUserId: "u5" },
-      ])
+      .openCycle({
+        cycleId: "c1",
+        assignments: [
+          { subjectUserId: "u1", managerId: "u2", peerIds: ["u4"] },
+          { subjectUserId: "u5" },
+        ],
+      })
       .orThrow();
 
     const closed = await appraisals.closeCycle("c1").orThrow();
@@ -130,11 +133,16 @@ describe("createAppraisals", () => {
     const appraisals = createAppraisals({ transport: t, tenant: "org-1" });
 
     const submitted = await appraisals
-      .submitReview("v1", { rating: 3, comments: "Fine", submissionId: "s1" })
+      .submitReview({
+        reviewId: "v1",
+        input: { rating: 3, comments: "Fine", submissionId: "s1" },
+      })
       .orThrow();
 
-    await appraisals.calibrate("a1", 4, "Cross-team impact").orThrow();
-    await appraisals.setGoals("a1", ["g1"]).orThrow();
+    await appraisals
+      .calibrate({ appraisalId: "a1", rating: 4, reason: "Cross-team impact" })
+      .orThrow();
+    await appraisals.setGoals({ appraisalId: "a1", goalIds: ["g1"] }).orThrow();
     const signed = await appraisals.signOff("a1").orThrow();
     const one = await appraisals.getAppraisal("a1").orThrow();
 

@@ -22,10 +22,10 @@ export type RuleSubjectContext = ActionContext;
  * context's `organizationId`.
  */
 export interface RuleApprovals {
-  request(
-    subject: RecordRef,
-    input: ApprovalRequestInput,
-  ): AsyncResult<unknown>;
+  request(input: {
+    subject: RecordRef;
+    input: ApprovalRequestInput;
+  }): AsyncResult<unknown>;
 }
 
 function invalid(call: ActionCall, problem: string): Result<never> {
@@ -88,23 +88,23 @@ export function approvalsAction(approvals: RuleApprovals): Action {
 
       const reason = textConfig(action.config, "reason");
 
-      return approvals.request(
-        { type: context.subjectType, id: context.subjectId },
-        {
+      return approvals.request({
+        subject: { type: context.subjectType, id: context.subjectId },
+        input: {
           action: name,
           reason: reason ?? `${originLabel(origin)}: ${origin.name}`,
           ...(context.payload === undefined
             ? {}
             : { payload: context.payload }),
         },
-      );
+      });
     },
   });
 }
 
 /** The part of a `notifier` port (the notifications block) the action calls. */
 export interface RuleNotifier {
-  send(type: string, input: NotifierInput): unknown;
+  send(input: { type: string; input: NotifierInput }): unknown;
 }
 
 function recipientsOf(
@@ -152,15 +152,18 @@ export function notifyAction(notifier: RuleNotifier): Action {
 
       const data = action.config?.["data"];
 
-      const sent = await notifier.send(type, {
-        recipients,
-        tenant: context.organizationId,
-        key: call.key,
-        subject: { type: context.subjectType, id: context.subjectId },
-        data: {
-          ...context.payload,
-          ...(typeof data === "object" && data !== null ? data : {}),
-          [origin.type === "automation" ? "rule" : origin.type]: origin.name,
+      const sent = await notifier.send({
+        type,
+        input: {
+          recipients,
+          tenant: context.organizationId,
+          key: call.key,
+          subject: { type: context.subjectType, id: context.subjectId },
+          data: {
+            ...context.payload,
+            ...(typeof data === "object" && data !== null ? data : {}),
+            [origin.type === "automation" ? "rule" : origin.type]: origin.name,
+          },
         },
       });
 

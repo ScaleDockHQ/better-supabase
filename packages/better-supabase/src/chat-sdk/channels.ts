@@ -322,7 +322,9 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
   };
 
   const process = async (event: StoredInboundEvent): Promise<void> => {
-    await inbox.inbound.setStatus(event.id, "processing").orThrow();
+    await inbox.inbound
+      .setStatus({ id: event.id, status: "processing" })
+      .orThrow();
 
     try {
       const parsed = parsers[event.adapter]?.(event) ?? null;
@@ -332,7 +334,9 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
       }
 
       if (parsed?.only) {
-        await inbox.inbound.setStatus(event.id, "processed").orThrow();
+        await inbox.inbound
+          .setStatus({ id: event.id, status: "processed" })
+          .orThrow();
 
         return;
       }
@@ -341,7 +345,11 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
 
       if (!handle) {
         await inbox.inbound
-          .setStatus(event.id, "ignored", `no adapter named ${event.adapter}`)
+          .setStatus({
+            id: event.id,
+            status: "ignored",
+            error: `no adapter named ${event.adapter}`,
+          })
           .orThrow();
 
         return;
@@ -369,9 +377,15 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
         throw new Error(`${event.adapter} answered ${String(response.status)}`);
       }
 
-      await inbox.inbound.setStatus(event.id, "processed").orThrow();
+      await inbox.inbound
+        .setStatus({ id: event.id, status: "processed" })
+        .orThrow();
     } catch (error) {
-      await inbox.inbound.setStatus(event.id, "failed", errorText(error));
+      await inbox.inbound.setStatus({
+        id: event.id,
+        status: "failed",
+        error: errorText(error),
+      });
       throw error;
     }
   };
@@ -487,7 +501,10 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
           await inbox.files.stored(file.id).orThrow();
           processed += 1;
         } catch (error) {
-          await inbox.files.failed(file.id, errorText(error));
+          await inbox.files.failed({
+            attachmentId: file.id,
+            detail: errorText(error),
+          });
           failed += 1;
         }
       }
@@ -579,7 +596,7 @@ export async function whatsappWindowOpen(
   now: Temporal.Instant = nowInstant(),
 ): Promise<boolean> {
   const page = await inbox.messages
-    .list(conversationId, { limit: 200 })
+    .list({ conversationId, limit: 200 })
     .orThrow();
 
   const last = page.findLast(

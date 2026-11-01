@@ -77,11 +77,16 @@ describe("quotes block", () => {
     const t = transport({ create_quote: () => ROW });
 
     const quote = await createQuotes({ transport: t })
-      .create(
-        "o",
-        { title: "Rollout", validUntil: Temporal.PlainDate.from("2026-11-14") },
-        [{ description: "Licences", quantity: 10, unitAmount: eur(100_000n) }],
-      )
+      .create({
+        organizationId: "o",
+        input: {
+          title: "Rollout",
+          validUntil: Temporal.PlainDate.from("2026-11-14"),
+        },
+        lines: [
+          { description: "Licences", quantity: 10, unitAmount: eur(100_000n) },
+        ],
+      })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toEqual({
@@ -132,14 +137,24 @@ describe("quotes block", () => {
     });
 
     const quotes = createQuotes({ transport: t });
-    expect((await quotes.send("q1").orThrow()).token).toBe("tok");
+    expect((await quotes.send({ quoteId: "q1" }).orThrow()).token).toBe("tok");
     expect(
-      (await quotes.decide("q1", "accepted", { by: "Els" }).orThrow()).status,
+      (
+        await quotes
+          .decide({
+            quoteId: "q1",
+            decision: "accepted",
+            options: { by: "Els" },
+          })
+          .orThrow()
+      ).status,
     ).toBe("accepted");
-    await quotes.revise("q1").orThrow();
+    await quotes.revise({ quoteId: "q1" }).orThrow();
     await quotes.fromDeal("d1").orThrow();
-    await quotes.update("q1", { note: null }).orThrow();
-    expect((await quotes.setLines("q1", []).orThrow()).total).toEqual(eur(1n));
+    await quotes.update({ quoteId: "q1", input: { note: null } }).orThrow();
+    expect(
+      (await quotes.setLines({ quoteId: "q1", lines: [] }).orThrow()).total,
+    ).toEqual(eur(1n));
     expect(t.calls[1]?.[1]).toEqual({
       quote: "q1",
       decision: "accepted",
@@ -163,10 +178,13 @@ describe("quotes block", () => {
 
     const quotes = createQuotes({ transport: t });
     await quotes
-      .setLines("q1", [
-        { product: { type: "product_variant", id: "v1" }, quantity: 2 },
-        { description: "Setup", unitAmount: eur(1000n) },
-      ])
+      .setLines({
+        quoteId: "q1",
+        lines: [
+          { product: { type: "product_variant", id: "v1" }, quantity: 2 },
+          { description: "Setup", unitAmount: eur(1000n) },
+        ],
+      })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toEqual({
@@ -206,7 +224,13 @@ describe("quotes block", () => {
       taxLines: [],
     });
     expect(
-      await quotes.respond("tok", "accepted", { name: "Els" }).orThrow(),
+      await quotes
+        .respond({
+          token: "tok",
+          decision: "accepted",
+          answer: { name: "Els" },
+        })
+        .orThrow(),
     ).toEqual({ status: "accepted", identifier: "Q-1", revision: 1 });
     expect(await quotes.expire().orThrow()).toBe(3);
     expect(t.calls[1]?.[1]).toEqual({
@@ -267,7 +291,11 @@ describe("quotes block, defaults", () => {
     });
 
     const quotes = createQuotes({ transport: t });
-    const quote = await quotes.decide("q1", "rejected").orThrow();
+
+    const quote = await quotes
+      .decide({ quoteId: "q1", decision: "rejected" })
+      .orThrow();
+
     expect(quote).toMatchObject({
       contact: { type: "person", id: "p1" },
       decidedBy: "Els",
@@ -291,7 +319,11 @@ describe("quotes block, defaults", () => {
     expect(page).toMatchObject({ revision: 1, terms: "Net 30" });
     expect(page.validUntil?.toString()).toBe("2026-11-14");
     await quotes
-      .respond("tok", "changes_requested", { name: "Els", note: "Fewer seats" })
+      .respond({
+        token: "tok",
+        decision: "changes_requested",
+        answer: { name: "Els", note: "Fewer seats" },
+      })
       .orThrow();
     expect(t.calls[2]?.[1]).toMatchObject({ note: "Fewer seats" });
   });
@@ -308,17 +340,23 @@ describe("quote fields", () => {
 
     const quotes = createQuotes({ transport: t, fields: schema });
 
-    const bad = await quotes.create("o", {
-      title: "Rollout",
-      // @ts-expect-error not one of the regions
-      fields: { region: "apac" },
+    const bad = await quotes.create({
+      organizationId: "o",
+      input: {
+        title: "Rollout",
+        // @ts-expect-error not one of the regions
+        fields: { region: "apac" },
+      },
     });
 
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(t.calls).toHaveLength(0);
 
     const quote = await quotes
-      .create("o", { title: "Rollout", fields: { region: "us" } })
+      .create({
+        organizationId: "o",
+        input: { title: "Rollout", fields: { region: "us" } },
+      })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toMatchObject({
@@ -326,7 +364,11 @@ describe("quote fields", () => {
     });
     expectTypeOf(quote.fields.region).toEqualTypeOf<"eu" | "us">();
     expect(quote.fields).toEqual({ region: "us" });
-    const updated = await quotes.update("q1", { note: "x" }).orThrow();
+
+    const updated = await quotes
+      .update({ quoteId: "q1", input: { note: "x" } })
+      .orThrow();
+
     expect(t.calls[1]?.[1]).toEqual({ quote: "q1", attrs: { note: "x" } });
     expect(updated.fields).toEqual({ region: "eu" });
   });
@@ -371,15 +413,15 @@ describe("quote documents", () => {
     const t = transport({ create_quote: () => DOCUMENT });
 
     const quote = await createQuotes({ transport: t })
-      .create(
-        "o",
-        {
+      .create({
+        organizationId: "o",
+        input: {
           title: "Fit-out",
           pricesIncludeTax: true,
           discountAmount: eur(1000n),
           depositBps: 3000,
         },
-        [
+        lines: [
           {
             description: "Support",
             unitAmount: eur(10_000n),
@@ -387,7 +429,7 @@ describe("quote documents", () => {
             optional: true,
           },
         ],
-      )
+      })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toMatchObject({
@@ -462,11 +504,21 @@ describe("quote documents", () => {
     });
 
     const quotes = createQuotes({ transport: t });
-    await quotes.decide("q1", "accepted", { selected: [2] }).orThrow();
+    await quotes
+      .decide({
+        quoteId: "q1",
+        decision: "accepted",
+        options: { selected: [2] },
+      })
+      .orThrow();
     expect(t.calls[0]?.[1]).toMatchObject({ selected: [2] });
     expect(
       await quotes
-        .respond("tok", "accepted", { name: "Els", selected: [2, 3] })
+        .respond({
+          token: "tok",
+          decision: "accepted",
+          answer: { name: "Els", selected: [2, 3] },
+        })
         .orThrow(),
     ).toEqual({ status: "accepted", identifier: "Q-1", revision: 2 });
     expect(t.calls[1]?.[1]).toMatchObject({ selected: [2, 3] });
@@ -479,7 +531,10 @@ describe("quote documents", () => {
     expect(versions[1]?.publishedBy).toBeUndefined();
     expect(versions[0]?.publishedAt.toString()).toBe("2026-10-15T09:00:00Z");
 
-    const version = await quotes.version("q1", 1).orThrow();
+    const version = await quotes
+      .version({ quoteId: "q1", revision: 1 })
+      .orThrow();
+
     expect(t.calls[3]?.[1]).toEqual({ quote: "q1", revision: 1 });
     expect(version).toMatchObject({
       revision: 1,
@@ -519,7 +574,7 @@ describe("quote documents", () => {
     });
 
     const quotes = createQuotes({ transport: t });
-    const page = await quotes.portalView("q1").orThrow();
+    const page = await quotes.portalView({ quoteId: "q1" }).orThrow();
     expect(page).toMatchObject({
       pricing: { pricesIncludeTax: true, discountBps: 500 },
       totals: {
@@ -532,12 +587,14 @@ describe("quote documents", () => {
     expect(page.pricing.depositBps).toBeUndefined();
     expect(t.calls[0]?.[1]).toEqual({ quote: "q1" });
 
-    await quotes.portalRespond("q1", "rejected").orThrow();
     await quotes
-      .portalRespond("q1", "accepted", {
-        name: "Els",
-        note: "Yes",
-        selected: [1],
+      .portalRespond({ quoteId: "q1", decision: "rejected" })
+      .orThrow();
+    await quotes
+      .portalRespond({
+        quoteId: "q1",
+        decision: "accepted",
+        answer: { name: "Els", note: "Yes", selected: [1] },
       })
       .orThrow();
     expect(t.calls[1]?.[1]).toEqual({

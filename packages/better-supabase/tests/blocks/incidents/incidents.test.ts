@@ -129,17 +129,22 @@ describe("createIncidents", () => {
     const incidents = createIncidents({ transport: t });
 
     const saved = await incidents
-      .saveComponent("org-1", {
-        name: "API",
-        description: "Public REST API",
-        group: "Core",
-        public: false,
-        position: 1,
-        componentId: "c1",
+      .saveComponent({
+        organizationId: "org-1",
+        input: {
+          name: "API",
+          description: "Public REST API",
+          group: "Core",
+          public: false,
+          position: 1,
+          componentId: "c1",
+        },
       })
       .orThrow();
 
-    await incidents.saveComponent("org-1", { name: "Billing" }).orThrow();
+    await incidents
+      .saveComponent({ organizationId: "org-1", input: { name: "Billing" } })
+      .orThrow();
 
     const deleted = await incidents.deleteComponent("c2").orThrow();
     const [, bare] = await incidents.components("org-1").orThrow();
@@ -188,24 +193,32 @@ describe("createIncidents", () => {
     const incidents = createIncidents({ transport: t, fields: Fields });
 
     const opened = await incidents
-      .open("org-1", {
-        title: "Elevated errors",
-        description: "Database failover",
-        severity: "sev2",
-        public: true,
-        commanderId: "u1",
-        message: "Looking into it",
-        impacts: [{ componentId: "c1", impact: "partial_outage" }],
-        fields: { team: "core" },
+      .open({
+        organizationId: "org-1",
+        input: {
+          title: "Elevated errors",
+          description: "Database failover",
+          severity: "sev2",
+          public: true,
+          commanderId: "u1",
+          message: "Looking into it",
+          impacts: [{ componentId: "c1", impact: "partial_outage" }],
+          fields: { team: "core" },
+        },
       })
       .orThrow();
 
-    await incidents.open("org-1", { title: "Quiet" }).orThrow();
+    await incidents
+      .open({ organizationId: "org-1", input: { title: "Quiet" } })
+      .orThrow();
 
-    const refused = await incidents.open("org-1", {
-      title: "Bad",
-      // SAFETY: a value the schema refuses, to prove the client checks it.
-      fields: { team: "ops" } as unknown as { team: "core" },
+    const refused = await incidents.open({
+      organizationId: "org-1",
+      input: {
+        title: "Bad",
+        // SAFETY: a value the schema refuses, to prove the client checks it.
+        fields: { team: "ops" } as unknown as { team: "core" },
+      },
     });
 
     expect(opened).toMatchObject({
@@ -252,19 +265,27 @@ describe("createIncidents", () => {
     const incidents = createIncidents({ transport: t, fields: Fields });
 
     const updated = await incidents
-      .update("i2", { severity: "sev1" })
-      .orThrow();
-
-    await incidents.update("i2", { fields: { team: "edge" } }).orThrow();
-
-    const posted = await incidents
-      .postUpdate("i1", { status: "monitoring", body: "A fix is out" })
+      .update({ incidentId: "i2", changes: { severity: "sev1" } })
       .orThrow();
 
     await incidents
-      .postUpdate("i1", { status: "resolved", body: "Fixed", public: false })
+      .update({ incidentId: "i2", changes: { fields: { team: "edge" } } })
       .orThrow();
-    await incidents.setImpacts("i2", []).orThrow();
+
+    const posted = await incidents
+      .postUpdate({
+        incidentId: "i1",
+        input: { status: "monitoring", body: "A fix is out" },
+      })
+      .orThrow();
+
+    await incidents
+      .postUpdate({
+        incidentId: "i1",
+        input: { status: "resolved", body: "Fixed", public: false },
+      })
+      .orThrow();
+    await incidents.setImpacts({ incidentId: "i2", impacts: [] }).orThrow();
 
     expect(updated).toMatchObject({ impacts: [], fields: { team: "edge" } });
     expect(updated).not.toHaveProperty("commanderId");
@@ -338,9 +359,10 @@ describe("createIncidents", () => {
     const t = fieldsTransport({ list_incidents: () => [INCIDENT] });
     const incidents = createIncidents({ transport: t });
 
-    await incidents.list("org-1").orThrow();
+    await incidents.list({ organizationId: "org-1" }).orThrow();
     await incidents
-      .list("org-1", {
+      .list({
+        organizationId: "org-1",
         status: "open",
         severity: "sev1",
         componentId: "c1",
@@ -383,14 +405,19 @@ describe("createIncidents", () => {
 
     const incidents = createIncidents({ transport: t });
 
-    const draft = await incidents.savePostmortem("i2", {}).orThrow();
+    const draft = await incidents
+      .savePostmortem({ incidentId: "i2", input: {} })
+      .orThrow();
 
     await incidents
-      .savePostmortem("i1", {
-        summary: "Failover",
-        impact: "Errors",
-        rootCause: "Replica",
-        resolution: "Promoted",
+      .savePostmortem({
+        incidentId: "i1",
+        input: {
+          summary: "Failover",
+          impact: "Errors",
+          rootCause: "Replica",
+          resolution: "Promoted",
+        },
       })
       .orThrow();
 
@@ -440,14 +467,19 @@ describe("createIncidents", () => {
     const incidents = createIncidents({ transport: t });
 
     const added = await incidents
-      .addPostmortemAction("pm1", {
-        title: "Alert on replica lag",
-        assigneeId: "u1",
-        dueAt: Temporal.Instant.from(AT),
+      .addPostmortemAction({
+        postmortemId: "pm1",
+        input: {
+          title: "Alert on replica lag",
+          assigneeId: "u1",
+          dueAt: Temporal.Instant.from(AT),
+        },
       })
       .orThrow();
 
-    await incidents.addPostmortemAction("pm1", { title: "Runbook" }).orThrow();
+    await incidents
+      .addPostmortemAction({ postmortemId: "pm1", input: { title: "Runbook" } })
+      .orThrow();
     const after = await incidents.removePostmortemAction("a1").orThrow();
 
     expect(added).toMatchObject({ taskId: "t1", state: "open" });
@@ -490,15 +522,21 @@ describe("createIncidents", () => {
     const incidents = createIncidents({ transport: t });
 
     await incidents
-      .saveStatusPage("org-1", {
-        slug: "acme",
-        title: "Acme status",
-        description: "Live status",
-        published: true,
+      .saveStatusPage({
+        organizationId: "org-1",
+        input: {
+          slug: "acme",
+          title: "Acme status",
+          description: "Live status",
+          published: true,
+        },
       })
       .orThrow();
     await incidents
-      .saveStatusPage("org-1", { slug: "acme", title: "Acme" })
+      .saveStatusPage({
+        organizationId: "org-1",
+        input: { slug: "acme", title: "Acme" },
+      })
       .orThrow();
 
     const page = await incidents.statusPage("org-1").orThrow();
@@ -597,9 +635,15 @@ describe("createIncidents", () => {
 
     const incidents = createIncidents({ transport: t });
 
-    const page = await incidents.publicStatusPage("acme", 2).orThrow();
-    const bare = await incidents.publicStatusPage("bare").orThrow();
-    const missing = await incidents.publicStatusPage("nope").orThrow();
+    const page = await incidents
+      .publicStatusPage({ slug: "acme", days: 2 })
+      .orThrow();
+
+    const bare = await incidents.publicStatusPage({ slug: "bare" }).orThrow();
+
+    const missing = await incidents
+      .publicStatusPage({ slug: "nope" })
+      .orThrow();
 
     expect(page?.components[0]).toMatchObject({
       group: "Core",
@@ -652,7 +696,7 @@ describe("createIncidents", () => {
     expect((await incidents.components("org-1")).ok).toBe(false);
     expect((await incidents.publishPostmortem("i1")).ok).toBe(false);
 
-    const listed = await incidents.list("org-1");
+    const listed = await incidents.list({ organizationId: "org-1" });
 
     expect(listed.ok ? undefined : listed.error.kind).toBe("validation");
   });

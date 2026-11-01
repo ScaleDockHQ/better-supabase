@@ -71,7 +71,9 @@ export async function loadAccessRequests(): Promise<AccessRequestsData | null> {
   const readsAll = can(permissions, "access_requests.read");
 
   const [requests, names] = await Promise.all([
-    db.accessRequests.list(tenant, { mine: !readsAll, pageSize: 50 }).orThrow(),
+    db.accessRequests
+      .list({ organizationId: tenant, mine: !readsAll, pageSize: 50 })
+      .orThrow(),
     memberNames(tenant),
   ]);
 

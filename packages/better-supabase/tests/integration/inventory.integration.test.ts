@@ -444,21 +444,39 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
     const inventory = createInventory({ transport: sqlTransport(session.sql) });
 
     const shelf = await inventory
-      .saveLocation(tenant, { code: "SHELF", name: "Shelf", kind: "store" })
+      .saveLocation({
+        organizationId: tenant,
+        input: { code: "SHELF", name: "Shelf", kind: "store" },
+      })
       .orThrow();
 
     expect(
-      await inventory.adjustStock(mug, shelf.id, 4, "receipt").orThrow(),
+      await inventory
+        .adjustStock({
+          variantId: mug,
+          locationId: shelf.id,
+          quantity: 4,
+          reason: "receipt",
+        })
+        .orThrow(),
     ).toMatchObject({ onHand: 4, available: 4 });
 
     const held = await inventory
-      .reserve(mug, shelf.id, { quantity: 3, referenceType: "cart" })
+      .reserve({
+        variantId: mug,
+        locationId: shelf.id,
+        input: { quantity: 3, referenceType: "cart" },
+      })
       .orThrow();
 
     expect(held.available).toBe(1);
     expect(held.expiresAt).toBeInstanceOf(Temporal.Instant);
     expect(
-      await inventory.reserve(mug, shelf.id, { quantity: 2 }),
+      await inventory.reserve({
+        variantId: mug,
+        locationId: shelf.id,
+        input: { quantity: 2 },
+      }),
     ).toMatchObject({ ok: false, error: { hint: "INVENTORY_INSUFFICIENT" } });
     expect(await inventory.releaseReservation(held.id).orThrow()).toBe(true);
   });

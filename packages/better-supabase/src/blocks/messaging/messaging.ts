@@ -264,13 +264,19 @@ export interface Messaging<F extends object = Record<never, never>> {
   /** The conversation of a record, read by whoever reads the record. */
   openSubject(subject: RecordRef): AsyncResult<Conversation>;
   /** Returns how many joined. Members add members; anyone joins a tenant one. */
-  addMembers(
-    conversationId: string,
-    userIds: readonly string[],
-  ): AsyncResult<number>;
+  addMembers(input: {
+    conversationId: string;
+    userIds: readonly string[];
+  }): AsyncResult<number>;
   /** A member leaves, or the owner or a moderator removes them. */
-  removeMember(conversationId: string, userId: string): AsyncResult<boolean>;
-  archive(conversationId: string, archived?: boolean): AsyncResult<boolean>;
+  removeMember(input: {
+    conversationId: string;
+    userId: string;
+  }): AsyncResult<boolean>;
+  archive(input: {
+    conversationId: string;
+    archived?: boolean | undefined;
+  }): AsyncResult<boolean>;
   /** The caller's conversations, latest message first. */
   conversations(options?: {
     readonly kinds?: readonly ConversationKind[];
@@ -280,43 +286,63 @@ export interface Messaging<F extends object = Record<never, never>> {
   unreadCounts(): AsyncResult<Readonly<Record<string, UnreadCount>>>;
   /** Moves the caller's read marker forward; returns where it is. */
   markRead(
-    conversationId: string,
-    options?: {
+    input: { conversationId: string } & {
       readonly threadId?: string;
       readonly readAt?: Temporal.Instant;
     },
   ): AsyncResult<Temporal.Instant>;
-  setNotify(conversationId: string, level: NotifyLevel): AsyncResult<boolean>;
+  setNotify(input: {
+    conversationId: string;
+    level: NotifyLevel;
+  }): AsyncResult<boolean>;
   /** Broadcasts typing on the conversation's topic. */
-  typing(conversationId: string, typing?: boolean): AsyncResult<boolean>;
+  typing(input: {
+    conversationId: string;
+    typing?: boolean | undefined;
+  }): AsyncResult<boolean>;
   /** With the `notifications` module: hear of every message, or none. */
-  follow(target: FollowTarget, following?: boolean): AsyncResult<boolean>;
-  can(
-    conversationId: string,
-    action: "read" | "send" | "moderate",
-  ): AsyncResult<boolean>;
-  send(conversationId: string, message: NewMessage<F>): AsyncResult<Message<F>>;
+  follow(input: {
+    target: FollowTarget;
+    following?: boolean | undefined;
+  }): AsyncResult<boolean>;
+  can(input: {
+    conversationId: string;
+    action: "read" | "send" | "moderate";
+  }): AsyncResult<boolean>;
+  send(input: {
+    conversationId: string;
+    message: NewMessage<F>;
+  }): AsyncResult<Message<F>>;
   /** The author edits within `editWindow`; the old version is kept. */
-  edit(messageId: string, edition: MessageEdition<F>): AsyncResult<Message<F>>;
+  edit(input: {
+    messageId: string;
+    edition: MessageEdition<F>;
+  }): AsyncResult<Message<F>>;
   /** The author or a moderator; the message stays as a placeholder. */
   remove(messageId: string): AsyncResult<boolean>;
-  pin(messageId: string, pinned?: boolean): AsyncResult<Message<F>>;
+  pin(input: {
+    messageId: string;
+    pinned?: boolean | undefined;
+  }): AsyncResult<Message<F>>;
   /** Resolves a thread by its root message, or opens it again. */
-  resolve(messageId: string, resolved?: boolean): AsyncResult<Message<F>>;
+  resolve(input: {
+    messageId: string;
+    resolved?: boolean | undefined;
+  }): AsyncResult<Message<F>>;
   /** A page of top-level messages (and broadcast replies), oldest first. */
   list(
-    conversationId: string,
-    options?: MessageListOptions,
+    input: { conversationId: string } & MessageListOptions,
   ): AsyncResult<Message<F>[]>;
   /** A thread's replies, oldest first. */
   replies(
-    messageId: string,
-    options?: { readonly after?: MessageCursor; readonly limit?: number },
+    input: { messageId: string } & {
+      readonly after?: MessageCursor;
+      readonly limit?: number;
+    },
   ): AsyncResult<Message<F>[]>;
   /** The top-level messages anchored to a file (`fileAnchor`), oldest first. */
   anchoredTo(
-    attachmentId: string,
-    options?: { readonly limit?: number },
+    input: { attachmentId: string } & { readonly limit?: number },
   ): AsyncResult<Message<F>[]>;
   /** One message, or `undefined`: for a Realtime ping's id. */
   get(messageId: string): AsyncResult<Message<F> | undefined>;
@@ -328,8 +354,10 @@ export interface Messaging<F extends object = Record<never, never>> {
    * when they can't read the record.
    */
   recordMentions(
-    subject: RecordRef,
-    options?: { readonly before?: MessageCursor; readonly limit?: number },
+    input: { subject: RecordRef } & {
+      readonly before?: MessageCursor;
+      readonly limit?: number;
+    },
   ): AsyncResult<RecordMention<F>[]>;
   /** The service role sends the scheduled messages that are due. */
   publishDue(limit?: number): AsyncResult<number>;
@@ -344,9 +372,10 @@ export interface Messaging<F extends object = Record<never, never>> {
    * saves what it wrote through the `service` transport.
    */
   summarize(
-    target: SummaryTarget,
-    summarizer: ThreadSummarizer,
-    options?: SummarizeOptions,
+    input: {
+      target: SummaryTarget;
+      summarizer: ThreadSummarizer;
+    } & SummarizeOptions,
   ): AsyncResult<ThreadSummary>;
 }
 
@@ -567,19 +596,19 @@ export function createMessaging<
         memberIds: userIds,
       }),
     openSubject: (subject) => open({ kind: "subject", subject }),
-    addMembers: (conversationId, userIds) =>
+    addMembers: ({ conversationId, userIds }) =>
       call(
         "add_conversation_members",
         { conversation: conversationId, users: [...userIds] },
         num,
       ),
-    removeMember: (conversationId, userId) =>
+    removeMember: ({ conversationId, userId }) =>
       call(
         "remove_conversation_member",
         { conversation: conversationId, member: userId },
         (value) => value === true,
       ),
-    archive: (conversationId, archived = true) =>
+    archive: ({ conversationId, archived = true }) =>
       call(
         "archive_conversation",
         { conversation: conversationId, archived },
@@ -617,7 +646,7 @@ export function createMessaging<
           ),
         ),
       ),
-    markRead: (conversationId, read = {}) =>
+    markRead: ({ conversationId, ...read }) =>
       call(
         "mark_read",
         {
@@ -627,19 +656,19 @@ export function createMessaging<
         },
         (value) => requiredInstant(value, "readAt"),
       ),
-    setNotify: (conversationId, level) =>
+    setNotify: ({ conversationId, level }) =>
       call(
         "set_conversation_notify",
         { conversation: conversationId, level },
         (value) => value === true,
       ),
-    typing: (conversationId, typing = true) =>
+    typing: ({ conversationId, typing = true }) =>
       call(
         "set_typing",
         { conversation: conversationId, typing },
         (value) => value === true,
       ),
-    follow: (target, following = true) =>
+    follow: ({ target, following = true }) =>
       call(
         "follow",
         "conversationId" in target
@@ -651,13 +680,13 @@ export function createMessaging<
           : { target_type: "thread", target_id: target.threadId, following },
         (value) => value === true,
       ),
-    can: (conversationId, action) =>
+    can: ({ conversationId, action }) =>
       call(
         "can_conversation",
         { conversation: conversationId, action },
         (value) => value === true,
       ),
-    send: (conversationId, message) =>
+    send: ({ conversationId, message }) =>
       fields
         .args(message.fields)
         .andThen((checked) =>
@@ -688,7 +717,7 @@ export function createMessaging<
             attachments: [...(message.attachmentIds ?? [])],
           }),
         ),
-    edit: (messageId, edition) =>
+    edit: ({ messageId, edition }) =>
       fields
         .args(edition.fields)
         .andThen((checked) =>
@@ -708,24 +737,24 @@ export function createMessaging<
         ),
     remove: (messageId) =>
       call("delete_message", { message: messageId }, (value) => value === true),
-    pin: (messageId, pinned = true) =>
+    pin: ({ messageId, pinned = true }) =>
       one("pin_message", { message: messageId, pinned }),
-    resolve: (messageId, resolved = true) =>
+    resolve: ({ messageId, resolved = true }) =>
       one("resolve_message", { message: messageId, resolved }),
-    list: (conversationId, list = {}) =>
+    list: ({ conversationId, ...list }) =>
       many("list_messages", {
         conversation: conversationId,
         ...cursorArgs("after", list.after),
         ...cursorArgs("before", list.before),
         max_rows: list.limit ?? null,
       }),
-    replies: (messageId, list = {}) =>
+    replies: ({ messageId, ...list }) =>
       many("list_replies", {
         message: messageId,
         ...cursorArgs("after", list.after),
         max_rows: list.limit ?? null,
       }),
-    anchoredTo: (attachmentId, list = {}) =>
+    anchoredTo: ({ attachmentId, ...list }) =>
       many("list_file_anchors", {
         attachment: attachmentId,
         max_rows: list.limit ?? null,
@@ -744,7 +773,7 @@ export function createMessaging<
       ),
     pinned: (conversationId) =>
       many("list_pinned_messages", { conversation: conversationId }),
-    recordMentions: (subject, list = {}) =>
+    recordMentions: ({ subject, ...list }) =>
       call(
         "list_record_mentions",
         {
@@ -766,7 +795,7 @@ export function createMessaging<
     publishDue: (limit) =>
       call("publish_due_messages", { max_rows: limit ?? null }, num),
     summary: currentSummary,
-    summarize: (target, summarizer, summarizeOptions) =>
+    summarize: ({ target, summarizer, ...summarizeOptions }) =>
       summarize(steps, target, summarizer, summarizeOptions),
   };
 

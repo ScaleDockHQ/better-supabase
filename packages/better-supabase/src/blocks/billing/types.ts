@@ -271,32 +271,32 @@ export interface Billing {
    * (`BILLING_CUSTOMER_PENDING`) until Stripe creates the account's customer at
    * the first checkout.
    */
-  ensureCustomer(
-    organizationId: string,
-    details?: CustomerDetails,
-  ): AsyncResult<string>;
+  ensureCustomer(input: {
+    organizationId: string;
+    details?: CustomerDetails | undefined;
+  }): AsyncResult<string>;
   /**
    * The tenant's Accounts v2 account: the linked one, the one
    * `customerAccounts.resolve` returns, or a new one with the `customer`
    * configuration (and the tenant in `metadata`), which it links.
    */
-  ensureAccount(
-    organizationId: string,
-    details?: CustomerDetails,
-  ): AsyncResult<string>;
-  checkout(
-    organizationId: string,
-    options: CheckoutOptions,
-  ): AsyncResult<{ readonly id: string; readonly url: string | undefined }>;
+  ensureAccount(input: {
+    organizationId: string;
+    details?: CustomerDetails | undefined;
+  }): AsyncResult<string>;
+  checkout(input: {
+    organizationId: string;
+    options: CheckoutOptions;
+  }): AsyncResult<{ readonly id: string; readonly url: string | undefined }>;
   /**
    * A customer portal session, for the tenant's account with
    * `customerAccounts`; `not_found` before the tenant has a customer or an
    * account.
    */
-  portal(
-    organizationId: string,
-    options: { readonly returnUrl: string },
-  ): AsyncResult<{ readonly url: string }>;
+  portal(input: {
+    organizationId: string;
+    options: { readonly returnUrl: string };
+  }): AsyncResult<{ readonly url: string }>;
   status(organizationId: string): AsyncResult<BillingStatus>;
   /**
    * The tenant's newest subscription as the Sync Engine stores it (every
@@ -325,8 +325,7 @@ export interface Billing {
   cancelSubscription(organizationId: string): AsyncResult<string | undefined>;
   /** Sets the seat item's quantity to the tenant's seat count. */
   syncSeats(
-    organizationId: string,
-    options?: { readonly key?: string },
+    input: { organizationId: string } & { readonly key?: string },
   ): AsyncResult<SeatSync>;
   /**
    * An outbox sink that syncs seats after `organization.member_*` and
@@ -339,18 +338,18 @@ export interface Billing {
    * downgrade). Needs a subscription; `not_found` otherwise. Admin consoles
    * call it with a service transport after their own permission check.
    */
-  changePlan(
-    organizationId: string,
-    change: PlanChange,
-  ): AsyncResult<SubscriptionItem>;
+  changePlan(input: {
+    organizationId: string;
+    change: PlanChange;
+  }): AsyncResult<SubscriptionItem>;
   /**
    * Schedules (true) or clears (false) the cancellation at the end of the
    * period.
    */
-  cancelAtPeriodEnd(
-    organizationId: string,
-    cancel: boolean,
-  ): AsyncResult<string>;
+  cancelAtPeriodEnd(input: {
+    organizationId: string;
+    cancel: boolean;
+  }): AsyncResult<string>;
   /**
    * Every tenant's invoices, newest first, for platform staff (`billing.read`
    * in the platform scope) or a service transport.
@@ -363,18 +362,20 @@ export interface Billing {
    * or platform staff).
    */
   invoices(
-    organizationId: string,
-    options?: { readonly limit?: number },
+    input: { organizationId: string } & { readonly limit?: number },
   ): AsyncResult<readonly StripeRow[]>;
   /** The tenant's payment methods from the Sync Engine (`billing.read`). */
   paymentMethods(organizationId: string): AsyncResult<readonly StripeRow[]>;
   /** Voids an open invoice of the tenant's customer. */
-  voidInvoice(organizationId: string, invoiceId: string): AsyncResult<string>;
+  voidInvoice(input: {
+    organizationId: string;
+    invoiceId: string;
+  }): AsyncResult<string>;
   /** Marks an open invoice of the tenant's customer uncollectible. */
-  markInvoiceUncollectible(
-    organizationId: string,
-    invoiceId: string,
-  ): AsyncResult<string>;
+  markInvoiceUncollectible(input: {
+    organizationId: string;
+    invoiceId: string;
+  }): AsyncResult<string>;
   /**
    * The billing contact as Stripe holds it, from the Sync Engine's customers
    * table.
@@ -386,28 +387,31 @@ export interface Billing {
    * from: "sync" }` reads the Sync Engine's `stripe.tax_ids` through
    * `billing_tax_ids` instead (`billing.read`, or platform staff).
    */
-  taxIds(
-    organizationId: string,
-    options?: { readonly from?: "stripe" | "sync" },
-  ): AsyncResult<readonly StripeTaxId[]>;
+  taxIds(input: {
+    organizationId: string;
+    options?: { readonly from?: "stripe" | "sync" } | undefined;
+  }): AsyncResult<readonly StripeTaxId[]>;
   /**
    * Adds a tax id (`{ type: 'eu_vat', value: 'DE123456789' }`) to the tenant's
    * customer, creating the customer first when there is none.
    */
-  addTaxId(
-    organizationId: string,
-    taxId: { readonly type: string; readonly value: string },
-  ): AsyncResult<StripeTaxId>;
+  addTaxId(input: {
+    organizationId: string;
+    taxId: { readonly type: string; readonly value: string };
+  }): AsyncResult<StripeTaxId>;
   /**
    * Removes a tax id from the tenant's customer; `not_found` before the tenant
    * has a customer.
    */
-  removeTaxId(organizationId: string, taxId: string): AsyncResult<string>;
+  removeTaxId(input: {
+    organizationId: string;
+    taxId: string;
+  }): AsyncResult<string>;
   /** Updates the billing contact on the Stripe customer, the record for it. */
-  updateCustomer(
-    organizationId: string,
-    update: BillingCustomerUpdate,
-  ): AsyncResult<string>;
+  updateCustomer(input: {
+    organizationId: string;
+    update: BillingCustomerUpdate;
+  }): AsyncResult<string>;
   /**
    * Handles `checkout.session.completed` and `customer.subscription.*`: links
    * the customer, emits `billing.*` events and invalidates sessions. Any other

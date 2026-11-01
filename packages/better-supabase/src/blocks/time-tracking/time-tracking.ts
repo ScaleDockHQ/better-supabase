@@ -225,22 +225,25 @@ export interface TimeTracking<F extends object = Record<never, never>> {
   resume(entryId: string): AsyncResult<TimeEntry<F>>;
   /** Records a finished entry, on `input.subject` when set. */
   log(input: LogTimeInput<F>): AsyncResult<TimeEntry<F>>;
-  update(entryId: string, patch: TimeEntryPatch<F>): AsyncResult<TimeEntry<F>>;
+  update(input: {
+    entryId: string;
+    patch: TimeEntryPatch<F>;
+  }): AsyncResult<TimeEntry<F>>;
   remove(entryId: string): AsyncResult<TimeEntry<F>>;
   /** Newest first. */
   list(options?: TimeEntryListOptions): AsyncResult<readonly TimeEntry<F>[]>;
   /** A member's week (the caller's by default) with its entries and totals. */
-  timesheet(
-    week: Temporal.PlainDate,
-    userId?: string,
-    employeeId?: string,
-  ): AsyncResult<TimesheetDetail<F>>;
+  timesheet(input: {
+    week: Temporal.PlainDate;
+    userId?: string | undefined;
+    employeeId?: string | undefined;
+  }): AsyncResult<TimesheetDetail<F>>;
   /** Sends the caller's week for approval; it locks until a rejection. */
-  submit(
-    week: Temporal.PlainDate,
-    note?: string,
-    employeeId?: string,
-  ): AsyncResult<Timesheet>;
+  submit(input: {
+    week: Temporal.PlainDate;
+    note?: string | undefined;
+    employeeId?: string | undefined;
+  }): AsyncResult<Timesheet>;
   /** Unlocks an approved week; needs `time_tracking.manage`. */
   reopen(timesheetId: string): AsyncResult<Timesheet>;
   /**
@@ -250,17 +253,17 @@ export interface TimeTracking<F extends object = Record<never, never>> {
    * week's owner.
    */
   approve(
-    timesheetId: string,
-    options?: TimesheetDecisionOptions,
+    input: { timesheetId: string } & TimesheetDecisionOptions,
   ): AsyncResult<Timesheet>;
   /**
    * With `options.approvals: false`: sends a submitted week back with a note,
    * which unlocks it. `decidedBy` works as in `approve`.
    */
   reject(
-    timesheetId: string,
-    note?: string,
-    options?: TimesheetDecisionOptions,
+    input: {
+      timesheetId: string;
+      note?: string | undefined;
+    } & TimesheetDecisionOptions,
   ): AsyncResult<Timesheet>;
   /** Newest week first. */
   timesheets(options?: TimesheetListOptions): AsyncResult<readonly Timesheet[]>;
@@ -491,7 +494,7 @@ export function createTimeTracking<
           ),
       );
     },
-    update: (entryId, patch) => {
+    update: ({ entryId, patch }) => {
       const invalid = rateError(patch.rate);
 
       if (invalid !== undefined) {
@@ -539,7 +542,7 @@ export function createTimeTracking<
             ),
         ).andThen(fields.rows),
       ),
-    timesheet: (week, userId, employeeId) =>
+    timesheet: ({ week, userId, employeeId }) =>
       tenant().andThen((organizationId) =>
         call(
           "get_timesheet",
@@ -566,7 +569,7 @@ export function createTimeTracking<
             .map((entries) => ({ ...detail, entries })),
         ),
       ),
-    submit: (week, note, employeeId) =>
+    submit: ({ week, note, employeeId }) =>
       tenant().andThen((organizationId) =>
         call(
           "submit_timesheet",
@@ -579,7 +582,7 @@ export function createTimeTracking<
           (value) => timesheetOf(value, "submit_timesheet"),
         ),
       ),
-    approve: (timesheetId, decision = {}) =>
+    approve: ({ timesheetId, ...decision }) =>
       call(
         "approve_timesheet",
         {
@@ -588,7 +591,7 @@ export function createTimeTracking<
         },
         (value) => timesheetOf(value, "approve_timesheet"),
       ),
-    reject: (timesheetId, note, decision = {}) =>
+    reject: ({ timesheetId, note, ...decision }) =>
       call(
         "reject_timesheet",
         {

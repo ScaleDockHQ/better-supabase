@@ -78,31 +78,45 @@ describe.skipIf(!live)("care-plans", () => {
       expect(draft).toMatchObject({ status: "draft", version: 1 });
 
       const problem = await plans
-        .addProblem(draft.id, { code: "25", title: "Risk of falls" })
+        .addProblem({
+          planId: draft.id,
+          input: { code: "25", title: "Risk of falls" },
+        })
         .orThrow();
 
       const goal = await plans
-        .addGoal(problem.id, { title: "Walks with a frame" })
+        .addGoal({
+          problemId: problem.id,
+          input: { title: "Walks with a frame" },
+        })
         .orThrow();
 
       const walk = await plans
-        .addAction(goal.id, {
-          title: "Walk twice a day",
-          reviewEvery: Temporal.Duration.from({ months: 1 }),
+        .addAction({
+          goalId: goal.id,
+          input: {
+            title: "Walk twice a day",
+            reviewEvery: Temporal.Duration.from({ months: 1 }),
+          },
         })
         .orThrow();
 
       const rail = await plans
-        .addAction(goal.id, {
-          kind: "measure",
-          measureKind: "bed_rails",
-          title: "Bed rail at night",
+        .addAction({
+          goalId: goal.id,
+          input: {
+            kind: "measure",
+            measureKind: "bed_rails",
+            title: "Bed rail at night",
+          },
         })
         .orThrow();
 
       expect(rail.requiresApproval).toBe(true);
       expect(
-        await plans.evaluate(goal.id, { status: "achieved" }).then(hint),
+        await plans
+          .evaluate({ goalId: goal.id, input: { status: "achieved" } })
+          .then(hint),
       ).toBe("CARE_PLAN_INVALID");
 
       await s.as(carer);
@@ -123,20 +137,25 @@ describe.skipIf(!live)("care-plans", () => {
       expect(asked?.status).toBe("planned");
       expect(asked?.approvalId).toBeDefined();
       expect(
-        await plans.updateProblem(problem.id, { title: "Other" }).then(hint),
+        await plans
+          .updateProblem({ problemId: problem.id, change: { title: "Other" } })
+          .then(hint),
       ).toBe("CARE_PLAN_NOT_DRAFT");
       expect(await plans.startAction(rail.id).then(hint)).toBe(
         "CARE_PLAN_ACTION_APPROVAL_REQUIRED",
       );
 
       await s.as(lead);
-      await approvals.approve(asked?.approvalId ?? "").orThrow();
+      await approvals.approve({ id: asked?.approvalId ?? "" }).orThrow();
       expect(await plans.measures().orThrow()).toEqual([
         expect.objectContaining({ id: rail.id, status: "active" }),
       ]);
 
       const evaluation = await plans
-        .evaluate(goal.id, { status: "in_progress", outcome: "To the door" })
+        .evaluate({
+          goalId: goal.id,
+          input: { status: "in_progress", outcome: "To the door" },
+        })
         .orThrow();
 
       expect(evaluation.status).toBe("in_progress");
@@ -148,7 +167,9 @@ describe.skipIf(!live)("care-plans", () => {
       expect(read.problems[0]?.goals[0]?.status).toBe("in_progress");
       expect(read.evaluations).toHaveLength(1);
       expect(
-        await plans.evaluate(goal.id, { status: "achieved" }).then(hint),
+        await plans
+          .evaluate({ goalId: goal.id, input: { status: "achieved" } })
+          .then(hint),
       ).toBe("CARE_PLAN_FORBIDDEN");
 
       await s.as(owner);
@@ -159,9 +180,11 @@ describe.skipIf(!live)("care-plans", () => {
 
       expect((await plans.publish(next.id).orThrow()).version).toBe(2);
       expect((await plans.get(draft.id).orThrow()).status).toBe("archived");
-      expect(await plans.list("client", client?.id ?? "").orThrow()).toEqual([
-        expect.objectContaining({ id: next.id, status: "active" }),
-      ]);
+      expect(
+        await plans
+          .list({ subjectType: "client", subjectId: client?.id ?? "" })
+          .orThrow(),
+      ).toEqual([expect.objectContaining({ id: next.id, status: "active" })]);
 
       await s.service();
       await s.rows(

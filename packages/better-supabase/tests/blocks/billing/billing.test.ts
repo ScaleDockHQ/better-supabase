@@ -89,22 +89,28 @@ describe("createBilling", () => {
 
     const billing = createBilling({ ...t, schema: "app" });
     expect(
-      await billing.portal("org", { returnUrl: "https://a" }),
+      await billing.portal({
+        organizationId: "org",
+        options: { returnUrl: "https://a" },
+      }),
     ).toMatchObject({
       ok: false,
       error: { kind: "not_found", hint: "BILLING_NO_CUSTOMER" },
     });
 
     const session = await billing
-      .checkout("org", {
-        price: "price_1",
-        mode: "payment",
-        successUrl: "https://a/ok",
-        cancelUrl: "https://a/no",
-        email: "a@b.test",
-        name: "Acme",
-        idempotencyKey: "k1",
-        params: { allow_promotion_codes: true },
+      .checkout({
+        organizationId: "org",
+        options: {
+          price: "price_1",
+          mode: "payment",
+          successUrl: "https://a/ok",
+          cancelUrl: "https://a/no",
+          email: "a@b.test",
+          name: "Acme",
+          idempotencyKey: "k1",
+          params: { allow_promotion_codes: true },
+        },
       })
       .orThrow();
 
@@ -131,9 +137,13 @@ describe("createBilling", () => {
       },
     ]);
     expect(
-      await billing.portal("org", { returnUrl: "https://a" }).orThrow(),
+      await billing
+        .portal({ organizationId: "org", options: { returnUrl: "https://a" } })
+        .orThrow(),
     ).toEqual({ url: "https://billing.stripe.com/p/1" });
-    expect(await billing.ensureCustomer("org").orThrow()).toBe("cus_new");
+    expect(
+      await billing.ensureCustomer({ organizationId: "org" }).orThrow(),
+    ).toBe("cus_new");
     expect(
       t.stripeCalls.filter(([name]) => name === "customers.create"),
     ).toHaveLength(1);
@@ -143,18 +153,21 @@ describe("createBilling", () => {
     const t = setup((fn) => (fn === "billing_customer" ? "cus_1" : null));
     const billing = createBilling(t);
     await billing
-      .checkout("org", {
-        price: "price_1",
-        successUrl: "https://a/ok",
-        params: {
-          customer: "cus_other",
-          client_reference_id: "elsewhere",
-          metadata: { campaign: "spring", organization_id: "spoofed" },
-          subscription_data: {
-            trial_period_days: 14,
-            metadata: { source: "pricing" },
+      .checkout({
+        organizationId: "org",
+        options: {
+          price: "price_1",
+          successUrl: "https://a/ok",
+          params: {
+            customer: "cus_other",
+            client_reference_id: "elsewhere",
+            metadata: { campaign: "spring", organization_id: "spoofed" },
+            subscription_data: {
+              trial_period_days: 14,
+              metadata: { source: "pricing" },
+            },
+            line_items: [{ price: "price_override", quantity: 3 }],
           },
-          line_items: [{ price: "price_override", quantity: 3 }],
         },
       })
       .orThrow();
@@ -174,10 +187,13 @@ describe("createBilling", () => {
       },
     ]);
     await billing
-      .checkout("org", {
-        price: "price_1",
-        successUrl: "https://a/ok",
-        params: { mode: "payment" },
+      .checkout({
+        organizationId: "org",
+        options: {
+          price: "price_1",
+          successUrl: "https://a/ok",
+          params: { mode: "payment" },
+        },
       })
       .orThrow();
     const [, last] = t.stripeCalls.at(-1) as [string, { params: object }];
@@ -194,7 +210,9 @@ describe("createBilling", () => {
     );
 
     const billing = createBilling({ transport: t.transport, stripe: t.stripe });
-    expect(await billing.ensureCustomer("org").orThrow()).toBe("cus_first");
+    expect(
+      await billing.ensureCustomer({ organizationId: "org" }).orThrow(),
+    ).toBe("cus_first");
     expect(t.seen).toEqual([]);
   });
 
@@ -207,10 +225,9 @@ describe("createBilling", () => {
       },
     });
 
-    expect(await createBilling(t).ensureCustomer("org")).toMatchObject({
-      ok: false,
-      error: { message: "card declined" },
-    });
+    expect(
+      await createBilling(t).ensureCustomer({ organizationId: "org" }),
+    ).toMatchObject({ ok: false, error: { message: "card declined" } });
   });
 
   it("skips seat sync without a subscription or a change", async () => {
@@ -230,11 +247,9 @@ describe("createBilling", () => {
       prorationBehavior: "none",
     });
 
-    expect(await billing.syncSeats("org").orThrow()).toEqual({
-      quantity: 3,
-      previousQuantity: undefined,
-      changed: false,
-    });
+    expect(
+      await billing.syncSeats({ organizationId: "org" }).orThrow(),
+    ).toEqual({ quantity: 3, previousQuantity: undefined, changed: false });
     item = {
       subscription: "sub",
       item: "si",
@@ -242,14 +257,14 @@ describe("createBilling", () => {
       quantity: 3,
       status: "active",
     };
-    expect(await billing.syncSeats("org").orThrow()).toMatchObject({
-      changed: false,
-    });
+    expect(
+      await billing.syncSeats({ organizationId: "org" }).orThrow(),
+    ).toMatchObject({ changed: false });
     expect(
       t.calls.find(([fn]) => fn === "billing_subscription_item")?.[1],
     ).toEqual({ tenant: "org", price: "price_seat" });
     item = { ...(item as object), quantity: 1 };
-    await billing.syncSeats("org").orThrow();
+    await billing.syncSeats({ organizationId: "org" }).orThrow();
     expect(t.stripeCalls.at(-1)).toMatchObject([
       "items.update",
       { params: { quantity: 3, proration_behavior: "none" } },
@@ -526,10 +541,13 @@ describe("createBilling", () => {
 
     blocked = "BILLING_ALREADY_SUBSCRIBED";
 
-    const result = await billing.checkout("org-1", {
-      price: "price_pro",
-      successUrl: "https://x/ok",
-      cancelUrl: "https://x/no",
+    const result = await billing.checkout({
+      organizationId: "org-1",
+      options: {
+        price: "price_pro",
+        successUrl: "https://x/ok",
+        cancelUrl: "https://x/no",
+      },
     });
 
     expect(result.ok ? undefined : result.error).toMatchObject({
@@ -539,10 +557,13 @@ describe("createBilling", () => {
 
     const external = createBilling({ ...t, external: () => "vercel" });
 
-    const viaProvider = await external.checkout("org-1", {
-      price: "price_pro",
-      successUrl: "https://x/ok",
-      cancelUrl: "https://x/no",
+    const viaProvider = await external.checkout({
+      organizationId: "org-1",
+      options: {
+        price: "price_pro",
+        successUrl: "https://x/ok",
+        cancelUrl: "https://x/no",
+      },
     });
 
     expect(viaProvider.ok ? undefined : viaProvider.error).toMatchObject({
@@ -561,7 +582,7 @@ describe("createBilling", () => {
     );
 
     const billing = createBilling(t);
-    await billing.ensureCustomer("org").orThrow();
+    await billing.ensureCustomer({ organizationId: "org" }).orThrow();
     await billing
       .handleStripeEvent({
         id: "evt",
@@ -631,10 +652,9 @@ describe("createBilling", () => {
     const stripeCalls = t.stripeCalls;
     const billing = createBilling(t);
     await billing
-      .checkout("org", {
-        plan: "pro",
-        interval: "year",
-        successUrl: "https://a",
+      .checkout({
+        organizationId: "org",
+        options: { plan: "pro", interval: "year", successUrl: "https://a" },
       })
       .orThrow();
     expect(t.stripeCalls.at(-1)).toMatchObject([
@@ -642,15 +662,24 @@ describe("createBilling", () => {
       { params: { line_items: [{ price: "price_pro_year", quantity: 1 }] } },
     ]);
     expect(
-      await billing.checkout("org", { plan: "gold", successUrl: "https://a" }),
+      await billing.checkout({
+        organizationId: "org",
+        options: { plan: "gold", successUrl: "https://a" },
+      }),
     ).toMatchObject({ ok: false, error: { hint: "BILLING_PLAN_UNKNOWN" } });
     expect(
-      await billing.checkout("org", { successUrl: "https://a" }),
+      await billing.checkout({
+        organizationId: "org",
+        options: { successUrl: "https://a" },
+      }),
     ).toMatchObject({ ok: false, error: { hint: "BILLING_PRICE_REQUIRED" } });
 
     expect(
       await billing
-        .changePlan("org", { plan: "pro", idempotencyKey: "k" })
+        .changePlan({
+          organizationId: "org",
+          change: { plan: "pro", idempotencyKey: "k" },
+        })
         .orThrow(),
     ).toMatchObject({ itemId: "si_1", price: "price_pro_month" });
     expect(t.stripeCalls.at(-1)).toEqual([
@@ -665,9 +694,11 @@ describe("createBilling", () => {
         options: { idempotencyKey: "k" },
       },
     ]);
-    expect(await billing.cancelAtPeriodEnd("org", true).orThrow()).toBe(
-      "sub_1",
-    );
+    expect(
+      await billing
+        .cancelAtPeriodEnd({ organizationId: "org", cancel: true })
+        .orThrow(),
+    ).toBe("sub_1");
     expect(t.stripeCalls.at(-1)).toMatchObject([
       "subscriptions.update",
       { params: { cancel_at_period_end: true } },
@@ -693,14 +724,17 @@ describe("createBilling", () => {
 
     const billing = createBilling(t);
     await billing
-      .checkout("org", {
-        plan: "pro",
-        variant: "annual-team",
-        items: [
-          { plan: "credits", variant: "5000", quantity: 2 },
-          { price: "price_support" },
-        ],
-        successUrl: "https://a",
+      .checkout({
+        organizationId: "org",
+        options: {
+          plan: "pro",
+          variant: "annual-team",
+          items: [
+            { plan: "credits", variant: "5000", quantity: 2 },
+            { price: "price_support" },
+          ],
+          successUrl: "https://a",
+        },
       })
       .orThrow();
     expect(t.stripeCalls.at(-1)).toMatchObject([
@@ -723,10 +757,13 @@ describe("createBilling", () => {
     ]);
     const before = t.stripeCalls.length;
     expect(
-      await billing.checkout("org", {
-        price: "price_x",
-        items: [{ plan: "missing" }],
-        successUrl: "https://a",
+      await billing.checkout({
+        organizationId: "org",
+        options: {
+          price: "price_x",
+          items: [{ plan: "missing" }],
+          successUrl: "https://a",
+        },
       }),
     ).toMatchObject({ ok: false, error: { hint: "BILLING_PLAN_UNKNOWN" } });
     expect(t.stripeCalls).toHaveLength(before);
@@ -830,17 +867,28 @@ describe("createBilling", () => {
     );
 
     const billing = createBilling(t);
-    expect(await billing.taxIds("org").orThrow()).toEqual([]);
-    expect(await billing.removeTaxId("org", "txi_1")).toMatchObject({
-      error: { hint: "BILLING_NO_CUSTOMER" },
-    });
+    expect(await billing.taxIds({ organizationId: "org" }).orThrow()).toEqual(
+      [],
+    );
+    expect(
+      await billing.removeTaxId({ organizationId: "org", taxId: "txi_1" }),
+    ).toMatchObject({ error: { hint: "BILLING_NO_CUSTOMER" } });
     expect(
       await billing
-        .addTaxId("org", { type: "eu_vat", value: "DE123456789" })
+        .addTaxId({
+          organizationId: "org",
+          taxId: { type: "eu_vat", value: "DE123456789" },
+        })
         .orThrow(),
     ).toEqual(taxId);
-    expect(await billing.taxIds("org").orThrow()).toEqual([taxId]);
-    expect(await billing.removeTaxId("org", "txi_1").orThrow()).toBe("txi_1");
+    expect(await billing.taxIds({ organizationId: "org" }).orThrow()).toEqual([
+      taxId,
+    ]);
+    expect(
+      await billing
+        .removeTaxId({ organizationId: "org", taxId: "txi_1" })
+        .orThrow(),
+    ).toBe("txi_1");
     expect(taxCalls).toEqual([
       ["create", "cus_new", { type: "eu_vat", value: "DE123456789" }],
       ["list", "cus_new", { limit: 100 }],
@@ -850,9 +898,12 @@ describe("createBilling", () => {
     const bare = createBilling(setup(() => "cus_1"));
 
     for (const result of [
-      await bare.taxIds("org"),
-      await bare.addTaxId("org", { type: "eu_vat", value: "x" }),
-      await bare.removeTaxId("org", "txi_1"),
+      await bare.taxIds({ organizationId: "org" }),
+      await bare.addTaxId({
+        organizationId: "org",
+        taxId: { type: "eu_vat", value: "x" },
+      }),
+      await bare.removeTaxId({ organizationId: "org", taxId: "txi_1" }),
     ]) {
       expect(result).toMatchObject({
         error: { hint: "BILLING_STRIPE_CLIENT" },
@@ -939,7 +990,11 @@ describe("createBilling", () => {
     );
 
     const billing = createBilling(t);
-    expect(await billing.taxIds("org", { from: "sync" }).orThrow()).toEqual([
+    expect(
+      await billing
+        .taxIds({ organizationId: "org", options: { from: "sync" } })
+        .orThrow(),
+    ).toEqual([
       {
         id: "txi_1",
         type: "eu_vat",
@@ -975,7 +1030,11 @@ describe("createBilling", () => {
     ]);
     expect(t.calls).toEqual([["billing_tax_ids", { tenant: "org" }]]);
     const empty = createBilling(setup(() => null));
-    expect(await empty.taxIds("org", { from: "sync" }).orThrow()).toEqual([]);
+    expect(
+      await empty
+        .taxIds({ organizationId: "org", options: { from: "sync" } })
+        .orThrow(),
+    ).toEqual([]);
   });
 
   it("reads invoices and payment methods and voids only the tenant's invoices", async () => {
@@ -1015,25 +1074,38 @@ describe("createBilling", () => {
     );
 
     const billing = createBilling(t);
-    expect(await billing.invoices("org").orThrow()).toEqual([
-      { id: "in_1", status: "open" },
-    ]);
+    expect(await billing.invoices({ organizationId: "org" }).orThrow()).toEqual(
+      [{ id: "in_1", status: "open" }],
+    );
     expect(await billing.paymentMethods("org").orThrow()).toEqual([
       { id: "pm_1", type: "card" },
     ]);
     expect(await billing.customerDetails("org").orThrow()).toMatchObject({
       email: "a@b.c",
     });
-    expect(await billing.voidInvoice("org", "in_1").orThrow()).toBe("in_1");
     expect(
-      await billing.markInvoiceUncollectible("org", "in_1").orThrow(),
+      await billing
+        .voidInvoice({ organizationId: "org", invoiceId: "in_1" })
+        .orThrow(),
     ).toBe("in_1");
-    expect(await billing.voidInvoice("org", "in_other")).toMatchObject({
+    expect(
+      await billing
+        .markInvoiceUncollectible({ organizationId: "org", invoiceId: "in_1" })
+        .orThrow(),
+    ).toBe("in_1");
+    expect(
+      await billing.voidInvoice({
+        organizationId: "org",
+        invoiceId: "in_other",
+      }),
+    ).toMatchObject({
       ok: false,
       error: { hint: "BILLING_INVOICE_NOT_FOUND" },
     });
     expect(
-      await billing.updateCustomer("org", { email: "x@y.z" }).orThrow(),
+      await billing
+        .updateCustomer({ organizationId: "org", update: { email: "x@y.z" } })
+        .orThrow(),
     ).toBe("cus_1");
   });
 
@@ -1053,11 +1125,20 @@ describe("createBilling", () => {
     const billing = createBilling(t);
 
     for (const result of [
-      await billing.changePlan("org", { price: "p" }),
-      await billing.cancelAtPeriodEnd("org", false),
-      await billing.voidInvoice("org", "in_1"),
-      await billing.markInvoiceUncollectible("org", "in_1"),
-      await billing.updateCustomer("org", { name: "x" }),
+      await billing.changePlan({
+        organizationId: "org",
+        change: { price: "p" },
+      }),
+      await billing.cancelAtPeriodEnd({ organizationId: "org", cancel: false }),
+      await billing.voidInvoice({ organizationId: "org", invoiceId: "in_1" }),
+      await billing.markInvoiceUncollectible({
+        organizationId: "org",
+        invoiceId: "in_1",
+      }),
+      await billing.updateCustomer({
+        organizationId: "org",
+        update: { name: "x" },
+      }),
     ]) {
       expect(result).toMatchObject({
         ok: false,
@@ -1066,10 +1147,9 @@ describe("createBilling", () => {
     }
 
     const none = createBilling(setup(() => null));
-    expect(await none.changePlan("org", { price: "p" })).toMatchObject({
-      ok: false,
-      error: { hint: "BILLING_NO_SUBSCRIPTION" },
-    });
+    expect(
+      await none.changePlan({ organizationId: "org", change: { price: "p" } }),
+    ).toMatchObject({ ok: false, error: { hint: "BILLING_NO_SUBSCRIPTION" } });
   });
 });
 
@@ -1212,12 +1292,15 @@ describe("createBilling with customerAccounts", () => {
     });
 
     const session = await billing
-      .checkout("org", {
-        price: "price_1",
-        successUrl: "https://a/ok",
-        email: "billing@acme.test",
-        name: "Acme",
-        params: { customer: "cus_ignored" },
+      .checkout({
+        organizationId: "org",
+        options: {
+          price: "price_1",
+          successUrl: "https://a/ok",
+          email: "billing@acme.test",
+          name: "Acme",
+          params: { customer: "cus_ignored" },
+        },
       })
       .orThrow();
 
@@ -1251,7 +1334,10 @@ describe("createBilling with customerAccounts", () => {
     });
 
     await billing
-      .checkout("org", { price: "price_1", successUrl: "https://a/ok" })
+      .checkout({
+        organizationId: "org",
+        options: { price: "price_1", successUrl: "https://a/ok" },
+      })
       .orThrow();
     expect(
       t.stripeCalls.filter(([name]) => name === "accounts.create"),
@@ -1261,7 +1347,9 @@ describe("createBilling with customerAccounts", () => {
     );
 
     expect(
-      await billing.portal("org", { returnUrl: "https://a" }).orThrow(),
+      await billing
+        .portal({ organizationId: "org", options: { returnUrl: "https://a" } })
+        .orThrow(),
     ).toEqual({ url: "https://billing.stripe.com/p/1" });
     expect(t.stripeCalls.at(-1)).toEqual([
       "portal.create",
@@ -1282,11 +1370,16 @@ describe("createBilling with customerAccounts", () => {
       customerAccounts: { resolve: (tenant) => `acct_${tenant}` },
     });
 
-    expect(await billing.ensureAccount("shop").orThrow()).toBe("acct_shop");
+    expect(
+      await billing.ensureAccount({ organizationId: "shop" }).orThrow(),
+    ).toBe("acct_shop");
     expect(t.stripeCalls).toEqual([]);
 
     await billing
-      .checkout("legacy", { price: "price_1", successUrl: "https://a" })
+      .checkout({
+        organizationId: "legacy",
+        options: { price: "price_1", successUrl: "https://a" },
+      })
       .orThrow();
     expect(t.stripeCalls.at(-1)).toMatchObject([
       "checkout.create",
@@ -1299,7 +1392,9 @@ describe("createBilling with customerAccounts", () => {
     const t = harness();
     const billing = createBilling({ ...t, customerAccounts: true });
 
-    expect(await billing.ensureCustomer("org")).toMatchObject({
+    expect(
+      await billing.ensureCustomer({ organizationId: "org" }),
+    ).toMatchObject({
       ok: false,
       error: { kind: "not_found", hint: "BILLING_CUSTOMER_PENDING" },
     });
@@ -1309,17 +1404,18 @@ describe("createBilling with customerAccounts", () => {
     );
 
     t.rows["org"]!.customer = "cus_linked";
-    expect(await billing.ensureCustomer("org").orThrow()).toBe("cus_linked");
+    expect(
+      await billing.ensureCustomer({ organizationId: "org" }).orThrow(),
+    ).toBe("cus_linked");
   });
 
   it("explains a Stripe client without the v2 API", async () => {
     const t = harness({}, { v2: undefined });
     const billing = createBilling({ ...t, customerAccounts: true });
 
-    expect(await billing.ensureAccount("org")).toMatchObject({
-      ok: false,
-      error: { hint: "BILLING_STRIPE_CLIENT" },
-    });
+    expect(
+      await billing.ensureAccount({ organizationId: "org" }),
+    ).toMatchObject({ ok: false, error: { hint: "BILLING_STRIPE_CLIENT" } });
   });
 
   it("records the customer Stripe creates for the account from webhooks", async () => {
@@ -1469,7 +1565,9 @@ describe("customerAccounts edge cases", () => {
       },
     });
 
-    expect(await thrown.ensureAccount("org")).toMatchObject({ ok: false });
+    expect(await thrown.ensureAccount({ organizationId: "org" })).toMatchObject(
+      { ok: false },
+    );
 
     const t = harness(
       {},
@@ -1487,12 +1585,20 @@ describe("customerAccounts edge cases", () => {
     );
 
     const failing = createBilling({ ...t, customerAccounts: true });
-    expect(await failing.ensureCustomer("org")).toMatchObject({ ok: false });
     expect(
-      await failing.checkout("org", { price: "p", successUrl: "https://a" }),
+      await failing.ensureCustomer({ organizationId: "org" }),
     ).toMatchObject({ ok: false });
     expect(
-      await failing.portal("org", { returnUrl: "https://a" }),
+      await failing.checkout({
+        organizationId: "org",
+        options: { price: "p", successUrl: "https://a" },
+      }),
+    ).toMatchObject({ ok: false });
+    expect(
+      await failing.portal({
+        organizationId: "org",
+        options: { returnUrl: "https://a" },
+      }),
     ).toMatchObject({ ok: false, error: { hint: "BILLING_NO_CUSTOMER" } });
   });
 
@@ -1503,7 +1609,7 @@ describe("customerAccounts edge cases", () => {
       ...t,
       customerAccounts: { params: { dashboard: "none" } },
     })
-      .ensureAccount("org")
+      .ensureAccount({ organizationId: "org" })
       .orThrow();
     expect(t.stripeCalls[0]?.[1]).toEqual({
       configuration: { customer: {} },
@@ -1513,7 +1619,7 @@ describe("customerAccounts edge cases", () => {
 
     const plain = harness();
     await createBilling({ ...plain, customerAccounts: true })
-      .ensureAccount("org")
+      .ensureAccount({ organizationId: "org" })
       .orThrow();
     expect(plain.stripeCalls[0]?.[1]).toEqual({
       configuration: { customer: {} },
@@ -1524,7 +1630,9 @@ describe("customerAccounts edge cases", () => {
   it("opens the portal for an account-only tenant without customerAccounts", async () => {
     const t = harness({ org: { customer: null, account: "acct_1" } });
 
-    await createBilling(t).portal("org", { returnUrl: "https://a" }).orThrow();
+    await createBilling(t)
+      .portal({ organizationId: "org", options: { returnUrl: "https://a" } })
+      .orThrow();
     expect(t.stripeCalls.at(-1)).toEqual([
       "portal.create",
       { customer_account: "acct_1", return_url: "https://a" },
@@ -1651,7 +1759,9 @@ describe("customerAccounts edge cases", () => {
       customerAccounts: { resolve: () => "acct_1" },
     });
 
-    expect(await billing.ensureAccount("org")).toMatchObject({ ok: false });
+    expect(
+      await billing.ensureAccount({ organizationId: "org" }),
+    ).toMatchObject({ ok: false });
 
     for (const object of [
       { client_reference_id: "org", customer_account: "acct_1" },

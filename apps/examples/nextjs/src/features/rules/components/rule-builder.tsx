@@ -363,7 +363,7 @@ function EmptyConditions() {
             type="button"
             size="sm"
             onClick={() => {
-              builder.addRule(undefined, builder.fields?.[0]?.id);
+              builder.addRule({ field: builder.fields?.[0]?.id });
             }}
           >
             <PlusIcon />
@@ -401,7 +401,7 @@ function GroupEditor({
     const index = group.rules.findIndex((child) => child.id === over.id);
 
     if (index !== -1) {
-      builder.move(String(active.id), group.id, index);
+      builder.move({ id: String(active.id), group: group.id, index });
     }
   };
 
@@ -441,7 +441,10 @@ function GroupEditor({
             size="sm"
             variant="ghost"
             onClick={() => {
-              builder.addRule(group.id, builder.fields?.[0]?.id);
+              builder.addRule({
+                group: group.id,
+                field: builder.fields?.[0]?.id,
+              });
             }}
           >
             <PlusIcon />
@@ -453,12 +456,15 @@ function GroupEditor({
               size="sm"
               variant="ghost"
               onClick={() => {
-                const added = builder.addGroup(
-                  group.id,
-                  group.combinator === "and" ? "or" : "and",
-                );
+                const added = builder.addGroup({
+                  group: group.id,
+                  combinator: group.combinator === "and" ? "or" : "and",
+                });
 
-                builder.addRule(added, builder.fields?.[0]?.id);
+                builder.addRule({
+                  group: added,
+                  field: builder.fields?.[0]?.id,
+                });
               }}
             >
               <PlusIcon />
@@ -572,7 +578,7 @@ function Connective({
       ]}
       onValueChange={(value) => {
         if (value === "and" || value === "or") {
-          builder.setCombinator(group.id, value);
+          builder.setCombinator({ group: group.id, combinator: value });
         }
       }}
     >
@@ -721,7 +727,7 @@ function ConditionRow({ rule }: { rule: FilterRule }) {
           }))}
           onValueChange={(value) => {
             if (value !== null) {
-              builder.setField(rule.id, value);
+              builder.setField({ id: rule.id, field: value });
             }
           }}
         >
@@ -745,7 +751,7 @@ function ConditionRow({ rule }: { rule: FilterRule }) {
           }))}
           onValueChange={(value) => {
             if (value !== null) {
-              builder.setOperator(rule.id, value);
+              builder.setOperator({ id: rule.id, operator: value });
             }
           }}
         >
@@ -766,7 +772,7 @@ function ConditionRow({ rule }: { rule: FilterRule }) {
             value={valueText(field, rule)}
             disabled={disabled}
             onChange={(text) => {
-              builder.setValue(rule.id, valueOf(field, text));
+              builder.setValue({ id: rule.id, value: valueOf(field, text) });
             }}
           />
         ) : null}

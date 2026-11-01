@@ -74,18 +74,27 @@ describe.skipIf(!live)("segments and assignment", () => {
       await s.as(owner);
 
       const acme = await parties
-        .saveCompany(org, { name: "Acme", lifecycle: "customer" })
+        .saveCompany({
+          organizationId: org,
+          input: { name: "Acme", lifecycle: "customer" },
+        })
         .orThrow();
 
       const beta = await parties
-        .saveCompany(org, { name: "Beta", lifecycle: "lead" })
+        .saveCompany({
+          organizationId: org,
+          input: { name: "Beta", lifecycle: "lead" },
+        })
         .orThrow();
 
       const customers = await segments
-        .upsert(org, {
-          subjectType: "company",
-          name: "Customers",
-          conditions: lifecycleIs("customer"),
+        .upsert({
+          organizationId: org,
+          segment: {
+            subjectType: "company",
+            name: "Customers",
+            conditions: lifecycleIs("customer"),
+          },
         })
         .orThrow();
 
@@ -96,7 +105,7 @@ describe.skipIf(!live)("segments and assignment", () => {
         memberCount: 1,
       });
       expect(
-        (await segments.members(customers.id).orThrow()).map(
+        (await segments.members({ segmentId: customers.id }).orThrow()).map(
           (member) => member.subjectId,
         ),
       ).toEqual([acme.id]);
@@ -106,7 +115,10 @@ describe.skipIf(!live)("segments and assignment", () => {
       ).toBe(customers.id);
 
       const renamed = await segments
-        .upsert(org, { id: customers.id, conditions: lifecycleIs("lead") })
+        .upsert({
+          organizationId: org,
+          segment: { id: customers.id, conditions: lifecycleIs("lead") },
+        })
         .orThrow();
 
       expect(renamed.refreshedAt).toBeUndefined();
@@ -116,18 +128,23 @@ describe.skipIf(!live)("segments and assignment", () => {
         memberCount: 1,
       });
       expect(
-        (await segments.upsert(org, { name: "" })).ok,
+        (await segments.upsert({ organizationId: org, segment: { name: "" } }))
+          .ok,
         "a segment without a subject type",
       ).toBe(false);
 
       await s.as(rep);
-      expect(await segments.list(org).orThrow()).toHaveLength(1);
+      expect(
+        await segments.list({ organizationId: org }).orThrow(),
+      ).toHaveLength(1);
       expect((await segments.refresh(customers.id)).ok).toBe(false);
 
       await s.as(stranger);
-      expect((await segments.list(org)).ok).toBe(false);
+      expect((await segments.list({ organizationId: org })).ok).toBe(false);
       expect(await segments.get(customers.id).orThrow()).toBeUndefined();
-      expect(await segments.list(other).orThrow()).toEqual([]);
+      expect(await segments.list({ organizationId: other }).orThrow()).toEqual(
+        [],
+      );
 
       await s.service();
       expect(
@@ -137,40 +154,53 @@ describe.skipIf(!live)("segments and assignment", () => {
       await s.as(owner);
 
       const queue = await assignment
-        .saveQueue(org, {
-          name: "Leads",
-          subjectType: "company",
-          strategy: "round_robin",
-          conditions: lifecycleIs("lead"),
+        .saveQueue({
+          organizationId: org,
+          queue: {
+            name: "Leads",
+            subjectType: "company",
+            strategy: "round_robin",
+            conditions: lifecycleIs("lead"),
+          },
         })
         .orThrow();
 
       const staffed = await assignment
-        .setMembers(queue.id, [{ userId: owner.id }, { userId: rep.id }])
+        .setMembers({
+          queueId: queue.id,
+          members: [{ userId: owner.id }, { userId: rep.id }],
+        })
         .orThrow();
 
       expect(staffed.members.map((member) => member.userId).toSorted()).toEqual(
         [owner.id, rep.id].toSorted(),
       );
       expect(
-        (await assignment.setMembers(queue.id, [{ userId: stranger.id }])).ok,
+        (
+          await assignment.setMembers({
+            queueId: queue.id,
+            members: [{ userId: stranger.id }],
+          })
+        ).ok,
       ).toBe(false);
 
       await s.service();
 
       const first = await assignment
-        .assign(org, {
-          type: "company",
-          id: beta.id,
-          fields: { lifecycle: "lead" },
+        .assign({
+          organizationId: org,
+          subject: {
+            type: "company",
+            id: beta.id,
+            fields: { lifecycle: "lead" },
+          },
         })
         .orThrow();
 
       const second = await assignment
-        .assign(org, {
-          type: "company",
-          id: "x2",
-          fields: { lifecycle: "lead" },
+        .assign({
+          organizationId: org,
+          subject: { type: "company", id: "x2", fields: { lifecycle: "lead" } },
         })
         .orThrow();
 
@@ -180,19 +210,27 @@ describe.skipIf(!live)("segments and assignment", () => {
       );
       expect(
         await assignment
-          .assign(org, { type: "company", id: acme.id, fields: {} })
+          .assign({
+            organizationId: org,
+            subject: { type: "company", id: acme.id, fields: {} },
+          })
           .orThrow(),
       ).toBeUndefined();
 
       await s.as(rep);
       expect(
         await assignment
-          .history(org, { type: "company", id: beta.id })
+          .history({
+            organizationId: org,
+            subject: { type: "company", id: beta.id },
+          })
           .orThrow(),
       ).toHaveLength(1);
       expect(
         (
-          await assignment.queues(org, { subjectType: "company" }).orThrow()
+          await assignment
+            .queues({ organizationId: org, subjectType: "company" })
+            .orThrow()
         )[0]?.members.reduce((sum, member) => sum + member.assignedCount, 0),
       ).toBe(2);
       expect((await assignment.removeQueue(queue.id)).ok).toBe(false);

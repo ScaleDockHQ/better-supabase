@@ -411,7 +411,7 @@ function documentStore() {
   const rows = new Map<string, { content: string; version: number }>();
 
   const documents: Memory["documents"] = {
-    read: (scope, path) => {
+    read: ({ scopeKey: scope, path }) => {
       const row = rows.get(`${scope}|${path}`);
 
       return AsyncResult.ok(
@@ -420,7 +420,12 @@ function documentStore() {
           : undefined,
       );
     },
-    write: (scope, path, content, { expectedVersion }) => {
+    write: ({
+      scopeKey: scope,
+      path,
+      content,
+      options: { expectedVersion },
+    }) => {
       const key = `${scope}|${path}`;
       const row = rows.get(key);
       const current = row ? String(row.version) : null;

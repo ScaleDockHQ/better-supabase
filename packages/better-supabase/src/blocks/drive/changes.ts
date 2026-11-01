@@ -43,8 +43,7 @@ export interface DriveLifecycle<N> {
    * wait for the next call, so a slow transaction isn't skipped.
    */
   changes(
-    organizationId: string,
-    options?: DriveChangesOptions,
+    input: { organizationId: string } & DriveChangesOptions,
   ): AsyncResult<DriveChanges<N>>;
   /**
    * Service role: moves nodes into the bin when a label on them has a retention
@@ -65,7 +64,7 @@ export function driveLifecycle(
   nodeOf: (value: unknown, fn: string) => DriveNode,
 ): DriveLifecycle<DriveNode> {
   return {
-    changes: (organizationId, options = {}) =>
+    changes: ({ organizationId, ...options }) =>
       call(
         "drive_changes",
         {

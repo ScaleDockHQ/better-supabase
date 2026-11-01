@@ -91,9 +91,7 @@ export interface ReactOptions {
 export interface Reactions {
   /** Adds or removes the caller's reaction; returns the subject's reactions. */
   react(
-    subject: RecordRef,
-    emoji: string,
-    options?: ReactOptions,
+    input: { subject: RecordRef; emoji: string } & ReactOptions,
   ): AsyncResult<readonly ReactionCount[]>;
   /**
    * The reactions of `subjects` (up to 200 of each type), keyed by
@@ -108,9 +106,7 @@ export interface Reactions {
    * `create` permission and the subject's read rules, like `react`.
    */
   vote(
-    subject: RecordRef,
-    value: VoteValue,
-    options?: VoteOptions,
+    input: { subject: RecordRef; value: VoteValue } & VoteOptions,
   ): AsyncResult<VoteTally>;
   /**
    * The vote tallies of `subjects` (up to 200 of each type), keyed by
@@ -185,7 +181,7 @@ export function createReactions(options: ReactionsOptions): Reactions {
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const client: Reactions = {
-    react: (subject, emoji, react = {}) =>
+    react: ({ subject, emoji, ...react }) =>
       tenant().andThen((organizationId) =>
         call(
           "react",
@@ -219,7 +215,7 @@ export function createReactions(options: ReactionsOptions): Reactions {
           ),
         ),
       ),
-    vote: (subject, value, vote = {}) =>
+    vote: ({ subject, value, ...vote }) =>
       tenant().andThen((organizationId) =>
         call(
           "vote",

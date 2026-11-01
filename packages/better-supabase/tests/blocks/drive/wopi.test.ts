@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { WopiDrive } from "../../../src/blocks/drive/index.ts";
+import type {
+  WopiDrive,
+  WopiTokenClaims,
+} from "../../../src/blocks/drive/index.ts";
 
 import { createWopiHost } from "../../../src/blocks/drive/index.ts";
 import { dbError } from "../../../src/core/errors.ts";
@@ -50,7 +53,13 @@ function setup(initial: Record<string, unknown> = {}) {
         attachment: { mimeType: "application/msword" },
         signedUrl: "https://s/get",
       }),
-    uploadRevision: async (_id: string, f: { size: number }) => {
+    uploadRevision: async ({
+      id: _id,
+      file: f,
+    }: {
+      id: string;
+      file: { size: number };
+    }) => {
       calls.push(`revision ${f.size}`);
 
       return ok({ signedUrl: "https://s/put", attachment: { id: "a2" } });
@@ -75,15 +84,10 @@ function setup(initial: Record<string, unknown> = {}) {
 async function request(
   host: ReturnType<typeof setup>["host"],
   path: string,
-  init: RequestInit & {
-    claims?: Partial<Parameters<typeof host.token>[0]>;
-  } = {},
+  init: RequestInit & { claims?: Partial<WopiTokenClaims> } = {},
 ) {
   const { accessToken } = await host.token({
-    fileId: "n1",
-    userId: "u1",
-    canWrite: true,
-    ...init.claims,
+    claims: { fileId: "n1", userId: "u1", canWrite: true, ...init.claims },
   });
 
   return host.handle(
@@ -114,9 +118,7 @@ describe("createWopiHost", () => {
     const { host } = setup();
 
     const { accessToken } = await host.token({
-      fileId: "n1",
-      userId: "u1",
-      canWrite: true,
+      claims: { fileId: "n1", userId: "u1", canWrite: true },
     });
 
     const [payload] = accessToken.split(".");

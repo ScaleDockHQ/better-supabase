@@ -80,10 +80,13 @@ export function templatesApplyStep(
       typeof templates === "function" ? await templates(call) : templates;
 
     const applied = await client
-      .apply(template, {
-        into: call.tenant,
-        ...(isRecord(values) ? { values } : {}),
-        key: `${call.runKey}:${call.node}`,
+      .apply({
+        template,
+        options: {
+          into: call.tenant,
+          ...(isRecord(values) ? { values } : {}),
+          key: `${call.runKey}:${call.node}`,
+        },
       })
       .orThrow();
 

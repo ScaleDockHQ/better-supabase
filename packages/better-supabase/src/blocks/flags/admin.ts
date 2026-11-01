@@ -131,9 +131,7 @@ export interface Flags<F extends object = Record<never, never>> {
   list(): AsyncResult<readonly FlagRecord<F>[]>;
   /** Creates or updates a flag and records a revision; returns it as stored. */
   upsert(
-    key: string,
-    input: FlagInput<F>,
-    options?: FlagSaveOptions,
+    input: { key: string; input: FlagInput<F> } & FlagSaveOptions,
   ): AsyncResult<FlagRecord<F> | undefined>;
   /** `false` when there was no such flag. Its revisions stay. */
   remove(key: string): AsyncResult<boolean>;
@@ -143,10 +141,10 @@ export interface Flags<F extends object = Record<never, never>> {
    * Saves revision `revision` again as a new revision, recreating a deleted
    * flag; `undefined` when there is no such revision.
    */
-  restore(
-    key: string,
-    revision: number,
-  ): AsyncResult<FlagRecord<F> | undefined>;
+  restore(input: {
+    key: string;
+    revision: number;
+  }): AsyncResult<FlagRecord<F> | undefined>;
   /** Every segment, by name. */
   segments(): AsyncResult<readonly FlagSegment[]>;
   /** Creates or replaces a segment. */
@@ -157,11 +155,11 @@ export interface Flags<F extends object = Record<never, never>> {
    * Sets the variant of a tenant, a user or a context value; `null` removes the
    * override.
    */
-  override(
-    key: string,
-    target: FlagOverrideTarget,
-    variant: string | null,
-  ): AsyncResult<boolean>;
+  override(input: {
+    key: string;
+    target: FlagOverrideTarget;
+    variant: string | null;
+  }): AsyncResult<boolean>;
 }
 
 const rowOf = (
@@ -287,7 +285,7 @@ export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
 
   const client: Flags<F> = {
     list: () => call("list_flags", {}, flagDefinitionsOf).andThen(records),
-    upsert: (key, input, saveOptions = {}) =>
+    upsert: ({ key, input, ...saveOptions }) =>
       AsyncResult.from(() =>
         input.fields === undefined
           ? Promise.resolve(ok(undefined))
@@ -310,7 +308,7 @@ export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
         .map((saved) => saved[0]),
     remove: (key) => call("delete_flag", { key }, (value) => value === true),
     history: (key) => call("flag_history", { key }, revisionsOf),
-    restore: (key, revision) =>
+    restore: ({ key, revision }) =>
       call("restore_flag", { key, revision }, single)
         .andThen(records)
         .map((saved) => saved[0]),
@@ -323,7 +321,7 @@ export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
       }),
     removeSegment: (name) =>
       call("delete_flag_segment", { name }, (value) => value === true),
-    override: (key, target, variant) =>
+    override: ({ key, target, variant }) =>
       call(
         "set_flag_override",
         {

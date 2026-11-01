@@ -78,7 +78,13 @@ function fakeKnowledge(existing: readonly string[] = []) {
       },
     },
     ingest: {
-      text: (organizationId: string | null, document: unknown) => {
+      text: ({
+        organizationId,
+        document,
+      }: {
+        organizationId: string | null;
+        document: unknown;
+      }) => {
         calls.push(["ingest", organizationId, document]);
 
         return AsyncResult.ok({ id: "k-new" });
@@ -154,7 +160,7 @@ describe("createDriveText", () => {
       drive_set_text: true,
     });
 
-    expect(await text.extract("n1").orThrow()).toBe("stored");
+    expect(await text.extract({ nodeId: "n1" }).orThrow()).toBe("stored");
     expect(storage.downloads).toEqual(["org-1/attachments/a2"]);
     expect(calls).toEqual([
       ["drive_text_source", { node: "n1" }],
@@ -172,19 +178,23 @@ describe("createDriveText", () => {
 
   it("skips folders, unscanned files and replaced revisions", async () => {
     expect(
-      await setup({ drive_text_source: null }).text.extract("n1").orThrow(),
+      await setup({ drive_text_source: null })
+        .text.extract({ nodeId: "n1" })
+        .orThrow(),
     ).toBe("skipped");
 
     const pending = setup({
       drive_text_source: { ...SOURCE, status: "pending" },
     });
 
-    expect(await pending.text.extract("n1").orThrow()).toBe("skipped");
+    expect(await pending.text.extract({ nodeId: "n1" }).orThrow()).toBe(
+      "skipped",
+    );
     expect(pending.storage.downloads).toEqual([]);
 
     expect(
       await setup({ drive_text_source: SOURCE, drive_set_text: false })
-        .text.extract("n1")
+        .text.extract({ nodeId: "n1" })
         .orThrow(),
     ).toBe("skipped");
   });
@@ -195,7 +205,9 @@ describe("createDriveText", () => {
       drive_set_text: true,
     });
 
-    expect(await unread.text.extract("n1").orThrow()).toBe("cleared");
+    expect(await unread.text.extract({ nodeId: "n1" }).orThrow()).toBe(
+      "cleared",
+    );
     expect(unread.calls[1]?.[1]).toMatchObject({ content: null });
 
     const transport = fakeTransport({
@@ -212,7 +224,7 @@ describe("createDriveText", () => {
       maxFileBytes: 10,
     });
 
-    expect(await large.extract("n1").orThrow()).toBe("cleared");
+    expect(await large.extract({ nodeId: "n1" }).orThrow()).toBe("cleared");
     expect(storage.downloads).toEqual([]);
   });
 
@@ -227,7 +239,7 @@ describe("createDriveText", () => {
       },
     );
 
-    const result = await text.extract("n1");
+    const result = await text.extract({ nodeId: "n1" });
     expect(result.ok ? undefined : result.error.hint).toBe("DRIVE_TEXT_FAILED");
     expect(calls.map(([fn]) => fn)).toEqual(["drive_text_source"]);
   });
@@ -241,7 +253,7 @@ describe("createDriveText", () => {
       knowledge,
     );
 
-    expect(await text.extract("n1").orThrow()).toBe("stored");
+    expect(await text.extract({ nodeId: "n1" }).orThrow()).toBe("stored");
     const subject = { type: "drive_node", id: "n1" };
     expect(calls).toEqual([
       ["list", "org-1", { scope: "subject", subject }],

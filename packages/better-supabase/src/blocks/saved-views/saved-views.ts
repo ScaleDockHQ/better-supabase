@@ -97,33 +97,36 @@ export interface SavedViews<F extends object = Record<never, never>> {
     input: SaveViewInput<ListQueryInput<string, string>, F>,
   ): AsyncResult<SavedViewRef<F>>;
   /** The views the caller sees for a list, in rank order. */
-  list(
-    organizationId: string,
-    list: string,
-  ): AsyncResult<SavedView<ListQueryInput<string, string>, F>[]>;
+  list(input: {
+    organizationId: string;
+    list: string;
+  }): AsyncResult<SavedView<ListQueryInput<string, string>, F>[]>;
   /** Moves a view between its neighbours' rank keys. Resolves to its new key. */
-  reorder(id: string, neighbors: RankNeighbors): AsyncResult<string>;
+  reorder(input: { id: string; neighbors: RankNeighbors }): AsyncResult<string>;
   /**
    * Makes a view the default of its slot (the user's, the team's or the
    * tenant's).
    */
-  setDefault(id: string, on?: boolean): AsyncResult<boolean>;
+  setDefault(input: {
+    id: string;
+    on?: boolean | undefined;
+  }): AsyncResult<boolean>;
   /**
    * Sets the caller's own flags on a view they see. Omitted flags keep their
    * value; one preferred default per user and list.
    */
-  setPreference(
-    id: string,
-    preference: SavedViewPreferenceInput,
-  ): AsyncResult<SavedViewPreference>;
+  setPreference(input: {
+    id: string;
+    preference: SavedViewPreferenceInput;
+  }): AsyncResult<SavedViewPreference>;
   /**
    * Copies a view the caller sees as a new view. Resolves to its id and rank
    * key.
    */
-  duplicate(
-    id: string,
-    input?: DuplicateViewInput,
-  ): AsyncResult<SavedViewRef<F>>;
+  duplicate(input: {
+    id: string;
+    input?: DuplicateViewInput | undefined;
+  }): AsyncResult<SavedViewRef<F>>;
   delete(id: string): AsyncResult<boolean>;
 }
 
@@ -347,11 +350,11 @@ export function createSavedViews<
         ),
       ).andThen((saved) => readFields(fields, saved));
     },
-    list: (organizationId, list) =>
+    list: ({ organizationId, list }) =>
       call("list_views", { tenant: organizationId, list }, (value) =>
         recordsOf(value, "list_views").map(viewOf),
       ).andThen((views) => readAllFields(fields, views)),
-    reorder: (id, neighbors) => {
+    reorder: ({ id, neighbors }) => {
       const key = rankBetweenResult(neighbors);
 
       if (!key.ok) {
@@ -360,13 +363,13 @@ export function createSavedViews<
 
       return call("rank_view", { view_id: id, rank: key.data }, () => key.data);
     },
-    setDefault: (id, on = true) =>
+    setDefault: ({ id, on = true }) =>
       call(
         "set_default_view",
         { view_id: id, on_default: on },
         (value) => value === true,
       ),
-    setPreference: (id, preference) =>
+    setPreference: ({ id, preference }) =>
       call(
         "set_view_preference",
         {
@@ -377,7 +380,7 @@ export function createSavedViews<
         },
         preferenceOf,
       ),
-    duplicate: (id, input = {}) =>
+    duplicate: ({ id, input = {} }) =>
       call(
         "duplicate_view",
         {

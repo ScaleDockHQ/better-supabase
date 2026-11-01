@@ -152,7 +152,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         pageSize: 2,
       });
 
-      const ready = await exporter.run(mine.id).orThrow();
+      const ready = await exporter.run({ exportId: mine.id }).orThrow();
       expect(ready.status).toBe("ready");
       expect(ready.expiresAt).toBeDefined();
       expect(ready.files).toContain(
@@ -177,7 +177,7 @@ describe.skipIf(!live)("data lifecycle", () => {
 
       expect(memberships).toContain(member.id);
       expect(memberships).not.toContain(owner.id);
-      expect((await exporter.run(mine.id)).ok).toBe(false);
+      expect((await exporter.run({ exportId: mine.id })).ok).toBe(false);
 
       await exporter
         .sink()
@@ -283,7 +283,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         transport: sqlTransport(s.sql),
         storage: memory.storage,
       })
-        .run(requested.id)
+        .run({ exportId: requested.id })
         .orThrow();
 
       const path = `${requested.id}/better_supabase.incoming_webhooks.ndjson`;
@@ -540,7 +540,10 @@ describe.skipIf(!live)("data lifecycle", () => {
 
       await s.asRole(owner);
       await lifecycle
-        .requestOrganizationDeletion(organization, { grace: "P7D" })
+        .requestOrganizationDeletion({
+          organizationId: organization,
+          options: { grace: "P7D" },
+        })
         .orThrow();
 
       await s.asRole(viewer);
@@ -616,8 +619,9 @@ describe.skipIf(!live)("data lifecycle", () => {
 
       await s.asRole(admin);
 
-      const forbidden =
-        await lifecycle.requestOrganizationDeletion(organization);
+      const forbidden = await lifecycle.requestOrganizationDeletion({
+        organizationId: organization,
+      });
 
       expect(forbidden.ok ? undefined : forbidden.error.hint).toBe(
         "ORGANIZATION_DELETION_FORBIDDEN",
@@ -626,7 +630,10 @@ describe.skipIf(!live)("data lifecycle", () => {
       await s.asRole(owner);
 
       const pending = await lifecycle
-        .requestOrganizationDeletion(organization, { grace: "P14D" })
+        .requestOrganizationDeletion({
+          organizationId: organization,
+          options: { grace: "P14D" },
+        })
         .orThrow();
 
       expect(
@@ -673,7 +680,10 @@ describe.skipIf(!live)("data lifecycle", () => {
       ).toBeUndefined();
 
       await lifecycle
-        .requestOrganizationDeletion(organization, { grace: "0 seconds" })
+        .requestOrganizationDeletion({
+          organizationId: organization,
+          options: { grace: "0 seconds" },
+        })
         .orThrow();
       expect(await disabled()).toBe(true);
 
@@ -823,13 +833,20 @@ describe.skipIf(!live)("data lifecycle", () => {
       const lifecycle = createDataLifecycle({ transport: sqlTransport(s.sql) });
       await s.asRole(staff);
       expect(
-        (await lifecycle.requestOrganizationDeletion(organization)).ok,
+        (
+          await lifecycle.requestOrganizationDeletion({
+            organizationId: organization,
+          })
+        ).ok,
       ).toBe(false);
       await s.asRole(staff, {
         platform_permissions: ["platform.organizations.delete"],
       });
       await lifecycle
-        .requestOrganizationDeletion(organization, { grace: "0 seconds" })
+        .requestOrganizationDeletion({
+          organizationId: organization,
+          options: { grace: "0 seconds" },
+        })
         .orThrow();
 
       await s.service();
@@ -887,7 +904,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         storage: memory.storage,
         format: "csv",
       })
-        .run(requested.id)
+        .run({ exportId: requested.id })
         .orThrow();
 
       const settings = done.files.find((file) =>
@@ -1035,7 +1052,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         transport: sqlTransport(s.sql),
         storage: memory.storage,
       })
-        .run(requested.id)
+        .run({ exportId: requested.id })
         .orThrow();
 
       expect(ready.files.some((file) => file.includes("api_keys"))).toBe(false);
@@ -1128,7 +1145,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         transport: sqlTransport(s.sql),
         storage: memory.storage,
       })
-        .run(requested.id)
+        .run({ exportId: requested.id })
         .orThrow();
 
       const exported = ready.files.filter((file) =>

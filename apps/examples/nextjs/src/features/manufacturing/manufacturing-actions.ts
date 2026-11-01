@@ -16,7 +16,7 @@ export const releaseProductionOrder = bsb.action(
     permission: "manufacturing.write",
   },
   async ({ orderId }, { db, auth }) => {
-    const released = await db.manufacturing.release(orderId);
+    const released = await db.manufacturing.release({ orderId });
 
     if (!released.ok) {
       return released;
@@ -82,7 +82,7 @@ export const completeProductionOrder = bsb.action(
     permission: "manufacturing.produce",
   },
   async ({ orderId, produced }, { db, auth }) => {
-    const done = await db.manufacturing.complete(orderId, produced);
+    const done = await db.manufacturing.complete({ orderId, produced });
 
     if (!done.ok) {
       return done;

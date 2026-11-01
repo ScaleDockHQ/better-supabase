@@ -477,12 +477,15 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
   ): Promise<RawMessage<InboxMessage>> =>
     rawOf(
       await must(
-        inbox.messages.send(remember(threadId).conversationId, {
-          body,
-          format,
-          authorType: "bot",
-          metadata: { author_name: userName, ...metadata },
-          ...(replyTo === undefined ? {} : { replyTo }),
+        inbox.messages.send({
+          conversationId: remember(threadId).conversationId,
+          input: {
+            body,
+            format,
+            authorType: "bot",
+            metadata: { author_name: userName, ...metadata },
+            ...(replyTo === undefined ? {} : { replyTo }),
+          },
         }),
       ),
       threadId,
@@ -514,7 +517,11 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     });
 
     const [first] = await must(
-      inbox.messages.list(conversation.id, { limit: 1, direction: "forward" }),
+      inbox.messages.list({
+        conversationId: conversation.id,
+        limit: 1,
+        direction: "forward",
+      }),
     );
 
     if (first === undefined) {
@@ -640,9 +647,9 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       : {
           openDM: async (contactId: string): Promise<string> => {
             const conversation = await must(
-              inbox.conversations.open(dmInbox, {
-                contact: contactId,
-                botMode: "bot",
+              inbox.conversations.open({
+                inboxId: dmInbox,
+                input: { contact: contactId, botMode: "bot" },
               }),
             );
 
@@ -702,7 +709,9 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       postMessage(threadId, message, messageId),
     editMessage: async (threadId, messageId, message) =>
       rawOf(
-        await must(inbox.messages.edit(messageId, bodyOf(message).body)),
+        await must(
+          inbox.messages.edit({ messageId, body: bodyOf(message).body }),
+        ),
         threadId,
       ),
     deleteMessage: async (_threadId, messageId) => {
@@ -710,7 +719,9 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     },
     addReaction: async (_threadId, messageId, value) => {
       await must(
-        inbox.messages.react(messageId, emojiOf(value), {
+        inbox.messages.react({
+          messageId,
+          emoji: emojiOf(value),
           present: true,
           actor: userName,
         }),
@@ -718,7 +729,9 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     },
     removeReaction: async (_threadId, messageId, value) => {
       await must(
-        inbox.messages.react(messageId, emojiOf(value), {
+        inbox.messages.react({
+          messageId,
+          emoji: emojiOf(value),
           present: false,
           actor: userName,
         }),
@@ -726,12 +739,20 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     },
     startTyping: async (threadId) => {
       await must(
-        inbox.conversations.typing(conversationIdOf(threadId), true, userName),
+        inbox.conversations.typing({
+          conversationId: conversationIdOf(threadId),
+          typing: true,
+          actor: userName,
+        }),
       );
     },
     endTyping: async (threadId) => {
       await must(
-        inbox.conversations.typing(conversationIdOf(threadId), false, userName),
+        inbox.conversations.typing({
+          conversationId: conversationIdOf(threadId),
+          typing: false,
+          actor: userName,
+        }),
       );
     },
     // The inbox keeps one read mark per conversation, so reading a message
@@ -761,7 +782,8 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
           : toInstant(fetchOptions.cursor);
 
       const page = await must(
-        inbox.messages.list(conversationId, {
+        inbox.messages.list({
+          conversationId,
           limit,
           direction,
           ...(cursor === undefined ? {} : { cursor }),
@@ -794,13 +816,16 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       const limit = listOptions.limit ?? 50;
 
       const page = await must(
-        inbox.conversations.list(null, {
-          inboxId,
-          status: "all",
-          limit,
-          ...(listOptions.cursor === undefined
-            ? {}
-            : { cursor: decodeCursor(listOptions.cursor) }),
+        inbox.conversations.list({
+          tenant: null,
+          filter: {
+            inboxId,
+            status: "all",
+            limit,
+            ...(listOptions.cursor === undefined
+              ? {}
+              : { cursor: decodeCursor(listOptions.cursor) }),
+          },
         }),
       );
 
@@ -835,7 +860,11 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     },
     stream: async (threadId, source, streamOptions) => {
       const { conversationId } = remember(threadId);
-      await inbox.conversations.typing(conversationId, true, userName);
+      await inbox.conversations.typing({
+        conversationId,
+        typing: true,
+        actor: userName,
+      });
       let text = "";
       const chunks = textOnly(source);
       const store = options.streams;
@@ -869,7 +898,11 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
         }
       }
 
-      await inbox.conversations.typing(conversationId, false, userName);
+      await inbox.conversations.typing({
+        conversationId,
+        typing: false,
+        actor: userName,
+      });
 
       if (text.trim().length === 0) {
         return null;

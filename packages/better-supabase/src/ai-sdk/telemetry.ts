@@ -106,7 +106,9 @@ export function meterTelemetry(options: MeterTelemetryOptions): Telemetry {
       return;
     }
 
-    const saved = await options.usage.recordMany(tenant, kept, {
+    const saved = await options.usage.recordMany({
+      organizationId: tenant,
+      entries: kept,
       idempotencyKey: `ai-call:${key}`,
       source,
     });
@@ -245,7 +247,9 @@ export function spendReconciliation(
       }
 
       await options.usage
-        .recordMany(organizationId, [{ meter, quantity: costMicroUsd }], {
+        .recordMany({
+          organizationId,
+          entries: [{ meter, quantity: costMicroUsd }],
           idempotencyKey: `ai-spend:${day}:${organizationId}`,
           source: "ai:gateway-spend",
         })

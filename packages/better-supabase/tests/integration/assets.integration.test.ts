@@ -69,7 +69,10 @@ describe.skipIf(!live)("assets module in Postgres", () => {
       assets: 0,
     });
     expect(
-      await assets.updateLocation(site.id, { parentId: floor.id }),
+      await assets.updateLocation({
+        locationId: site.id,
+        patch: { parentId: floor.id },
+      }),
     ).toMatchObject({ ok: false, error: { hint: "ASSETS_LOCATION_CYCLE" } });
     expect(
       await assets.createLocation({ kind: "site", name: "Dup", code: "HQ" }),
@@ -99,12 +102,19 @@ describe.skipIf(!live)("assets module in Postgres", () => {
       .orThrow();
 
     const assigned = await assets
-      .assign(van.id, { type: "member", id: member.id }, { note: "route A" })
+      .assign({
+        assetId: van.id,
+        assignee: { type: "member", id: member.id },
+        note: "route A",
+      })
       .orThrow();
 
     expect(assigned.assignee).toEqual({ type: "member", id: member.id });
     expect(
-      await assets.assign(van.id, { type: "member", id: outsider.id }),
+      await assets.assign({
+        assetId: van.id,
+        assignee: { type: "member", id: outsider.id },
+      }),
     ).toMatchObject({ ok: false, error: { hint: "ASSETS_ASSIGNEE_INVALID" } });
 
     const near = await assets
@@ -127,7 +137,10 @@ describe.skipIf(!live)("assets module in Postgres", () => {
     }
 
     await assets
-      .link({ type: "booking_resource", id: resource.id }, van.id)
+      .link({
+        target: { type: "booking_resource", id: resource.id },
+        assetId: van.id,
+      })
       .orThrow();
     expect((await assets.asset(van.id).orThrow()).links).toMatchObject({
       bookingResources: [{ id: resource.id, name: "Van bay" }],
@@ -143,7 +156,7 @@ describe.skipIf(!live)("assets module in Postgres", () => {
     expect(
       (
         await memberAssets
-          .assignedTo({ type: "member", id: member.id })
+          .assignedTo({ assignee: { type: "member", id: member.id } })
           .orThrow()
       ).map((asset) => asset.id),
     ).toEqual([van.id]);
@@ -154,18 +167,21 @@ describe.skipIf(!live)("assets module in Postgres", () => {
     await session.as(owner);
 
     const retired = await assets
-      .updateAsset(van.id, { status: "retired" })
+      .updateAsset({ assetId: van.id, patch: { status: "retired" } })
       .orThrow();
 
     expect(retired.assignee).toBeUndefined();
-    expect(await assets.assignments(van.id).orThrow()).toEqual([
+    expect(await assets.assignments({ assetId: van.id }).orThrow()).toEqual([
       expect.objectContaining({
         note: "route A",
         releasedAt: expect.anything(),
       }),
     ]);
     expect(
-      await assets.assign(van.id, { type: "member", id: member.id }),
+      await assets.assign({
+        assetId: van.id,
+        assignee: { type: "member", id: member.id },
+      }),
     ).toMatchObject({ ok: false, error: { hint: "ASSETS_RETIRED" } });
     expect(await events("asset.assigned")).toEqual([
       expect.objectContaining({ id: van.id, assigneeId: member.id }),

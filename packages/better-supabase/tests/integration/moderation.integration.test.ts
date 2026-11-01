@@ -146,11 +146,18 @@ describe.skipIf(!live)("moderation", () => {
       ).toBe("MODERATION_SUBJECT_NOT_FOUND");
       expect(
         await asFirst
-          .report({ type: "message", id: spam }, { reason: "spam" })
+          .report({
+            subject: { type: "message", id: spam },
+            report: { reason: "spam" },
+          })
           .orThrow(),
       ).toMatchObject({ status: "open", reason: "spam", autoHidden: false });
       expect((await asFirst.queue()).ok).toBe(false);
-      expect(await asFirst.statuses("message", [spam]).orThrow()).toEqual({});
+      expect(
+        await asFirst
+          .statuses({ subjectType: "message", ids: [spam] })
+          .orThrow(),
+      ).toEqual({});
 
       await s.as(second);
       expect(
@@ -190,7 +197,9 @@ describe.skipIf(!live)("moderation", () => {
         "auto_hide",
       ]);
 
-      const restored = await asOwner.decide(queued!.id, "restore").orThrow();
+      const restored = await asOwner
+        .decide({ itemId: queued!.id, decision: "restore" })
+        .orThrow();
 
       expect(restored).toMatchObject({ status: "visible", openReports: 0 });
       expect(await reads(s, second, spam)).toBe(true);
@@ -202,7 +211,7 @@ describe.skipIf(!live)("moderation", () => {
       );
 
       const removed = await asOwner
-        .decide(queued!.id, "ban", { reason: "Spam ring" })
+        .decide({ itemId: queued!.id, decision: "ban", reason: "Spam ring" })
         .orThrow();
 
       expect(removed.status).toBe("removed");
@@ -234,7 +243,8 @@ describe.skipIf(!live)("moderation", () => {
       expect(await asOwner.bans({ active: false }).orThrow()).toHaveLength(1);
 
       const later = await asOwner
-        .ban(writer.id, {
+        .ban({
+          userId: writer.id,
           reason: "Cooling off",
           expiresAt: Temporal.Now.instant().add({ hours: 1 }),
         })
@@ -319,7 +329,7 @@ describe.skipIf(!live)("moderation", () => {
       });
 
       await moderation
-        .decide(queued!.id, "hide", { reason: "Off topic" })
+        .decide({ itemId: queued!.id, decision: "hide", reason: "Off topic" })
         .orThrow();
 
       await s.as(member);
@@ -337,7 +347,9 @@ describe.skipIf(!live)("moderation", () => {
         ]),
       ).toMatchObject({ status: "published", rejectionReason: null });
       expect(
-        await moderation.statuses("review", [review.id]).orThrow(),
+        await moderation
+          .statuses({ subjectType: "review", ids: [review.id] })
+          .orThrow(),
       ).toEqual({});
 
       await s.as(member);
@@ -348,7 +360,9 @@ describe.skipIf(!live)("moderation", () => {
 
       await s.as(owner);
       expect(
-        await moderation.statuses("review", [review.id]).orThrow(),
+        await moderation
+          .statuses({ subjectType: "review", ids: [review.id] })
+          .orThrow(),
       ).toEqual({ [review.id]: "pending" });
 
       await s.as(member);

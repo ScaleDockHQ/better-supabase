@@ -101,13 +101,15 @@ describe.skipIf(!live)("engagement recordings", () => {
       await s.asRole(rep);
 
       const acme = await createContacts({ transport })
-        .saveCompany(org, { name: "Acme" })
+        .saveCompany({ organizationId: org, input: { name: "Acme" } })
         .orThrow();
 
       const call = await engagements
-        .log(org, { type: "call", title: "Discovery call" }, [
-          { type: "company", id: acme.id },
-        ])
+        .log({
+          organizationId: org,
+          input: { type: "call", title: "Discovery call" },
+          subjects: [{ type: "company", id: acme.id }],
+        })
         .orThrow();
 
       await s.service();
@@ -130,7 +132,11 @@ describe.skipIf(!live)("engagement recordings", () => {
       await s.asRole(rep);
 
       const recording = await engagements
-        .attachRecording(call.id, mine, { language: "en" })
+        .attachRecording({
+          engagementId: call.id,
+          fileId: mine,
+          language: "en",
+        })
         .orThrow();
 
       expect(recording).toMatchObject({
@@ -142,24 +148,44 @@ describe.skipIf(!live)("engagement recordings", () => {
         language: "en",
         segmentCount: 0,
       });
-      expect(hint(await engagements.attachRecording(call.id, mine))).toBe(
-        "ACTIVITY_RECORDING_EXISTS",
-      );
-      expect(hint(await engagements.attachRecording(call.id, pending))).toBe(
-        "AI_FILE_NOT_FOUND",
-      );
-      expect(hint(await engagements.attachRecording(call.id, owners))).toBe(
-        "AI_FILE_NOT_FOUND",
-      );
+      expect(
+        hint(
+          await engagements.attachRecording({
+            engagementId: call.id,
+            fileId: mine,
+          }),
+        ),
+      ).toBe("ACTIVITY_RECORDING_EXISTS");
+      expect(
+        hint(
+          await engagements.attachRecording({
+            engagementId: call.id,
+            fileId: pending,
+          }),
+        ),
+      ).toBe("AI_FILE_NOT_FOUND");
+      expect(
+        hint(
+          await engagements.attachRecording({
+            engagementId: call.id,
+            fileId: owners,
+          }),
+        ),
+      ).toBe("AI_FILE_NOT_FOUND");
 
-      const invalid = await engagements.saveTranscript(recording.id, {
-        segments: [{ startMs: 5, endMs: 1, text: "backwards" }],
+      const invalid = await engagements.saveTranscript({
+        recordingId: recording.id,
+        transcript: { segments: [{ startMs: 5, endMs: 1, text: "backwards" }] },
       });
 
       expect(hint(invalid)).toBe("ACTIVITY_TRANSCRIPT_INVALID");
 
       await s.service();
-      const transcribed = await engagements.transcribe(recording.id).orThrow();
+
+      const transcribed = await engagements
+        .transcribe({ recordingId: recording.id })
+        .orThrow();
+
       expect(transcribed).toMatchObject({
         status: "transcribed",
         model: "stt-test",
@@ -176,7 +202,7 @@ describe.skipIf(!live)("engagement recordings", () => {
       await s.asRole(owner);
 
       const transcript = await engagements
-        .transcript(recording.id, { limit: 1 })
+        .transcript({ recordingId: recording.id, limit: 1 })
         .orThrow();
 
       expect(transcript).toEqual([
@@ -189,11 +215,17 @@ describe.skipIf(!live)("engagement recordings", () => {
         },
       ]);
       expect(
-        await engagements.transcript(recording.id, { after: 1 }).orThrow(),
+        await engagements
+          .transcript({ recordingId: recording.id, after: 1 })
+          .orThrow(),
       ).toMatchObject([{ position: 2, confidence: 0.82 }]);
 
       await s.asRole(rep);
-      const notes = await engagements.summarize(call.id).orThrow();
+
+      const notes = await engagements
+        .summarize({ engagementId: call.id })
+        .orThrow();
+
       expect(notes).toMatchObject({
         source: "ai",
         model: "notes-test",
@@ -202,28 +234,50 @@ describe.skipIf(!live)("engagement recordings", () => {
       });
 
       const edited = await engagements
-        .saveNotes(call.id, { summary: "Proposal due Friday." })
+        .saveNotes({
+          engagementId: call.id,
+          notes: { summary: "Proposal due Friday." },
+        })
         .orThrow();
 
       expect(edited).toMatchObject({ source: "member", actionItems: [] });
       expect(edited.model).toBeUndefined();
-      expect(hint(await engagements.saveNotes(call.id, { summary: "" }))).toBe(
-        "ACTIVITY_NOTES_INVALID",
-      );
+      expect(
+        hint(
+          await engagements.saveNotes({
+            engagementId: call.id,
+            notes: { summary: "" },
+          }),
+        ),
+      ).toBe("ACTIVITY_NOTES_INVALID");
 
       await s.asRole(stranger);
       expect(await engagements.recordings(call.id).orThrow()).toEqual([]);
       expect(await engagements.notes(call.id).orThrow()).toBeUndefined();
-      expect(await engagements.transcript(recording.id).orThrow()).toEqual([]);
-      expect(hint(await engagements.attachRecording(call.id, mine))).toBe(
-        "ACTIVITY_NOT_FOUND",
-      );
-      expect(hint(await engagements.saveNotes(call.id, { summary: "x" }))).toBe(
-        "ACTIVITY_NOT_FOUND",
-      );
+      expect(
+        await engagements.transcript({ recordingId: recording.id }).orThrow(),
+      ).toEqual([]);
+      expect(
+        hint(
+          await engagements.attachRecording({
+            engagementId: call.id,
+            fileId: mine,
+          }),
+        ),
+      ).toBe("ACTIVITY_NOT_FOUND");
+      expect(
+        hint(
+          await engagements.saveNotes({
+            engagementId: call.id,
+            notes: { summary: "x" },
+          }),
+        ),
+      ).toBe("ACTIVITY_NOT_FOUND");
 
       await s.asRole(rep);
-      await engagements.attachRecording(call.id, second).orThrow();
+      await engagements
+        .attachRecording({ engagementId: call.id, fileId: second })
+        .orThrow();
       await s.service();
       expect(await engagements.drainRecordings().orThrow()).toBe(1);
       expect(await engagements.drainRecordings().orThrow()).toBe(0);

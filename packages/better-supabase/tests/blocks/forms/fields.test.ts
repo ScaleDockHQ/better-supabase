@@ -38,10 +38,14 @@ describe("forms fields", () => {
       .orThrow();
 
     expect(created.fields.category).toBe("hr");
-    await forms.update("f1", { fields: { category: "sales" } }).orThrow();
+    await forms
+      .update({ id: "f1", update: { fields: { category: "sales" } } })
+      .orThrow();
     expect((await forms.get("f1").orThrow()).fields.category).toBe("hr");
     expect(
-      (await forms.list("o").orThrow()).map((form) => form.fields),
+      (await forms.list({ organizationId: "o" }).orThrow()).map(
+        (form) => form.fields,
+      ),
     ).toEqual([{ category: "hr" }]);
     expect(t.calls.slice(0, 2)).toEqual([
       [

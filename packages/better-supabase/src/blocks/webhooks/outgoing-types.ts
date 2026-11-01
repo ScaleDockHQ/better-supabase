@@ -267,8 +267,7 @@ export interface Webhooks extends WebhookEndpoints {
   redeliver(deliveryId: string): AsyncResult<string>;
   /** A new signing secret, returned once. */
   rotateSecret(
-    endpointId: string,
-    options?: RotateSecretOptions,
+    input: { endpointId: string } & RotateSecretOptions,
   ): AsyncResult<string>;
   /** Sends due deliveries. Run it from a cron route or a job. */
   deliver(options?: DeliverWebhooksOptions): Promise<DeliverWebhooksResult>;
@@ -356,10 +355,10 @@ export interface WebhookEndpoints {
     input: CreateWebhookEndpointInput,
   ): AsyncResult<WebhookEndpoint>;
   /** Changes the fields that `changes` names. */
-  updateEndpoint(
-    endpointId: string,
-    changes: WebhookEndpointFields,
-  ): AsyncResult<WebhookEndpoint>;
+  updateEndpoint(input: {
+    endpointId: string;
+    changes: WebhookEndpointFields;
+  }): AsyncResult<WebhookEndpoint>;
   /** The tenant's endpoints, newest first, without their secrets. */
   listEndpoints(tenant: string): AsyncResult<readonly WebhookEndpoint[]>;
   /** Deletes an endpoint with its secrets and deliveries. */

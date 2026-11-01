@@ -70,8 +70,14 @@ export function searchSink(
 
         const result =
           action === "remove"
-            ? await search.remove(subject.type, subject.id)
-            : await search.refresh(subject.type, subject.id);
+            ? await search.remove({
+                subjectType: subject.type,
+                subjectId: subject.id,
+              })
+            : await search.refresh({
+                subjectType: subject.type,
+                subjectId: subject.id,
+              });
 
         if (!result.ok && result.error.hint !== "SEARCH_SUBJECT_UNKNOWN") {
           throw new Error(

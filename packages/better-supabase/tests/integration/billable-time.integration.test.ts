@@ -59,7 +59,7 @@ describe.skipIf(!live)("billable-time", () => {
       await s.as(owner);
 
       const acme = await createContacts({ transport })
-        .saveCompany(tenant, { name: "Acme" })
+        .saveCompany({ organizationId: tenant, input: { name: "Acme" } })
         .orThrow();
 
       const company = { type: "company", id: acme.id };
@@ -133,13 +133,18 @@ describe.skipIf(!live)("billable-time", () => {
 
       expect(
         await time
-          .update(workshop.id, { endedAt: at("2026-10-06T11:00:00Z") })
+          .update({
+            entryId: workshop.id,
+            patch: { endedAt: at("2026-10-06T11:00:00Z") },
+          })
           .then(hint),
       ).toBe("TIME_ENTRY_INVOICED");
       expect(
-        (await billing.invoicedEntries(invoice.invoiceId).orThrow()).map(
-          (entry) => entry.seconds,
-        ),
+        (
+          await billing
+            .invoicedEntries({ invoiceId: invoice.invoiceId })
+            .orThrow()
+        ).map((entry) => entry.seconds),
       ).toEqual([5400]);
 
       await s.client.query("reset role");
@@ -160,7 +165,9 @@ describe.skipIf(!live)("billable-time", () => {
       ).toHaveLength(1);
 
       await s.as(owner);
-      await invoices.void(invoice.invoiceId, "wrong client").orThrow();
+      await invoices
+        .void({ invoiceId: invoice.invoiceId, reason: "wrong client" })
+        .orThrow();
 
       expect(
         (await billing.unbilled({ subject: company }).orThrow()).totals,

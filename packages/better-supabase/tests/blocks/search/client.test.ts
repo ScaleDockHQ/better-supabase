@@ -28,7 +28,9 @@ const user = (subjectId: string): SearchUserItem =>
 
 function fakeClient() {
   return {
-    search: vi.fn((q: string) => resolved([hit("note", q), hit("deal", "d1")])),
+    search: vi.fn(({ q }: { q: string }) =>
+      resolved([hit("note", q), hit("deal", "d1")]),
+    ),
     recents: vi.fn(() => resolved([user("r1")])),
     favorites: vi.fn(() => resolved([user("f1")])),
     touch: vi.fn(() => resolved(true)),
@@ -84,7 +86,10 @@ describe("createCommandSearchController", () => {
 
     await view().select(view().results[0]!);
     expect(view()).toMatchObject({ open: false, query: "" });
-    expect(client.touch).toHaveBeenCalledWith("note", "rev");
+    expect(client.touch).toHaveBeenCalledWith({
+      subjectType: "note",
+      subjectId: "rev",
+    });
     keyboard.press({ key: "k", mod: true });
     keyboard.press({ key: "k", mod: true });
     expect(view().open).toBe(false);
@@ -125,12 +130,16 @@ describe("createCommandSearchController", () => {
     expect(view().error?.message).toBe("no recents");
     client.recents.mockReturnValue(resolved([]));
     client.favorites.mockReturnValue(failed("no favorites"));
-    await view().star(user("f1"), false);
-    expect(client.star).toHaveBeenCalledWith("note", "f1", false);
+    await view().star({ item: user("f1"), starred: false });
+    expect(client.star).toHaveBeenCalledWith({
+      subjectType: "note",
+      subjectId: "f1",
+      starred: false,
+    });
     expect(view().error?.message).toBe("no favorites");
 
     client.star.mockReturnValue(failed("denied"));
-    await view().star(user("f1"));
+    await view().star({ item: user("f1") });
     expect(view().error?.message).toBe("denied");
     client.touch.mockReturnValue(failed("gone"));
     await view().select(user("f1"));

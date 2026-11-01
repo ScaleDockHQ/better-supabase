@@ -74,7 +74,9 @@ describe(`Client registration (RFC 7591, ${SPEC_PINS.rfc7591}; RFC 9700, ${SPEC_
     const oauth = createOauthServer({ transport });
 
     const registered = await oauth
-      .registerClient({ redirectUris: ["https://app.example.com/cb"] })
+      .registerClient({
+        metadata: { redirectUris: ["https://app.example.com/cb"] },
+      })
       .orThrow();
 
     const args = call.mock.calls[0]?.[2] ?? {};
@@ -97,7 +99,9 @@ describe(`Client registration (RFC 7591, ${SPEC_PINS.rfc7591}; RFC 9700, ${SPEC_
     const { call, transport } = recording();
     const oauth = createOauthServer({ transport });
 
-    expect(await oauth.registerClient({ redirectUris: [uri] })).toMatchObject({
+    expect(
+      await oauth.registerClient({ metadata: { redirectUris: [uri] } }),
+    ).toMatchObject({
       ok: false,
       error: { hint: "OAUTH_REDIRECT_URI_INVALID" },
     });
@@ -108,8 +112,9 @@ describe(`Client registration (RFC 7591, ${SPEC_PINS.rfc7591}; RFC 9700, ${SPEC_
     const { call, transport } = recording(null);
     const oauth = createOauthServer({ transport });
 
-    await oauth.updateClient("client", {
-      redirectUris: ["http://127.0.0.1:8976/cb"],
+    await oauth.updateClient({
+      clientId: "client",
+      metadata: { redirectUris: ["http://127.0.0.1:8976/cb"] },
     });
 
     expect(call).toHaveBeenCalledOnce();
@@ -122,7 +127,7 @@ describe(`Device authorization (RFC 8628, ${SPEC_PINS.rfc8628})`, () => {
     const oauth = createOauthServer({ transport });
 
     const issued = await oauth
-      .createDeviceCode("client", "contacts:read")
+      .createDeviceCode({ clientId: "client", scope: "contacts:read" })
       .orThrow();
 
     expect(issued.userCode).toMatch(
@@ -149,16 +154,18 @@ describe(`Device authorization (RFC 8628, ${SPEC_PINS.rfc8628})`, () => {
     const { transport } = recording(answer);
     const oauth = createOauthServer({ transport });
 
-    expect(await oauth.pollDeviceCode("device", "client").orThrow()).toEqual(
-      expected,
-    );
+    expect(
+      await oauth
+        .pollDeviceCode({ deviceCode: "device", clientId: "client" })
+        .orThrow(),
+    ).toEqual(expected);
   });
 
   it("matches a user code typed with a dash and in lower case", async () => {
     const { call, transport } = recording(true);
     const oauth = createOauthServer({ transport });
 
-    await oauth.approveDeviceCode("bdfg-hjkl", "user");
+    await oauth.approveDeviceCode({ userCode: "bdfg-hjkl", userId: "user" });
 
     expect(call.mock.calls[0]?.[2]).toMatchObject({ user_code: "BDFGHJKL" });
   });

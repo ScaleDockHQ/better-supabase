@@ -84,8 +84,8 @@ async function loadReconciliation(): Promise<
   return Promise.all(
     accounts.map(async (account) => {
       const [status, transactions] = await Promise.all([
-        banking.reconciliation(account.id).orThrow(),
-        banking.transactions(account.id, { limit: 100 }).orThrow(),
+        banking.reconciliation({ accountId: account.id }).orThrow(),
+        banking.transactions({ accountId: account.id, limit: 100 }).orThrow(),
       ]);
 
       const open = transactions

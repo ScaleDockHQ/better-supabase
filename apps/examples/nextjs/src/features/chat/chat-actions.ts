@@ -90,14 +90,14 @@ export const startChatUpload = bsb.action(
     permission: "messages.send",
   },
   async ({ conversationId, name, mimeType, size }, { tenant, supabase }) => {
-    const upload = await customerAttachments(supabase, tenant).upload(
-      { type: "conversation", id: conversationId },
-      {
+    const upload = await customerAttachments(supabase, tenant).upload({
+      subject: { type: "conversation", id: conversationId },
+      attachment: {
         name,
         mimeType: mimeType === "" ? "application/octet-stream" : mimeType,
         size,
       },
-    );
+    });
 
     if (!upload.ok) {
       return upload;
@@ -144,11 +144,11 @@ export const summarizeThread = bsb.action(
     requireTenant: true,
   },
   async ({ threadId, force }, { tenant, supabase }) => {
-    const summary = await summaryMessaging(supabase, tenant).summarize(
-      { threadId },
-      threadSummarizer(supabase),
-      { force },
-    );
+    const summary = await summaryMessaging(supabase, tenant).summarize({
+      target: { threadId },
+      summarizer: threadSummarizer(supabase),
+      force,
+    });
 
     return summary.ok
       ? ok({

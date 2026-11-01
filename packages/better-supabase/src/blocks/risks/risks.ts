@@ -233,19 +233,28 @@ export interface Risks<F extends object = Record<never, never>> {
   /** Registers an identified risk; needs `risks.write`. */
   create(input: RiskInput<F>): AsyncResult<Risk<F>>;
   /** Changes a risk; its matrix only before the first assessment. */
-  update(riskId: string, change: RiskChange<F>): AsyncResult<Risk<F>>;
+  update(input: {
+    riskId: string;
+    change: RiskChange<F>;
+  }): AsyncResult<Risk<F>>;
   /** Scores a risk before and after controls; needs `risks.assess`. */
-  assess(riskId: string, input: RiskAssessmentInput): AsyncResult<Risk<F>>;
+  assess(input: {
+    riskId: string;
+    input: RiskAssessmentInput;
+  }): AsyncResult<Risk<F>>;
   /** Sets the treatment; accepting needs `risks.manage`. */
-  setTreatment(
-    riskId: string,
-    treatment: RiskTreatment,
-    note?: string,
-  ): AsyncResult<Risk<F>>;
+  setTreatment(input: {
+    riskId: string;
+    treatment: RiskTreatment;
+    note?: string | undefined;
+  }): AsyncResult<Risk<F>>;
   /** Records a review and moves the next one ahead; needs `risks.assess`. */
-  review(riskId: string, note?: string): AsyncResult<Risk<F>>;
+  review(input: {
+    riskId: string;
+    note?: string | undefined;
+  }): AsyncResult<Risk<F>>;
   /** Closes a risk with a reason; needs `risks.manage`. */
-  close(riskId: string, reason: string): AsyncResult<Risk<F>>;
+  close(input: { riskId: string; reason: string }): AsyncResult<Risk<F>>;
   get(riskId: string): AsyncResult<RiskDetail<F>>;
   list(options?: RiskListOptions): AsyncResult<readonly Risk<F>[]>;
   /**
@@ -517,7 +526,7 @@ export function createRisks<S extends StandardSchemaV1 | undefined = undefined>(
           ).andThen(fields.row),
         ),
       ),
-    update: (riskId, change) =>
+    update: ({ riskId, change }) =>
       withFields(change).andThen((attrs) =>
         call(
           "update_risk",
@@ -525,7 +534,7 @@ export function createRisks<S extends StandardSchemaV1 | undefined = undefined>(
           risk("update_risk"),
         ).andThen(fields.row),
       ),
-    assess: (riskId, input) =>
+    assess: ({ riskId, input }) =>
       call(
         "assess_risk",
         {
@@ -538,19 +547,19 @@ export function createRisks<S extends StandardSchemaV1 | undefined = undefined>(
         },
         risk("assess_risk"),
       ).andThen(fields.row),
-    setTreatment: (riskId, treatment, note) =>
+    setTreatment: ({ riskId, treatment, note }) =>
       call(
         "set_risk_treatment",
         { risk_id: riskId, treatment, note: note ?? null },
         risk("set_risk_treatment"),
       ).andThen(fields.row),
-    review: (riskId, note) =>
+    review: ({ riskId, note }) =>
       call(
         "review_risk",
         { risk_id: riskId, note: note ?? null },
         risk("review_risk"),
       ).andThen(fields.row),
-    close: (riskId, reason) =>
+    close: ({ riskId, reason }) =>
       call(
         "close_risk",
         { risk_id: riskId, reason },

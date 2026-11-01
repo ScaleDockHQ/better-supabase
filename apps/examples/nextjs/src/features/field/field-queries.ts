@@ -167,7 +167,7 @@ export async function loadTechnicianDay(
   }
 
   const day = await db.dispatch
-    .technicianDay(Temporal.PlainDate.from(date))
+    .technicianDay({ day: Temporal.PlainDate.from(date) })
     .orThrow();
 
   return {

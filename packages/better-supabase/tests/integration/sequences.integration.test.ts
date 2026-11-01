@@ -127,20 +127,29 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
 
     ann = (
       await parties
-        .savePerson(tenant, { name: "Ann Lead", email: "ann@lead.test" })
+        .savePerson({
+          organizationId: tenant,
+          input: { name: "Ann Lead", email: "ann@lead.test" },
+        })
         .orThrow()
     ).id;
     ben = (
       await parties
-        .savePerson(tenant, { name: "Ben Lead", email: "ben@lead.test" })
+        .savePerson({
+          organizationId: tenant,
+          input: { name: "Ben Lead", email: "ben@lead.test" },
+        })
         .orThrow()
     ).id;
     mailbox = (
       await mail()
-        .connect(tenant, {
-          provider: "gmail",
-          address: "sales@acme.test",
-          credentialRef: { provider: "vault", tenant, key: "gmail" },
+        .connect({
+          organizationId: tenant,
+          input: {
+            provider: "gmail",
+            address: "sales@acme.test",
+            credentialRef: { provider: "vault", tenant, key: "gmail" },
+          },
         })
         .orThrow()
     ).id;
@@ -230,11 +239,11 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
     ).toBe("SEQUENCE_FORBIDDEN");
 
     const run = await sequences
-      .enroll(
-        sequence!.id,
-        { type: "person", id: ann },
-        { variables: { firstName: "Ann" } },
-      )
+      .enroll({
+        sequenceId: sequence!.id,
+        subject: { type: "person", id: ann },
+        input: { variables: { firstName: "Ann" } },
+      })
       .orThrow();
 
     expect(run).toMatchObject({
@@ -247,7 +256,10 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
     expect(
       (
         await sequences
-          .enroll(sequence!.id, { type: "person", id: ann })
+          .enroll({
+            sequenceId: sequence!.id,
+            subject: { type: "person", id: ann },
+          })
           .orThrow()
       ).id,
     ).toBe(run.id);
@@ -313,7 +325,10 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
     const sequences = sequencesFor(tenant);
 
     const run = await sequences
-      .enroll(sequence!.id, { type: "person", id: ben })
+      .enroll({
+        sequenceId: sequence!.id,
+        subject: { type: "person", id: ben },
+      })
       .orThrow();
 
     expect((await sequences.pause(run.id).orThrow()).status).toBe("paused");
@@ -358,10 +373,18 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
     const [sequence] = await owned.list().orThrow();
 
     const cat = await createContacts({ transport: sqlTransport(session.sql) })
-      .savePerson(tenant, { name: "Cat Lead", email: "cat@lead.test" })
+      .savePerson({
+        organizationId: tenant,
+        input: { name: "Cat Lead", email: "cat@lead.test" },
+      })
       .orThrow();
 
-    await owned.enroll(sequence!.id, { type: "person", id: cat.id }).orThrow();
+    await owned
+      .enroll({
+        sequenceId: sequence!.id,
+        subject: { type: "person", id: cat.id },
+      })
+      .orThrow();
 
     await session.service();
     expect(await sequencesFor(tenant, false).runDue().orThrow()).toEqual({
@@ -384,8 +407,12 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
       .orThrow();
 
     expect(
-      (await owned.enroll(paused.id, { type: "person", id: cat.id })).error
-        ?.hint,
+      (
+        await owned.enroll({
+          sequenceId: paused.id,
+          subject: { type: "person", id: cat.id },
+        })
+      ).error?.hint,
     ).toBe("SEQUENCE_NOT_ACTIVE");
 
     await session.as(outsider);

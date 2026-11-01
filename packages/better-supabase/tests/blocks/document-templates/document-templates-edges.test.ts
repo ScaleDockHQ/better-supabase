@@ -91,7 +91,8 @@ describe("createDocumentTemplates with every option set", () => {
     expect(await templates.listTemplates().orThrow()).toHaveLength(1);
     expect((await templates.getTemplate("t1").orThrow()).name).toBe("letter");
     expect(
-      (await templates.setTemplateActive("t1", true).orThrow()).active,
+      (await templates.setTemplateActive({ id: "t1", active: true }).orThrow())
+        .active,
     ).toBe(true);
 
     const blocks = await templates

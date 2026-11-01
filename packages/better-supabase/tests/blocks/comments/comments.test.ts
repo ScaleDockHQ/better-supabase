@@ -91,7 +91,7 @@ describe("createComments", () => {
     });
 
     const comment = await comments
-      .create(PROJECT, { body: `Hello @[Bob](${BOB})` })
+      .create({ subject: PROJECT, comment: { body: `Hello @[Bob](${BOB})` } })
       .orThrow();
 
     expect(comment).toMatchObject({
@@ -104,12 +104,15 @@ describe("createComments", () => {
     });
     expect(comment.sentAt?.toString()).toBe("2026-10-06T12:00:00Z");
     await comments
-      .create(PROJECT, {
-        body: "Reply",
-        mentionIds: [],
-        parentId: "c0",
-        anchor: { field: "title" },
-        attachmentIds: ["f1"],
+      .create({
+        subject: PROJECT,
+        comment: {
+          body: "Reply",
+          mentionIds: [],
+          parentId: "c0",
+          anchor: { field: "title" },
+          attachmentIds: ["f1"],
+        },
       })
       .orThrow();
     expect(fake.calls).toEqual([
@@ -150,7 +153,7 @@ describe("createComments", () => {
     });
 
     const comment = await comments
-      .edit("c1", { body: "Changed", document: { type: "doc" } })
+      .edit({ id: "c1", edit: { body: "Changed", document: { type: "doc" } } })
       .orThrow();
 
     expect(comment.editedAt?.toString()).toBe("2026-10-06T12:05:00Z");
@@ -199,11 +202,11 @@ describe("createComments", () => {
     const comments = createComments({ transport: fake.transport });
 
     expect(
-      (await comments.resolve("c1").orThrow()).resolvedAt?.toString(),
+      (await comments.resolve({ id: "c1" }).orThrow()).resolvedAt?.toString(),
     ).toBe("2026-10-06T13:00:00Z");
-    await comments.resolve("c1", false).orThrow();
-    await comments.pin("c1").orThrow();
-    await comments.pin("c1", false).orThrow();
+    await comments.resolve({ id: "c1", resolved: false }).orThrow();
+    await comments.pin({ id: "c1" }).orThrow();
+    await comments.pin({ id: "c1", pinned: false }).orThrow();
     expect(await comments.edits("c1").orThrow()).toMatchObject([
       { id: "e1", messageId: "c1", body: "Helo", editedBy: ADA },
     ]);
@@ -229,14 +232,17 @@ describe("createComments", () => {
 
     expect(
       await comments
-        .assign("c1", {
-          assigneeId: BOB,
-          title: "Fix it",
-          attrs: { priority: "high" },
+        .assign({
+          id: "c1",
+          assignment: {
+            assigneeId: BOB,
+            title: "Fix it",
+            attrs: { priority: "high" },
+          },
         })
         .orThrow(),
     ).toBe("w1");
-    await comments.assign("c1").orThrow();
+    await comments.assign({ id: "c1" }).orThrow();
     expect(fake.calls.map(([, , args]) => args)).toEqual([
       {
         message: "c1",
@@ -248,7 +254,7 @@ describe("createComments", () => {
 
     const empty = fakeTransport({ assign_comment: null });
     expect(
-      await createComments({ transport: empty.transport }).assign("c1"),
+      await createComments({ transport: empty.transport }).assign({ id: "c1" }),
     ).toMatchObject({ ok: false });
   });
 
@@ -264,14 +270,17 @@ describe("createComments", () => {
       tenant: "org-1",
     });
 
-    expect(await comments.conversation(PROJECT).orThrow()).toBe("conv-1");
-    expect(await comments.conversation(PROJECT, { open: true }).orThrow()).toBe(
+    expect(await comments.conversation({ subject: PROJECT }).orThrow()).toBe(
       "conv-1",
     );
     expect(
+      await comments.conversation({ subject: PROJECT, open: true }).orThrow(),
+    ).toBe("conv-1");
+    expect(
       (
         await comments
-          .markRead(PROJECT, {
+          .markRead({
+            subject: PROJECT,
             readAt: Temporal.Instant.from("2026-10-06T14:00:00Z"),
           })
           .orThrow()
@@ -308,7 +317,7 @@ describe("createComments", () => {
     const none = fakeTransport({ comment_conversation: null });
     expect(
       await createComments({ transport: none.transport, tenant: "org-1" })
-        .markRead(PROJECT)
+        .markRead({ subject: PROJECT })
         .orThrow(),
     ).toBeUndefined();
     expect(none.calls).toHaveLength(1);
@@ -328,7 +337,8 @@ describe("createComments", () => {
     });
 
     const thread = await comments
-      .list(PROJECT, {
+      .list({
+        subject: PROJECT,
         cursor: Temporal.Instant.from("2026-10-06T00:00:00Z"),
         cursorId: "c0",
         limit: 20,
@@ -363,7 +373,7 @@ describe("createComments", () => {
       tenant: "org-1",
     });
 
-    await comments.list(PROJECT, { includeDeleted: false }).orThrow();
+    await comments.list({ subject: PROJECT, includeDeleted: false }).orThrow();
     expect(fake.calls[0]![2]).toMatchObject({ include_deleted: false });
   });
 
@@ -379,7 +389,7 @@ describe("createComments", () => {
       tenant: "org-1",
     });
 
-    await comments.list(PROJECT, { offset: 40, limit: 20 });
+    await comments.list({ subject: PROJECT, offset: 40, limit: 20 });
     expect(fake.calls[0]![2]).toMatchObject({ skip: 40, max_rows: 20 });
     expect(
       await comments
@@ -397,7 +407,10 @@ describe("createComments", () => {
     ]);
     expect(
       await comments
-        .copy({ type: "quote", id: "q1" }, { type: "invoice", id: "i1" })
+        .copy({
+          from: { type: "quote", id: "q1" },
+          to: { type: "invoice", id: "i1" },
+        })
         .orThrow(),
     ).toBe(3);
     expect(fake.calls[2]![2]).toEqual({
@@ -423,13 +436,13 @@ describe("createComments", () => {
       tenant: () => session.tenant,
     });
 
-    expect(await comments.list(PROJECT)).toMatchObject({
+    expect(await comments.list({ subject: PROJECT })).toMatchObject({
       ok: false,
       error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
     });
     expect(fake.calls).toHaveLength(0);
     session.tenant = "org-2";
-    const [comment] = await comments.list(PROJECT).orThrow();
+    const [comment] = await comments.list({ subject: PROJECT }).orThrow();
     expect(comment?.author).toEqual({
       id: ADA,
       name: "Ada",
@@ -458,7 +471,9 @@ describe("comments.anchoredTo", () => {
     const fake = fakeTransport({ list_file_comments: [{ ...row, anchor }] });
     const comments = createComments({ transport: fake.transport });
 
-    const [comment] = await comments.anchoredTo(file, { limit: 5 }).orThrow();
+    const [comment] = await comments
+      .anchoredTo({ attachmentId: file, limit: 5 })
+      .orThrow();
 
     expect(fake.calls[0]?.slice(1)).toEqual([
       "list_file_comments",

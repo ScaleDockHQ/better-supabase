@@ -19,9 +19,10 @@ export const matchBankTransaction = bsb.action(
     permission: "banking.reconcile",
   },
   async ({ transactionId, invoiceId }, { db, auth }) => {
-    const matched = await db.banking.match(transactionId, [
-      { targetType: "invoice", targetId: invoiceId },
-    ]);
+    const matched = await db.banking.match({
+      transactionId,
+      matches: [{ targetType: "invoice", targetId: invoiceId }],
+    });
 
     if (!matched.ok) {
       return matched;
@@ -41,7 +42,7 @@ export const ignoreBankTransaction = bsb.action(
     permission: "banking.reconcile",
   },
   async ({ transactionId }, { db, auth }) => {
-    const ignored = await db.banking.ignore(transactionId);
+    const ignored = await db.banking.ignore({ transactionId });
 
     if (!ignored.ok) {
       return ignored;

@@ -143,36 +143,46 @@ export interface ListCommentsOptions extends CursorPageOptions<Temporal.Instant>
  */
 export interface Comments<F extends object = Record<never, never>> {
   /** Posts a comment on `subject`, opening its conversation the first time. */
-  create(subject: RecordRef, comment: NewComment<F>): AsyncResult<Comment<F>>;
+  create(input: {
+    subject: RecordRef;
+    comment: NewComment<F>;
+  }): AsyncResult<Comment<F>>;
   /** One comment, or `not_found` when the caller can't read it. */
   get(id: string): AsyncResult<Comment<F>>;
   /** The top-level comments anchored to a file (`fileAnchor`), oldest first. */
   anchoredTo(
-    attachmentId: string,
-    options?: { readonly limit?: number },
+    input: { attachmentId: string } & { readonly limit?: number },
   ): AsyncResult<Comment<F>[]>;
   /** The author edits within `editWindow`; the old version is kept. */
-  edit(id: string, edit: CommentEdit<F>): AsyncResult<Comment<F>>;
+  edit(input: { id: string; edit: CommentEdit<F> }): AsyncResult<Comment<F>>;
   /** Soft-deletes (the author, or a member with `comments.moderate`). */
   remove(id: string): AsyncResult<boolean>;
   /** Resolves a thread by its root comment, or opens it again. */
-  resolve(id: string, resolved?: boolean): AsyncResult<Comment<F>>;
+  resolve(input: {
+    id: string;
+    resolved?: boolean | undefined;
+  }): AsyncResult<Comment<F>>;
   /** Pins a comment to the top of its record, or unpins it. */
-  pin(id: string, pinned?: boolean): AsyncResult<Comment<F>>;
+  pin(input: {
+    id: string;
+    pinned?: boolean | undefined;
+  }): AsyncResult<Comment<F>>;
   /** The earlier versions of an edited comment, newest first. */
   edits(id: string): AsyncResult<readonly MessageEdit[]>;
   /**
    * Turns a comment into a work item (with the `tasks` block) and returns its
    * id; assigning it again returns the same one.
    */
-  assign(id: string, assignment?: CommentAssignment): AsyncResult<string>;
+  assign(input: {
+    id: string;
+    assignment?: CommentAssignment | undefined;
+  }): AsyncResult<string>;
   /**
    * A record's comments and replies, oldest first, deleted ones as
    * placeholders.
    */
   list(
-    subject: RecordRef,
-    options?: ListCommentsOptions,
+    input: { subject: RecordRef } & ListCommentsOptions,
   ): AsyncResult<readonly Comment<F>[]>;
   /**
    * How many comments each subject has that the caller can read, deleted ones
@@ -187,23 +197,21 @@ export interface Comments<F extends object = Record<never, never>> {
    * authors, times and replies; returns how many comments it copied. Needs a
    * service-role transport.
    */
-  copy(from: RecordRef, to: RecordRef): AsyncResult<number>;
+  copy(input: { from: RecordRef; to: RecordRef }): AsyncResult<number>;
   /**
    * The record's conversation id, for Realtime (`conversationTopic`) and for
    * uploads to attach (`attachments` on subject `conversation`). `open` creates
    * it before the first comment; without it, `undefined` until then.
    */
   conversation(
-    subject: RecordRef,
-    options?: { readonly open?: boolean },
+    input: { subject: RecordRef } & { readonly open?: boolean },
   ): AsyncResult<string | undefined>;
   /**
    * Moves the caller's read marker on the record's comments forward; returns
    * where it is, or `undefined` before the first comment.
    */
   markRead(
-    subject: RecordRef,
-    options?: { readonly readAt?: Temporal.Instant },
+    input: { subject: RecordRef } & { readonly readAt?: Temporal.Instant },
   ): AsyncResult<Temporal.Instant | undefined>;
 }
 
@@ -255,7 +263,7 @@ export function createComments<
       comment === undefined ? AsyncResult.err(notFound()) : fields.row(comment),
     );
 
-  const conversation: Comments<F>["conversation"] = (subject, open = {}) =>
+  const conversation: Comments<F>["conversation"] = ({ subject, ...open }) =>
     tenant().andThen((organizationId) =>
       open.open === true
         ? call(
@@ -280,7 +288,7 @@ export function createComments<
     );
 
   const client: Comments<F> = {
-    create: (subject, comment) =>
+    create: ({ subject, comment }) =>
       tenant().andThen((organizationId) =>
         fields
           .args(comment.fields)
@@ -315,7 +323,7 @@ export function createComments<
           ),
       ),
     get,
-    edit: (id, edit) =>
+    edit: ({ id, edit }) =>
       fields
         .args(edit.fields)
         .andThen((checked) =>
@@ -340,13 +348,13 @@ export function createComments<
         .andThen(() => get(id)),
     remove: (id) =>
       call("delete_message", { message: id }, (value) => value === true),
-    resolve: (id, resolved = true) =>
+    resolve: ({ id, resolved = true }) =>
       call(
         "resolve_message",
         { message: id, resolved },
         () => undefined,
       ).andThen(() => get(id)),
-    pin: (id, pinned = true) =>
+    pin: ({ id, pinned = true }) =>
       call("pin_message", { message: id, pinned }, () => undefined).andThen(
         () => get(id),
       ),
@@ -354,7 +362,7 @@ export function createComments<
       call("list_message_edits", { message: id }, (value) =>
         recordsOf(value, "list_message_edits").map(editOf),
       ),
-    assign: (id, assignment = {}) =>
+    assign: ({ id, assignment = {} }) =>
       call(
         "assign_comment",
         {
@@ -378,7 +386,7 @@ export function createComments<
           return task;
         },
       ),
-    list: (subject, list = {}) =>
+    list: ({ subject, ...list }) =>
       tenant().andThen((organizationId) =>
         call(
           "list_comments",
@@ -397,7 +405,7 @@ export function createComments<
           (value) => recordsOf(value, "list_comments").map(commentOf),
         ).andThen(fields.rows),
       ),
-    anchoredTo: (attachmentId, list = {}) =>
+    anchoredTo: ({ attachmentId, ...list }) =>
       call(
         "list_file_comments",
         { attachment: attachmentId, max_rows: list.limit },
@@ -419,7 +427,7 @@ export function createComments<
           ),
         ),
       ),
-    copy: (from, to) =>
+    copy: ({ from, to }) =>
       tenant().andThen((organizationId) =>
         call(
           "copy_comments",
@@ -434,8 +442,8 @@ export function createComments<
         ),
       ),
     conversation,
-    markRead: (subject, read = {}) =>
-      conversation(subject).andThen((id) =>
+    markRead: ({ subject, ...read }) =>
+      conversation({ subject }).andThen((id) =>
         id === undefined
           ? AsyncResult.ok(undefined)
           : call(

@@ -24,7 +24,10 @@ describe("createBlockClient", () => {
     const { db, rpc } = fakeDb("org-1");
     const comments = createBlockClient(db, commentsBlock);
 
-    expect(await comments.list(deal)).toMatchObject({ ok: true, data: [] });
+    expect(await comments.list({ subject: deal })).toMatchObject({
+      ok: true,
+      data: [],
+    });
     expect(rpc).toHaveBeenCalledWith(
       "list_comments",
       expect.objectContaining({
@@ -38,7 +41,10 @@ describe("createBlockClient", () => {
 
   it("fails with TENANT_REQUIRED when the request has no tenant", async () => {
     const { db, rpc } = fakeDb(undefined);
-    const result = await createBlockClient(db, commentsBlock).list(deal);
+
+    const result = await createBlockClient(db, commentsBlock).list({
+      subject: deal,
+    });
 
     expect(result.ok ? undefined : result.error).toMatchObject({
       hint: "TENANT_REQUIRED",
@@ -49,7 +55,9 @@ describe("createBlockClient", () => {
   it("takes a fixed tenant over the request's", async () => {
     const { db, rpc } = fakeDb("org-1");
 
-    await createBlockClient(db, commentsBlock, { tenant: "org-2" }).list(deal);
+    await createBlockClient(db, commentsBlock, { tenant: "org-2" }).list({
+      subject: deal,
+    });
 
     expect(rpc.mock.calls[0]?.[1]).toMatchObject({ tenant: "org-2" });
   });
@@ -64,7 +72,7 @@ describe("BlockSet.client", () => {
 
     const { db, rpc } = fakeDb("org-3");
 
-    await set.client(db, "comments").list(deal);
+    await set.client(db, "comments").list({ subject: deal });
 
     expect(rpc.mock.calls[0]?.[1]).toMatchObject({ tenant: "org-3" });
   });

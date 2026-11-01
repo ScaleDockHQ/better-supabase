@@ -141,10 +141,10 @@ export interface Lims {
    * Creates a method, or updates the one named by `methodId`; needs
    * `lims.manage`.
    */
-  saveMethod(
-    input: LimsMethodInput,
-    methodId?: string,
-  ): AsyncResultType<LimsMethod>;
+  saveMethod(input: {
+    input: LimsMethodInput;
+    methodId?: string | undefined;
+  }): AsyncResultType<LimsMethod>;
   /** Archives a method. Its results stay; needs `lims.manage`. */
   archiveMethod(methodId: string): AsyncResultType<LimsMethod>;
   listMethods(options?: {
@@ -162,11 +162,11 @@ export interface Lims {
    * installed. With `options.instrumentQualification` the instrument must hold
    * that qualification on the test date. Needs `lims.write`.
    */
-  recordResult(
-    sampleId: string,
-    methodId: string,
-    input: LimsResultInput,
-  ): AsyncResultType<LimsResult>;
+  recordResult(input: {
+    sampleId: string;
+    methodId: string;
+    input: LimsResultInput;
+  }): AsyncResultType<LimsResult>;
   /** Marks testing as done; needs `lims.write`. */
   completeSample(sampleId: string): AsyncResultType<LimsSample>;
   /**
@@ -175,12 +175,15 @@ export interface Lims {
    */
   releaseSample(sampleId: string): AsyncResultType<LimsSample>;
   /** Rejects a sample that is not released; needs `lims.manage`. */
-  rejectSample(sampleId: string, reason: string): AsyncResultType<LimsSample>;
+  rejectSample(input: {
+    sampleId: string;
+    reason: string;
+  }): AsyncResultType<LimsSample>;
   /** Whether an instrument may be used on a day (default today). */
-  instrumentStatus(
-    assetId: string,
-    on?: Temporal.PlainDate,
-  ): AsyncResultType<LimsInstrumentStatus>;
+  instrumentStatus(input: {
+    assetId: string;
+    on?: Temporal.PlainDate | undefined;
+  }): AsyncResultType<LimsInstrumentStatus>;
 }
 
 /** Options for {@link createLims}. */
@@ -297,7 +300,7 @@ export function createLims(options: LimsOptions): Lims {
   const tenant = (): AsyncResultType<string> => requireTenant(options.tenant);
 
   const client: Lims = {
-    saveMethod: (input, methodId) =>
+    saveMethod: ({ input, methodId }) =>
       tenant().andThen((organizationId) =>
         call(
           "save_lims_method",
@@ -363,7 +366,7 @@ export function createLims(options: LimsOptions): Lims {
             ),
         ),
       ),
-    recordResult: (sampleId, methodId, input) =>
+    recordResult: ({ sampleId, methodId, input }) =>
       call(
         "record_lims_result",
         {
@@ -381,11 +384,11 @@ export function createLims(options: LimsOptions): Lims {
       call("release_sample", { sample_id: sampleId }, (value) =>
         sampleOf(value, "release_sample"),
       ),
-    rejectSample: (sampleId, reason) =>
+    rejectSample: ({ sampleId, reason }) =>
       call("reject_sample", { sample_id: sampleId, reason }, (value) =>
         sampleOf(value, "reject_sample"),
       ),
-    instrumentStatus: (assetId, on) =>
+    instrumentStatus: ({ assetId, on }) =>
       tenant().andThen((organizationId) =>
         call(
           "instrument_status",

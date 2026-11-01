@@ -31,18 +31,18 @@ export const courseLearnersBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "enroll", write: "enroll" },
   module: "courses",
-  load: (client: Courses, subject) => client.learners(subject.id),
+  load: (client: Courses, subject) => client.learners({ courseId: subject.id }),
   events: ["course.*", "course_lesson.*", "course_certificate.*"],
   writes: {
     enroll: {
       input: courseLearnerSectionInputSchema,
       run: (client: Courses, subject, { userId }: CourseLearnerSectionInput) =>
-        client.enroll(subject.id, userId),
+        client.enroll({ courseId: subject.id, userId }),
     },
     unenroll: {
       input: courseLearnerSectionInputSchema,
       run: (client: Courses, subject, { userId }: CourseLearnerSectionInput) =>
-        client.unenroll(subject.id, userId),
+        client.unenroll({ courseId: subject.id, userId }),
     },
   },
 });

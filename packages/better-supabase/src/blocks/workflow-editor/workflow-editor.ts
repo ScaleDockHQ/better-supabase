@@ -261,7 +261,7 @@ export function createWorkflowEditor<
                 definitionOf(recordOf(value, "save_workflow_definition")),
             ).andThen(fields.row),
           ),
-      list: (tenant, filter = {}) =>
+      list: ({ tenant, filter = {} } = {}) =>
         call(
           "workflow_definitions_list",
           { tenant, subject_type: filter.subjectType },
@@ -300,7 +300,7 @@ export function createWorkflowEditor<
           },
           (value) => value === true,
         ),
-      setPurpose: (id, purpose, purposeOptions = {}) =>
+      setPurpose: ({ id, purpose, ...purposeOptions }) =>
         call(
           "set_workflow_definition_purpose",
           {
@@ -311,7 +311,7 @@ export function createWorkflowEditor<
           (value) =>
             definitionOf(recordOf(value, "set_workflow_definition_purpose")),
         ).andThen(fields.row),
-      resolve: (tenant, resolveOptions = {}) =>
+      resolve: ({ tenant, ...resolveOptions }) =>
         call(
           "resolve_workflow_definition",
           {
@@ -343,7 +343,7 @@ export function createWorkflowEditor<
       },
     },
     versions: {
-      upsert: (definition, graph, saveOptions = {}) =>
+      upsert: ({ definition, graph, ...saveOptions }) =>
         call(
           "save_workflow_draft",
           {
@@ -355,7 +355,7 @@ export function createWorkflowEditor<
           },
           (value) => versionOf(recordOf(value, "save_workflow_draft")),
         ),
-      publish: (version, publishOptions = {}) =>
+      publish: ({ version, ...publishOptions }) =>
         getVersion(version).andThen(async (found) => {
           if (found === undefined) {
             return err(dbError("not_found", "No such workflow version"));
@@ -421,7 +421,7 @@ export function createWorkflowEditor<
           recordsOf(value, "workflow_versions_list").map(versionOf),
         ),
       get: getVersion,
-      runAs: (version, tenant) =>
+      runAs: ({ version, tenant }) =>
         runAsPublisher(
           serviceCall,
           options.authorization?.automation?.runAs,
@@ -429,7 +429,7 @@ export function createWorkflowEditor<
           tenant,
           options.tenantClaim,
         ),
-      diff: (from, to) =>
+      diff: ({ from, to }) =>
         getVersion(from).andThen(async (before) => {
           const after = await getVersion(to);
 
@@ -581,7 +581,7 @@ export function createWorkflowEditor<
               { status: started.error.status },
             );
       },
-      syncSchedule: (trigger, tenant) => {
+      syncSchedule: ({ trigger, tenant }) => {
         const cron = trigger.config["cron"];
 
         if (trigger.kind !== "schedule" || typeof cron !== "string") {
@@ -693,7 +693,7 @@ export function createWorkflowEditor<
           .set(input.ref, input.secret, { subject: { type: "app" } })
           .andThen(() => save());
       },
-      authorize: (id, authorize) =>
+      authorize: ({ id, options: authorize }) =>
         credentialRow(id).andThen(async (row) => {
           if (row === undefined) {
             return err(dbError("not_found", "No such credential"));

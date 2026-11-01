@@ -142,11 +142,14 @@ describe("createAiFiles", () => {
   it("reserves a file, then returns a signed upload URL for its path", async () => {
     const { files, bucket, user } = setup(() => fileRow({ status: "pending" }));
 
-    const upload = await files.files.upload("o1", {
-      filename: "report one.pdf",
-      mediaType: "application/pdf",
-      size: 4,
-      chatId: "c1",
+    const upload = await files.files.upload({
+      organizationId: "o1",
+      file: {
+        filename: "report one.pdf",
+        mediaType: "application/pdf",
+        size: 4,
+        chatId: "c1",
+      },
     });
 
     expect(upload.ok && upload.data.signedUrl).toBe(
@@ -222,11 +225,14 @@ describe("createAiFiles", () => {
       }),
     );
 
-    const stored = await files.files.store("o1", {
-      ownerId: "u1",
-      filename: "a.png",
-      mediaType: "image/png",
-      data: new Uint8Array([1, 2]),
+    const stored = await files.files.store({
+      organizationId: "o1",
+      file: {
+        ownerId: "u1",
+        filename: "a.png",
+        mediaType: "image/png",
+        data: new Uint8Array([1, 2]),
+      },
     });
 
     expect(stored.ok && stored.data.source).toBe("generated");
@@ -259,11 +265,14 @@ describe("createAiFiles", () => {
       storage,
     });
 
-    const stored = await files.files.store("o1", {
-      ownerId: "u1",
-      filename: "a.png",
-      mediaType: "image/png",
-      data: new Blob([new Uint8Array([1])]),
+    const stored = await files.files.store({
+      organizationId: "o1",
+      file: {
+        ownerId: "u1",
+        filename: "a.png",
+        mediaType: "image/png",
+        data: new Blob([new Uint8Array([1])]),
+      },
     });
 
     expect(stored.ok).toBe(false);
@@ -278,7 +287,11 @@ describe("createAiFiles", () => {
       fn === "list_ai_files" ? [fileRow()] : fileRow(),
     );
 
-    const confirmed = await files.files.confirm("f1", "abc");
+    const confirmed = await files.files.confirm({
+      fileId: "f1",
+      sha256: "abc",
+    });
+
     expect(confirmed.ok && confirmed.data.status).toBe("ready");
     expect(user).toHaveBeenLastCalledWith(
       "better_supabase",
@@ -325,7 +338,9 @@ describe("createAiFiles", () => {
       },
     });
 
-    expect((await files.files.confirm("f1").orThrow()).status).toBe("ready");
+    expect((await files.files.confirm({ fileId: "f1" }).orThrow()).status).toBe(
+      "ready",
+    );
     expect(claimed).toEqual(["ai-files/o1/u1/f1/report one.pdf"]);
     expect(user.mock.calls.map((call) => call[1])).toEqual([
       "get_ai_file",
@@ -333,7 +348,7 @@ describe("createAiFiles", () => {
     ]);
 
     status = "ready";
-    await files.files.confirm("f1").orThrow();
+    await files.files.confirm({ fileId: "f1" }).orThrow();
     expect(claimed).toHaveLength(1);
 
     const taken = createAiFiles({
@@ -359,7 +374,7 @@ describe("createAiFiles", () => {
       },
     });
 
-    expect(await taken.files.confirm("f2")).toMatchObject({
+    expect(await taken.files.confirm({ fileId: "f2" })).toMatchObject({
       ok: false,
       error: { kind: "not_found", hint: "AI_FILE_NOT_UPLOADED" },
     });
@@ -370,7 +385,11 @@ describe("createAiFiles", () => {
       { file_id: "f1", provider: "openai", reference: "r", expires_at: AT },
     ]);
 
-    const expiring = await files.providerFiles.expiring("1 day", 10);
+    const expiring = await files.providerFiles.expiring({
+      horizon: "1 day",
+      batch: 10,
+    });
+
     expect(expiring.ok && expiring.data[0]?.reference).toBe("r");
   });
 
@@ -405,7 +424,11 @@ describe("createAiFiles", () => {
       }
     });
 
-    const rolled = await files.documents.rollback("d1", 1);
+    const rolled = await files.documents.rollback({
+      documentId: "d1",
+      version: 1,
+    });
+
     expect(rolled.ok && rolled.data.version).toBe(2);
     expect(user).toHaveBeenLastCalledWith(
       "better_supabase",
@@ -415,13 +438,18 @@ describe("createAiFiles", () => {
     const removed = await files.documents.remove("d1");
     expect(removed.ok && removed.data).toBe(true);
 
-    const suggested = await files.documents.suggest("d1", {
-      originalText: "a",
-      suggestedText: "b",
+    const suggested = await files.documents.suggest({
+      documentId: "d1",
+      suggestion: { originalText: "a", suggestedText: "b" },
     });
 
     expect(suggested.ok && suggested.data.suggestedText).toBe("b");
-    const resolved = await files.documents.resolve("s1", true);
+
+    const resolved = await files.documents.resolve({
+      suggestionId: "s1",
+      accepted: true,
+    });
+
     expect(resolved.ok && resolved.data.accepted).toBe(true);
   });
 
@@ -448,14 +476,18 @@ describe("createAiFiles", () => {
         : true,
     );
 
-    const cached = await files.providerFiles.get("f1", "openai");
+    const cached = await files.providerFiles.get({
+      fileId: "f1",
+      provider: "openai",
+    });
+
     expect(cached.ok && cached.data?.reference).toBe("file-abc");
-    await files.providerFiles.upsert(
-      "f1",
-      "openai",
-      "file-abc",
-      Temporal.Instant.from(AT),
-    );
+    await files.providerFiles.upsert({
+      fileId: "f1",
+      provider: "openai",
+      reference: "file-abc",
+      expiresAt: Temporal.Instant.from(AT),
+    });
     expect(server).toHaveBeenLastCalledWith(
       "better_supabase",
       "set_ai_provider_file",
@@ -515,7 +547,10 @@ describe("createAiFiles", () => {
     const doc = await files.documents.get("d1");
     expect(doc.ok && doc.data.content).toBe("let a = 1");
     expect(doc.ok && doc.data.kind).toBe("code");
-    await files.documents.update("d1", { content: "x", expectedVersion: 2 });
+    await files.documents.update({
+      documentId: "d1",
+      edit: { content: "x", expectedVersion: 2 },
+    });
     expect(user).toHaveBeenLastCalledWith(
       "better_supabase",
       "update_ai_document",
@@ -523,16 +558,15 @@ describe("createAiFiles", () => {
     );
     const versions = await files.documents.versions("d1");
     expect(versions.ok && versions.data[0]?.messageId).toBe("m1");
-    const suggestions = await files.documents.suggestions("d1");
+    const suggestions = await files.documents.suggestions({ documentId: "d1" });
     expect(suggestions.ok && suggestions.data[0]?.accepted).toBeUndefined();
   });
 
   it("creates a document for an owner through the service role", async () => {
     const { files, user, server } = setup(() => documentRow);
-    await files.documents.create("o1", {
-      kind: "text",
-      title: "Notes",
-      ownerId: "u1",
+    await files.documents.create({
+      organizationId: "o1",
+      document: { kind: "text", title: "Notes", ownerId: "u1" },
     });
     expect(user).not.toHaveBeenCalled();
     expect(server.mock.calls[0]?.[1]).toBe("create_ai_document");

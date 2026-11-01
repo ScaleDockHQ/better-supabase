@@ -102,7 +102,11 @@ describe("createContent", () => {
     );
 
     expect(
-      (await content.update("e1", { title: "Hello" }).orThrow()).title,
+      (
+        await content
+          .update({ entryId: "e1", input: { title: "Hello" } })
+          .orThrow()
+      ).title,
     ).toBe("Hello");
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",
@@ -154,7 +158,7 @@ describe("createContent", () => {
     expect(requested.approvalStatus).toBe("pending");
 
     const scheduled = await content
-      .schedule("e1", Temporal.Instant.from(LATER))
+      .schedule({ entryId: "e1", at: Temporal.Instant.from(LATER) })
       .orThrow();
 
     expect(scheduled.status).toBe("scheduled");
@@ -165,7 +169,9 @@ describe("createContent", () => {
       { entry_id: "e1", at: LATER },
     );
 
-    expect((await content.schedule("e1", null).orThrow()).status).toBe("draft");
+    expect(
+      (await content.schedule({ entryId: "e1", at: null }).orThrow()).status,
+    ).toBe("draft");
     expect(await content.publishDue().orThrow()).toBe(3);
   });
 

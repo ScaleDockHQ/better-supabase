@@ -638,14 +638,17 @@ describe("createDonations", () => {
       .orThrow();
 
     const updated = await donations
-      .updatePledge(PLEDGE_ID, {
-        status: "paused",
-        endsOn: Temporal.PlainDate.from("2027-03-31"),
-        amount: money(3000n, "EUR"),
+      .updatePledge({
+        pledgeId: PLEDGE_ID,
+        update: {
+          status: "paused",
+          endsOn: Temporal.PlainDate.from("2027-03-31"),
+          amount: money(3000n, "EUR"),
+        },
       })
       .orThrow();
 
-    await donations.updatePledge(PLEDGE_ID, {}).orThrow();
+    await donations.updatePledge({ pledgeId: PLEDGE_ID, update: {} }).orThrow();
     await donations
       .pledges({ donor: DONOR, status: "active", pageSize: 5 })
       .orThrow();
@@ -1140,10 +1143,15 @@ describe("createDonations", () => {
     const donations = createDonations({ transport, tenant: "org-1" });
 
     const issued = await donations.issueGiftReceipt(GIFT_ID).orThrow();
-    await donations.issueYearlyReceipt(DONOR, 2026, "EUR").orThrow();
+    await donations
+      .issueYearlyReceipt({ donor: DONOR, year: 2026, currency: "EUR" })
+      .orThrow();
 
-    const voided = await donations.voidReceipt("r2", "duplicate").orThrow();
-    await donations.voidReceipt("r2").orThrow();
+    const voided = await donations
+      .voidReceipt({ receiptId: "r2", reason: "duplicate" })
+      .orThrow();
+
+    await donations.voidReceipt({ receiptId: "r2" }).orThrow();
     await donations
       .receipts({ donor: DONOR, year: 2026, pageSize: 5 })
       .orThrow();
@@ -1233,8 +1241,11 @@ describe("createDonations", () => {
 
     const donations = createDonations({ transport, tenant: "org-1" });
 
-    const summary = await donations.givingSummary(DONOR).orThrow();
-    const empty = await donations.givingSummary(DONOR, 2025).orThrow();
+    const summary = await donations.givingSummary({ donor: DONOR }).orThrow();
+
+    const empty = await donations
+      .givingSummary({ donor: DONOR, year: 2025 })
+      .orThrow();
 
     expect(summary).toEqual({
       year: 2026,

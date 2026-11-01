@@ -264,53 +264,60 @@ export interface Iteration {
 }
 
 export interface Tasks<F extends object = Record<never, never>> {
-  create(
-    organizationId: string,
-    input: WorkItemInput<F>,
-    assigneeIds?: readonly string[],
-  ): AsyncResult<WorkItem<F>>;
+  create(input: {
+    organizationId: string;
+    input: WorkItemInput<F>;
+    assigneeIds?: readonly string[] | undefined;
+  }): AsyncResult<WorkItem<F>>;
   /** Extra column changes are validated with the `fields` schema first. */
   update(
-    changes: readonly WorkItemChange<F>[],
-    options?: WorkItemUpdateOptions,
+    input: { changes: readonly WorkItemChange<F>[] } & WorkItemUpdateOptions,
   ): AsyncResult<WorkItemChangeResult>;
   /** Replaces the assignees; new ones are notified and every one watches. */
-  assign(workItemId: string, userIds: readonly string[]): AsyncResult<number>;
-  archive(workItemId: string, archived?: boolean): AsyncResult<boolean>;
+  assign(input: {
+    workItemId: string;
+    userIds: readonly string[];
+  }): AsyncResult<number>;
+  archive(input: {
+    workItemId: string;
+    archived?: boolean | undefined;
+  }): AsyncResult<boolean>;
   remove(workItemId: string): AsyncResult<boolean>;
   tree(rootId: string): AsyncResult<WorkItemNode[]>;
   /** One item you can read, or `undefined`. */
   get(workItemId: string): AsyncResult<WorkItem<F> | undefined>;
   checklist(workItemId: string): AsyncResult<ChecklistItem[]>;
   /** Adds a checklist item, or changes the one `checklistItemId` names. */
-  saveChecklistItem(
-    workItemId: string,
-    input: ChecklistItemInput,
-    checklistItemId?: string,
-  ): AsyncResult<ChecklistItem>;
+  saveChecklistItem(input: {
+    workItemId: string;
+    input: ChecklistItemInput;
+    checklistItemId?: string | undefined;
+  }): AsyncResult<ChecklistItem>;
   removeChecklistItem(checklistItemId: string): AsyncResult<boolean>;
   /**
    * Makes the item repeat (`null` stops it). Needs the reminders block;
    * `workItemRecurrenceSink` creates the next item when one is completed.
    */
-  setRecurrence(
-    workItemId: string,
-    rule: { readonly rrule: string; readonly tzid?: string } | null,
-  ): AsyncResult<WorkItemRecurrence | undefined>;
+  setRecurrence(input: {
+    workItemId: string;
+    rule: { readonly rrule: string; readonly tzid?: string } | null;
+  }): AsyncResult<WorkItemRecurrence | undefined>;
   /** Creates the next item of a repeating one. Service only, idempotent. */
-  repeat(workItemId: string, dueAt: Temporal.Instant): AsyncResult<WorkItem<F>>;
+  repeat(input: {
+    workItemId: string;
+    dueAt: Temporal.Instant;
+  }): AsyncResult<WorkItem<F>>;
   /** Watches, follows or mutes an item (`null` clears). Needs notifications. */
-  watch(
-    workItemId: string,
-    level: WorkItemWatchLevel | null,
-  ): AsyncResult<boolean>;
+  watch(input: {
+    workItemId: string;
+    level: WorkItemWatchLevel | null;
+  }): AsyncResult<boolean>;
   watchers(workItemId: string): AsyncResult<WorkItemWatcher[]>;
   list(
-    organizationId: string,
-    options?: WorkItemListOptions,
+    input: { organizationId: string } & WorkItemListOptions,
   ): AsyncResult<WorkItem<F>[]>;
-  saveProject(
-    organizationId: string,
+  saveProject(input: {
+    organizationId: string;
     project: Partial<
       Omit<
         Project,
@@ -323,12 +330,12 @@ export interface Tasks<F extends object = Record<never, never>> {
       readonly budget?: Money | null;
       readonly budgetHours?: number | null;
       readonly archived?: boolean;
-    },
-  ): AsyncResult<Project>;
-  saveIteration(
-    organizationId: string,
-    iteration: Partial<Omit<Iteration, "id">> & { readonly id?: string },
-  ): AsyncResult<Iteration>;
+    };
+  }): AsyncResult<Project>;
+  saveIteration(input: {
+    organizationId: string;
+    iteration: Partial<Omit<Iteration, "id">> & { readonly id?: string };
+  }): AsyncResult<Iteration>;
 }
 
 export interface TasksOptions<
@@ -613,7 +620,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
   );
 
   const client: Tasks<F> = {
-    create: (organizationId, input, assigneeIds) => {
+    create: ({ organizationId, input, assigneeIds }) => {
       const { fields: extra, attachmentIds, ...attrs } = input;
 
       return fields
@@ -636,7 +643,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
           ).andThen(fields.row),
         );
     },
-    update: (changes, updateOptions = {}) =>
+    update: ({ changes, ...updateOptions }) =>
       AsyncResult.from(async () => {
         for (const change of changes) {
           if (BUILT_IN.has(change.field)) {
@@ -685,13 +692,13 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
           },
         ),
       ),
-    assign: (workItemId, userIds) =>
+    assign: ({ workItemId, userIds }) =>
       call(
         "set_task_assignees",
         { work_item: workItemId, users: [...userIds] },
         (value) => num(value) ?? 0,
       ),
-    archive: (workItemId, archived = true) =>
+    archive: ({ workItemId, archived = true }) =>
       call(
         "archive_task",
         { work_item: workItemId, archived },
@@ -713,7 +720,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       call("list_task_checklist", { work_item: workItemId }, (value) =>
         recordsOf(value, "list_task_checklist").map(checklistItemOf),
       ),
-    saveChecklistItem: (workItemId, input, checklistItemId) =>
+    saveChecklistItem: ({ workItemId, input, checklistItemId }) =>
       call(
         "save_task_checklist_item",
         {
@@ -729,7 +736,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         { checklist_item: checklistItemId },
         (value) => value === true,
       ),
-    setRecurrence: (workItemId, rule) =>
+    setRecurrence: ({ workItemId, rule }) =>
       call(
         "set_task_recurrence",
         {
@@ -739,13 +746,13 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         },
         recurrenceOf,
       ),
-    repeat: (workItemId, dueAt) =>
+    repeat: ({ workItemId, dueAt }) =>
       call(
         "repeat_task",
         { work_item: workItemId, due_at: dueAt.toString() },
         itemOf,
       ).andThen(fields.row),
-    watch: (workItemId, level) =>
+    watch: ({ workItemId, level }) =>
       call(
         "watch_task",
         { work_item: workItemId, level },
@@ -755,7 +762,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       call("list_task_watchers", { work_item: workItemId }, (value) =>
         recordsOf(value, "list_task_watchers").map(watcherOf),
       ),
-    list: (organizationId, list = {}) => {
+    list: ({ organizationId, ...list }) => {
       const { search, after, limit, ...filter } = list;
 
       return call(
@@ -770,7 +777,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         (value) => recordsOf(value, "list_tasks").map(itemOf),
       ).andThen(fields.rows);
     },
-    saveProject: (organizationId, project) => {
+    saveProject: ({ organizationId, project }) => {
       const { id, budget, ...attrs } = project;
 
       const amounts =
@@ -791,7 +798,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         projectOf,
       );
     },
-    saveIteration: (organizationId, iteration) => {
+    saveIteration: ({ organizationId, iteration }) => {
       const { id, ...attrs } = iteration;
 
       return call(

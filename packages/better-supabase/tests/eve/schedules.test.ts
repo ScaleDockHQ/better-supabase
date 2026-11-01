@@ -62,10 +62,13 @@ function fakeQueue(jobs: readonly (readonly [EveAgentJob, EveQueueJob])[]) {
   return {
     runSchedules: vi.fn(() => AsyncResult.ok(0)),
     drain: vi.fn(
-      async (
-        _queue: string,
-        handler: (payload: EveAgentJob, job: EveQueueJob) => unknown,
-      ) => {
+      async ({
+        handler,
+      }: {
+        queue: string;
+        handler: (payload: EveAgentJob, job: EveQueueJob) => unknown;
+        budgetMs?: number | undefined;
+      }) => {
         let failed = 0;
 
         for (const [payload, job] of jobs) {
@@ -106,7 +109,9 @@ describe("queueSchedules", () => {
     expect(tasks).toHaveLength(1);
     await expect(tasks[0]).resolves.toEqual({ succeeded: 2, failed: 0 });
     expect(queue.runSchedules).toHaveBeenCalledOnce();
-    expect(queue.drain).toHaveBeenCalledWith("eve", expect.any(Function), {
+    expect(queue.drain).toHaveBeenCalledWith({
+      queue: "eve",
+      handler: expect.any(Function),
       budgetMs: 50_000,
     });
     expect(sent).toEqual([
@@ -141,11 +146,11 @@ describe("queueSchedules", () => {
     queueSchedules({ queue, channels: { slack }, queueName: "agents" })(args);
 
     await expect(tasks[0]).resolves.toEqual({ succeeded: 0, failed: 1 });
-    expect(queue.drain).toHaveBeenCalledWith(
-      "agents",
-      expect.any(Function),
-      expect.anything(),
-    );
+    expect(queue.drain).toHaveBeenCalledWith({
+      queue: "agents",
+      handler: expect.any(Function),
+      budgetMs: expect.anything(),
+    });
     expect(sent).toEqual([]);
   });
 });

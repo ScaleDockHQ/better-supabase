@@ -126,34 +126,47 @@ describe("createShifts", () => {
     const shifts = createShifts({ transport: t, fields: Fields });
 
     const saved = await shifts
-      .saveTemplate("org-1", {
-        name: "Early",
-        startsTime: "06:00",
-        endsTime: "14:00",
-        weekdays: [1, 2, 3, 4, 5],
-        teamId: "team-1",
-        locationId: "loc-1",
-        breakMinutes: 30,
-        headcount: 2,
-        requiredQualifications: ["first_aid"],
-        templateId: "t1",
+      .saveTemplate({
+        organizationId: "org-1",
+        input: {
+          name: "Early",
+          startsTime: "06:00",
+          endsTime: "14:00",
+          weekdays: [1, 2, 3, 4, 5],
+          teamId: "team-1",
+          locationId: "loc-1",
+          breakMinutes: 30,
+          headcount: 2,
+          requiredQualifications: ["first_aid"],
+          templateId: "t1",
+        },
       })
       .orThrow();
 
     await shifts
-      .saveTemplate("org-1", {
-        name: "Late",
-        startsTime: "14:00",
-        endsTime: "22:00",
+      .saveTemplate({
+        organizationId: "org-1",
+        input: { name: "Late", startsTime: "14:00", endsTime: "22:00" },
       })
       .orThrow();
 
     const archived = await shifts.archiveTemplate("t1").orThrow();
-    const [, bare] = await shifts.templates("org-1").orThrow();
-    await shifts.templates("org-1", { includeArchived: true }).orThrow();
+
+    const [, bare] = await shifts
+      .templates({ organizationId: "org-1" })
+      .orThrow();
+
+    await shifts
+      .templates({ organizationId: "org-1", includeArchived: true })
+      .orThrow();
 
     const generated = await shifts
-      .generate("org-1", "t1", day("2026-11-02"), day("2026-11-06"))
+      .generate({
+        organizationId: "org-1",
+        templateId: "t1",
+        from: day("2026-11-02"),
+        until: day("2026-11-06"),
+      })
       .orThrow();
 
     expect(saved).toMatchObject({
@@ -229,45 +242,64 @@ describe("createShifts", () => {
     const shifts = createShifts({ transport: t, fields: Fields });
 
     const saved = await shifts
-      .upsert("org-1", {
-        startsAt: Temporal.Instant.from(START),
-        endsAt: Temporal.Instant.from(END),
-        teamId: "team-1",
-        locationId: "loc-1",
-        breakMinutes: 30,
-        headcount: 2,
-        requiredQualifications: ["first_aid"],
-        note: "Bring keys",
-        shiftId: "s1",
-        fields: { station: "A" },
+      .upsert({
+        organizationId: "org-1",
+        input: {
+          startsAt: Temporal.Instant.from(START),
+          endsAt: Temporal.Instant.from(END),
+          teamId: "team-1",
+          locationId: "loc-1",
+          breakMinutes: 30,
+          headcount: 2,
+          requiredQualifications: ["first_aid"],
+          note: "Bring keys",
+          shiftId: "s1",
+          fields: { station: "A" },
+        },
       })
       .orThrow();
 
     await shifts
-      .upsert("org-1", {
-        startsAt: Temporal.Instant.from(START),
-        endsAt: Temporal.Instant.from(END),
+      .upsert({
+        organizationId: "org-1",
+        input: {
+          startsAt: Temporal.Instant.from(START),
+          endsAt: Temporal.Instant.from(END),
+        },
       })
       .orThrow();
 
-    const refused = await shifts.upsert("org-1", {
-      startsAt: Temporal.Instant.from(START),
-      endsAt: Temporal.Instant.from(END),
-      // SAFETY: a value the schema refuses, to prove the client checks it.
-      fields: { station: 1 } as unknown as { station: string },
+    const refused = await shifts.upsert({
+      organizationId: "org-1",
+      input: {
+        startsAt: Temporal.Instant.from(START),
+        endsAt: Temporal.Instant.from(END),
+        // SAFETY: a value the schema refuses, to prove the client checks it.
+        fields: { station: 1 } as unknown as { station: string },
+      },
     });
 
-    const canceled = await shifts.cancel("s1", "Storm").orThrow();
-    await shifts.cancel("s1").orThrow();
+    const canceled = await shifts
+      .cancel({ shiftId: "s1", reason: "Storm" })
+      .orThrow();
+
+    await shifts.cancel({ shiftId: "s1" }).orThrow();
 
     const published = await shifts
-      .publish("org-1", day("2026-11-02"), day("2026-11-08"), {
+      .publish({
+        organizationId: "org-1",
+        from: day("2026-11-02"),
+        until: day("2026-11-08"),
         teamId: "team-1",
       })
       .orThrow();
 
     await shifts
-      .publish("org-1", day("2026-11-02"), day("2026-11-08"))
+      .publish({
+        organizationId: "org-1",
+        from: day("2026-11-02"),
+        until: day("2026-11-08"),
+      })
       .orThrow();
 
     expect(saved).toMatchObject({ status: "published", note: "Bring keys" });
@@ -362,19 +394,32 @@ describe("createShifts", () => {
 
     const shifts = createShifts({ transport: t });
 
-    const assigned = await shifts.assign("s1", "u1").orThrow();
-    const released = await shifts.unassign("a1", "Sick").orThrow();
-    await shifts.unassign("a1").orThrow();
-    const requested = await shifts.requestOpenShift("s1").orThrow();
-    const decided = await shifts.decideRequest("a2", true).orThrow();
-    const swap = await shifts.requestSwap("a1", "u2", "Dentist").orThrow();
-    await shifts.requestSwap("a1", "u2").orThrow();
-
-    const approved = await shifts
-      .decideSwap("w1", true, { approvalId: "ap1" })
+    const assigned = await shifts
+      .assign({ shiftId: "s1", userId: "u1" })
       .orThrow();
 
-    await shifts.decideSwap("w1", false).orThrow();
+    const released = await shifts
+      .unassign({ assignmentId: "a1", reason: "Sick" })
+      .orThrow();
+
+    await shifts.unassign({ assignmentId: "a1" }).orThrow();
+    const requested = await shifts.requestOpenShift("s1").orThrow();
+
+    const decided = await shifts
+      .decideRequest({ assignmentId: "a2", approve: true })
+      .orThrow();
+
+    const swap = await shifts
+      .requestSwap({ assignmentId: "a1", toUserId: "u2", note: "Dentist" })
+      .orThrow();
+
+    await shifts.requestSwap({ assignmentId: "a1", toUserId: "u2" }).orThrow();
+
+    const approved = await shifts
+      .decideSwap({ swapId: "w1", approve: true, approvalId: "ap1" })
+      .orThrow();
+
+    await shifts.decideSwap({ swapId: "w1", approve: false }).orThrow();
 
     expect(assigned.warnings).toEqual([
       { code: "SHIFT_ASSIGNMENT_UNQUALIFIED", qualification: "first_aid" },
@@ -422,37 +467,51 @@ describe("createShifts", () => {
     const shifts = createShifts({ transport: t });
 
     const set = await shifts
-      .setAvailability("org-1", {
-        onDate: day("2026-11-02"),
-        kind: "unavailable",
-        fromTime: "08:00",
-        untilTime: "12:00",
-        note: "School run",
-        userId: "u1",
+      .setAvailability({
+        organizationId: "org-1",
+        input: {
+          onDate: day("2026-11-02"),
+          kind: "unavailable",
+          fromTime: "08:00",
+          untilTime: "12:00",
+          note: "School run",
+          userId: "u1",
+        },
       })
       .orThrow();
 
     await shifts
-      .setAvailability("org-1", {
-        onDate: day("2026-11-03"),
-        kind: "preferred",
+      .setAvailability({
+        organizationId: "org-1",
+        input: { onDate: day("2026-11-03"), kind: "preferred" },
       })
       .orThrow();
 
-    const cleared = await shifts.clearAvailability("org-1", day("2026-11-02"), {
+    const cleared = await shifts.clearAvailability({
+      organizationId: "org-1",
+      onDate: day("2026-11-02"),
       userId: "u1",
     });
 
-    await shifts.clearAvailability("org-1", day("2026-11-03")).orThrow();
+    await shifts
+      .clearAvailability({ organizationId: "org-1", onDate: day("2026-11-03") })
+      .orThrow();
 
     const listed = await shifts
-      .availability("org-1", day("2026-11-01"), day("2026-11-07"), {
+      .availability({
+        organizationId: "org-1",
+        from: day("2026-11-01"),
+        until: day("2026-11-07"),
         userId: "u1",
       })
       .orThrow();
 
     await shifts
-      .availability("org-1", day("2026-11-01"), day("2026-11-07"))
+      .availability({
+        organizationId: "org-1",
+        from: day("2026-11-01"),
+        until: day("2026-11-07"),
+      })
       .orThrow();
 
     expect(set).not.toHaveProperty("fromTime");
@@ -536,13 +595,20 @@ describe("createShifts", () => {
     const shifts = createShifts({ transport: t, fields: Fields });
 
     const roster = await shifts
-      .roster("org-1", day("2026-11-02"), day("2026-11-08"), {
+      .roster({
+        organizationId: "org-1",
+        from: day("2026-11-02"),
+        until: day("2026-11-08"),
         teamId: "team-1",
       })
       .orThrow();
 
     await shifts
-      .roster("org-1", day("2026-11-02"), day("2026-11-08"))
+      .roster({
+        organizationId: "org-1",
+        from: day("2026-11-02"),
+        until: day("2026-11-08"),
+      })
       .orThrow();
 
     const mine = await shifts
@@ -553,13 +619,19 @@ describe("createShifts", () => {
       .orThrow();
 
     await shifts.myShifts().orThrow();
-    const hours = await shifts.hours("org-1", day("2026-11-02")).orThrow();
 
-    const booked = await shifts
-      .toTimeEntries("org-1", { until: Temporal.Instant.from(AT) })
+    const hours = await shifts
+      .hours({ organizationId: "org-1", weekStart: day("2026-11-02") })
       .orThrow();
 
-    await shifts.toTimeEntries("org-1").orThrow();
+    const booked = await shifts
+      .toTimeEntries({
+        organizationId: "org-1",
+        until: Temporal.Instant.from(AT),
+      })
+      .orThrow();
+
+    await shifts.toTimeEntries({ organizationId: "org-1" }).orThrow();
 
     expect(roster[0]?.assignments).toHaveLength(1);
     expect(roster[0]?.fields.station).toBe("A");
@@ -617,23 +689,38 @@ describe("createShifts", () => {
 
     expect(
       (
-        await shifts.generate(
-          "org-1",
-          "t1",
-          day("2026-11-02"),
-          day("2026-11-03"),
-        )
+        await shifts.generate({
+          organizationId: "org-1",
+          templateId: "t1",
+          from: day("2026-11-02"),
+          until: day("2026-11-03"),
+        })
       ).ok,
     ).toBe(false);
-    expect((await shifts.assign("s1", "u1")).ok).toBe(false);
-    expect((await shifts.decideSwap("w1", true)).ok).toBe(false);
+    expect((await shifts.assign({ shiftId: "s1", userId: "u1" })).ok).toBe(
+      false,
+    );
+    expect((await shifts.decideSwap({ swapId: "w1", approve: true })).ok).toBe(
+      false,
+    );
     expect(
-      (await shifts.availability("org-1", day("2026-11-02"), day("2026-11-03")))
-        .ok,
+      (
+        await shifts.availability({
+          organizationId: "org-1",
+          from: day("2026-11-02"),
+          until: day("2026-11-03"),
+        })
+      ).ok,
     ).toBe(false);
-    expect((await shifts.cancel("s1")).ok).toBe(false);
+    expect((await shifts.cancel({ shiftId: "s1" })).ok).toBe(false);
     expect(
-      (await shifts.roster("org-1", day("2026-11-02"), day("2026-11-03"))).ok,
+      (
+        await shifts.roster({
+          organizationId: "org-1",
+          from: day("2026-11-02"),
+          until: day("2026-11-03"),
+        })
+      ).ok,
     ).toBe(false);
   });
 });

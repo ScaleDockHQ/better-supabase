@@ -266,7 +266,9 @@ export async function getTaskViews(): Promise<
     return null;
   }
 
-  const views = await db.$blocks.savedViews.list(tenant, TASK_LIST).orThrow();
+  const views = await db.$blocks.savedViews
+    .list({ organizationId: tenant, list: TASK_LIST })
+    .orThrow();
 
   return views.map((view) => {
     const query = view.state.query ?? {};

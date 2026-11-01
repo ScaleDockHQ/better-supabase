@@ -132,9 +132,9 @@ export interface DataLifecycle {
    * in the record's tenant or the record's `manage` action.
    */
   requestSubjectExport(
-    subjectType: string,
-    subjectId: string,
-    options?: { readonly format?: DataExportFormat },
+    input: { subjectType: string; subjectId: string } & {
+      readonly format?: DataExportFormat;
+    },
   ): AsyncResult<DataExport>;
   /** The caller's exports, or a tenant's, newest first. */
   exports(organizationId?: string): AsyncResult<readonly DataExport[]>;
@@ -145,10 +145,10 @@ export interface DataLifecycle {
    * as `30 days` or a `Temporal.Duration`; default the module's `grace`
    * option). Needs `organization.delete`.
    */
-  requestOrganizationDeletion(
-    organizationId: string,
-    options?: { readonly grace?: Temporal.Duration | string },
-  ): AsyncResult<OrganizationDeletion>;
+  requestOrganizationDeletion(input: {
+    organizationId: string;
+    options?: { readonly grace?: Temporal.Duration | string } | undefined;
+  }): AsyncResult<OrganizationDeletion>;
   /** The requester or an owner cancels; `undefined` when nothing is pending. */
   cancelOrganizationDeletion(
     organizationId: string,
@@ -270,7 +270,7 @@ export function createDataLifecycle(
           : { subject: "organization", tenant: request.organizationId },
         exportOf,
       ),
-    requestSubjectExport: (subjectType, subjectId, request = {}) =>
+    requestSubjectExport: ({ subjectType, subjectId, ...request }) =>
       call(
         "request_subject_export",
         {
@@ -332,7 +332,7 @@ export function createDataLifecycle(
           return ok({ export: found, files });
         },
       ),
-    requestOrganizationDeletion: (organizationId, request = {}) =>
+    requestOrganizationDeletion: ({ organizationId, options: request = {} }) =>
       call(
         "request_organization_deletion",
         {

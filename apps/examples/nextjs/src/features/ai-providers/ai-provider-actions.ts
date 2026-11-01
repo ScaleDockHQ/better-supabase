@@ -43,11 +43,14 @@ export const addProviderKey = bsb.action(
       return stored;
     }
 
-    const saved = await aiProviders(supabase).keys.upsert(tenant, {
-      provider,
-      name: keyName,
-      credentialRef: ref,
-      settings: model === undefined ? {} : { model },
+    const saved = await aiProviders(supabase).keys.upsert({
+      organizationId: tenant,
+      key: {
+        provider,
+        name: keyName,
+        credentialRef: ref,
+        settings: model === undefined ? {} : { model },
+      },
     });
 
     if (!saved.ok) {

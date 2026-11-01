@@ -235,36 +235,48 @@ export interface DealHealth {
 
 /** `F` types the deals' extra columns, from the `fields` schema. */
 export interface Deals<F extends object = Record<never, never>> {
-  create(
-    organizationId: string,
-    input: DealInput<F>,
-    contacts?: readonly DealContact[],
-  ): AsyncResult<Deal<F>>;
+  create(input: {
+    organizationId: string;
+    input: DealInput<F>;
+    contacts?: readonly DealContact[] | undefined;
+  }): AsyncResult<Deal<F>>;
   /** Applies cell edits; a refused change leaves the others applied. */
   update(changes: readonly DealChange[]): AsyncResult<DealChangeResult>;
   /** Moves the deal to its pipeline's won stage. `note` is the closing note. */
-  win(dealId: string, note?: string): AsyncResult<Deal<F>>;
+  win(input: {
+    dealId: string;
+    note?: string | undefined;
+  }): AsyncResult<Deal<F>>;
   /** Moves the deal to its pipeline's lost stage. */
-  lose(dealId: string, reason?: string): AsyncResult<Deal<F>>;
+  lose(input: {
+    dealId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Deal<F>>;
   /** Opens a closed deal again, in `stageId` or the first open stage. */
-  reopen(dealId: string, stageId?: string): AsyncResult<Deal<F>>;
-  setContacts(
-    dealId: string,
-    contacts: readonly DealContact[],
-  ): AsyncResult<number>;
+  reopen(input: {
+    dealId: string;
+    stageId?: string | undefined;
+  }): AsyncResult<Deal<F>>;
+  setContacts(input: {
+    dealId: string;
+    contacts: readonly DealContact[];
+  }): AsyncResult<number>;
   /** Replaces the deal team; each member watches the deal. */
-  setMembers(
-    dealId: string,
-    members: readonly { readonly userId: string; readonly role?: string }[],
-  ): AsyncResult<number>;
-  setLines(
-    dealId: string,
-    lines: readonly DealLineInput[],
-  ): AsyncResult<DealTotals>;
-  archive(dealId: string, archived?: boolean): AsyncResult<boolean>;
+  setMembers(input: {
+    dealId: string;
+    members: readonly { readonly userId: string; readonly role?: string }[];
+  }): AsyncResult<number>;
+  setLines(input: {
+    dealId: string;
+    lines: readonly DealLineInput[];
+  }): AsyncResult<DealTotals>;
+  archive(input: {
+    dealId: string;
+    archived?: boolean | undefined;
+  }): AsyncResult<boolean>;
   remove(dealId: string): AsyncResult<boolean>;
-  forecast(
-    organizationId: string,
+  forecast(input: {
+    organizationId: string;
     period: {
       readonly since: Temporal.PlainDate;
       readonly until: Temporal.PlainDate;
@@ -273,8 +285,8 @@ export interface Deals<F extends object = Record<never, never>> {
       readonly target?: Money;
       readonly pipelineId?: string;
       readonly ownerId?: string;
-    },
-  ): AsyncResult<DealForecast>;
+    };
+  }): AsyncResult<DealForecast>;
   health(pipelineId: string): AsyncResult<DealHealth[]>;
 }
 
@@ -518,7 +530,7 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
     }));
 
   const client: Deals<F> = {
-    create: (organizationId, input, contacts) => {
+    create: ({ organizationId, input, contacts }) => {
       const { fields: extra, ...rest } = input;
 
       const invalid = amountsError(input.currency, [
@@ -616,37 +628,37 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
           },
         ),
       ),
-    win: (dealId, note) =>
+    win: ({ dealId, note }) =>
       call(
         "close_deal",
         { deal: dealId, outcome: "won", reason: note ?? null },
         dealOf,
       ).andThen(parsed),
-    lose: (dealId, reason) =>
+    lose: ({ dealId, reason }) =>
       call(
         "close_deal",
         { deal: dealId, outcome: "lost", reason: reason ?? null },
         dealOf,
       ).andThen(parsed),
-    reopen: (dealId, stageId) =>
+    reopen: ({ dealId, stageId }) =>
       call(
         "reopen_deal",
         { deal: dealId, stage: stageId ?? null },
         dealOf,
       ).andThen(parsed),
-    setContacts: (dealId, contacts) =>
+    setContacts: ({ dealId, contacts }) =>
       call(
         "set_deal_contacts",
         { deal: dealId, contacts: contacts.map((contact) => ({ ...contact })) },
         (value) => num(value) ?? 0,
       ),
-    setMembers: (dealId, members) =>
+    setMembers: ({ dealId, members }) =>
       call(
         "set_deal_members",
         { deal: dealId, members: members.map((member) => ({ ...member })) },
         (value) => num(value) ?? 0,
       ),
-    setLines: (dealId, lines) => {
+    setLines: ({ dealId, lines }) => {
       const invalid = currencyMismatch(
         undefined,
         lines.map((line) => line.unitAmount),
@@ -660,7 +672,7 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
           )
         : AsyncResult.err(invalid);
     },
-    archive: (dealId, archived = true) =>
+    archive: ({ dealId, archived = true }) =>
       call(
         "archive_deal",
         { deal: dealId, archived },
@@ -668,7 +680,7 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     remove: (dealId) =>
       call("delete_deal", { deal: dealId }, (value) => value === true),
-    forecast: (organizationId, period) => {
+    forecast: ({ organizationId, period }) => {
       const invalid = amountsError(period.currency, [period.target]);
 
       return invalid === undefined

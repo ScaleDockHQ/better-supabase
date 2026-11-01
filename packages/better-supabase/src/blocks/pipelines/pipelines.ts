@@ -158,45 +158,51 @@ export interface PipelineHealth {
 
 export interface Pipelines<F extends object = Record<never, never>> {
   /** The organization's active pipelines of a subject type, with their stages. */
-  list(organizationId: string, subjectType: string): AsyncResult<Pipeline<F>[]>;
+  list(input: {
+    organizationId: string;
+    subjectType: string;
+  }): AsyncResult<Pipeline<F>[]>;
   /**
    * Creates or renames a pipeline. The first of a type and scope is its
    * default.
    */
-  upsert(
-    organizationId: string,
-    input: PipelineInput<F>,
-  ): AsyncResult<Pipeline<F>>;
+  upsert(input: {
+    organizationId: string;
+    input: PipelineInput<F>;
+  }): AsyncResult<Pipeline<F>>;
   /** Archives a pipeline that holds no records. */
   archive(pipelineId: string): AsyncResult<boolean>;
   /** Adds a stage at the end of a pipeline, or changes one. */
-  saveStage(
-    pipelineId: string,
-    input: PipelineStageInput,
-  ): AsyncResult<PipelineStage>;
+  saveStage(input: {
+    pipelineId: string;
+    input: PipelineStageInput;
+  }): AsyncResult<PipelineStage>;
   /** Moves a stage between the stages with rank keys `previous` and `next`. */
-  reorderStage(stageId: string, neighbors: RankNeighbors): AsyncResult<string>;
+  reorderStage(input: {
+    stageId: string;
+    neighbors: RankNeighbors;
+  }): AsyncResult<string>;
   /** Archives an empty stage. A pipeline keeps at least one open stage. */
   archiveStage(stageId: string): AsyncResult<boolean>;
   /** Replaces the allowed stage changes. An empty list allows every change. */
-  setTransitions(
-    pipelineId: string,
-    transitions: readonly PipelineTransition[],
-  ): AsyncResult<number>;
+  setTransitions(input: {
+    pipelineId: string;
+    transitions: readonly PipelineTransition[];
+  }): AsyncResult<number>;
   /** The board: each active stage with its count and totals per currency. */
   board(
-    subjectType: string,
-    pipelineId: string,
-    options?: { readonly owner?: string },
+    input: { subjectType: string; pipelineId: string } & {
+      readonly owner?: string;
+    },
   ): AsyncResult<PipelineColumn[]>;
   /** Entries, time in stage and win rate from the stage history. */
-  stats(
-    pipelineId: string,
+  stats(input: {
+    pipelineId: string;
     window: {
       readonly since: Temporal.Instant;
       readonly until: Temporal.Instant;
-    },
-  ): AsyncResult<PipelineStats>;
+    };
+  }): AsyncResult<PipelineStats>;
   /** The open records, oldest entry first, with their days in stage. */
   health(pipelineId: string): AsyncResult<PipelineHealth[]>;
 }
@@ -351,13 +357,13 @@ export function createPipelines<
   const fields: BlockFields<F> = blockFields(options.fields, "pipeline fields");
 
   const client: Pipelines<F> = {
-    list: (organizationId, subjectType) =>
+    list: ({ organizationId, subjectType }) =>
       call(
         "list_pipelines",
         { tenant: organizationId, subject_type: subjectType },
         (value) => recordsOf(value, "list_pipelines").map(pipelineOf),
       ).andThen((pipelines) => readAllFields(fields, pipelines)),
-    upsert: (organizationId, input) =>
+    upsert: ({ organizationId, input }) =>
       writeFields(fields, input.fields, (checked) =>
         call(
           "save_pipeline",
@@ -380,7 +386,7 @@ export function createPipelines<
         { pipeline: pipelineId },
         (value) => value === true,
       ),
-    saveStage: (pipelineId, input) =>
+    saveStage: ({ pipelineId, input }) =>
       call(
         "save_pipeline_stage",
         {
@@ -396,7 +402,7 @@ export function createPipelines<
         },
         stageOf,
       ),
-    reorderStage: (stageId, neighbors) => {
+    reorderStage: ({ stageId, neighbors }) => {
       const key = rankBetweenResult(neighbors);
 
       if (!key.ok) {
@@ -415,7 +421,7 @@ export function createPipelines<
         { stage: stageId },
         (value) => value === true,
       ),
-    setTransitions: (pipelineId, transitions) =>
+    setTransitions: ({ pipelineId, transitions }) =>
       call(
         "set_pipeline_transitions",
         {
@@ -424,7 +430,7 @@ export function createPipelines<
         },
         (value) => numberOf(value) ?? 0,
       ),
-    board: (subjectType, pipelineId, board = {}) =>
+    board: ({ subjectType, pipelineId, ...board }) =>
       call(
         "pipeline_board",
         {
@@ -434,7 +440,7 @@ export function createPipelines<
         },
         (value) => recordsOf(value, "pipeline_board").map(columnOf),
       ),
-    stats: (pipelineId, window) =>
+    stats: ({ pipelineId, window }) =>
       call(
         "pipeline_stats",
         {

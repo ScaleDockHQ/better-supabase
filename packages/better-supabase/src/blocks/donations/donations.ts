@@ -305,7 +305,10 @@ export interface Donations<F extends object = Record<never, never>> {
   getGift(giftId: string): AsyncResult<Gift<F>>;
   gifts(options?: GiftListOptions): AsyncResult<readonly Gift<F>[]>;
   createPledge(input: PledgeInput): AsyncResult<Pledge>;
-  updatePledge(pledgeId: string, update: PledgeUpdate): AsyncResult<Pledge>;
+  updatePledge(input: {
+    pledgeId: string;
+    update: PledgeUpdate;
+  }): AsyncResult<Pledge>;
   pledges(options?: PledgeListOptions): AsyncResult<readonly Pledge[]>;
   dueInstallments(
     options?: DueInstallmentOptions,
@@ -328,17 +331,23 @@ export interface Donations<F extends object = Record<never, never>> {
   /** A numbered receipt for one posted gift. */
   issueGiftReceipt(giftId: string): AsyncResult<DonationReceipt>;
   /** A donor's receipt for their posted gifts in a year and currency. */
-  issueYearlyReceipt(
-    donor: RecordRef,
-    year: number,
-    currency: string,
-  ): AsyncResult<DonationReceipt>;
-  voidReceipt(receiptId: string, reason?: string): AsyncResult<DonationReceipt>;
+  issueYearlyReceipt(input: {
+    donor: RecordRef;
+    year: number;
+    currency: string;
+  }): AsyncResult<DonationReceipt>;
+  voidReceipt(input: {
+    receiptId: string;
+    reason?: string | undefined;
+  }): AsyncResult<DonationReceipt>;
   receipts(
     options?: ReceiptListOptions,
   ): AsyncResult<readonly DonationReceipt[]>;
   /** Default year: this one. */
-  givingSummary(donor: RecordRef, year?: number): AsyncResult<GivingSummary>;
+  givingSummary(input: {
+    donor: RecordRef;
+    year?: number | undefined;
+  }): AsyncResult<GivingSummary>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -909,7 +918,7 @@ export function createDonations<
           pledge("create_pledge"),
         ),
       ),
-    updatePledge: (pledgeId, update) =>
+    updatePledge: ({ pledgeId, update }) =>
       call(
         "update_pledge",
         {
@@ -1030,7 +1039,7 @@ export function createDonations<
         { gift_id: giftId },
         receipt("issue_gift_receipt"),
       ),
-    issueYearlyReceipt: (donor, year, currency) =>
+    issueYearlyReceipt: ({ donor, year, currency }) =>
       tenant().andThen((organizationId) =>
         call(
           "issue_yearly_receipt",
@@ -1044,7 +1053,7 @@ export function createDonations<
           receipt("issue_yearly_receipt"),
         ),
       ),
-    voidReceipt: (receiptId, reason) =>
+    voidReceipt: ({ receiptId, reason }) =>
       call(
         "void_donation_receipt",
         { receipt_id: receiptId, reason: reason ?? null },
@@ -1067,7 +1076,7 @@ export function createDonations<
             ),
         ),
       ),
-    givingSummary: (donor, year) =>
+    givingSummary: ({ donor, year }) =>
       tenant().andThen((organizationId) =>
         call(
           "yearly_giving_summary",

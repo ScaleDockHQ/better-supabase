@@ -439,78 +439,77 @@ export interface Accounting<F extends object = Record<never, never>>
    * Sets the functional currency and fiscal year start, and with the `generic`
    * chart adds its accounts, roles and journals. Needs `accounting.manage`.
    */
-  setup(
-    organizationId: string,
-    input?: AccountingSetupInput,
-  ): AsyncResult<AccountingSettings>;
+  setup(input: {
+    organizationId: string;
+    input?: AccountingSetupInput | undefined;
+  }): AsyncResult<AccountingSettings>;
   settings(organizationId: string): AsyncResult<AccountingSettings | undefined>;
   /** Nothing posts on or before `lockDate`. Needs `accounting.close`. */
-  setLockDate(
-    organizationId: string,
-    lockDate: Temporal.PlainDate | null,
-  ): AsyncResult<AccountingSettings>;
+  setLockDate(input: {
+    organizationId: string;
+    lockDate: Temporal.PlainDate | null;
+  }): AsyncResult<AccountingSettings>;
   /** Needs `accounting.manage`. */
-  saveAccount(
-    organizationId: string,
-    input: AccountingAccountInput,
-  ): AsyncResult<AccountingAccount>;
-  archiveAccount(
-    accountId: string,
-    archived?: boolean,
-  ): AsyncResult<AccountingAccount>;
+  saveAccount(input: {
+    organizationId: string;
+    input: AccountingAccountInput;
+  }): AsyncResult<AccountingAccount>;
+  archiveAccount(input: {
+    accountId: string;
+    archived?: boolean | undefined;
+  }): AsyncResult<AccountingAccount>;
   /** Maps a role to an account, or clears it with `null`; returns every role. */
-  setAccountRole(
-    organizationId: string,
-    role: AccountRole,
-    accountId: string | null,
-  ): AsyncResult<Readonly<Partial<Record<AccountRole, string>>>>;
+  setAccountRole(input: {
+    organizationId: string;
+    role: AccountRole;
+    accountId: string | null;
+  }): AsyncResult<Readonly<Partial<Record<AccountRole, string>>>>;
   accounts(
-    organizationId: string,
-    options?: { readonly includeArchived?: boolean },
+    input: { organizationId: string } & { readonly includeArchived?: boolean },
   ): AsyncResult<readonly AccountingAccount[]>;
   /** Needs `accounting.manage`. */
-  saveJournal(
-    organizationId: string,
-    input: AccountingJournalInput,
-  ): AsyncResult<AccountingJournal>;
+  saveJournal(input: {
+    organizationId: string;
+    input: AccountingJournalInput;
+  }): AsyncResult<AccountingJournal>;
   journals(organizationId: string): AsyncResult<readonly AccountingJournal[]>;
   /**
    * Adds the twelve monthly periods of a fiscal year. Needs
    * `accounting.manage`.
    */
-  openFiscalYear(
-    organizationId: string,
-    fiscalYear: number,
-  ): AsyncResult<readonly AccountingPeriod[]>;
-  periods(
-    organizationId: string,
-    fiscalYear?: number,
-  ): AsyncResult<readonly AccountingPeriod[]>;
+  openFiscalYear(input: {
+    organizationId: string;
+    fiscalYear: number;
+  }): AsyncResult<readonly AccountingPeriod[]>;
+  periods(input: {
+    organizationId: string;
+    fiscalYear?: number | undefined;
+  }): AsyncResult<readonly AccountingPeriod[]>;
   /** Needs `accounting.manage`. */
-  saveDimension(
-    organizationId: string,
-    key: string,
-    name: string,
-  ): AsyncResult<AccountingDimension>;
-  saveDimensionValue(
-    dimensionId: string,
-    input: AccountingDimensionValueInput,
-  ): AsyncResult<AccountingDimension>;
+  saveDimension(input: {
+    organizationId: string;
+    key: string;
+    name: string;
+  }): AsyncResult<AccountingDimension>;
+  saveDimensionValue(input: {
+    dimensionId: string;
+    input: AccountingDimensionValueInput;
+  }): AsyncResult<AccountingDimension>;
   dimensions(
     organizationId: string,
   ): AsyncResult<readonly AccountingDimension[]>;
   /** Needs `accounting.manage`. */
-  setFxRate(
-    organizationId: string,
-    input: AccountingFxRateInput,
-  ): AsyncResult<AccountingFxRateInput>;
+  setFxRate(input: {
+    organizationId: string;
+    input: AccountingFxRateInput;
+  }): AsyncResult<AccountingFxRateInput>;
   /** The latest rate on or before `onDate`, direct or inverted, as a decimal. */
-  fxRate(
-    organizationId: string,
-    base: string,
-    quote: string,
-    onDate: Temporal.PlainDate,
-  ): AsyncResult<string>;
+  fxRate(input: {
+    organizationId: string;
+    base: string;
+    quote: string;
+    onDate: Temporal.PlainDate;
+  }): AsyncResult<string>;
   /** Creates a draft, or replaces one. Needs `accounting.write`. */
   saveEntry(input: AccountingEntryInput<F>): AsyncResult<AccountingEntry<F>>;
   /**
@@ -523,51 +522,49 @@ export interface Accounting<F extends object = Record<never, never>>
    * and marks the original reversed; returns the reversal. Needs
    * `accounting.post`.
    */
-  reverseEntry(
-    entryId: string,
-    entryDate?: Temporal.PlainDate,
-  ): AsyncResult<AccountingEntry<F>>;
+  reverseEntry(input: {
+    entryId: string;
+    entryDate?: Temporal.PlainDate | undefined;
+  }): AsyncResult<AccountingEntry<F>>;
   /** Drafts only. Needs `accounting.write`. */
   deleteEntry(entryId: string): AsyncResult<AccountingEntry<F>>;
   getEntry(entryId: string): AsyncResult<AccountingEntry<F> | undefined>;
   /** The newest first, without lines. */
   entries(
-    organizationId: string,
-    options?: AccountingEntryListOptions,
+    input: { organizationId: string } & AccountingEntryListOptions,
   ): AsyncResult<readonly AccountingEntry<F>[]>;
   /** What keeps a period from closing, such as `draft_entries`. */
   closeBlockers(periodId: string): AsyncResult<readonly string[]>;
   /** Needs `accounting.close`. */
   closePeriod(periodId: string): AsyncResult<AccountingPeriod>;
   /** Needs `accounting.close` and a reason. */
-  reopenPeriod(periodId: string, reason: string): AsyncResult<AccountingPeriod>;
+  reopenPeriod(input: {
+    periodId: string;
+    reason: string;
+  }): AsyncResult<AccountingPeriod>;
   /**
    * Moves the year's income and expenses to retained earnings in one closing
    * entry, then closes its periods. Needs `accounting.close`.
    */
-  closeFiscalYear(
-    organizationId: string,
-    fiscalYear: number,
-  ): AsyncResult<FiscalYearClose>;
+  closeFiscalYear(input: {
+    organizationId: string;
+    fiscalYear: number;
+  }): AsyncResult<FiscalYearClose>;
   trialBalance(
-    organizationId: string,
-    options?: AccountingReportOptions,
+    input: { organizationId: string } & AccountingReportOptions,
   ): AsyncResult<TrialBalance>;
   /** Without year-end closing entries. */
   profitAndLoss(
-    organizationId: string,
-    options?: AccountingReportOptions,
+    input: { organizationId: string } & AccountingReportOptions,
   ): AsyncResult<ProfitAndLoss>;
   balanceSheet(
-    organizationId: string,
-    options?: {
+    input: { organizationId: string } & {
       readonly asOf?: Temporal.PlainDate;
       readonly dimensions?: Readonly<Record<string, string>>;
     },
   ): AsyncResult<BalanceSheet>;
   generalLedger(
-    accountId: string,
-    options?: {
+    input: { accountId: string } & {
       readonly since?: Temporal.PlainDate;
       readonly until?: Temporal.PlainDate;
     },
@@ -591,7 +588,7 @@ export function createAccounting<
   const client: Accounting<F> = {
     ...accountingPostings(call),
     ...accountingLedger(call),
-    setup: (organizationId, input = {}) =>
+    setup: ({ organizationId, input = {} }) =>
       call(
         "setup_accounting",
         {
@@ -607,13 +604,13 @@ export function createAccounting<
         { tenant: organizationId },
         maybe("get_accounting_settings", settingsOf),
       ),
-    setLockDate: (organizationId, lockDate) =>
+    setLockDate: ({ organizationId, lockDate }) =>
       call(
         "set_accounting_lock_date",
         { tenant: organizationId, lock_date: lockDate?.toString() ?? null },
         (value) => settingsOf(value, "set_accounting_lock_date"),
       ),
-    saveAccount: (organizationId, input) =>
+    saveAccount: ({ organizationId, input }) =>
       call(
         "save_accounting_account",
         {
@@ -632,19 +629,19 @@ export function createAccounting<
         },
         (value) => accountOf(value, "save_accounting_account"),
       ),
-    archiveAccount: (accountId, archived = true) =>
+    archiveAccount: ({ accountId, archived = true }) =>
       call(
         "archive_accounting_account",
         { account_id: accountId, archived },
         (value) => accountOf(value, "archive_accounting_account"),
       ),
-    setAccountRole: (organizationId, role, accountId) =>
+    setAccountRole: ({ organizationId, role, accountId }) =>
       call(
         "set_accounting_account_role",
         { tenant: organizationId, role, account_id: accountId },
         (value) => rolesOf(value, "set_accounting_account_role"),
       ),
-    accounts: (organizationId, list = {}) =>
+    accounts: ({ organizationId, ...list }) =>
       call(
         "list_accounting_accounts",
         {
@@ -653,7 +650,7 @@ export function createAccounting<
         },
         many("list_accounting_accounts", accountOf),
       ),
-    saveJournal: (organizationId, input) =>
+    saveJournal: ({ organizationId, input }) =>
       call(
         "save_accounting_journal",
         {
@@ -675,25 +672,25 @@ export function createAccounting<
         { tenant: organizationId },
         many("list_accounting_journals", journalOf),
       ),
-    openFiscalYear: (organizationId, fiscalYear) =>
+    openFiscalYear: ({ organizationId, fiscalYear }) =>
       call(
         "open_fiscal_year",
         { tenant: organizationId, fiscal_year: fiscalYear },
         many("open_fiscal_year", periodOf),
       ),
-    periods: (organizationId, fiscalYear) =>
+    periods: ({ organizationId, fiscalYear }) =>
       call(
         "list_accounting_periods",
         { tenant: organizationId, fiscal_year: fiscalYear ?? null },
         many("list_accounting_periods", periodOf),
       ),
-    saveDimension: (organizationId, key, name) =>
+    saveDimension: ({ organizationId, key, name }) =>
       call(
         "save_accounting_dimension",
         { tenant: organizationId, key, name },
         (value) => dimensionOf(value, "save_accounting_dimension"),
       ),
-    saveDimensionValue: (dimensionId, input) =>
+    saveDimensionValue: ({ dimensionId, input }) =>
       call(
         "save_accounting_dimension_value",
         {
@@ -710,7 +707,7 @@ export function createAccounting<
         { tenant: organizationId },
         many("list_accounting_dimensions", dimensionOf),
       ),
-    setFxRate: (organizationId, input) =>
+    setFxRate: ({ organizationId, input }) =>
       call(
         "set_accounting_fx_rate",
         {
@@ -722,7 +719,7 @@ export function createAccounting<
         },
         (value) => fxRateOf(value, "set_accounting_fx_rate"),
       ),
-    fxRate: (organizationId, base, quote, onDate) =>
+    fxRate: ({ organizationId, base, quote, onDate }) =>
       call(
         "accounting_fx_rate",
         { tenant: organizationId, base, quote, on_date: onDate.toString() },
@@ -754,7 +751,7 @@ export function createAccounting<
         { entry_id: entryId },
         entry("post_accounting_entry"),
       ).andThen(fields.row),
-    reverseEntry: (entryId, entryDate) =>
+    reverseEntry: ({ entryId, entryDate }) =>
       call(
         "reverse_accounting_entry",
         { entry_id: entryId, entry_date: entryDate?.toString() ?? null },
@@ -774,7 +771,7 @@ export function createAccounting<
       ).andThen((found) =>
         found === undefined ? AsyncResult.ok(undefined) : fields.row(found),
       ),
-    entries: (organizationId, list = {}) =>
+    entries: ({ organizationId, ...list }) =>
       call(
         "list_accounting_entries",
         {
@@ -799,19 +796,19 @@ export function createAccounting<
         { period_id: periodId },
         period("close_accounting_period"),
       ),
-    reopenPeriod: (periodId, reason) =>
+    reopenPeriod: ({ periodId, reason }) =>
       call(
         "reopen_accounting_period",
         { period_id: periodId, reason },
         period("reopen_accounting_period"),
       ),
-    closeFiscalYear: (organizationId, fiscalYear) =>
+    closeFiscalYear: ({ organizationId, fiscalYear }) =>
       call(
         "close_fiscal_year",
         { tenant: organizationId, fiscal_year: fiscalYear },
         (value) => fiscalYearCloseOf(value, "close_fiscal_year"),
       ),
-    trialBalance: (organizationId, report = {}) =>
+    trialBalance: ({ organizationId, ...report }) =>
       call(
         "accounting_trial_balance",
         {
@@ -822,7 +819,7 @@ export function createAccounting<
         },
         (value) => trialBalanceOf(value, "accounting_trial_balance"),
       ),
-    profitAndLoss: (organizationId, report = {}) =>
+    profitAndLoss: ({ organizationId, ...report }) =>
       call(
         "accounting_profit_and_loss",
         {
@@ -833,7 +830,7 @@ export function createAccounting<
         },
         (value) => profitAndLossOf(value, "accounting_profit_and_loss"),
       ),
-    balanceSheet: (organizationId, report = {}) =>
+    balanceSheet: ({ organizationId, ...report }) =>
       call(
         "accounting_balance_sheet",
         {
@@ -843,7 +840,7 @@ export function createAccounting<
         },
         (value) => balanceSheetOf(value, "accounting_balance_sheet"),
       ),
-    generalLedger: (accountId, report = {}) =>
+    generalLedger: ({ accountId, ...report }) =>
       call(
         "accounting_general_ledger",
         {

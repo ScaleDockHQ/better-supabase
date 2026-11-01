@@ -119,25 +119,22 @@ export interface UpsertBatchResult extends ImportBatchReply {
 
 export interface Imports {
   /** Starts a run and returns its id. Prefer `runs.start`. */
-  start(
-    organizationId: string,
-    source: string,
-    mapping?: Readonly<Record<string, string>>,
-  ): AsyncResult<{ readonly id: string }>;
+  start(input: {
+    organizationId: string;
+    source: string;
+    mapping?: Readonly<Record<string, string>> | undefined;
+  }): AsyncResult<{ readonly id: string }>;
   readonly runs: {
     /**
      * Starts a pending run. Fails with `IMPORT_RUN_ACTIVE` while another is
      * open.
      */
     start(
-      organizationId: string,
-      source: string,
-      options?: StartImportRunOptions,
+      input: { organizationId: string; source: string } & StartImportRunOptions,
     ): AsyncResult<{ readonly id: string }>;
     get(id: string): AsyncResult<ImportRun>;
     list(
-      organizationId: string,
-      options?: ListImportRunsOptions,
+      input: { organizationId: string } & ListImportRunsOptions,
     ): AsyncResult<readonly ImportRun[]>;
     /** Cancels a pending or running run; `false` when it already ended. */
     cancel(id: string): AsyncResult<boolean>;
@@ -148,20 +145,20 @@ export interface Imports {
    * Writes one batch of an entity through its `importTarget` (service role).
    * Each item inserts, is unchanged, updates, or is `conflicted`.
    */
-  upsertBatch(
-    runId: string,
-    entity: string,
-    items: readonly ImportItem[],
-  ): AsyncResult<UpsertBatchResult>;
+  upsertBatch(input: {
+    runId: string;
+    entity: string;
+    items: readonly ImportItem[];
+  }): AsyncResult<UpsertBatchResult>;
   /**
    * Looks up the subjects keys imported to; a key never imported is left out
    * (service role).
    */
-  resolve(
-    runId: string,
-    entity: string,
-    keys: readonly ImportKey[],
-  ): AsyncResult<readonly ResolvedImportKey[]>;
+  resolve(input: {
+    runId: string;
+    entity: string;
+    keys: readonly ImportKey[];
+  }): AsyncResult<readonly ResolvedImportKey[]>;
   /**
    * Ends a running run, marks missing records on a full run and emits the
    * import events (service role).
@@ -286,14 +283,14 @@ export function createImports(options: ImportsOptions): Imports {
   });
 
   const client: Imports = {
-    start: (organizationId, source, mapping) =>
+    start: ({ organizationId, source, mapping }) =>
       call(
         "start_import",
         { tenant: organizationId, source, mapping: mapping ?? {} },
         (value) => idOf(value, "start_import"),
       ),
     runs: {
-      start: (organizationId, source, startOptions = {}) =>
+      start: ({ organizationId, source, ...startOptions }) =>
         call(
           "start_import_run",
           { tenant: organizationId, source, options: startArg(startOptions) },
@@ -303,7 +300,7 @@ export function createImports(options: ImportsOptions): Imports {
         call("get_import_run", { id }, (value) =>
           runOf(value, "get_import_run"),
         ),
-      list: (organizationId, listOptions = {}) =>
+      list: ({ organizationId, ...listOptions }) =>
         call(
           "list_import_runs",
           {
@@ -322,7 +319,7 @@ export function createImports(options: ImportsOptions): Imports {
     },
     markRunning: (id) =>
       call("mark_import_running", { id }, (value) => value === true),
-    upsertBatch: (runId, entity, items) =>
+    upsertBatch: ({ runId, entity, items }) =>
       call(
         "import_upsert_batch",
         { run: runId, entity, items: items.map(itemArg) },
@@ -353,7 +350,7 @@ export function createImports(options: ImportsOptions): Imports {
           };
         },
       ),
-    resolve: (runId, entity, keys) =>
+    resolve: ({ runId, entity, keys }) =>
       call(
         "import_resolve",
         { run: runId, entity, keys: keys.map(keyArg) },

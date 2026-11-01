@@ -152,16 +152,21 @@ export interface Consents {
    */
   record(input: RecordConsentInput): AsyncResult<Consent>;
   /** Withdraws a granted consent. */
-  withdraw(consentId: string, reason?: string): AsyncResult<Consent>;
+  withdraw(input: {
+    consentId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Consent>;
   /**
    * Whether the record has a consent in force for the purpose's current
    * version.
    */
-  isActive(subject: RecordRef, purposeKey: string): AsyncResult<boolean>;
+  isActive(input: {
+    subject: RecordRef;
+    purposeKey: string;
+  }): AsyncResult<boolean>;
   /** The latest decision per purpose, or every decision with `includeHistory`. */
   list(
-    subject: RecordRef,
-    options?: { readonly includeHistory?: boolean },
+    input: { subject: RecordRef } & { readonly includeHistory?: boolean },
   ): AsyncResult<readonly Consent[]>;
   /** Expires the grants past `validUntil`; service role only. Returns how many. */
   expire(): AsyncResult<number>;
@@ -316,13 +321,13 @@ export function createConsents(options: ConsentsOptions): Consents {
         },
         consent("record_consent"),
       ),
-    withdraw: (consentId, reason) =>
+    withdraw: ({ consentId, reason }) =>
       call(
         "withdraw_consent",
         { consent_id: consentId, reason: reason ?? null },
         consent("withdraw_consent"),
       ),
-    isActive: (subject, purposeKey) =>
+    isActive: ({ subject, purposeKey }) =>
       call(
         "consent_active",
         {
@@ -332,7 +337,7 @@ export function createConsents(options: ConsentsOptions): Consents {
         },
         (value) => value === true,
       ),
-    list: (subject, filter = {}) =>
+    list: ({ subject, ...filter }) =>
       call(
         "list_consents",
         {

@@ -110,7 +110,7 @@ describe("useAvailableSlots", () => {
       fn: "available_slots",
       args: { service: "s1", tz: "Europe/Amsterdam", resource: "r1" },
     });
-    const placed = await view.result.hold(view.result.slots![0]!);
+    const placed = await view.result.hold({ slot: view.result.slots![0]! });
     expect(placed?.id).toBe("b1");
     expect(rpc.calls.map((call) => call.fn)).toEqual([
       "available_slots",
@@ -131,7 +131,7 @@ describe("useAvailableSlots", () => {
     );
 
     await settle(view);
-    const placed = await view.result.hold(view.result.slots![0]!);
+    const placed = await view.result.hold({ slot: view.result.slots![0]! });
     expect(placed?.accessToken).toBe("t".repeat(48));
     expect(rpc.calls[1]).toMatchObject({
       fn: "public_hold_booking",
@@ -166,7 +166,9 @@ describe("useAvailableSlots", () => {
         hint: "BOOKING_SLOT_UNAVAILABLE",
       }),
     );
-    expect(await view.result.hold(view.result.slots![0]!)).toBeUndefined();
+    expect(
+      await view.result.hold({ slot: view.result.slots![0]! }),
+    ).toBeUndefined();
     expect(view.result.error?.message).toBe("slot taken");
     view.unmount();
   });

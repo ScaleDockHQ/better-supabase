@@ -89,7 +89,7 @@ describe("useBlockController (Solid)", () => {
       ),
     );
 
-    bound.actions.push({ v: 1, calls: [] }, "Moved");
+    bound.actions.push({ token: { v: 1, calls: [] }, label: "Moved" });
     expect(bound.state().entries.map((entry) => entry.label)).toEqual([
       "Moved",
     ]);

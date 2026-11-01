@@ -15,10 +15,10 @@ import {
 /** `blocks.employees` and `blocks.relations` for one organization. */
 export interface EmployeeFromApplicationClients extends ConversionClients {
   readonly employees: {
-    fromApplication(
-      applicationId: string,
-      overrides?: Partial<EmployeeInput>,
-    ): PromiseLike<Result<Employee>>;
+    fromApplication(input: {
+      applicationId: string;
+      overrides?: Partial<EmployeeInput> | undefined;
+    }): PromiseLike<Result<Employee>>;
   };
 }
 
@@ -54,10 +54,10 @@ export function employeeFromApplicationAction(
     clients: options.clients,
     map: (_, context) => options.map?.(context) ?? {},
     create: async (overrides, { clients, source }) => {
-      const created = await clients.employees.fromApplication(
-        source.id,
+      const created = await clients.employees.fromApplication({
+        applicationId: source.id,
         overrides,
-      );
+      });
 
       return created.ok ? ok({ id: created.data.id }) : created;
     },

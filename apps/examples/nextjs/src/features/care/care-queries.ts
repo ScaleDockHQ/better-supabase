@@ -100,7 +100,9 @@ async function loadConsents(id: string): Promise<readonly ConsentRow[] | null> {
     return null;
   }
 
-  const consents = await db.consents.list({ type: "customer", id }).orThrow();
+  const consents = await db.consents
+    .list({ subject: { type: "customer", id } })
+    .orThrow();
 
   return consents.map((consent) => ({
     id: consent.id,
@@ -143,7 +145,7 @@ async function loadAccessLog(id: string): Promise<readonly AccessRow[] | null> {
   }
 
   const reads = await db.subjects.reads
-    .list({ type: "customer", id })
+    .list({ subject: { type: "customer", id } })
     .orThrow();
 
   return reads.map((read) => ({
@@ -177,5 +179,8 @@ export function getAccessLog(
 export async function logDossierRead(id: string): Promise<void> {
   const { db } = await bsb.cached();
 
-  await db.subjects.reads.log({ type: "customer", id }, { purpose: "care" });
+  await db.subjects.reads.log({
+    subject: { type: "customer", id },
+    purpose: "care",
+  });
 }

@@ -58,17 +58,23 @@ describe.skipIf(!live)("documents", () => {
       const doc = new Y.Doc();
       const pushed: Promise<number>[] = [];
       doc.on("update", (update: Uint8Array) => {
-        pushed.push(documents.push(opened.id, update).orThrow());
+        pushed.push(
+          documents.push({ documentId: opened.id, update }).orThrow(),
+        );
       });
       doc.getText("t").insert(0, "hello");
       doc.getText("t").insert(5, " world");
       expect(await Promise.all(pushed)).toHaveLength(2);
       expect(
-        await documents.push(opened.id, new Uint8Array(5000)).then(hint),
+        await documents
+          .push({ documentId: opened.id, update: new Uint8Array(5000) })
+          .then(hint),
       ).toBe("DOCUMENT_UPDATE_TOO_LARGE");
-      expect(await documents.push(opened.id, new Uint8Array()).then(hint)).toBe(
-        "DOCUMENT_UPDATE_INVALID",
-      );
+      expect(
+        await documents
+          .push({ documentId: opened.id, update: new Uint8Array() })
+          .then(hint),
+      ).toBe("DOCUMENT_UPDATE_INVALID");
       expect(
         await s.value<boolean>(
           "better_supabase.document_topic_access($1, true)",
@@ -82,13 +88,19 @@ describe.skipIf(!live)("documents", () => {
         ),
       ).toBe(false);
       expect(
-        await documents.compact(opened.id, new Uint8Array([0]), 1).then(hint),
+        await documents
+          .compact({
+            documentId: opened.id,
+            state: new Uint8Array([0]),
+            throughSeq: 1,
+          })
+          .then(hint),
       ).toBe("DOCUMENT_FORBIDDEN");
 
       await s.asRole(viewer);
-      expect(await documents.pull(opened.id, 0).then(hint)).toBe(
-        "DOCUMENT_NOT_FOUND",
-      );
+      expect(
+        await documents.pull({ documentId: opened.id, afterSeq: 0 }).then(hint),
+      ).toBe("DOCUMENT_NOT_FOUND");
       expect(
         await s.value<boolean>(
           "better_supabase.document_topic_access($1, false)",
@@ -120,20 +132,34 @@ describe.skipIf(!live)("documents", () => {
       const copy = new Y.Doc();
       Y.applyUpdate(copy, reopened.snapshot!);
       expect(copy.getText("t").toString()).toBe("hello world");
-      const stale = await documents.pull(opened.id, 0).orThrow();
+
+      const stale = await documents
+        .pull({ documentId: opened.id, afterSeq: 0 })
+        .orThrow();
+
       expect(stale.snapshotSeq).toBe(reopened.snapshotSeq);
 
       const saved = await documents
-        .saveVersion(opened.id, Y.encodeStateAsUpdate(copy), "first draft")
+        .saveVersion({
+          documentId: opened.id,
+          state: Y.encodeStateAsUpdate(copy),
+          label: "first draft",
+        })
         .orThrow();
 
       expect(saved.number).toBe(1);
-      const versions = await documents.versions(opened.id).orThrow();
+
+      const versions = await documents
+        .versions({ documentId: opened.id })
+        .orThrow();
+
       expect(versions).toMatchObject([{ number: 1, label: "first draft" }]);
       const restored = new Y.Doc();
       Y.applyUpdate(
         restored,
-        await documents.version(opened.id, saved.id).orThrow(),
+        await documents
+          .version({ documentId: opened.id, versionId: saved.id })
+          .orThrow(),
       );
       expect(restored.getText("t").toString()).toBe("hello world");
 
@@ -184,7 +210,9 @@ describe.skipIf(!live)("documents", () => {
       const first: Uint8Array[] = [];
       base.on("update", (update: Uint8Array) => first.push(update));
       base.getText("t").insert(0, "hello");
-      await documents.push(opened.id, Y.mergeUpdates(first)).orThrow();
+      await documents
+        .push({ documentId: opened.id, update: Y.mergeUpdates(first) })
+        .orThrow();
 
       await s.asRole(viewer);
       const read = await documents.open(ref).orThrow();
@@ -199,15 +227,23 @@ describe.skipIf(!live)("documents", () => {
       draft.on("update", (update: Uint8Array) => drafted.push(update));
       draft.getText("t").insert(5, " world");
       const change = Y.mergeUpdates(drafted);
-      expect(await documents.push(opened.id, change).then(hint)).toBe(
-        "DOCUMENT_FORBIDDEN",
-      );
       expect(
-        await documents.suggest(opened.id, new Uint8Array(5000)).then(hint),
+        await documents
+          .push({ documentId: opened.id, update: change })
+          .then(hint),
+      ).toBe("DOCUMENT_FORBIDDEN");
+      expect(
+        await documents
+          .suggest({ documentId: opened.id, update: new Uint8Array(5000) })
+          .then(hint),
       ).toBe("DOCUMENT_UPDATE_TOO_LARGE");
 
       const suggested = await documents
-        .suggest(opened.id, change, " Finish the greeting ")
+        .suggest({
+          documentId: opened.id,
+          update: change,
+          summary: " Finish the greeting ",
+        })
         .orThrow();
 
       expect(suggested).toMatchObject({
@@ -217,30 +253,56 @@ describe.skipIf(!live)("documents", () => {
       });
       expect(suggested.update).toEqual(change);
       expect(
-        await documents.decideSuggestion(suggested.id, "accepted").then(hint),
+        await documents
+          .decideSuggestion({
+            suggestionId: suggested.id,
+            decision: "accepted",
+          })
+          .then(hint),
       ).toBe("DOCUMENT_FORBIDDEN");
 
       await s.asRole(outsider);
-      expect(await documents.suggest(opened.id, change).then(hint)).toBe(
-        "DOCUMENT_NOT_FOUND",
-      );
       expect(
-        await documents.decideSuggestion(suggested.id, "rejected").then(hint),
+        await documents
+          .suggest({ documentId: opened.id, update: change })
+          .then(hint),
+      ).toBe("DOCUMENT_NOT_FOUND");
+      expect(
+        await documents
+          .decideSuggestion({
+            suggestionId: suggested.id,
+            decision: "rejected",
+          })
+          .then(hint),
       ).toBe("DOCUMENT_SUGGESTION_NOT_FOUND");
 
       await s.asRole(member);
-      expect(await documents.suggestions(opened.id).orThrow()).toHaveLength(1);
+      expect(
+        await documents.suggestions({ documentId: opened.id }).orThrow(),
+      ).toHaveLength(1);
       expect(
         await documents
-          .decideSuggestion(suggested.id, "maybe" as "accepted")
+          .decideSuggestion({
+            suggestionId: suggested.id,
+            decision: "maybe" as "accepted",
+          })
           .then(hint),
       ).toBe("DOCUMENT_SUGGESTION_INVALID");
       expect(
-        await documents.decideSuggestion(suggested.id, "withdrawn").then(hint),
+        await documents
+          .decideSuggestion({
+            suggestionId: suggested.id,
+            decision: "withdrawn",
+          })
+          .then(hint),
       ).toBe("DOCUMENT_FORBIDDEN");
 
       const accepted = await documents
-        .decideSuggestion(suggested.id, "accepted", "Thanks")
+        .decideSuggestion({
+          suggestionId: suggested.id,
+          decision: "accepted",
+          note: "Thanks",
+        })
         .orThrow();
 
       expect(accepted).toMatchObject({
@@ -250,9 +312,18 @@ describe.skipIf(!live)("documents", () => {
       });
       expect(accepted.seq).toBeGreaterThan(0);
       expect(
-        await documents.decideSuggestion(suggested.id, "rejected").then(hint),
+        await documents
+          .decideSuggestion({
+            suggestionId: suggested.id,
+            decision: "rejected",
+          })
+          .then(hint),
       ).toBe("DOCUMENT_SUGGESTION_CLOSED");
-      const state = await documents.pull(opened.id, 0).orThrow();
+
+      const state = await documents
+        .pull({ documentId: opened.id, afterSeq: 0 })
+        .orThrow();
+
       const merged = new Y.Doc();
 
       for (const item of state.updates) {
@@ -262,11 +333,17 @@ describe.skipIf(!live)("documents", () => {
       expect(merged.getText("t").toString()).toBe("hello world");
 
       await s.asRole(viewer);
-      const second = await documents.suggest(opened.id, change).orThrow();
-      const third = await documents.suggest(opened.id, change).orThrow();
+
+      const second = await documents
+        .suggest({ documentId: opened.id, update: change })
+        .orThrow();
+
+      const third = await documents
+        .suggest({ documentId: opened.id, update: change })
+        .orThrow();
 
       const withdrawn = await documents
-        .decideSuggestion(third.id, "withdrawn")
+        .decideSuggestion({ suggestionId: third.id, decision: "withdrawn" })
         .orThrow();
 
       expect(withdrawn.status).toBe("withdrawn");
@@ -276,48 +353,87 @@ describe.skipIf(!live)("documents", () => {
       expect(
         (
           await documents
-            .decideSuggestion(second.id, "rejected", "Already in")
+            .decideSuggestion({
+              suggestionId: second.id,
+              decision: "rejected",
+              note: "Already in",
+            })
             .orThrow()
         ).status,
       ).toBe("rejected");
-      expect(await documents.suggestions(opened.id).orThrow()).toEqual([]);
       expect(
-        (await documents.suggestions(opened.id, { status: "all" }).orThrow())
+        await documents.suggestions({ documentId: opened.id }).orThrow(),
+      ).toEqual([]);
+      expect(
+        (
+          await documents
+            .suggestions({ documentId: opened.id, options: { status: "all" } })
+            .orThrow()
+        )
           .map((item) => item.status)
           .toSorted(),
       ).toEqual(["accepted", "rejected", "withdrawn"]);
 
       const saved = await documents
-        .saveVersion(opened.id, Y.encodeStateAsUpdate(merged))
+        .saveVersion({
+          documentId: opened.id,
+          state: Y.encodeStateAsUpdate(merged),
+        })
         .orThrow();
 
       expect(
-        await documents.versions(opened.id, { named: true }).orThrow(),
+        await documents
+          .versions({ documentId: opened.id, named: true })
+          .orThrow(),
       ).toEqual([]);
       expect(
         await documents
-          .nameVersion(opened.id, saved.id, " Approved ")
+          .nameVersion({
+            documentId: opened.id,
+            versionId: saved.id,
+            label: " Approved ",
+          })
           .orThrow(),
       ).toBe(true);
 
       const named = await documents
-        .versions(opened.id, { named: true })
+        .versions({ documentId: opened.id, named: true })
         .orThrow();
 
       expect(named).toMatchObject([
         { id: saved.id, label: "Approved", source: "manual", frozen: false },
       ]);
       expect(
-        await documents.nameVersion(opened.id, opened.id, "Missing").then(hint),
+        await documents
+          .nameVersion({
+            documentId: opened.id,
+            versionId: opened.id,
+            label: "Missing",
+          })
+          .then(hint),
       ).toBe("DOCUMENT_VERSION_NOT_FOUND");
-      await documents.nameVersion(opened.id, saved.id, null).orThrow();
+      await documents
+        .nameVersion({
+          documentId: opened.id,
+          versionId: saved.id,
+          label: null,
+        })
+        .orThrow();
       expect(
-        await documents.versions(opened.id, { named: true }).orThrow(),
+        await documents
+          .versions({ documentId: opened.id, named: true })
+          .orThrow(),
       ).toEqual([]);
 
       await s.asRole(viewer);
       expect(
-        await documents.nameVersion(opened.id, saved.id, "Mine").then(hint),
+        await documents
+          .nameVersion({
+            documentId: opened.id,
+            versionId: saved.id,
+            label: "Mine",
+          })
+          .then(hint),
       ).toBe("DOCUMENT_FORBIDDEN");
 
       await s.service();
@@ -329,7 +445,13 @@ describe.skipIf(!live)("documents", () => {
 
       await s.asRole(member);
       expect(
-        await documents.nameVersion(opened.id, frozen.id, "Other").then(hint),
+        await documents
+          .nameVersion({
+            documentId: opened.id,
+            versionId: frozen.id,
+            label: "Other",
+          })
+          .then(hint),
       ).toBe("DOCUMENT_VERSION_FROZEN");
 
       await s.service();

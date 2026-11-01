@@ -265,11 +265,14 @@ export interface Expenses<F extends object = Record<never, never>> {
   }): AsyncResult<readonly ExpenseCategory[]>;
   /** A draft report of the caller. Needs `expenses.submit`. */
   create(input: ExpenseReportInput<F>): AsyncResult<ExpenseReport<F>>;
-  addLine(reportId: string, line: ExpenseLineInput): AsyncResult<ExpenseLine>;
-  updateLine(
-    lineId: string,
-    update: ExpenseLineUpdate,
-  ): AsyncResult<ExpenseLine>;
+  addLine(input: {
+    reportId: string;
+    line: ExpenseLineInput;
+  }): AsyncResult<ExpenseLine>;
+  updateLine(input: {
+    lineId: string;
+    update: ExpenseLineUpdate;
+  }): AsyncResult<ExpenseLine>;
   removeLine(lineId: string): AsyncResult<ExpenseReport<F>>;
   /** The spend policy findings `submit` would refuse. */
   check(reportId: string): AsyncResult<readonly ExpensePolicyViolation[]>;
@@ -282,52 +285,52 @@ export interface Expenses<F extends object = Record<never, never>> {
    * Pays an approved report out of the member's payable. Needs
    * `expenses.manage`.
    */
-  reimburse(
-    reportId: string,
-    input?: ReimbursementInput,
-  ): AsyncResult<ExpenseReport<F>>;
+  reimburse(input: {
+    reportId: string;
+    input?: ReimbursementInput | undefined;
+  }): AsyncResult<ExpenseReport<F>>;
   cancel(reportId: string): AsyncResult<ExpenseReport<F>>;
   /**
    * Approves or rejects a submitted report when expenses run without the
    * approvals block (`options.approvals: false`). Needs `expenses.approve`, and
    * the owner can't decide their own.
    */
-  decide(
-    reportId: string,
+  decide(input: {
+    reportId: string;
     decision: {
       readonly approved: boolean;
       readonly note?: string;
       /** The user the service role decides for, kept as `decidedBy`. */
       readonly decidedBy?: string;
-    },
-  ): AsyncResult<ExpenseReport<F>>;
+    };
+  }): AsyncResult<ExpenseReport<F>>;
   get(reportId: string): AsyncResult<ExpenseReport<F>>;
   list(
     options?: ExpenseReportListOptions,
   ): AsyncResult<readonly ExpenseReport<F>[]>;
   createExpense(input: ExpenseInput<F>): AsyncResult<Expense<F>>;
-  updateExpense(
-    expenseId: string,
-    update: ExpenseUpdate<F>,
-  ): AsyncResult<Expense<F>>;
+  updateExpense(input: {
+    expenseId: string;
+    update: ExpenseUpdate<F>;
+  }): AsyncResult<Expense<F>>;
   submitExpense(expenseId: string): AsyncResult<Expense<F>>;
   /** Moves a submitted expense back to draft. */
   withdrawExpense(expenseId: string): AsyncResult<Expense<F>>;
   /** Deletes a draft expense. */
   deleteExpense(expenseId: string): AsyncResult<boolean>;
-  decideExpense(
-    expenseId: string,
+  decideExpense(input: {
+    expenseId: string;
     decision: {
       readonly approved: boolean;
       readonly note?: string;
       /** The user the service role decides for, kept as `decidedBy`. */
       readonly decidedBy?: string;
-    },
-  ): AsyncResult<Expense<F>>;
-  reimburseExpense(
-    expenseId: string,
-    input?: { readonly reference?: string },
-  ): AsyncResult<Expense<F>>;
+    };
+  }): AsyncResult<Expense<F>>;
+  reimburseExpense(input: {
+    expenseId: string;
+    input?: { readonly reference?: string } | undefined;
+  }): AsyncResult<Expense<F>>;
   getExpense(expenseId: string): AsyncResult<Expense<F>>;
   listExpenses(
     options?: ExpenseListOptions,
@@ -650,7 +653,7 @@ export function createExpenses<
             ).andThen(fields.row),
           ),
         ),
-    addLine: (reportId, input) =>
+    addLine: ({ reportId, line: input }) =>
       call(
         "add_expense_line",
         {
@@ -665,7 +668,7 @@ export function createExpenses<
         },
         line("add_expense_line"),
       ),
-    updateLine: (lineId, update) =>
+    updateLine: ({ lineId, update }) =>
       call(
         "update_expense_line",
         {
@@ -696,7 +699,7 @@ export function createExpenses<
         { report_id: reportId },
         report("submit_expense_report"),
       ).andThen(fields.row),
-    reimburse: (reportId, input = {}) =>
+    reimburse: ({ reportId, input = {} }) =>
       call(
         "reimburse_expense_report",
         {
@@ -712,7 +715,7 @@ export function createExpenses<
         { report_id: reportId },
         report("cancel_expense_report"),
       ).andThen(fields.row),
-    decide: (reportId, decision) =>
+    decide: ({ reportId, decision }) =>
       call(
         "decide_expense_report",
         {
@@ -772,7 +775,7 @@ export function createExpenses<
             ).andThen(fields.row),
           ),
         ),
-    updateExpense: (expenseId, update) =>
+    updateExpense: ({ expenseId, update }) =>
       fields.args(update.fields).andThen((checked) => {
         const clear = (
           [
@@ -818,7 +821,7 @@ export function createExpenses<
         { expense_id: expenseId },
         expense("submit_expense"),
       ).andThen(fields.row),
-    decideExpense: (expenseId, decision) =>
+    decideExpense: ({ expenseId, decision }) =>
       call(
         "decide_expense",
         {
@@ -831,7 +834,7 @@ export function createExpenses<
         },
         expense("decide_expense"),
       ).andThen(fields.row),
-    reimburseExpense: (expenseId, input = {}) =>
+    reimburseExpense: ({ expenseId, input = {} }) =>
       call(
         "reimburse_expense",
         { expense_id: expenseId, reference: input.reference ?? null },

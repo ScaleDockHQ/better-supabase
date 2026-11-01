@@ -203,7 +203,7 @@ async function permissionsOf(
     feature.config === undefined ? {} : { config: feature.config },
   );
 
-  const result = await access.permissions(keys);
+  const result = await access.permissions({ keys });
 
   return result.ok ? { set: result.data } : { set: null, error: result.error };
 }

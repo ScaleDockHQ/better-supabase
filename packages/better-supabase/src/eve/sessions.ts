@@ -113,11 +113,16 @@ export function persistSessions(
 
     const id = await chatIdOf(ctx.session.id);
     await chats.chats
-      .create(organizationId, {
-        id,
-        ownerId: auth.principalId,
-        title: options.title ?? "eve session",
-        ...(options.agentId === undefined ? {} : { agentId: options.agentId }),
+      .create({
+        organizationId,
+        input: {
+          id,
+          ownerId: auth.principalId,
+          title: options.title ?? "eve session",
+          ...(options.agentId === undefined
+            ? {}
+            : { agentId: options.agentId }),
+        },
       })
       .orThrow();
 
@@ -149,7 +154,9 @@ export function persistSessions(
     }
 
     await chats.runs
-      .release(chatId, streamOf(ctx.session.id, turnId), {
+      .release({
+        chatId,
+        streamId: streamOf(ctx.session.id, turnId),
         status,
         ...(error === undefined ? {} : { error }),
       })
@@ -168,7 +175,9 @@ export function persistSessions(
       }
 
       await chats.runs
-        .claim(chatId, streamOf(ctx.session.id, event.data.turnId), {
+        .claim({
+          chatId,
+          streamId: streamOf(ctx.session.id, event.data.turnId),
           engine: "eve",
         })
         .orThrow();
@@ -182,10 +191,13 @@ export function persistSessions(
 
       const id = `${event.data.turnId}:${String(event.data.sequence)}`;
       await chats.messages
-        .appendUser(chatId, {
-          id,
-          role: "user",
-          parts: [{ type: "text", text: event.data.message }],
+        .appendUser({
+          chatId,
+          message: {
+            id,
+            role: "user",
+            parts: [{ type: "text", text: event.data.message }],
+          },
         })
         .orThrow();
     },
@@ -204,9 +216,9 @@ export function persistSessions(
 
       const id = `${event.data.turnId}:${String(event.data.stepIndex)}:${String(event.data.sequence)}`;
       await chats.messages
-        .saveAssistant(
+        .saveAssistant({
           chatId,
-          {
+          message: {
             id,
             role: "assistant",
             parts: [{ type: "text", text: event.data.message }],
@@ -214,14 +226,14 @@ export function persistSessions(
               ? { metadata: { interim: true } }
               : {}),
           },
-          {
+          options: {
             parentId: chat.leafId,
             status: "complete",
             format: "eve",
             native: event.data,
             runId: chat.activeRunId,
           },
-        )
+        })
         .orThrow();
     },
     "turn.completed": (event, ctx) =>

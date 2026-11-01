@@ -63,31 +63,36 @@ describe.skipIf(!live)("enrichment", () => {
       await s.as(owner);
 
       const acme = await parties
-        .saveCompany(org, {
-          name: "Acme",
-          website: "https://acme.example",
-          lifecycle: "lead",
+        .saveCompany({
+          organizationId: org,
+          input: {
+            name: "Acme",
+            website: "https://acme.example",
+            lifecycle: "lead",
+          },
         })
         .orThrow();
 
       const ada = await parties
-        .savePerson(org, {
-          name: "Ada",
-          email: "ada@acme.example",
-          title: "Engineer",
+        .savePerson({
+          organizationId: org,
+          input: { name: "Ada", email: "ada@acme.example", title: "Engineer" },
         })
         .orThrow();
 
       const nobody = await parties
-        .saveCompany(org, {
-          name: "Nobody",
-          website: "https://nobody.example",
-          lifecycle: "lead",
+        .saveCompany({
+          organizationId: org,
+          input: {
+            name: "Nobody",
+            website: "https://nobody.example",
+            lifecycle: "lead",
+          },
         })
         .orThrow();
 
       const company = await enrichment
-        .enrich({ type: "company", id: acme.id })
+        .enrich({ subject: { type: "company", id: acme.id } })
         .orThrow();
 
       expect(company.status).toBe("matched");
@@ -95,13 +100,13 @@ describe.skipIf(!live)("enrichment", () => {
       expect(company.data).toMatchObject({ industry: "software" });
 
       const found = await parties
-        .listCompanies(org, { search: "acme.example" })
+        .listCompanies({ organizationId: org, search: "acme.example" })
         .orThrow();
 
       expect(found.items.map((c) => c.id)).toEqual([acme.id]);
 
       const person = await enrichment
-        .enrich({ type: "person", id: ada.id })
+        .enrich({ subject: { type: "person", id: ada.id } })
         .orThrow();
 
       expect(person.filled).toEqual(["phone"]);
@@ -109,8 +114,7 @@ describe.skipIf(!live)("enrichment", () => {
       await s.as(rep);
 
       const denied = await enrichment.enrich({
-        type: "company",
-        id: nobody.id,
+        subject: { type: "company", id: nobody.id },
       });
 
       expect(denied.error?.hint).toBe("ENRICHMENT_NOT_FOUND");

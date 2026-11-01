@@ -62,12 +62,15 @@ describe("versions client", () => {
 
     expect(
       await versions
-        .snapshot(DOC, { content: { a: 1 }, label: "Final" })
+        .snapshot({
+          subject: DOC,
+          input: { content: { a: 1 }, label: "Final" },
+        })
         .orThrow(),
     ).toEqual({ id: "v2", number: 2, contentHash: "def", unchanged: false });
 
     const listed = await versions
-      .list(DOC, { pageSize: 10, before: 5 })
+      .list({ subject: DOC, pageSize: 10, before: 5 })
       .orThrow();
 
     expect(listed[0]).toMatchObject({
@@ -78,7 +81,9 @@ describe("versions client", () => {
     expect(listed[1]).not.toHaveProperty("label");
     expect(listed[1]!.subject).toEqual(DOC);
     expect(listed[1]!.createdAt.toString()).toBe("2026-10-01T00:00:00Z");
-    expect(await versions.label("v1", null).orThrow()).toBe(true);
+    expect(await versions.label({ id: "v1", label: null }).orThrow()).toBe(
+      true,
+    );
     expect(await versions.delete("v1").orThrow()).toBe(true);
     expect(fake.calls[0]).toEqual([
       "snapshot_version",
@@ -111,8 +116,8 @@ describe("versions client", () => {
       tenant: () => "o",
     });
 
-    await versions.snapshot(DOC).orThrow();
-    expect(await versions.list(DOC).orThrow()).toEqual([]);
+    await versions.snapshot({ subject: DOC }).orThrow();
+    expect(await versions.list({ subject: DOC }).orThrow()).toEqual([]);
     expect(fake.calls.map(([, args]) => args)).toEqual([
       {
         tenant: "o",
@@ -137,8 +142,8 @@ describe("versions client", () => {
     const versions = createVersions({ transport: fake, schema: "app" });
 
     for (const result of [
-      await versions.snapshot(DOC, { content: { a: 1 } }),
-      await versions.list(DOC),
+      await versions.snapshot({ subject: DOC, input: { content: { a: 1 } } }),
+      await versions.list({ subject: DOC }),
     ]) {
       expect(result.error).toMatchObject({
         kind: "invalid_request",
@@ -181,13 +186,15 @@ describe("versions client", () => {
       restoredFrom: 1,
       content: { title: "A" },
     });
-    expect(await versions.diff("v1", "v2").orThrow()).toEqual([
-      { op: "replace", path: "/title", value: "B" },
-      { op: "add", path: "/tags/1", value: "y" },
-    ]);
-    expect(await versions.diff("v1", "v3").orThrow()).toEqual([
-      { op: "replace", path: "", value: null },
-    ]);
+    expect(await versions.diff({ fromId: "v1", toId: "v2" }).orThrow()).toEqual(
+      [
+        { op: "replace", path: "/title", value: "B" },
+        { op: "add", path: "/tags/1", value: "y" },
+      ],
+    );
+    expect(await versions.diff({ fromId: "v1", toId: "v3" }).orThrow()).toEqual(
+      [{ op: "replace", path: "", value: null }],
+    );
     expect((await versions.get("v1").orThrow()).content).toEqual(
       contents["v1"],
     );
@@ -207,7 +214,8 @@ describe("versions client", () => {
 
     const versions = createVersions({ transport: fake, schema: "app" });
     expect(
-      (await versions.restoreFields("v1", ["title"]).orThrow()).content,
+      (await versions.restoreFields({ id: "v1", fields: ["title"] }).orThrow())
+        .content,
     ).toEqual({ title: "A", tags: ["x", "y"] });
     expect(fake.calls).toEqual([
       ["restore_version", { version_id: "v1", fields: ["title"] }],

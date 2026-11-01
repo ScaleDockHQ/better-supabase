@@ -105,22 +105,22 @@ describe("signing-keys block", () => {
   it("creates a key, keeps the private JWK out of the result and publishes the public one", async () => {
     const t = store();
     const keys = createSigningKeys({ transport: t });
-    const created = await keys.create(OWNER).orThrow();
+    const created = await keys.create({ owner: OWNER }).orThrow();
     expect(created.alg).toBe("Ed25519");
     expect(created.publicKey).not.toHaveProperty("d");
     expect(JSON.parse(t.rows[0]!.privateJwk)).toHaveProperty("d");
-    const jwks = await keys.jwks(OWNER).orThrow();
+    const jwks = await keys.jwks({ owner: OWNER }).orThrow();
     expect(jwks.keys.map((key) => key.kid)).toEqual([created.kid]);
   });
 
   it("signs a JWT that verifies against the JWKS and notes its exp once per hour", async () => {
     const t = store();
     const keys = createSigningKeys({ transport: t });
-    const signer = keys.signer(OWNER, { create: "Ed25519" });
+    const signer = keys.signer({ owner: OWNER, create: "Ed25519" });
     const exp = 1_900_000_000;
     const token = await signer.signJwt({ sub: "u1", exp }).orThrow();
     await signer.signJwt({ sub: "u2", exp: exp + 60 }).orThrow();
-    const jwks = jwksOf(await keys.jwks(OWNER).orThrow());
+    const jwks = jwksOf(await keys.jwks({ owner: OWNER }).orThrow());
     const verified = await verifyCompact(token, jwks);
     expect(verified.header).toMatchObject({ alg: "EdDSA", typ: "JWT" });
     expect(verified.payload).toMatchObject({ sub: "u1" });
@@ -136,11 +136,11 @@ describe("signing-keys block", () => {
   it("signs a custom typ that verifyCompact then requires", async () => {
     const t = store();
     const keys = createSigningKeys({ transport: t });
-    const signer = keys.signer(OWNER, { create: "Ed25519" });
+    const signer = keys.signer({ owner: OWNER, create: "Ed25519" });
     const typ = jwtType("invite");
     expect(typ).toBe("vnd.invite+jwt");
     const token = await signer.signJwt({ sub: "u1" }, { typ }).orThrow();
-    const jwks = jwksOf(await keys.jwks(OWNER).orThrow());
+    const jwks = jwksOf(await keys.jwks({ owner: OWNER }).orThrow());
     expect((await verifyCompact(token, jwks, { typ })).header).toMatchObject({
       typ,
     });
@@ -151,7 +151,7 @@ describe("signing-keys block", () => {
 
   it("refuses a typ that is not a JWT media type and a bad type name", async () => {
     const keys = createSigningKeys({ transport: store() });
-    const signer = keys.signer(OWNER, { create: "Ed25519" });
+    const signer = keys.signer({ owner: OWNER, create: "Ed25519" });
     const result = await signer.signJwt({ sub: "u1" }, { typ: "invite" });
     expect(result.ok).toBe(false);
     expect(() => jwtType("Bad Name")).toThrow(TypeError);
@@ -161,24 +161,24 @@ describe("signing-keys block", () => {
   it("rotates with the active key's type and keeps the retired kid published", async () => {
     const t = store();
     const keys = createSigningKeys({ transport: t, ed25519Alg: "Ed25519" });
-    const first = await keys.create(OWNER, "ES256").orThrow();
-    const second = await keys.rotate(OWNER).orThrow();
+    const first = await keys.create({ owner: OWNER, alg: "ES256" }).orThrow();
+    const second = await keys.rotate({ owner: OWNER }).orThrow();
     expect(second).toMatchObject({ alg: "ES256", retired: first.kid });
 
     const signed = await keys
-      .signer(OWNER)
+      .signer({ owner: OWNER })
       .sign(new Uint8Array([1, 2, 3]))
       .orThrow();
 
     expect(signed).toMatchObject({ kid: second.kid, alg: "ES256" });
     expect(signed.signature).toHaveLength(64);
-    const jwks = await keys.jwks(OWNER).orThrow();
+    const jwks = await keys.jwks({ owner: OWNER }).orThrow();
     expect(jwks.keys.map((key) => key.kid)).toEqual([first.kid, second.kid]);
   });
 
   it("fails with SIGNING_KEY_MISSING when the owner has no key", async () => {
     const result = await createSigningKeys({ transport: store() })
-      .signer(OWNER)
+      .signer({ owner: OWNER })
       .sign(new Uint8Array([1]));
 
     expect(result.ok).toBe(false);
@@ -188,8 +188,8 @@ describe("signing-keys block", () => {
   it("serves the JWKS with a JWK Set content type and a cache lifetime", async () => {
     const t = store();
     const keys = createSigningKeys({ transport: t });
-    await keys.create(OWNER).orThrow();
-    const response = await keys.jwksResponse(OWNER, { maxAge: 60 });
+    await keys.create({ owner: OWNER }).orThrow();
+    const response = await keys.jwksResponse({ owner: OWNER, maxAge: 60 });
     expect(response.headers.get("content-type")).toBe(
       "application/jwk-set+json",
     );
@@ -203,7 +203,7 @@ describe("signing-keys block", () => {
     await keys
       .purge({ grace: Temporal.Duration.from({ minutes: 10 }) })
       .orThrow();
-    await keys.jwks(OWNER).orThrow();
+    await keys.jwks({ owner: OWNER }).orThrow();
     expect(t.calls).toEqual([
       ["purge_signing_keys", { grace: "600 seconds" }],
       [
@@ -216,7 +216,7 @@ describe("signing-keys block", () => {
   it("retires and removes keys, and drops them from the signer cache", async () => {
     const t = store();
     const keys = createSigningKeys({ transport: t });
-    const signer = keys.signer(OWNER, { create: "Ed25519" });
+    const signer = keys.signer({ owner: OWNER, create: "Ed25519" });
     const first = await signer.sign(new Uint8Array([1])).orThrow();
     await signer.sign(new Uint8Array([2])).orThrow();
     expect(t.calls.filter(([fn]) => fn === "signing_key")).toHaveLength(2);
@@ -229,8 +229,10 @@ describe("signing-keys block", () => {
 
   it("rotates an owner without a key to Ed25519, and to the type it is given", async () => {
     const keys = createSigningKeys({ transport: store() });
-    expect((await keys.rotate(OWNER).orThrow()).alg).toBe("Ed25519");
-    expect((await keys.rotate(OWNER, "ES256").orThrow()).alg).toBe("ES256");
+    expect((await keys.rotate({ owner: OWNER }).orThrow()).alg).toBe("Ed25519");
+    expect(
+      (await keys.rotate({ owner: OWNER, alg: "ES256" }).orThrow()).alg,
+    ).toBe("ES256");
   });
 
   it("refuses a stored key that is not a JWK", async () => {
@@ -245,7 +247,7 @@ describe("signing-keys block", () => {
     });
 
     const result = await createSigningKeys({ transport: t })
-      .signer(OWNER)
+      .signer({ owner: OWNER })
       .signJwt({ sub: "u1" });
 
     expect(result.ok).toBe(false);
@@ -256,7 +258,7 @@ describe("signing-keys block", () => {
       transport: { call: () => Promise.reject(new Error("down")) },
     });
 
-    const response = await keys.jwksResponse(OWNER);
+    const response = await keys.jwksResponse({ owner: OWNER });
     expect(response.status).toBe(503);
     expect(response.headers.get("content-type")).toBe(
       "application/problem+json",

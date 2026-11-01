@@ -44,16 +44,22 @@ describe.skipIf(!live)("party roles and suppliers", () => {
       await s.as(owner);
 
       const net30 = await parties
-        .savePaymentTerm(org, { code: "NET30", name: "Net 30", days: 30 })
+        .savePaymentTerm({
+          organizationId: org,
+          input: { code: "NET30", name: "Net 30", days: 30 },
+        })
         .orThrow();
 
       await s.as(buyer);
 
       const acme = await parties
-        .saveCompany(org, {
-          name: "Acme",
-          customerTermsId: net30.id,
-          creditLimit: money(500_000n, "EUR"),
+        .saveCompany({
+          organizationId: org,
+          input: {
+            name: "Acme",
+            customerTermsId: net30.id,
+            creditLimit: money(500_000n, "EUR"),
+          },
         })
         .orThrow();
 
@@ -61,65 +67,95 @@ describe.skipIf(!live)("party roles and suppliers", () => {
       expect(acme.creditLimit).toEqual(money(500_000n, "EUR"));
       expect(
         await parties
-          .saveCompany(org, {
-            name: "Bad",
-            customerTermsId: crypto.randomUUID(),
+          .saveCompany({
+            organizationId: org,
+            input: { name: "Bad", customerTermsId: crypto.randomUUID() },
           })
           .then(hint),
       ).toBe("PARTY_TERMS_INVALID");
 
       const set = await parties
-        .setRoles(acme.id, ["supplier", "customer", "supplier"])
+        .setRoles({
+          partyId: acme.id,
+          roles: ["supplier", "customer", "supplier"],
+        })
         .orThrow();
 
       expect(set.type === "company" ? set.company.roles : []).toEqual([
         "customer",
         "supplier",
       ]);
-      expect(await parties.setRoles(acme.id, ["vendor"]).then(hint)).toBe(
-        "PARTY_ROLES_INVALID",
-      );
+      expect(
+        await parties
+          .setRoles({ partyId: acme.id, roles: ["vendor"] })
+          .then(hint),
+      ).toBe("PARTY_ROLES_INVALID");
 
-      const ada = await parties.savePerson(org, { name: "Ada" }).orThrow();
-      await parties.setRoles(ada.id, ["funder"]).orThrow();
+      const ada = await parties
+        .savePerson({ organizationId: org, input: { name: "Ada" } })
+        .orThrow();
+
+      await parties.setRoles({ partyId: ada.id, roles: ["funder"] }).orThrow();
 
       expect(
         (
-          await parties.listCompanies(org, { role: "supplier" }).orThrow()
+          await parties
+            .listCompanies({ organizationId: org, role: "supplier" })
+            .orThrow()
         ).items.map((company) => company.name),
       ).toEqual(["Acme"]);
       expect(
-        (await parties.listPeople(org, { role: "supplier" }).orThrow()).items,
+        (
+          await parties
+            .listPeople({ organizationId: org, role: "supplier" })
+            .orThrow()
+        ).items,
       ).toEqual([]);
 
       expect(
-        await parties.setSupplierStatus(acme.id, "approved").then(hint),
+        await parties
+          .setSupplierStatus({ partyId: acme.id, status: "approved" })
+          .then(hint),
       ).toBe("PARTY_FORBIDDEN");
 
       await s.as(owner);
       expect(
-        // @ts-expect-error a status the database refuses
-        await parties.setSupplierStatus(acme.id, "trusted").then(hint),
+        await parties
+          // @ts-expect-error a status the database refuses
+          .setSupplierStatus({ partyId: acme.id, status: "trusted" })
+          .then(hint),
       ).toBe("PARTY_SUPPLIER_STATUS_INVALID");
 
       const iso = await qualifications
-        .saveType(org, {
-          key: "iso9001",
-          name: "ISO 9001 certificate",
-          holderTypes: ["company"],
+        .saveType({
+          organizationId: org,
+          input: {
+            key: "iso9001",
+            name: "ISO 9001 certificate",
+            holderTypes: ["company"],
+          },
         })
         .orThrow();
 
-      await qualifications.addRequirement(iso.id, "holder", acme.id).orThrow();
+      await qualifications
+        .addRequirement({
+          typeId: iso.id,
+          targetType: "holder",
+          targetValue: acme.id,
+        })
+        .orThrow();
 
       expect(
         await parties.supplierStatusFromQualifications(acme.id).orThrow(),
       ).toBe("conditional");
       await qualifications
-        .grant(org, {
-          typeKey: "iso9001",
-          holderType: "company",
-          holderId: acme.id,
+        .grant({
+          organizationId: org,
+          input: {
+            typeKey: "iso9001",
+            holderType: "company",
+            holderId: acme.id,
+          },
         })
         .orThrow();
 
@@ -129,14 +165,19 @@ describe.skipIf(!live)("party roles and suppliers", () => {
 
       expect(status).toBe("approved");
       await parties
-        .setSupplierStatus(acme.id, status, "ISO 9001 certificate on file")
+        .setSupplierStatus({
+          partyId: acme.id,
+          status,
+          reason: "ISO 9001 certificate on file",
+        })
         .orThrow();
-      await parties.setSupplierStatus(acme.id, status).orThrow();
+      await parties.setSupplierStatus({ partyId: acme.id, status }).orThrow();
 
       expect(
         (
           await parties
-            .listCompanies(org, {
+            .listCompanies({
+              organizationId: org,
               role: "supplier",
               supplierStatus: "approved",
             })

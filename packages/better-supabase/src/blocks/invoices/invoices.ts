@@ -296,27 +296,31 @@ export interface Invoices<F extends object = Record<never, never>>
     InvoiceOpenItems<Invoice<F>>,
     InvoiceSources,
     InvoiceEInvoices {
-  create(
-    organizationId: string,
-    input: InvoiceInput<F>,
-    lines?: readonly LineInput[],
-  ): AsyncResult<Invoice<F>>;
-  update(invoiceId: string, patch: InvoicePatch<F>): AsyncResult<Invoice<F>>;
+  create(input: {
+    organizationId: string;
+    input: InvoiceInput<F>;
+    lines?: readonly LineInput[] | undefined;
+  }): AsyncResult<Invoice<F>>;
+  update(input: {
+    invoiceId: string;
+    patch: InvoicePatch<F>;
+  }): AsyncResult<Invoice<F>>;
   delete(invoiceId: string): AsyncResult<boolean>;
-  setLines(invoiceId: string, lines: readonly LineInput[]): AsyncResult<Totals>;
+  setLines(input: {
+    invoiceId: string;
+    lines: readonly LineInput[];
+  }): AsyncResult<Totals>;
   /** Issues a draft: the next number, issue and due dates, frozen lines. */
   issue(
-    invoiceId: string,
-    issuedOn?: Temporal.PlainDate,
-    options?: {
+    input: { invoiceId: string; issuedOn?: Temporal.PlainDate | undefined } & {
       readonly dueOn?: Temporal.PlainDate;
       /** Who issued it, for the state machine's history. */
       readonly actor?: TransitionActor;
     },
   ): AsyncResult<Invoice<F>>;
   /** Records a payment; a negative amount is a refund. */
-  recordPayment(
-    invoiceId: string,
+  recordPayment(input: {
+    invoiceId: string;
     payment: {
       /** In the invoice's currency. */
       readonly amount: Money;
@@ -333,41 +337,45 @@ export interface Invoices<F extends object = Record<never, never>>
        * history.
        */
       readonly reason?: string;
-    },
-  ): AsyncResult<Invoice<F>>;
+    };
+  }): AsyncResult<Invoice<F>>;
   /** A draft credit note for the whole invoice, or for the given lines. */
   credit(
-    invoiceId: string,
-    options?: { readonly lines?: readonly LineInput[]; readonly note?: string },
+    input: { invoiceId: string } & {
+      readonly lines?: readonly LineInput[];
+      readonly note?: string;
+    },
   ): AsyncResult<Invoice<F>>;
   /** The reason and `actor` go to the state machine's history. */
   void(
-    invoiceId: string,
-    reason?: string,
-    options?: InvoiceActorOptions,
+    input: {
+      invoiceId: string;
+      reason?: string | undefined;
+    } & InvoiceActorOptions,
   ): AsyncResult<Invoice<F>>;
   /** The reason and `actor` go to the state machine's history. */
   writeOff(
-    invoiceId: string,
-    reason?: string,
-    options?: InvoiceActorOptions,
+    input: {
+      invoiceId: string;
+      reason?: string | undefined;
+    } & InvoiceActorOptions,
   ): AsyncResult<Invoice<F>>;
   /** The reason and `actor` go to the state machine's history. */
   reversePayment(
-    paymentId: string,
-    reason?: string,
-    options?: InvoiceActorOptions,
+    input: {
+      paymentId: string;
+      reason?: string | undefined;
+    } & InvoiceActorOptions,
   ): AsyncResult<Invoice<F>>;
   removeCharge(
-    chargeId: string,
-    options?: InvoiceActorOptions,
+    input: { chargeId: string } & InvoiceActorOptions,
   ): AsyncResult<Invoice<F>>;
   /**
    * Adds a charge on top of an issued invoice's total, in its currency. The
    * balance rises, so a paid invoice is open again until the charge is paid.
    */
-  charge(
-    invoiceId: string,
+  charge(input: {
+    invoiceId: string;
     charge: {
       readonly amount: Money;
       readonly description?: string;
@@ -375,18 +383,18 @@ export interface Invoices<F extends object = Record<never, never>>
       readonly fields?: Readonly<Record<string, unknown>>;
       /** Who added it, for the state machine's history. */
       readonly actor?: TransitionActor;
-    },
-  ): AsyncResult<Invoice<F>>;
+    };
+  }): AsyncResult<Invoice<F>>;
   /**
    * What customers owe (`sales`, the default) or what the organization owes its
    * suppliers (`purchase`), by days past due.
    */
-  aging(
-    organizationId: string,
-    currency: string,
-    asOf?: Temporal.PlainDate,
-    direction?: InvoiceDirection,
-  ): AsyncResult<InvoiceAging>;
+  aging(input: {
+    organizationId: string;
+    currency: string;
+    asOf?: Temporal.PlainDate | undefined;
+    direction?: InvoiceDirection | undefined;
+  }): AsyncResult<InvoiceAging>;
   /**
    * Runs the three-way match of a purchase bill against its purchase order and
    * receipts, and records `invoice.match_checked`.
@@ -399,8 +407,7 @@ export interface Invoices<F extends object = Record<never, never>>
    * fixed `depositAmount`, tax included.
    */
   fromQuote(
-    quoteId: string,
-    options?: {
+    input: { quoteId: string } & {
       readonly depositBps?: number;
       readonly depositAmount?: Money;
       readonly depositDescription?: string;
@@ -675,7 +682,7 @@ export function createInvoices<
     );
 
   const client: Invoices<F> = {
-    create: (organizationId, input, lines) => {
+    create: ({ organizationId, input, lines }) => {
       const { fields: extra, discountAmount, ...rest } = input;
       const amounts = (lines ?? []).map((line) => line.unitAmount);
       const invalid = amountsError(input.currency, amounts);
@@ -702,7 +709,7 @@ export function createInvoices<
           }),
       );
     },
-    update: (invoiceId, patch) => {
+    update: ({ invoiceId, patch }) => {
       const { fields: extra, discountAmount, ...rest } = patch;
 
       return AsyncResult.from(() => fields.write({ ...extra })).andThen(
@@ -721,7 +728,7 @@ export function createInvoices<
     },
     delete: (invoiceId) =>
       call("delete_invoice", { invoice: invoiceId }, (value) => value === true),
-    setLines: (invoiceId, lines) => {
+    setLines: ({ invoiceId, lines }) => {
       const invalid = amountsError(
         undefined,
         lines.map((line) => line.unitAmount),
@@ -735,7 +742,7 @@ export function createInvoices<
           )
         : AsyncResult.err(invalid);
     },
-    issue: (invoiceId, issuedOn, issueOptions = {}) =>
+    issue: ({ invoiceId, issuedOn, ...issueOptions }) =>
       invoice("issue_invoice", {
         invoice: invoiceId,
         issued_on: issuedOn === undefined ? null : issuedOn.toString(),
@@ -746,7 +753,7 @@ export function createInvoices<
           ? {}
           : { actor: issueOptions.actor }),
       }),
-    recordPayment: (invoiceId, payment) =>
+    recordPayment: ({ invoiceId, payment }) =>
       invoice("record_invoice_payment", {
         invoice: invoiceId,
         amount: amountText(payment.amount),
@@ -758,7 +765,7 @@ export function createInvoices<
         ...(payment.actor === undefined ? {} : { actor: payment.actor }),
         ...(payment.reason === undefined ? {} : { reason: payment.reason }),
       }),
-    credit: (invoiceId, credit = {}) => {
+    credit: ({ invoiceId, ...credit }) => {
       const invalid = amountsError(
         undefined,
         (credit.lines ?? []).map((line) => line.unitAmount),
@@ -773,30 +780,30 @@ export function createInvoices<
           })
         : AsyncResult.err(invalid);
     },
-    void: (invoiceId, reason, actorOptions) =>
+    void: ({ invoiceId, reason, ...actorOptions }) =>
       invoice("void_invoice", {
         invoice: invoiceId,
         reason: reason ?? null,
-        ...actorArg(actorOptions?.actor),
+        ...actorArg(actorOptions.actor),
       }),
-    writeOff: (invoiceId, reason, actorOptions) =>
+    writeOff: ({ invoiceId, reason, ...actorOptions }) =>
       invoice("write_off_invoice", {
         invoice: invoiceId,
         reason: reason ?? null,
-        ...actorArg(actorOptions?.actor),
+        ...actorArg(actorOptions.actor),
       }),
-    reversePayment: (paymentId, reason, actorOptions) =>
+    reversePayment: ({ paymentId, reason, ...actorOptions }) =>
       invoice("reverse_invoice_payment", {
         payment: paymentId,
         reason: reason ?? null,
-        ...actorArg(actorOptions?.actor),
+        ...actorArg(actorOptions.actor),
       }),
-    removeCharge: (chargeId, actorOptions) =>
+    removeCharge: ({ chargeId, ...actorOptions }) =>
       invoice("remove_invoice_charge", {
         charge: chargeId,
-        ...actorArg(actorOptions?.actor),
+        ...actorArg(actorOptions.actor),
       }),
-    charge: (invoiceId, charge) =>
+    charge: ({ invoiceId, charge }) =>
       invoice("add_invoice_charge", {
         invoice: invoiceId,
         amount: amountText(charge.amount),
@@ -805,7 +812,7 @@ export function createInvoices<
         fields: charge.fields,
         ...actorArg(charge.actor),
       }),
-    aging: (organizationId, currency, asOf, direction) =>
+    aging: ({ organizationId, currency, asOf, direction }) =>
       amountsError(currency, []) === undefined
         ? call(
             "invoice_aging",
@@ -850,7 +857,7 @@ export function createInvoices<
           paymentOf(payment, currency),
         );
       }),
-    fromQuote: (quoteId, fromQuote = {}) =>
+    fromQuote: ({ quoteId, ...fromQuote }) =>
       invoice("invoice_from_quote", {
         quote: quoteId,
         deposit_bps: fromQuote.depositBps ?? null,

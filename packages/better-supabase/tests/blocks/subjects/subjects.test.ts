@@ -137,7 +137,9 @@ describe("createSubjects summary", () => {
     const subjects = createSubjects({ transport: fake.transport });
 
     const summary = await subjects
-      .summary({ type: "customer", id: "1" }, ["comments", "attachments"], {
+      .summary({
+        subject: { type: "customer", id: "1" },
+        sections: ["comments", "attachments"],
         seenAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
       })
       .orThrow();
@@ -168,7 +170,10 @@ describe("createSubjects summary", () => {
     const subjects = createSubjects({ transport: fake.transport });
 
     const summary = await subjects
-      .summary({ type: "customer", id: "1" }, ["comments"])
+      .summary({
+        subject: { type: "customer", id: "1" },
+        sections: ["comments"],
+      })
       .orThrow();
 
     expect(summary).toBeUndefined();
@@ -180,7 +185,7 @@ describe("createSubjects summary", () => {
     const subjects = createSubjects({ transport: fake.transport });
 
     const summary = await subjects
-      .summary({ type: "customer", id: "1" }, [])
+      .summary({ subject: { type: "customer", id: "1" }, sections: [] })
       .orThrow();
 
     expect(summary).toEqual({

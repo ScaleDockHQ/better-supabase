@@ -153,18 +153,18 @@ function consumerOf<Q extends QueueSchemas, C>(
 
     deliveries += 1;
 
-    const result = await jobs.runJob(
-      // SAFETY: the handler lookup above found this topic among the queues.
-      queue as Extract<keyof Q, string>,
-      {
+    const result = await jobs.runJob({
+      // SAFETY: the route registered `queue` from the `Q` keys.
+      queue: queue as Extract<keyof Q, string>,
+      delivery: {
         id: deliveries,
         attempts: metadata.deliveryCount,
         enqueuedAt: metadata.createdAt,
         message: body,
       },
-      run,
-      options,
-    );
+      handler: run,
+      ...options,
+    });
 
     if (result.ok) {
       return;

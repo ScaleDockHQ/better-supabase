@@ -315,56 +315,57 @@ export interface MedicationsOptions<
 
 export interface Medications<F extends object = Record<never, never>> {
   /** Adds a medication to the list, or updates `input.medicationId`. */
-  saveMedication(
-    organizationId: string,
-    input: MedicationInput,
-  ): AsyncResult<Medication>;
+  saveMedication(input: {
+    organizationId: string;
+    input: MedicationInput;
+  }): AsyncResult<Medication>;
   /** Takes a medication off the list; its orders keep it. */
   archiveMedication(medicationId: string): AsyncResult<Medication>;
   /** Adds a catalog item, or updates the one with its code system and code. */
-  importMedication(
-    organizationId: string,
-    item: MedicationCatalogItem,
-  ): AsyncResult<Medication>;
+  importMedication(input: {
+    organizationId: string;
+    item: MedicationCatalogItem;
+  }): AsyncResult<Medication>;
   /** The organization's medications by name. */
   medications(
-    organizationId: string,
-    options?: { readonly search?: string; readonly includeArchived?: boolean },
+    input: { organizationId: string } & {
+      readonly search?: string;
+      readonly includeArchived?: boolean;
+    },
   ): AsyncResult<readonly Medication[]>;
   /** Searches the `catalog` the client was given. */
   searchCatalog(
-    query: string,
-    options?: { readonly signal?: AbortSignal },
+    input: { query: string } & { readonly signal?: AbortSignal },
   ): AsyncResult<readonly MedicationCatalogItem[]>;
   /** Reads a code from the `catalog` and adds it to the list. */
   importFromCatalog(
-    organizationId: string,
-    code: string,
-    options?: { readonly signal?: AbortSignal },
+    input: { organizationId: string; code: string } & {
+      readonly signal?: AbortSignal;
+    },
   ): AsyncResult<Medication>;
   /** Prescribes a medication for a record. */
-  prescribe(
-    organizationId: string,
-    subject: RecordRef,
-    medicationId: string,
-    input: MedicationOrderInput<F>,
-  ): AsyncResult<MedicationOrder<F>>;
+  prescribe(input: {
+    organizationId: string;
+    subject: RecordRef;
+    medicationId: string;
+    input: MedicationOrderInput<F>;
+  }): AsyncResult<MedicationOrder<F>>;
   /**
    * Imports orders from a pharmacy or another system, skipping the external ids
    * imported before. Service role only.
    */
-  importOrders(
-    organizationId: string,
-    orders: readonly MedicationOrderImport<F>[],
-  ): AsyncResult<{
+  importOrders(input: {
+    organizationId: string;
+    orders: readonly MedicationOrderImport<F>[];
+  }): AsyncResult<{
     readonly created: readonly MedicationOrder<F>[];
     readonly skipped: number;
   }>;
   /** Changes an order; the planned doses after now are planned again. */
-  updateOrder(
-    orderId: string,
-    patch: MedicationOrderPatch<F>,
-  ): AsyncResult<MedicationOrder<F>>;
+  updateOrder(input: {
+    orderId: string;
+    patch: MedicationOrderPatch<F>;
+  }): AsyncResult<MedicationOrder<F>>;
   /** Pauses an order and removes its planned doses after now. */
   pauseOrder(orderId: string): AsyncResult<MedicationOrder<F>>;
   resumeOrder(orderId: string): AsyncResult<MedicationOrder<F>>;
@@ -373,34 +374,36 @@ export interface Medications<F extends object = Record<never, never>> {
    * Approves an order with the caller's completed signature on it (subject type
    * `medication_order`, the order's id). Needs the signatures block.
    */
-  approveOrder(
-    orderId: string,
-    signatureId: string,
-  ): AsyncResult<MedicationOrder<F>>;
-  stopOrder(orderId: string, reason: string): AsyncResult<MedicationOrder<F>>;
+  approveOrder(input: {
+    orderId: string;
+    signatureId: string;
+  }): AsyncResult<MedicationOrder<F>>;
+  stopOrder(input: {
+    orderId: string;
+    reason: string;
+  }): AsyncResult<MedicationOrder<F>>;
   /** A record's orders, newest first; stopped ones only when asked. */
   ordersOf(
-    subject: RecordRef,
-    options?: { readonly includeStopped?: boolean },
+    input: { subject: RecordRef } & { readonly includeStopped?: boolean },
   ): AsyncResult<readonly MedicationOrderWithMedication<F>[]>;
   /**
    * Plans the doses of the active scheduled orders up to `until`, at most 31
    * days ahead. Run it from a daily job. Returns the doses it added.
    */
-  planAdministrations(
-    organizationId: string,
-    until: Temporal.Instant,
-  ): AsyncResult<number>;
+  planAdministrations(input: {
+    organizationId: string;
+    until: Temporal.Instant;
+  }): AsyncResult<number>;
   /** Records a planned or missed dose as given, refused or skipped. */
-  recordAdministration(
-    administrationId: string,
-    input: MedicationAdministrationInput,
-  ): AsyncResult<MedicationAdministration>;
+  recordAdministration(input: {
+    administrationId: string;
+    input: MedicationAdministrationInput;
+  }): AsyncResult<MedicationAdministration>;
   /** Records a dose of an as-needed order, within its `maxPerDay`. */
-  recordAsNeeded(
-    orderId: string,
-    input: MedicationAsNeededInput,
-  ): AsyncResult<MedicationAdministration>;
+  recordAsNeeded(input: {
+    orderId: string;
+    input: MedicationAsNeededInput;
+  }): AsyncResult<MedicationAdministration>;
   /**
    * Marks the planned doses past `missedAfterMinutes` as missed and notifies
    * the members who manage medications. Service role only; run it from a job.
@@ -408,8 +411,7 @@ export interface Medications<F extends object = Record<never, never>> {
   markMissed(): AsyncResult<number>;
   /** A record's chart, today in the block's time zone by default. */
   chart(
-    subject: RecordRef,
-    options?: {
+    input: { subject: RecordRef } & {
       readonly since?: Temporal.Instant;
       readonly until?: Temporal.Instant;
     },
@@ -683,10 +685,10 @@ export function createMedications<
       }),
     );
 
-  const importMedication: Medications<F>["importMedication"] = (
+  const importMedication: Medications<F>["importMedication"] = ({
     organizationId,
     item,
-  ) =>
+  }) =>
     call(
       "import_medication",
       { tenant: organizationId, item },
@@ -701,7 +703,7 @@ export function createMedications<
     ).andThen(fields.row);
 
   const client: Medications<F> = {
-    saveMedication: (organizationId, input) =>
+    saveMedication: ({ organizationId, input }) =>
       call(
         "save_medication",
         {
@@ -725,7 +727,7 @@ export function createMedications<
         one("archive_medication", medicationOf),
       ),
     importMedication,
-    medications: (organizationId, list = {}) =>
+    medications: ({ organizationId, ...list }) =>
       call(
         "list_medications",
         {
@@ -735,11 +737,11 @@ export function createMedications<
         },
         many("list_medications", medicationOf),
       ),
-    searchCatalog: (query, search = {}) =>
+    searchCatalog: ({ query, ...search }) =>
       catalog === undefined
         ? noCatalog()
         : provider(() => catalog.search(query, signalOf(search))),
-    importFromCatalog: (organizationId, code, read = {}) =>
+    importFromCatalog: ({ organizationId, code, ...read }) =>
       catalog === undefined
         ? noCatalog()
         : provider(() => catalog.get(code, signalOf(read))).andThen((item) =>
@@ -749,9 +751,9 @@ export function createMedications<
                     hint: "MEDICATION_NOT_FOUND",
                   }),
                 )
-              : importMedication(organizationId, item),
+              : importMedication({ organizationId, item }),
           ),
-    prescribe: (organizationId, subject, medicationId, input) =>
+    prescribe: ({ organizationId, subject, medicationId, input }) =>
       fields
         .args(input.fields)
         .andThen((checked) =>
@@ -767,7 +769,7 @@ export function createMedications<
             one("prescribe_medication", orderOf),
           ).andThen(fields.row),
         ),
-    importOrders: (organizationId, orders) =>
+    importOrders: ({ organizationId, orders }) =>
       checkAll(orders).andThen((checked) =>
         service(
           "import_medication_orders",
@@ -796,7 +798,7 @@ export function createMedications<
             .map((created) => ({ created, skipped: result.skipped })),
         ),
       ),
-    updateOrder: (orderId, patch) =>
+    updateOrder: ({ orderId, patch }) =>
       fields
         .args(patch.fields)
         .andThen((checked) =>
@@ -808,19 +810,19 @@ export function createMedications<
         ),
     pauseOrder: (orderId) => pause(orderId, true),
     resumeOrder: (orderId) => pause(orderId, false),
-    approveOrder: (orderId, signatureId) =>
+    approveOrder: ({ orderId, signatureId }) =>
       call(
         "approve_medication_order",
         { order_id: orderId, signature_id: signatureId },
         one("approve_medication_order", orderOf),
       ).andThen(fields.row),
-    stopOrder: (orderId, reason) =>
+    stopOrder: ({ orderId, reason }) =>
       call(
         "stop_medication_order",
         { order_id: orderId, reason },
         one("stop_medication_order", orderOf),
       ).andThen(fields.row),
-    ordersOf: (subject, list = {}) =>
+    ordersOf: ({ subject, ...list }) =>
       call(
         "medication_orders_of",
         {
@@ -830,13 +832,13 @@ export function createMedications<
         },
         many("medication_orders_of", orderWithMedicationOf),
       ).andThen(fields.rows),
-    planAdministrations: (organizationId, until) =>
+    planAdministrations: ({ organizationId, until }) =>
       call(
         "plan_medication_administrations",
         { tenant: organizationId, until: instantArg(until) },
         numberOf,
       ),
-    recordAdministration: (administrationId, input) =>
+    recordAdministration: ({ administrationId, input }) =>
       call(
         "record_medication_administration",
         {
@@ -853,7 +855,7 @@ export function createMedications<
         },
         one("record_medication_administration", administrationOf),
       ),
-    recordAsNeeded: (orderId, input) =>
+    recordAsNeeded: ({ orderId, input }) =>
       call(
         "record_as_needed_administration",
         {
@@ -868,7 +870,7 @@ export function createMedications<
       ),
     markMissed: () =>
       service("mark_missed_medication_administrations", {}, numberOf),
-    chart: (subject, range = {}) =>
+    chart: ({ subject, ...range }) =>
       call(
         "medication_chart",
         {

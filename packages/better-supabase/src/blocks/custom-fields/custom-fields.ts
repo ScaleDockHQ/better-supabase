@@ -116,13 +116,13 @@ export interface CustomFields {
    */
   listDefinitions(entity: string): AsyncResult<FieldDefinitionDetail[]>;
   /** Adds or updates the definition of `key` on `entity`. */
-  saveDefinition(
-    entity: string,
-    key: string,
-    label: string,
-    type: CustomFieldType,
-    sensitive?: boolean,
-  ): AsyncResult<FieldDefinition>;
+  saveDefinition(input: {
+    entity: string;
+    key: string;
+    label: string;
+    type: CustomFieldType;
+    sensitive?: boolean | undefined;
+  }): AsyncResult<FieldDefinition>;
   deleteDefinition(id: string): AsyncResult<boolean>;
   /**
    * Stores a `text`, `email` or `url` field's values as ciphertext from now on
@@ -134,7 +134,10 @@ export interface CustomFields {
    * Moves a definition between the definitions with rank keys `previous` and
    * `next`. Resolves to its new key.
    */
-  reorderDefinition(id: string, neighbors: RankNeighbors): AsyncResult<string>;
+  reorderDefinition(input: {
+    id: string;
+    neighbors: RankNeighbors;
+  }): AsyncResult<string>;
   /**
    * Installs a field pack in the tenant. A definition is matched by pack and
    * key, so installing a version again changes nothing. Fails with
@@ -146,17 +149,17 @@ export interface CustomFields {
   /** Installs each pack of `options.packs`, in order. */
   installPacks(): AsyncResult<FieldPackInstall[]>;
   /** The custom field values set on `subject`. */
-  readValues(
-    subject: RecordRef,
-    scope?: FieldEntityScope,
-  ): AsyncResult<unknown>;
+  readValues(input: {
+    subject: RecordRef;
+    scope?: FieldEntityScope | undefined;
+  }): AsyncResult<unknown>;
   /** Sets one custom field value of `subject`. */
-  setValue(
-    subject: RecordRef,
-    definitionId: string,
-    value: string,
-    scope?: FieldEntityScope,
-  ): AsyncResult<FieldDefinition>;
+  setValue(input: {
+    subject: RecordRef;
+    definitionId: string;
+    value: string;
+    scope?: FieldEntityScope | undefined;
+  }): AsyncResult<FieldDefinition>;
   /**
    * Keyed layout: every field of `subject` as typed rows, in rank order and
    * then by key.
@@ -166,7 +169,10 @@ export interface CustomFields {
    * Keyed layout: sets the field `key` of `subject`, creating it or updating
    * its label, type and value.
    */
-  setField(subject: RecordRef, input: SetFieldInput): AsyncResult<FieldValue>;
+  setField(input: {
+    subject: RecordRef;
+    input: SetFieldInput;
+  }): AsyncResult<FieldValue>;
   /** Keyed layout: removes one field value. */
   deleteValue(id: string): AsyncResult<boolean>;
 }
@@ -249,7 +255,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
             }),
         ),
       ),
-    saveDefinition: (entity, key, label, type, sensitive) =>
+    saveDefinition: ({ entity, key, label, type, sensitive }) =>
       tenant().andThen((organizationId) =>
         call(
           "save_field_definition",
@@ -264,7 +270,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
           idOf("save_field_definition"),
         ),
       ),
-    reorderDefinition: (id, neighbors) => {
+    reorderDefinition: ({ id, neighbors }) => {
       const key = rankBetweenResult(neighbors);
 
       if (!key.ok) {
@@ -313,7 +319,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
 
       return chain.map(() => results);
     },
-    readValues: (subject, scope) =>
+    readValues: ({ subject, scope }) =>
       tenant().andThen((organizationId) =>
         call(
           "read_field_values",
@@ -326,7 +332,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
           (value) => value,
         ),
       ),
-    setValue: (subject, definitionId, value, scope) =>
+    setValue: ({ subject, definitionId, value, scope }) =>
       tenant().andThen((organizationId) =>
         call(
           "set_field_value",
@@ -353,7 +359,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
           (value) => (Array.isArray(value) ? value : []).map(fieldValueOf),
         ),
       ),
-    setField: (subject, input) =>
+    setField: ({ subject, input }) =>
       tenant().andThen((organizationId) =>
         call(
           "set_field_value",

@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type {
   AuditAccountType,
   AuditFileAdapter,
-  AuditImportItem,
   AuditImportPort,
   AuditLedgerSource,
 } from "../../src/audit-files/index.ts";
@@ -31,7 +30,7 @@ class FakeLedger {
   writes = 0;
 
   readonly port: AuditImportPort = {
-    upsertBatch: (_run, entity, items) => {
+    upsertBatch: ({ runId: _run, entity, items }) => {
       const table = this.tables.get(entity) ?? new Map<string, Row>();
 
       this.tables.set(entity, table);
@@ -126,7 +125,8 @@ async function trialBalance(source: AuditLedgerSource) {
     out[key] = (out[key] ?? 0n) + amount;
   };
 
-  const listing = await source.journalListing("org", {
+  const listing = await source.journalListing({
+    organizationId: "org",
     since: Temporal.PlainDate.from("2026-01-01"),
     until: Temporal.PlainDate.from("2026-12-31"),
   });
@@ -144,8 +144,12 @@ async function trialBalance(source: AuditLedgerSource) {
     }
   }
 
-  const opening = await source.openingBalances("org", 2026);
-  const accounts = await source.accounts("org");
+  const opening = await source.openingBalances({
+    organizationId: "org",
+    fiscalYear: 2026,
+  });
+
+  const accounts = await source.accounts({ organizationId: "org" });
 
   const codes = new Map(
     accounts.ok
@@ -312,7 +316,7 @@ describe("importAuditFile", () => {
     const order: string[] = [];
 
     const port: AuditImportPort = {
-      upsertBatch: (_run, entity, items: readonly AuditImportItem[]) => {
+      upsertBatch: ({ entity, items }) => {
         order.push(entity);
 
         return ok({

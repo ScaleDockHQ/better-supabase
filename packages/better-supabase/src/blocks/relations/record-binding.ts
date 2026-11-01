@@ -71,21 +71,29 @@ export const relationsBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "manage" },
   module: "relations",
-  load: (client: Relations, subject) => client.of(subject),
+  load: (client: Relations, subject) => client.of({ subject }),
   events: ["subject.linked", "subject.unlinked"],
   writes: {
     link: {
       input: relationInput,
       run: (client: Relations, subject, input: RelationInput) =>
-        client.link(subject, input.target, {
-          kind: input.kind,
-          ...(input.data === undefined ? {} : { data: input.data }),
+        client.link({
+          source: subject,
+          target: input.target,
+          input: {
+            kind: input.kind,
+            ...(input.data === undefined ? {} : { data: input.data }),
+          },
         }),
     },
     unlink: {
       input: unlinkRelationInput,
       run: (client: Relations, subject, input: UnlinkRelationInput) =>
-        client.unlink(subject, input.target, { kind: input.kind }),
+        client.unlink({
+          source: subject,
+          target: input.target,
+          input: { kind: input.kind },
+        }),
     },
   },
 });

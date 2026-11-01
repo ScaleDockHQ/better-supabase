@@ -49,7 +49,7 @@ function memoryInvoices() {
   const kept: { invoiceId: string; input: InvoiceDeliveryInput }[] = [];
 
   const invoices: Pick<InvoiceEInvoices, "recordEInvoice"> = {
-    recordEInvoice: (invoiceId, input) => {
+    recordEInvoice: ({ invoiceId, input }) => {
       kept.push({ invoiceId, input });
 
       return AsyncResult.from(() =>
@@ -242,10 +242,9 @@ describe("invoiceEInvoices", () => {
   it("records a delivery and passes a missing filename as null", async () => {
     const { call, calls } = stub();
 
-    const result = await invoiceEInvoices(call).recordEInvoice("i1", {
-      channel: "peppol",
-      format: "ubl",
-      externalRef: "ref-1",
+    const result = await invoiceEInvoices(call).recordEInvoice({
+      invoiceId: "i1",
+      input: { channel: "peppol", format: "ubl", externalRef: "ref-1" },
     });
 
     expect(calls).toEqual([
@@ -270,11 +269,14 @@ describe("invoiceEInvoices", () => {
   it("passes the filename on", async () => {
     const { call, calls } = stub();
 
-    await invoiceEInvoices(call).recordEInvoice("i1", {
-      channel: "peppol",
-      format: "ubl",
-      externalRef: "ref-1",
-      filename: "INV-1.xml",
+    await invoiceEInvoices(call).recordEInvoice({
+      invoiceId: "i1",
+      input: {
+        channel: "peppol",
+        format: "ubl",
+        externalRef: "ref-1",
+        filename: "INV-1.xml",
+      },
     });
 
     expect(calls[0]?.args["filename"]).toBe("INV-1.xml");

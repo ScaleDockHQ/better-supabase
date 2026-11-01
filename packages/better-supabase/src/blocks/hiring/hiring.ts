@@ -134,12 +134,13 @@ export interface ApplicationDetail extends Application {
 
 /** `F` types the jobs' extra columns, from the `fields` schema. */
 export interface Hiring<F extends object = Record<never, never>> {
-  saveJob(organizationId: string, job: JobInput<F>): AsyncResult<Job<F>>;
+  saveJob(input: {
+    organizationId: string;
+    job: JobInput<F>;
+  }): AsyncResult<Job<F>>;
   /** Adds a candidate to an open job; applying again returns the same one. */
   apply(
-    jobId: string,
-    candidate: Candidate | { readonly id: string },
-    options?: {
+    input: { jobId: string; candidate: Candidate | { readonly id: string } } & {
       readonly source?: string;
       readonly ownerId?: string;
       /** With `options.applicationExtraColumns`: values for those columns. */
@@ -148,28 +149,31 @@ export interface Hiring<F extends object = Record<never, never>> {
   ): AsyncResult<Application>;
   /** Moves it to the job pipeline's Hired stage; `application.hired` follows. */
   hire(applicationId: string): AsyncResult<Application>;
-  reject(applicationId: string, reason?: string): AsyncResult<Application>;
+  reject(input: {
+    applicationId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Application>;
   withdraw(applicationId: string): AsyncResult<Application>;
   /** The caller's scorecard at the application's current stage. */
-  score(
-    applicationId: string,
+  score(input: {
+    applicationId: string;
     card: {
       readonly rating: number;
       readonly recommendation?: Recommendation;
       readonly notes?: string;
       readonly scores?: readonly ScorecardScore[];
-    },
-  ): AsyncResult<Scorecard>;
-  scheduleInterview(
-    applicationId: string,
+    };
+  }): AsyncResult<Scorecard>;
+  scheduleInterview(input: {
+    applicationId: string;
     interview: {
       readonly startsAt: Temporal.Instant;
       readonly endsAt: Temporal.Instant;
       readonly interviewerIds?: readonly string[];
       readonly kind?: string;
       readonly location?: string;
-    },
-  ): AsyncResult<Interview>;
+    };
+  }): AsyncResult<Interview>;
   detail(applicationId: string): AsyncResult<ApplicationDetail>;
 }
 
@@ -298,7 +302,7 @@ export function createHiring<
     );
 
   const client: Hiring<F> = {
-    saveJob: (organizationId, job) => {
+    saveJob: ({ organizationId, job }) => {
       const { id, fields: extra, ...attrs } = job;
 
       return AsyncResult.from(() => fields.write({ ...extra }))
@@ -320,7 +324,7 @@ export function createHiring<
           })),
         );
     },
-    apply: (jobId, candidate, apply = {}) =>
+    apply: ({ jobId, candidate, ...apply }) =>
       call(
         "apply_to_job",
         {
@@ -333,9 +337,10 @@ export function createHiring<
         applicationOf,
       ),
     hire: (applicationId) => close(applicationId, "hired"),
-    reject: (applicationId, reason) => close(applicationId, "rejected", reason),
+    reject: ({ applicationId, reason }) =>
+      close(applicationId, "rejected", reason),
     withdraw: (applicationId) => close(applicationId, "withdrawn"),
-    score: (applicationId, card) =>
+    score: ({ applicationId, card }) =>
       call(
         "submit_scorecard",
         {
@@ -349,7 +354,7 @@ export function createHiring<
         },
         scorecardOf,
       ),
-    scheduleInterview: (applicationId, interview) =>
+    scheduleInterview: ({ applicationId, interview }) =>
       call(
         "schedule_interview",
         {

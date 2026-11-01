@@ -215,7 +215,7 @@ function storeOf<E extends SettingEntries>(
   if (user) {
     return {
       get: () => user.getUser(),
-      set: (key, value) => user.setUser(key, value),
+      set: (key, value) => user.setUser({ key, value }),
       reset: (key) => user.resetUser(key),
     };
   }
@@ -233,10 +233,10 @@ function storeOf<E extends SettingEntries>(
   }
 
   return {
-    get: () => organization.getOrganization(organizationId),
+    get: () => organization.getOrganization({ organizationId }),
     set: (key, value) =>
-      organization.setOrganization(organizationId, key, value),
-    reset: (key) => organization.resetOrganization(organizationId, key),
+      organization.setOrganization({ organizationId, key, value }),
+    reset: (key) => organization.resetOrganization({ organizationId, key }),
   };
 }
 
