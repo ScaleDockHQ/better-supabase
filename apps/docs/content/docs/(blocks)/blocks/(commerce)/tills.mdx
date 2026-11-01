@@ -65,6 +65,30 @@ await tills
   .orThrow();
 ```
 
+The example app's Add a till button does not leave `accountId` empty. Its
+action sets up accounting when the organization has no chart, maps an active euro
+asset account with "cash" in its name that no till uses, and otherwise saves a
+new asset account on the next free code from 1000. It then passes that account to
+`createTill`.
+
+```ts
+const accounting = createAccounting({ transport, tenant: organizationId });
+
+const accounts = await accounting.accounts(organizationId).orThrow();
+const cash = await accounting
+  .saveAccount(organizationId, {
+    code: "1000",
+    name: "Cash Front counter",
+    type: "asset",
+    currency: "EUR",
+  })
+  .orThrow();
+
+await tills
+  .createTill({ name: "Front counter", currency: "EUR", accountId: cash.id })
+  .orThrow();
+```
+
 ## Closing and the count
 
 `closeSession` counts the drawer from `denominations`, a map of a note or coin

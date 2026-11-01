@@ -287,6 +287,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0170: `rfqs` sends requests for quotation to suppliers, compares their quotes and awards one into a draft purchase order.
 - 0171: Tills run shifts with a float, cash movements and an end-of-day count that books its variance, then deposit and reconcile in banking.
 - 0172: Payroll runs count only the time entries of weeks with an approved timesheet.
+- 0175: The tills example creates each till with a cash account, mapped from or added to the accounting chart.
 
 ## Pre-release pins
 

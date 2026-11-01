@@ -141,7 +141,7 @@ function SessionGrid({ sessions }: { sessions: readonly TillSessionRow[] }) {
 
 /**
  * The organization's till sessions in a data grid. Add a till creates a euro
- * till without a cash account.
+ * till and maps its cash to an account in the accounting chart.
  */
 export function Tills({
   state,
