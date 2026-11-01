@@ -1,6 +1,6 @@
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:a66bdab824a0d702a9465cc155c0d8253626383e0df59d180265244dc8687ce9
+-- @bsb-hash sha256:2f8888efb1984d91c3c03257137dac9aa67bb40e9a6866cdaed826b31d4336b2
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1024,6 +1024,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
 create policy bsb_tenant_scope_delete on "better_supabase"."sequences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.sequences', target_type => 'sequence', event_prefix => 'sequence', deferred => true);
+end;
+$$;
 
 -- blocks.sequences.api: entry points for the Data API.
 create schema if not exists "api";

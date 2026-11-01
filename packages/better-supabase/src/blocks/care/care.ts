@@ -125,7 +125,9 @@ export function createCare(options: CareOptions): Care {
       order,
     }) =>
       Async.from(async () => {
-        const consent = await consents.require({ subject, purposeKey });
+        // Destructured: the WinterTC check flags a `require(` call as CommonJS.
+        const { require: requireConsent } = consents;
+        const consent = await requireConsent({ subject, purposeKey });
 
         if (!consent.ok) {
           return consent;

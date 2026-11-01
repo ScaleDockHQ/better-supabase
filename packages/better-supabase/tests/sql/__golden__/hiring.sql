@@ -652,7 +652,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:c41228709d97fb81c0eceb21c111ad1131c8a0b863b4f53e7688b3ea485b5f32
+-- @bsb-hash sha256:66d058e7f996a6495746722b48558f9b878624ea2b1cd239e0150b8128021e1c
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1273,6 +1273,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."interviews" as restr
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.job_openings', target_type => 'job_opening', event_prefix => 'job_opening', deferred => true);
+  perform better_supabase.audit('better_supabase.applications', target_type => 'application', event_prefix => 'application', deferred => true);
+  perform better_supabase.audit('better_supabase.interviews', target_type => 'interview', event_prefix => 'interview', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1289,7 +1298,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block-data hiring
--- @bsb-hash sha256:91d93ed4b11073d769fc6fcd6dd7763b8368dd0efcdd4615dcc32f9841216d07
+-- @bsb-hash sha256:ecb394318a7f0a663d198da337981d9f1aaca2eb00a3f886abc543a6eb4ad201
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1298,11 +1307,6 @@ grant select on better_supabase.blocks to service_role;
 insert into "better_supabase"."automation_defaults" ("key", "block", "subject_type", "trigger", "name", "description", "actions", "enabled")
 values ('hiring.application_to_employee', 'hiring', 'application', 'application.hired', 'Preboard each hired candidate', 'Creates an employee in preboarding from the hired application''s candidate and job, linked created_from the application.', '[{"kind":"employees.from_application","config":{"targetType":"employee"}}]'::jsonb, true)
 on conflict ("key") do update set "subject_type" = excluded."subject_type", "trigger" = excluded."trigger", "name" = excluded."name", "description" = excluded."description", "actions" = excluded."actions", "enabled" = excluded."enabled", "block" = excluded."block", "updated_at" = now();
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.job_openings', target_type => 'job_opening', event_prefix => 'job_opening', deferred => true);
-select better_supabase.audit('better_supabase.applications', target_type => 'application', event_prefix => 'application', deferred => true);
-select better_supabase.audit('better_supabase.interviews', target_type => 'interview', event_prefix => 'interview', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('hiring', 2, 'managed')

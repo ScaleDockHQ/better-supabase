@@ -1,6 +1,6 @@
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:c178bfa54a210308582e3b478a21d7da1180aab26db90197e41d2be75575d139
+-- @bsb-hash sha256:bc6a874c20bd71ce3dd148deac3de36d9e92a8f085ec17408bbed9ddcb6d38db
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -680,6 +680,15 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."interviews";
 create policy bsb_tenant_scope_delete on "better_supabase"."interviews" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.job_openings', target_type => 'job_opening', event_prefix => 'job_opening', deferred => true);
+  perform better_supabase.audit('better_supabase.applications', target_type => 'application', event_prefix => 'application', deferred => true);
+  perform better_supabase.audit('better_supabase.interviews', target_type => 'interview', event_prefix => 'interview', deferred => true);
+end;
+$$;
 
 -- blocks.hiring.api: entry points for the Data API.
 create schema if not exists "api";

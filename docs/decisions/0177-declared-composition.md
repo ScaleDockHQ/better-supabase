@@ -122,8 +122,6 @@ each part and drift from them, so no new SQL and no new pgTAP test came with the
 the combining. `qualifications.matrix` shows a holder's id when no gap names it, because the block
 stores no member names, and `documents.page` reads versions and suggestions after `open` because
 opening creates the document.
-||||||| parent of 2af58202b (fix(audit): register block row audit in the schema files)
-
 
 ## Addendum: row audit registration lives in the schema file
 
