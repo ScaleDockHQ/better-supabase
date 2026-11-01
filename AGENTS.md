@@ -294,6 +294,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0175: Sent e-invoices keep the channel's reference in `invoice_deliveries`; `sendEInvoice` records it through the invoices client (amends 0159).
 - 0176: The tills example creates each till with a cash account, mapped from or added to the accounting chart.
 - 0177: Links, row-level concerns and automations are declared in manifests and module names; composite blocks compose other blocks and add glue (amends 0029, 0048, 0093, 0102).
+- 0196: Modules declare tenant defaults in `BlockSql.seeds`; `db seed --defaults` and the cloud `--sample` (Pro) use them.
+- 0197: Shared recurrence, period, money and digest engines are planned, not shipped.
 
 ## Pre-release pins
 

@@ -44,10 +44,10 @@ export interface SeedTable {
   /** The physical column that holds the organization. */
   readonly tenantColumn: string;
   /**
-   * The columns that identify a row within an organization, such as `key`.
-   * Rows whose key columns already exist are kept, so the function can run
-   * twice. A table without a unique constraint on them is still safe: the
-   * function checks before it inserts.
+   * The columns that identify a row within an organization, such as `key`. Rows
+   * whose key columns already exist are kept, so the function can run twice. A
+   * table without a unique constraint on them is still safe: the function
+   * checks before it inserts.
    */
   readonly key: readonly string[];
   readonly rows: readonly SeedRow[];
@@ -107,11 +107,11 @@ function valueSql(value: SeedValue): string {
   }
 
   const { ref } = value;
+
   const conditions = [
     `x.${sqlIdent(ref.tenantColumn)} = p_tenant`,
     ...Object.entries(ref.match).map(
-      ([column, expected]) =>
-        `x.${sqlIdent(column)} = ${valueSql(expected)}`,
+      ([column, expected]) => `x.${sqlIdent(column)} = ${valueSql(expected)}`,
     ),
   ];
 
@@ -135,13 +135,17 @@ function tableSql(entry: SeedTable): string {
     }
 
     const columns = [entry.tenantColumn, ...Object.keys(values)];
+
     const expressions = [
       "p_tenant",
       ...Object.values(values).map((value) => valueSql(value)),
     ];
 
     const same = entry.key
-      .map((column) => `x.${sqlIdent(column)} is not distinct from ${valueSql(values[column]!)}`)
+      .map(
+        (column) =>
+          `x.${sqlIdent(column)} is not distinct from ${valueSql(values[column]!)}`,
+      )
       .join(" and ");
 
     return `  insert into ${entry.table} (${columns.map((column) => sqlIdent(column)).join(", ")})
@@ -166,9 +170,9 @@ function tableSql(entry: SeedTable): string {
 }
 
 /**
- * The function that seeds one module's defaults for an organization. It
- * inserts only rows whose key is missing, so it can run again after the module
- * gains rows. `name` is the qualified function name, from `ctx.fn`.
+ * The function that seeds one module's defaults for an organization. It inserts
+ * only rows whose key is missing, so it can run again after the module gains
+ * rows. `name` is the qualified function name, from `ctx.fn`.
  */
 export function renderSeedDefaults(
   module: string,

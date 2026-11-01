@@ -120,11 +120,14 @@ export interface SeedConfig {
   readonly perTenant?: string;
   /**
    * Tenant defaults (ADR 0196): the rows every organization starts with, from
-   * the blocks' `seed_<block>_defaults` functions. `false` turns them off;
-   * an object sets what `seed_tenant_defaults` is called with.
+   * the blocks' `seed_<block>_defaults` functions. `false` turns them off; an
+   * object sets what `seed_tenant_defaults` is called with.
    */
   readonly defaults?: boolean | SeedDefaultsConfig;
-  /** Sample data from the cloud (`better-supabase db seed --sample`), a Pro feature. */
+  /**
+   * Sample data from the cloud (`better-supabase db seed --sample`), a Pro
+   * feature.
+   */
   readonly sample?: SeedSampleConfig;
 }
 

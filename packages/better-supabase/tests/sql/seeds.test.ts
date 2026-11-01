@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlockSql } from "../../src/sql/module-types.ts";
 import type { BlockSqlContext } from "../../src/sql/context.ts";
+import type { BlockSql } from "../../src/sql/module-types.ts";
 
-import { renderBlocks, seedDefaultsSql } from "../../src/sql/render.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
+import { renderBlocks, seedDefaultsSql } from "../../src/sql/render.ts";
 import {
   renderSeedDefaults,
   renderSeedUmbrella,
@@ -34,36 +34,54 @@ const TABLE = {
 } as const;
 
 describe("renderSeedDefaults", () => {
-  const sql = renderSeedDefaults("deals", "public.seed_deals_defaults", "uuid", [
-    TABLE,
-  ]);
+  const sql = renderSeedDefaults(
+    "deals",
+    "public.seed_deals_defaults",
+    "uuid",
+    [TABLE],
+  );
 
   it("names the function after the module", () => {
-    expect(seedFunctionName("state-machine")).toBe("seed_state_machine_defaults");
-    expect(sql).toContain("create or replace function public.seed_deals_defaults(p_tenant uuid");
+    expect(seedFunctionName("state-machine")).toBe(
+      "seed_state_machine_defaults",
+    );
+    expect(sql).toContain(
+      "create or replace function public.seed_deals_defaults(p_tenant uuid",
+    );
   });
 
   it("inserts a row only when its key is missing for the organization", () => {
     expect(sql.match(/where not exists/g)).toHaveLength(2);
-    expect(sql).toContain('x."organization_id" = p_tenant and x."key" is not distinct from \'open\'');
+    expect(sql).toContain(
+      'x."organization_id" = p_tenant and x."key" is not distinct from \'open\'',
+    );
   });
 
   it("escapes strings and resolves references inside the tenant", () => {
     expect(sql).toContain("'It''s open'");
-    expect(sql).toContain("'{\"color\":\"green\"}'::jsonb");
-    expect(sql).toContain('(select x."id" from public.pipelines x where x."organization_id" = p_tenant and x."key" = \'sales\' limit 1)');
+    expect(sql).toContain('\'{"color":"green"}\'::jsonb');
+    expect(sql).toContain(
+      '(select x."id" from public.pipelines x where x."organization_id" = p_tenant and x."key" = \'sales\' limit 1)',
+    );
   });
 
   it("is not callable by clients", () => {
-    expect(sql).toContain("revoke execute on function public.seed_deals_defaults(uuid, text, text) from public, anon, authenticated;");
+    expect(sql).toContain(
+      "revoke execute on function public.seed_deals_defaults(uuid, text, text) from public, anon, authenticated;",
+    );
   });
 
   it("guards rows by variant and locale", () => {
-    const guarded = renderSeedDefaults("tax", "public.seed_tax_defaults", "uuid", [
-      { ...TABLE, variant: "nl", locales: ["nl", "en"] },
-    ]);
+    const guarded = renderSeedDefaults(
+      "tax",
+      "public.seed_tax_defaults",
+      "uuid",
+      [{ ...TABLE, variant: "nl", locales: ["nl", "en"] }],
+    );
 
-    expect(guarded).toContain("p_variant is not distinct from 'nl' and p_locale = any (array['nl', 'en'])");
+    expect(guarded).toContain(
+      "p_variant is not distinct from 'nl' and p_locale = any (array['nl', 'en'])",
+    );
   });
 
   it("refuses a row without its key", () => {
@@ -87,12 +105,16 @@ describe("renderSeedUmbrella", () => {
       { module: "cases", fn: "public.seed_cases_defaults" },
     ]);
 
-    expect(sql).toContain("perform public.seed_cases_defaults(p_tenant, p_variants ->> 'cases', p_locale);");
+    expect(sql).toContain(
+      "perform public.seed_cases_defaults(p_tenant, p_variants ->> 'cases', p_locale);",
+    );
   });
 });
 
 describe("declared defaults", () => {
-  const declared = Object.values(SQL_MODULES).filter((module) => module.seeds?.defaults);
+  const declared = Object.values(SQL_MODULES).filter(
+    (module) => module.seeds?.defaults,
+  );
 
   // No shipped module declares defaults yet: each one that does needs a fixture
   // migration (ADR 0196). This keeps the check ready for the first.
@@ -103,10 +125,7 @@ describe("declared defaults", () => {
   it.each(declared.map((module) => module.name))(
     "%s renders idempotent, tenant-scoped inserts",
     (name) => {
-      const files = renderBlocks(
-        [...SQL_MODULES[name]!.requires, name],
-        {},
-      );
+      const files = renderBlocks([...SQL_MODULES[name]!.requires, name], {});
 
       const sql = files
         .filter((file) => file.module === name)
@@ -142,6 +161,8 @@ describe("seedDefaultsSql", () => {
   it("renders the module's function under its qualified name", () => {
     const sql = seedDefaultsSql(module({ defaults: () => [TABLE] }), ctx);
 
-    expect(sql).toContain("create or replace function app.seed_demo_block_defaults(");
+    expect(sql).toContain(
+      "create or replace function app.seed_demo_block_defaults(",
+    );
   });
 });

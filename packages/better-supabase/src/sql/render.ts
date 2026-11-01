@@ -55,8 +55,8 @@ import {
   SQL_MODULES,
 } from "./registry.ts";
 import { rowAuditData } from "./row-audit.ts";
-import { renderSeedDefaults, seedFunctionName } from "./seeds.ts";
 import { rowRealtimeData } from "./row-realtime.ts";
+import { renderSeedDefaults, seedFunctionName } from "./seeds.ts";
 import { withSubjectMergeFunction } from "./subject-merge-sql.ts";
 import { tableBase } from "./table-renames.ts";
 import { applyTenantScope } from "./tenant-scope.ts";
@@ -115,7 +115,10 @@ function moduleSql(
 }
 
 /** The module's declared tenant defaults as `seed_<module>_defaults`, if any. */
-export function seedDefaultsSql(module: BlockSql, ctx: BlockSqlContext): string {
+export function seedDefaultsSql(
+  module: BlockSql,
+  ctx: BlockSqlContext,
+): string {
   const tables = module.seeds?.defaults?.(ctx);
 
   return tables === undefined || tables.length === 0

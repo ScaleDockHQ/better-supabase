@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { resolveConfig } from "../../src/config/resolve.ts";
 
-const seedOf = (seed?: Parameters<typeof resolveConfig>[0]["seed"]) =>
-  resolveConfig(seed === undefined ? {} : { seed }, "/app").seed;
+type Input = NonNullable<
+  NonNullable<Parameters<typeof resolveConfig>[0]["database"]>["seed"]
+>;
+
+const seedOf = (seed?: Input) =>
+  resolveConfig(seed === undefined ? {} : { database: { seed } }, "/app").seed;
 
 describe("seed.defaults and seed.sample", () => {
   it("seeds new organizations in English and samples at size m by default", () => {

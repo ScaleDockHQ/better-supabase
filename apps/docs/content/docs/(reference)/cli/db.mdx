@@ -171,7 +171,47 @@ It listens for `organization.created` and runs only when `NODE_ENV` is
 create call has returned, so it can't change its result; a failed seed goes
 to `onError`, or to `console.error` by default.
 
-Side effects: Writes files, writes to the database with `--apply`, writes to the database with `--tenant`.
+### Defaults for existing organizations
+
+A block that declares tenant defaults ships a `seed_<block>_defaults`
+function, and new organizations get its rows when they are created.
+`db seed --defaults` calls those functions again for organizations that
+already exist, so a block you add later fills in the rows it needs. Rows that
+exist are kept, so it can run twice.
+
+```bash
+pnpm better-supabase db seed --defaults --tenant acme --locale nl
+pnpm better-supabase db seed --defaults --variant helpdesk=support
+```
+
+`--tenant` defaults to every organization. `--variant block=name` picks a
+block's starting set (repeat it for more blocks) over
+`database.seed.defaults.variants`, and `--locale` picks the language
+(`database.seed.defaults.locale`, `en` by default). A variant that the block
+does not declare is refused. Setting `database.seed.defaults.onCreate` to
+`false` stops new organizations from getting defaults. The database and
+consent rules are the ones `--apply` follows.
+
+### Sample data
+
+`db seed --sample` asks the Better Supabase cloud for realistic sample rows
+that fit your blocks and applies them in one transaction. It needs a Pro
+account and `better-supabase login` ([login](/docs/cli/login)).
+
+```bash
+pnpm better-supabase db seed --sample --demo-org --size m --seed 7
+pnpm better-supabase db seed --sample --tenant acme --out supabase/seeds/900_sample.sql
+```
+
+Say where the rows go with `--tenant <slug>` or `--demo-org`, which creates a
+demo organization. `--size` is `s`, `m` or `l`, and the same `--seed` gives the
+same rows. `--out <file>` writes the statements to a file instead of running
+them, and `--dry-run` shows how many would run. Without a Pro plan the cloud
+answers 402 and the command exits with code 3 and the upgrade address.
+`database.seed.sample` holds the defaults for `size`, `seed`, `locale` and
+`output`.
+
+Side effects: Writes files, writes to the database with `--apply`, writes to the database with `--tenant`, writes to the database with `--defaults`, calls the Better Supabase cloud with `--sample`.
 
 ## backfill
 

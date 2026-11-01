@@ -206,7 +206,7 @@
               "const": "network"
             },
             "target": {
-              "enum": ["supabase-api", "github"]
+              "enum": ["supabase-api", "github", "cloud"]
             },
             "when": {
               "description": "The flag that turns the effect on.",

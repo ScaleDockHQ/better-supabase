@@ -1,0 +1,58 @@
+---
+title: Login
+description: Log in to the Better Supabase cloud from the terminal, for sample data and other cloud features.
+---
+
+`better-supabase login` connects the CLI to your Better Supabase cloud account.
+Commands that call the cloud, such as `db seed --sample`, use the saved login.
+
+```bash
+pnpm better-supabase login
+```
+
+The command prints a web address and a short code. Open the address, confirm
+the code, and the CLI saves the login.
+
+Side effects: Calls the Better Supabase cloud.
+
+## How it works
+
+The CLI starts a device login with `POST /api/cli/auth/start`, which answers
+`deviceCode`, `userCode`, `verificationUrl`, `interval` and `expiresIn`. It then
+polls `POST /api/cli/auth/poll` with the `deviceCode`. The cloud answers 202
+while it waits, 200 with an `accessToken`, `refreshToken`, `expiresAt` and
+`email` once you approve, and 410 when the code expired or was denied.
+
+The login lives in `$XDG_CONFIG_HOME/better-supabase/auth.json`, or
+`~/.config/better-supabase/auth.json`, with mode 0600. `$BSB_CLOUD_URL` points
+the CLI at another cloud address. An expired login asks you to run `login`
+again.
+
+## logout
+
+```bash
+pnpm better-supabase logout
+```
+
+Deletes the saved login. It does not revoke the session in the cloud.
+
+Side effects: Writes files.
+
+## whoami
+
+```bash
+pnpm better-supabase whoami
+```
+
+Prints the email and plan of the saved login, from `GET /api/billing`.
+
+Side effects: Calls the Better Supabase cloud.
+
+## Sample data endpoint
+
+`db seed --sample` sends `POST /api/seeds/sample` with a Bearer token and a
+body of `design` or `preset`, `instances`, `variants`, `locale`, `size`, `seed`,
+and a target, `tenant` with a slug or `demoOrg`. The cloud answers 200 with
+`statements`, `summary` and `estimatedRows`. An account without sample data gets
+402 `application/problem+json` with an `upgrade` address, and the CLI exits with
+code 3.
