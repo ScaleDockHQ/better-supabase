@@ -2,6 +2,7 @@
 
 import {
   type AppTableEventData,
+  blockRead,
   defineEvents,
   event,
   type EventRenamesOf,
@@ -3690,4 +3691,57 @@ export const topics = {
 export const paths = {
   customerLogos: (v: { readonly organizationId: string; readonly customerId: string; readonly version: string }) => `${String(v.organizationId)}/${String(v.customerId)}/logo/${String(v.version)}.webp`,
   avatars: (v: { readonly userId: string; readonly version: string; readonly ext: string }) => `${String(v.userId)}/avatar-${String(v.version)}.${String(v.ext)}`,
+} as const;
+
+/** The arguments of `reads.deals.board`. @public */
+export type DealsBoardArgs = { readonly pipelineId: string };
+
+/** What `reads.deals.board` returns. @public */
+export type DealsBoardResult = {
+  readonly pipelineId: string;
+  readonly stages: readonly {
+    readonly id: string;
+    readonly key: string;
+    readonly name: string;
+    readonly category: string;
+    readonly probability: number | null;
+    readonly rottingAfterDays: number | null;
+    readonly wipLimit: number | null;
+    readonly count: number;
+    readonly totals: readonly {
+      readonly currency: string;
+      readonly amount: string;
+      readonly weighted: string;
+    }[];
+    readonly deals: readonly {
+      readonly id: string;
+      readonly identifier: string;
+      readonly name: string;
+      readonly amount: string;
+      readonly currency: string;
+      readonly ownerId: string | null;
+      readonly closeOn: string;
+      readonly probability: number | null;
+      readonly daysInStage: number;
+      readonly rotting: boolean;
+      readonly nextStep: string | null;
+      readonly nextAt: string | null;
+      readonly rank: string;
+    }[];
+  }[];
+  readonly weighted: readonly {
+    readonly currency: string;
+    readonly amount: string;
+  }[];
+};
+
+/**
+ * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
+ * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
+ * @public
+ */
+export const reads = {
+  deals: {
+    board: blockRead<DealsBoardArgs, DealsBoardResult>("deal_board", { pipelineId: "pipeline" }, ["pipeline_stages", "deals"], "api"),
+  },
 } as const;

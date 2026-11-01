@@ -91,5 +91,6 @@ export const DEAL_READS: readonly BlockSqlRead[] = [
     { pipelineId: { param: "pipeline", type: "id" } },
     DEAL_BOARD_RESULT,
     "A pipeline's stages with their deals, counts, totals per currency and the weighted forecast.",
+    ["pipeline_stages", "deals"],
   ),
 ];

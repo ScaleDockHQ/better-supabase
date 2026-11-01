@@ -682,6 +682,7 @@ describe("block reads and record summaries in a read set", () => {
       byStatus: blockRead<{ status: string }, { readonly total: number }>(
         "customers_by_status",
         { status: "p_status" },
+        ["customers"],
       ),
     },
   };
@@ -716,6 +717,10 @@ describe("block reads and record summaries in a read set", () => {
     expect(sql).toContain(
       `"public"."customers_by_status"("p_status" => ((p->>'status')::text)) f`,
     );
+  });
+
+  it("lists the tables a block read declares in readSetTables", () => {
+    expect(readSetTables(page).toSorted()).toEqual(["customers"]);
   });
 
   it("compiles s.record into a record_summary call", async () => {

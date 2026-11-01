@@ -818,9 +818,12 @@ export class BetterSupabase<
                 db["$rpc"] as (
                   name: string,
                   args: Readonly<Record<string, unknown>>,
-                  options?: { signal?: AbortSignal },
+                  options?: { signal?: AbortSignal; schema?: string },
                 ) => AsyncResult<unknown>
-              )(entry.name, entry.args, signal ? { signal } : undefined);
+              )(entry.name, entry.args, {
+                ...(signal ? { signal } : {}),
+                ...(entry.schema === undefined ? {} : { schema: entry.schema }),
+              });
 
               if (!called.ok) {
                 return called;

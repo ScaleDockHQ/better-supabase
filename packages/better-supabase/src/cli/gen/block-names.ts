@@ -3,7 +3,7 @@ import type { ResolvedConfig } from "../../config/index.ts";
 
 import { entityNames } from "../../blocks/index.ts";
 import { blockEntities } from "../../config/index.ts";
-import { readTypeSource } from "../../core/read-type.ts";
+import { readTypeSource } from "../../index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   DEFAULT_ROLES,
@@ -497,7 +497,7 @@ function readLines(
         .map(([name, arg]) => `${prop(name)}: ${q(arg.param)}`)
         .join(", ");
 
-      return `    ${prop(read.name)}: blockRead<${base}Args, ${base}Result>(${q(fn)}, { ${params} }),`;
+      return `    ${prop(read.name)}: blockRead<${base}Args, ${base}Result>(${q(fn)}, { ${params} }, [${read.tables.map(q).join(", ")}], ${q(entry.api ?? entry.schema)}),`;
     });
 
     groups.push(`  ${prop(camel(key))}: {`, ...lines, "  },");

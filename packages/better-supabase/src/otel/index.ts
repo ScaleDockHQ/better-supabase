@@ -211,7 +211,10 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
           summary,
           {
             kind: SpanKind.CLIENT,
-            attributes: { ...attributes, "db.round_trips": roundTrips },
+            attributes: {
+              ...attributes,
+              "better_supabase.db.round_trips": roundTrips,
+            },
           },
           async (span) => {
             const finish = (errorType?: string) => {

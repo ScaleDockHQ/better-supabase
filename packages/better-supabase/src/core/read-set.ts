@@ -259,13 +259,13 @@ export function defineReadSet<
     if (isFunctionSpec(spec)) {
       const fn = betterSupabase.meta.functions[spec.name];
 
-      if (!fn) {
+      if (!fn && spec.schema === undefined) {
         throw new TypeError(
           `better-supabase: read set "${name}" entry "${key}" calls unknown function "${spec.name}"`,
         );
       }
 
-      if (fn.volatility === "volatile") {
+      if (fn?.volatility === "volatile") {
         throw new TypeError(
           `better-supabase: read set "${name}" entry "${key}" calls ${spec.name}(), which is volatile; a read set function is stable`,
         );
@@ -555,7 +555,7 @@ export function readSetTables(set: ReadSet, meta?: SchemaMeta): string[] {
   return [
     ...new Set(
       Object.values(set.specs).flatMap((spec) =>
-        isFunctionSpec(spec) ? [] : specTables(schema, spec),
+        isFunctionSpec(spec) ? (spec.tables ?? []) : specTables(schema, spec),
       ),
     ),
   ];

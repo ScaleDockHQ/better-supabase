@@ -71,6 +71,16 @@ export interface FunctionSpec<N extends string = string, R = unknown> {
   readonly name: N;
   /** Named arguments; placeholders stand for read set parameters. */
   readonly args: Readonly<Record<string, unknown>>;
+  /**
+   * The tables the function reads, when known (a block read lists its module's
+   * tables). `bsb.tags` tags a cache scope with them.
+   */
+  readonly tables?: readonly string[];
+  /**
+   * The schema the function lives in, when it is not one the schema metadata
+   * lists (a block read names the block's API schema).
+   */
+  readonly schema?: string;
   /** Type-only: the result of the call. */
   readonly [functionResultType]?: R;
 }

@@ -303,8 +303,9 @@ function argument(set: ReadSet, value: unknown): string {
  */
 function functionEntry(set: ReadSet, spec: FunctionSpec): string {
   const meta = set.definition.meta.functions[spec.name];
+  const schema = spec.schema ?? meta?.schema;
 
-  if (!meta) {
+  if (schema === undefined) {
     throw new TypeError(
       `Read set "${set.name}": unknown function "${spec.name}"`,
     );
@@ -314,9 +315,9 @@ function functionEntry(set: ReadSet, spec: FunctionSpec): string {
     .filter(([, value]) => value !== undefined)
     .map(([name, value]) => `${quoteIdent(name)} => ${argument(set, value)}`);
 
-  const call = `${quoteIdent(meta.schema)}.${quoteIdent(spec.name)}(${args.join(", ")})`;
+  const call = `${quoteIdent(schema)}.${quoteIdent(spec.name)}(${args.join(", ")})`;
 
-  return meta.returnsSet
+  return meta?.returnsSet
     ? `(select coalesce(jsonb_agg(to_jsonb(f)), '[]'::jsonb) from ${call} f)`
     : `to_jsonb(${call})`;
 }

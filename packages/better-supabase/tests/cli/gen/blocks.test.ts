@@ -560,7 +560,7 @@ describe("block reads in blocks.generated.ts", () => {
 
     expect(file?.contents).toContain("export const reads = {");
     expect(file?.contents).toContain(
-      'board: blockRead<DealsBoardArgs, DealsBoardResult>("deal_board", { pipelineId: "pipeline" })',
+      'board: blockRead<DealsBoardArgs, DealsBoardResult>("deal_board", { pipelineId: "pipeline" }, ["pipeline_stages", "deals"], "better_supabase")',
     );
     expect(file?.contents).toContain("export type DealsBoardResult = {");
     expect(file?.contents).toContain("readonly weighted: readonly {");

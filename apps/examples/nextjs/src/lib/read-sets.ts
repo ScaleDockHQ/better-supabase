@@ -2,6 +2,7 @@ import { defineReadSet } from "better-supabase";
 
 // `better-supabase gen` imports this file with Node, so relative imports keep
 // their `.ts` extension.
+import { reads } from "./supabase/blocks.generated.ts";
 import { betterSupabase } from "./supabase/index.ts";
 
 /**
@@ -23,5 +24,20 @@ export const workspaceSummary = defineReadSet(
       orderBy: { createdAt: "desc" },
       limit: 1,
     }),
+  }),
+);
+
+/**
+ * A pipeline board and its headline count in one round trip. `s.blocks` calls
+ * the `deals` block's own `deal_board` function, so the page doesn't await the
+ * board and the count one after the other.
+ */
+export const pipelineOverview = defineReadSet(
+  betterSupabase,
+  "pipeline_overview",
+  { params: { pipelineId: "uuid" }, blocks: reads },
+  (s, p) => ({
+    customers: s.customers.count(),
+    board: s.blocks.deals.board({ pipelineId: p.pipelineId }),
   }),
 );

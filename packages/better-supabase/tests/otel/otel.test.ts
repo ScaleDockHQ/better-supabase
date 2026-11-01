@@ -125,7 +125,7 @@ describe("otel", () => {
           "db.operation.name": "SELECT",
           "db.query.summary": "SELECT customers",
           "better_supabase.executor": "postgrest",
-          "db.round_trips": 1,
+          "better_supabase.db.round_trips": 1,
           "db.response.returned_rows": 1,
         },
         ended: true,
@@ -157,9 +157,9 @@ describe("otel", () => {
     ]);
     await db.customers.list().orThrow();
 
-    expect(spans.map((span) => span.attributes["db.round_trips"])).toEqual([
-      1, 1, 2,
-    ]);
+    expect(
+      spans.map((span) => span.attributes["better_supabase.db.round_trips"]),
+    ).toEqual([1, 1, 2]);
   });
 
   it("marks failed operations", async () => {

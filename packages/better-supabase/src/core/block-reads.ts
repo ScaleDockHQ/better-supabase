@@ -11,6 +11,10 @@ export interface BlockRead<A extends object = object, R = unknown> {
   readonly fn: string;
   /** Argument key to the SQL function's parameter name. */
   readonly params: Readonly<Record<string, string>>;
+  /** The tables the function reads, for cache tags and `invalidates`. */
+  readonly tables: readonly string[];
+  /** The block's API schema, which the function lives in. */
+  readonly schema?: string;
   /** Type-only: the arguments and the result. */
   readonly [readTypes]?: (args: A) => R;
 }
@@ -41,8 +45,10 @@ export type BlockReadSpecs<B extends BlockReadMap> = {
 export function blockRead<A extends object, R>(
   fn: string,
   params: Readonly<Record<string, string>>,
+  tables: readonly string[] = [],
+  schema?: string,
 ): BlockRead<A, R> {
-  return { fn, params };
+  return { fn, params, tables, ...(schema === undefined ? {} : { schema }) };
 }
 
 /** The builders behind `s.blocks`: each maps its arguments to the function's. */
@@ -65,6 +71,8 @@ export function createBlockReadSpecs<B extends BlockReadMap>(
               value,
             ]),
           ),
+          ...(read.tables.length === 0 ? {} : { tables: read.tables }),
+          ...(read.schema === undefined ? {} : { schema: read.schema }),
         }),
       ]),
     );

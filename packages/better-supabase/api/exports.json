@@ -66,6 +66,7 @@
       "PROGRAM_EVENT_MOVES",
       "provideTemporal",
       "readSetTables",
+      "readTypeSource",
       "recordStats",
       "renamed",
       "rowKey",

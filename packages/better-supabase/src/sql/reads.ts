@@ -28,6 +28,8 @@ export interface BlockSqlRead {
   /** The JSON the function returns. */
   readonly result: ReadType;
   readonly summary: string;
+  /** The names of the module's tables the function reads. */
+  readonly tables: readonly string[];
 }
 
 /** Declares a read in one place. */
@@ -37,7 +39,8 @@ export const declareRead = (
   args: BlockSqlRead["args"],
   result: ReadType,
   summary: string,
-): BlockSqlRead => ({ name, function: fn, args, result, summary });
+  tables: readonly string[],
+): BlockSqlRead => ({ name, function: fn, args, result, summary, tables });
 
 /** The SQL type of an argument, for the contract. */
 export function readArgSqlType(type: BlockSqlReadArgType): string {

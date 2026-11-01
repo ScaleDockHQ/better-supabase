@@ -1,6 +1,6 @@
 -- better-supabase module: read-sets
 -- @bsb-block read-sets@1 managed
--- @bsb-hash sha256:9ef9a1c1b58f07e847df7464914cbd02143a7663be2105b177a2325af0947134
+-- @bsb-hash sha256:d44069252cb5f4f5c6f389661f4491647c0c9d8725d5ed713e769f3b0ad96ed4
 -- One `stable` function per `defineReadSet` in `readSets`, so `db.$many(readSet, params)` is a single GET.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,6 +9,19 @@
 -- They are security invoker: RLS decides what each caller reads, as for any other query.
 
 -- config.readSets
+-- pipeline_overview
+create or replace function public.rs_pipeline_overview(p jsonb)
+  returns jsonb
+  language sql stable security invoker set search_path = ''
+as $rs$
+  select jsonb_build_object(
+    'customers', jsonb_build_object('rows', '[]'::jsonb, 'count', (select count(*)::bigint as count from "public"."customers" as t0)),
+    'board', to_jsonb("api"."deal_board"("pipeline" => ((p->>'pipelineId')::uuid)))
+  )
+$rs$;
+revoke execute on function public.rs_pipeline_overview(jsonb) from public, anon, authenticated;
+grant execute on function public.rs_pipeline_overview(jsonb) to authenticated;
+
 -- workspace_summary
 create or replace function public.rs_workspace_summary(p jsonb)
   returns jsonb

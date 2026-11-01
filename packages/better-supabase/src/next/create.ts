@@ -47,7 +47,7 @@ import { methodOf } from "../blocks/block-method.ts";
 import { claimsOf } from "../core/claims.ts";
 import { dbError } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
-import { isReadSet } from "../core/read-set.ts";
+import { isReadSet, readSetTables } from "../core/read-set.ts";
 import { err } from "../core/result.ts";
 import { isQuerySpec } from "../core/spec.ts";
 import { validate } from "../core/standard.ts";
@@ -1185,6 +1185,12 @@ export function createNext<
 
       const tags = new Set<string>();
 
+      for (const table of isReadSet(target) ? readSetTables(target) : []) {
+        for (const tag of tableTags(table, tagOptions)) {
+          tags.add(tag);
+        }
+      }
+
       for (const spec of specs) {
         for (const table of betterSupabase.tablesOf(spec)) {
           for (const tag of tableTags(table, tagOptions)) {
@@ -1217,7 +1223,17 @@ export function createNext<
             input,
           ]) as readonly unknown[];
 
-          return call(...args);
+          const result = await call(...args);
+
+          if (result.ok && blockOptions.invalidates) {
+            invalidateAll(
+              blockOptions.invalidates.flatMap((table) =>
+                tableTags(table, { tenant: "*" }),
+              ),
+            );
+          }
+
+          return result;
         },
       );
 

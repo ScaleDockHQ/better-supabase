@@ -465,8 +465,13 @@ export interface BetterNext<
   >(
     client: (ctx: ServerContext<M, F, E, C, P, B>) => Cl,
     method: K & BlockMethodName<Cl>,
-    options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>> &
-      BlockActionArgs<
+    options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>> & {
+      /**
+       * Tables a successful call changes: drops the cache entries `bsb.tags`
+       * tagged with them, such as `reads.deals.board.tables`.
+       */
+      readonly invalidates?: readonly string[];
+    } & BlockActionArgs<
         S,
         BlockArgsOf<Cl, K & BlockMethodName<Cl>>,
         ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>

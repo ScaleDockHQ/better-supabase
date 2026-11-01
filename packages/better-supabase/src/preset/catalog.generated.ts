@@ -3699,7 +3699,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               }
             ]
           },
-          "summary": "A pipeline's stages with their deals, counts, totals per currency and the weighted forecast."
+          "summary": "A pipeline's stages with their deals, counts, totals per currency and the weighted forecast.",
+          "tables": [
+            "pipeline_stages",
+            "deals"
+          ]
         }
       ],
       "extraColumns": "deals",
