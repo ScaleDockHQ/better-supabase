@@ -42,6 +42,12 @@ import {
   dunningTableSql,
 } from "./invoices-collections.ts";
 import {
+  DELIVERIES_TABLE,
+  deliveriesTableSql,
+  deliveryContract,
+  deliveryFunctions,
+} from "./invoices-deliveries.ts";
+import {
   DUNNING_HISTORY_TABLE,
   DUNNING_RUN_ITEMS_TABLE,
   DUNNING_RUNS_TABLE,
@@ -299,6 +305,7 @@ const NAMES: BlockSqlNames = {
     dunningHistory: DUNNING_HISTORY_TABLE,
     allocations: ALLOCATIONS_TABLE,
     lineSources: LINE_SOURCES_TABLE,
+    deliveries: DELIVERIES_TABLE,
     approvalLevels: APPROVAL_LEVELS_TABLE,
     approvals: APPROVALS_TABLE,
   },
@@ -450,7 +457,7 @@ ${renderPolicy(
   }),
   { drop: true, target: t("invoices") },
 )}
-${charges}${dunningTableSql(ctx, n.read)}${dunningRunTablesSql(ctx, t("invoices"), i("id"), n.read)}${allocationTableSql(ctx, t("invoices"), i("id"), n.read)}${lineSourcesTableSql(ctx, t("invoices"), i("id"), n.read)}${approvalTablesSql(ctx, t("invoices"), i("id"), n.read)}
+${charges}${dunningTableSql(ctx, n.read)}${dunningRunTablesSql(ctx, t("invoices"), i("id"), n.read)}${allocationTableSql(ctx, t("invoices"), i("id"), n.read)}${lineSourcesTableSql(ctx, t("invoices"), i("id"), n.read)}${deliveriesTableSql(ctx, t("invoices"), i("id"), n.read)}${approvalTablesSql(ctx, t("invoices"), i("id"), n.read)}
 `;
 }
 
@@ -645,7 +652,7 @@ function build(ctx: BlockSqlContext): string {
 -- Invoices an organization sends its own customers and the bills its
 -- suppliers send it: drafts with lines, a number on issue, payments, credit
 -- notes, void and write-off, aging and the three-way match of a bill.
-${tables(ctx, n)}${invoiceFunctions(ctx, n)}${sourceFunctions(ctx, n)}${invoiceImportFunctions(ctx, n)}${billingPartyReportSql(ctx, { name: n.fn("document_totals_by_billing_party"), argument: "document", lines: "lines" })}${accountingSourcesSql(ctx, invoiceAccountingSources(ctx))}`;
+${tables(ctx, n)}${invoiceFunctions(ctx, n)}${sourceFunctions(ctx, n)}${deliveryFunctions(ctx, n)}${invoiceImportFunctions(ctx, n)}${billingPartyReportSql(ctx, { name: n.fn("document_totals_by_billing_party"), argument: "document", lines: "lines" })}${accountingSourcesSql(ctx, invoiceAccountingSources(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -749,6 +756,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...collectionContract(ctx),
     ...openItemContract(ctx),
     ...sourceContract(ctx),
+    ...deliveryContract(ctx),
     ...approvalContract(ctx),
   ];
 }

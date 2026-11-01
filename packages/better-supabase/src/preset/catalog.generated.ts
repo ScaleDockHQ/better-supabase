@@ -26159,6 +26159,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceCollections"
         },
         {
+          "name": "InvoiceDelivery"
+        },
+        {
+          "name": "InvoiceDeliveryInput"
+        },
+        {
           "name": "InvoiceDirection"
         },
         {
@@ -26181,6 +26187,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "InvoiceDunningRunItem"
+        },
+        {
+          "name": "InvoiceEInvoices"
         },
         {
           "name": "InvoiceInput",

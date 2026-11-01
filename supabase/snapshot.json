@@ -157845,8 +157845,8 @@
         "schema": "better_supabase",
         "name": "collect_payroll_lines",
         "language": "plpgsql",
-        "definition": "\n#variable_conflict use_column\ndeclare\n  v_run \"better_supabase\".\"payroll_runs\"%rowtype;\n  v_added integer;\n  v_count integer := 0;\nbegin\n  select * into v_run from \"better_supabase\".\"payroll_runs\" x where x.\"id\" = collect_payroll_lines.run_id;\n  delete from \"better_supabase\".\"payroll_lines\" where \"run_id\" = v_run.\"id\";\n  insert into \"better_supabase\".\"payroll_lines\" (\"tenant_id\", \"run_id\", \"user_id\", \"employee_id\", \"kind\", \"unit\", \"quantity\", \"source_count\")\n  select v_run.\"tenant_id\", v_run.\"id\", x.\"user_id\", null::uuid,\n    'worked', 'hours', round(sum(extract(epoch from x.\"ended_at\" - x.\"started_at\"))::numeric / 3600, 2), count(*)\n  from \"better_supabase\".\"time_entries\" x\n  where x.\"tenant_id\" = v_run.\"tenant_id\"\n    and x.\"ended_at\" is not null\n    and x.\"user_id\" is not null\n    and (x.\"started_at\" at time zone 'UTC')::date between v_run.\"period_from\" and v_run.\"period_to\"\n  group by x.\"user_id\"\n  having sum(extract(epoch from x.\"ended_at\" - x.\"started_at\")) > 0;\n  get diagnostics v_added = row_count;\n  v_count := v_count + v_added;\n  update \"better_supabase\".\"payroll_lines\" x\n  set \"employee_id\" = e.\"id\", \"employee_name\" = e.\"name\"\n  from \"better_supabase\".\"employees\" e\n  where x.\"run_id\" = v_run.\"id\"\n    and e.\"tenant_id\" = v_run.\"tenant_id\"\n    and (e.\"id\" = x.\"employee_id\" or (x.\"employee_id\" is null and e.\"user_id\" = x.\"user_id\"));\n  return v_count;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.collect_payroll_lines(run_id uuid)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_column\ndeclare\n  v_run \"better_supabase\".\"payroll_runs\"%rowtype;\n  v_added integer;\n  v_count integer := 0;\nbegin\n  select * into v_run from \"better_supabase\".\"payroll_runs\" x where x.\"id\" = collect_payroll_lines.run_id;\n  delete from \"better_supabase\".\"payroll_lines\" where \"run_id\" = v_run.\"id\";\n  insert into \"better_supabase\".\"payroll_lines\" (\"tenant_id\", \"run_id\", \"user_id\", \"employee_id\", \"kind\", \"unit\", \"quantity\", \"source_count\")\n  select v_run.\"tenant_id\", v_run.\"id\", x.\"user_id\", null::uuid,\n    'worked', 'hours', round(sum(extract(epoch from x.\"ended_at\" - x.\"started_at\"))::numeric / 3600, 2), count(*)\n  from \"better_supabase\".\"time_entries\" x\n  where x.\"tenant_id\" = v_run.\"tenant_id\"\n    and x.\"ended_at\" is not null\n    and x.\"user_id\" is not null\n    and (x.\"started_at\" at time zone 'UTC')::date between v_run.\"period_from\" and v_run.\"period_to\"\n  group by x.\"user_id\"\n  having sum(extract(epoch from x.\"ended_at\" - x.\"started_at\")) > 0;\n  get diagnostics v_added = row_count;\n  v_count := v_count + v_added;\n  update \"better_supabase\".\"payroll_lines\" x\n  set \"employee_id\" = e.\"id\", \"employee_name\" = e.\"name\"\n  from \"better_supabase\".\"employees\" e\n  where x.\"run_id\" = v_run.\"id\"\n    and e.\"tenant_id\" = v_run.\"tenant_id\"\n    and (e.\"id\" = x.\"employee_id\" or (x.\"employee_id\" is null and e.\"user_id\" = x.\"user_id\"));\n  return v_count;\nend;\n$function$\n",
+        "definition": "\n#variable_conflict use_column\ndeclare\n  v_run \"better_supabase\".\"payroll_runs\"%rowtype;\n  v_added integer;\n  v_count integer := 0;\nbegin\n  select * into v_run from \"better_supabase\".\"payroll_runs\" x where x.\"id\" = collect_payroll_lines.run_id;\n  delete from \"better_supabase\".\"payroll_lines\" where \"run_id\" = v_run.\"id\";\n  insert into \"better_supabase\".\"payroll_lines\" (\"tenant_id\", \"run_id\", \"user_id\", \"employee_id\", \"kind\", \"unit\", \"quantity\", \"source_count\")\n  select v_run.\"tenant_id\", v_run.\"id\", x.\"user_id\", null::uuid,\n    'worked', 'hours', round(sum(extract(epoch from x.\"ended_at\" - x.\"started_at\"))::numeric / 3600, 2), count(*)\n  from \"better_supabase\".\"time_entries\" x\n  where x.\"tenant_id\" = v_run.\"tenant_id\"\n    and x.\"ended_at\" is not null\n    and x.\"user_id\" is not null\n    and \"better_supabase\".\"time_week_approved\"(x.\"tenant_id\", x.\"user_id\", x.\"started_at\")\n    and (x.\"started_at\" at time zone 'UTC')::date between v_run.\"period_from\" and v_run.\"period_to\"\n  group by x.\"user_id\"\n  having sum(extract(epoch from x.\"ended_at\" - x.\"started_at\")) > 0;\n  get diagnostics v_added = row_count;\n  v_count := v_count + v_added;\n  update \"better_supabase\".\"payroll_lines\" x\n  set \"employee_id\" = e.\"id\", \"employee_name\" = e.\"name\"\n  from \"better_supabase\".\"employees\" e\n  where x.\"run_id\" = v_run.\"id\"\n    and e.\"tenant_id\" = v_run.\"tenant_id\"\n    and (e.\"id\" = x.\"employee_id\" or (x.\"employee_id\" is null and e.\"user_id\" = x.\"user_id\"));\n  return v_count;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.collect_payroll_lines(run_id uuid)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_column\ndeclare\n  v_run \"better_supabase\".\"payroll_runs\"%rowtype;\n  v_added integer;\n  v_count integer := 0;\nbegin\n  select * into v_run from \"better_supabase\".\"payroll_runs\" x where x.\"id\" = collect_payroll_lines.run_id;\n  delete from \"better_supabase\".\"payroll_lines\" where \"run_id\" = v_run.\"id\";\n  insert into \"better_supabase\".\"payroll_lines\" (\"tenant_id\", \"run_id\", \"user_id\", \"employee_id\", \"kind\", \"unit\", \"quantity\", \"source_count\")\n  select v_run.\"tenant_id\", v_run.\"id\", x.\"user_id\", null::uuid,\n    'worked', 'hours', round(sum(extract(epoch from x.\"ended_at\" - x.\"started_at\"))::numeric / 3600, 2), count(*)\n  from \"better_supabase\".\"time_entries\" x\n  where x.\"tenant_id\" = v_run.\"tenant_id\"\n    and x.\"ended_at\" is not null\n    and x.\"user_id\" is not null\n    and \"better_supabase\".\"time_week_approved\"(x.\"tenant_id\", x.\"user_id\", x.\"started_at\")\n    and (x.\"started_at\" at time zone 'UTC')::date between v_run.\"period_from\" and v_run.\"period_to\"\n  group by x.\"user_id\"\n  having sum(extract(epoch from x.\"ended_at\" - x.\"started_at\")) > 0;\n  get diagnostics v_added = row_count;\n  v_count := v_count + v_added;\n  update \"better_supabase\".\"payroll_lines\" x\n  set \"employee_id\" = e.\"id\", \"employee_name\" = e.\"name\"\n  from \"better_supabase\".\"employees\" e\n  where x.\"run_id\" = v_run.\"id\"\n    and e.\"tenant_id\" = v_run.\"tenant_id\"\n    and (e.\"id\" = x.\"employee_id\" or (x.\"employee_id\" is null and e.\"user_id\" = x.\"user_id\"));\n  return v_count;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -230048,6 +230048,46 @@
       {
         "id": 3002216,
         "schema": "better_supabase",
+        "name": "time_week_approved",
+        "language": "sql",
+        "definition": "\n  select exists (\n    select 1 from \"better_supabase\".\"timesheets\" s\n    where s.\"tenant_id\" = time_week_approved.tenant and s.\"user_id\" = time_week_approved.user_id\n      and s.\"week\" = \"better_supabase\".\"time_week\"(time_week_approved.at)\n      and s.\"approved_at\" is not null\n  );\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.time_week_approved(tenant uuid, user_id uuid, at timestamp with time zone)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  select exists (\n    select 1 from \"better_supabase\".\"timesheets\" s\n    where s.\"tenant_id\" = time_week_approved.tenant and s.\"user_id\" = time_week_approved.user_id\n      and s.\"week\" = \"better_supabase\".\"time_week\"(time_week_approved.at)\n      and s.\"approved_at\" is not null\n  );\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "at",
+            "type_id": 1184,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "tenant",
+            "type_id": 2950,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "user_id",
+            "type_id": 2950,
+            "has_default": false
+          }
+        ],
+        "argument_types": "tenant uuid, user_id uuid, at timestamp with time zone",
+        "identity_argument_types": "tenant uuid, user_id uuid, at timestamp with time zone",
+        "return_type_id": 16,
+        "return_type": "boolean",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "STABLE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3002217,
+        "schema": "better_supabase",
         "name": "time_week_locked",
         "language": "sql",
         "definition": "\n  select exists (\n    select 1 from \"better_supabase\".\"timesheets\" s\n    left join \"better_supabase\".\"approval_requests\" x on x.\"id\" = s.\"approval_id\"\n    where s.\"tenant_id\" = time_week_locked.tenant and s.\"user_id\" = time_week_locked.user_id\n      and s.\"week\" = \"better_supabase\".\"time_week\"(time_week_locked.at)\n      and (s.\"approved_at\" is not null or x.\"status\" = 'pending')\n  );\n",
@@ -230086,7 +230126,7 @@
         }
       },
       {
-        "id": 3002217,
+        "id": 3002218,
         "schema": "better_supabase",
         "name": "top_scores",
         "language": "plpgsql",
@@ -230138,7 +230178,7 @@
         }
       },
       {
-        "id": 3002218,
+        "id": 3002219,
         "schema": "better_supabase",
         "name": "touch_ai_sandbox",
         "language": "plpgsql",
@@ -230166,7 +230206,7 @@
         }
       },
       {
-        "id": 3002219,
+        "id": 3002220,
         "schema": "better_supabase",
         "name": "track_events",
         "language": "plpgsql",
@@ -230206,7 +230246,7 @@
         }
       },
       {
-        "id": 3002220,
+        "id": 3002221,
         "schema": "better_supabase",
         "name": "track_mail",
         "language": "plpgsql",
@@ -230252,7 +230292,7 @@
         }
       },
       {
-        "id": 3002221,
+        "id": 3002222,
         "schema": "better_supabase",
         "name": "track_realtime",
         "language": "plpgsql",
@@ -230292,7 +230332,7 @@
         }
       },
       {
-        "id": 3002222,
+        "id": 3002223,
         "schema": "better_supabase",
         "name": "track_updated_at",
         "language": "plpgsql",
@@ -230332,7 +230372,7 @@
         }
       },
       {
-        "id": 3002223,
+        "id": 3002224,
         "schema": "better_supabase",
         "name": "transfer_ownership",
         "language": "plpgsql",
@@ -230372,7 +230412,7 @@
         }
       },
       {
-        "id": 3002224,
+        "id": 3002225,
         "schema": "better_supabase",
         "name": "transition",
         "language": "plpgsql",
@@ -230424,7 +230464,7 @@
         }
       },
       {
-        "id": 3002225,
+        "id": 3002226,
         "schema": "better_supabase",
         "name": "transition_contract",
         "language": "plpgsql",
@@ -230464,7 +230504,7 @@
         }
       },
       {
-        "id": 3002226,
+        "id": 3002227,
         "schema": "better_supabase",
         "name": "trash",
         "language": "plpgsql",
@@ -230504,7 +230544,7 @@
         }
       },
       {
-        "id": 3002227,
+        "id": 3002228,
         "schema": "better_supabase",
         "name": "trash_cascade",
         "language": "plpgsql",
@@ -230562,7 +230602,7 @@
         }
       },
       {
-        "id": 3002228,
+        "id": 3002229,
         "schema": "better_supabase",
         "name": "trash_purge_batch",
         "language": "plpgsql",
@@ -230590,7 +230630,7 @@
         }
       },
       {
-        "id": 3002229,
+        "id": 3002230,
         "schema": "better_supabase",
         "name": "trash_restore_batch",
         "language": "plpgsql",
@@ -230618,7 +230658,7 @@
         }
       },
       {
-        "id": 3002230,
+        "id": 3002231,
         "schema": "better_supabase",
         "name": "unallocate_payment",
         "language": "plpgsql",
@@ -230658,7 +230698,7 @@
         }
       },
       {
-        "id": 3002231,
+        "id": 3002232,
         "schema": "better_supabase",
         "name": "unassign_acknowledgement",
         "language": "plpgsql",
@@ -230686,7 +230726,7 @@
         }
       },
       {
-        "id": 3002232,
+        "id": 3002233,
         "schema": "better_supabase",
         "name": "unassign_shift",
         "language": "plpgsql",
@@ -230720,7 +230760,7 @@
         }
       },
       {
-        "id": 3002233,
+        "id": 3002234,
         "schema": "better_supabase",
         "name": "unaudit",
         "language": "plpgsql",
@@ -230748,7 +230788,7 @@
         }
       },
       {
-        "id": 3002234,
+        "id": 3002235,
         "schema": "better_supabase",
         "name": "unaudit",
         "language": "plpgsql",
@@ -230776,7 +230816,7 @@
         }
       },
       {
-        "id": 3002235,
+        "id": 3002236,
         "schema": "better_supabase",
         "name": "unban_user",
         "language": "plpgsql",
@@ -230804,7 +230844,7 @@
         }
       },
       {
-        "id": 3002236,
+        "id": 3002237,
         "schema": "better_supabase",
         "name": "unbilled_time",
         "language": "plpgsql",
@@ -230844,7 +230884,7 @@
         }
       },
       {
-        "id": 3002237,
+        "id": 3002238,
         "schema": "better_supabase",
         "name": "unchecked_push_tickets",
         "language": "plpgsql",
@@ -230878,7 +230918,7 @@
         }
       },
       {
-        "id": 3002238,
+        "id": 3002239,
         "schema": "better_supabase",
         "name": "unenroll_from_course",
         "language": "plpgsql",
@@ -230912,7 +230952,7 @@
         }
       },
       {
-        "id": 3002239,
+        "id": 3002240,
         "schema": "better_supabase",
         "name": "unlink",
         "language": "plpgsql",
@@ -230970,7 +231010,7 @@
         }
       },
       {
-        "id": 3002240,
+        "id": 3002241,
         "schema": "better_supabase",
         "name": "unlink_mail_thread",
         "language": "plpgsql",
@@ -231010,7 +231050,7 @@
         }
       },
       {
-        "id": 3002241,
+        "id": 3002242,
         "schema": "better_supabase",
         "name": "unlock_accounting_period",
         "language": "plpgsql",
@@ -231044,7 +231084,7 @@
         }
       },
       {
-        "id": 3002242,
+        "id": 3002243,
         "schema": "better_supabase",
         "name": "unlock_ai_harness_session",
         "language": "plpgsql",
@@ -231084,7 +231124,7 @@
         }
       },
       {
-        "id": 3002243,
+        "id": 3002244,
         "schema": "better_supabase",
         "name": "unmatch_bank_transaction",
         "language": "plpgsql",
@@ -231112,7 +231152,7 @@
         }
       },
       {
-        "id": 3002244,
+        "id": 3002245,
         "schema": "better_supabase",
         "name": "unread_counts",
         "language": "sql",
@@ -231140,7 +231180,7 @@
         }
       },
       {
-        "id": 3002245,
+        "id": 3002246,
         "schema": "better_supabase",
         "name": "unregister_push_device",
         "language": "plpgsql",
@@ -231168,7 +231208,7 @@
         }
       },
       {
-        "id": 3002246,
+        "id": 3002247,
         "schema": "better_supabase",
         "name": "unregister_sso_provider",
         "language": "plpgsql",
@@ -231202,7 +231242,7 @@
         }
       },
       {
-        "id": 3002247,
+        "id": 3002248,
         "schema": "better_supabase",
         "name": "unreported_usage",
         "language": "sql",
@@ -231242,7 +231282,7 @@
         }
       },
       {
-        "id": 3002248,
+        "id": 3002249,
         "schema": "better_supabase",
         "name": "unschedule_job",
         "language": "plpgsql",
@@ -231270,7 +231310,7 @@
         }
       },
       {
-        "id": 3002249,
+        "id": 3002250,
         "schema": "better_supabase",
         "name": "unschedule_tenant",
         "language": "sql",
@@ -231298,7 +231338,7 @@
         }
       },
       {
-        "id": 3002250,
+        "id": 3002251,
         "schema": "better_supabase",
         "name": "unschedule_work_order",
         "language": "plpgsql",
@@ -231326,7 +231366,7 @@
         }
       },
       {
-        "id": 3002251,
+        "id": 3002252,
         "schema": "better_supabase",
         "name": "unsuppress_notification_address",
         "language": "plpgsql",
@@ -231360,7 +231400,7 @@
         }
       },
       {
-        "id": 3002252,
+        "id": 3002253,
         "schema": "better_supabase",
         "name": "untag",
         "language": "plpgsql",
@@ -231406,7 +231446,7 @@
         }
       },
       {
-        "id": 3002253,
+        "id": 3002254,
         "schema": "better_supabase",
         "name": "untrack_realtime",
         "language": "plpgsql",
@@ -231434,7 +231474,7 @@
         }
       },
       {
-        "id": 3002254,
+        "id": 3002255,
         "schema": "better_supabase",
         "name": "update_activity",
         "language": "plpgsql",
@@ -231474,7 +231514,7 @@
         }
       },
       {
-        "id": 3002255,
+        "id": 3002256,
         "schema": "better_supabase",
         "name": "update_ai_batch",
         "language": "plpgsql",
@@ -231508,7 +231548,7 @@
         }
       },
       {
-        "id": 3002256,
+        "id": 3002257,
         "schema": "better_supabase",
         "name": "update_ai_chat",
         "language": "plpgsql",
@@ -231542,7 +231582,7 @@
         }
       },
       {
-        "id": 3002257,
+        "id": 3002258,
         "schema": "better_supabase",
         "name": "update_ai_document",
         "language": "plpgsql",
@@ -231600,7 +231640,7 @@
         }
       },
       {
-        "id": 3002258,
+        "id": 3002259,
         "schema": "better_supabase",
         "name": "update_asset",
         "language": "plpgsql",
@@ -231634,7 +231674,7 @@
         }
       },
       {
-        "id": 3002259,
+        "id": 3002260,
         "schema": "better_supabase",
         "name": "update_asset_location",
         "language": "plpgsql",
@@ -231668,7 +231708,7 @@
         }
       },
       {
-        "id": 3002260,
+        "id": 3002261,
         "schema": "better_supabase",
         "name": "update_care_plan",
         "language": "plpgsql",
@@ -231702,7 +231742,7 @@
         }
       },
       {
-        "id": 3002261,
+        "id": 3002262,
         "schema": "better_supabase",
         "name": "update_care_plan_action",
         "language": "plpgsql",
@@ -231736,7 +231776,7 @@
         }
       },
       {
-        "id": 3002262,
+        "id": 3002263,
         "schema": "better_supabase",
         "name": "update_care_plan_goal",
         "language": "plpgsql",
@@ -231770,7 +231810,7 @@
         }
       },
       {
-        "id": 3002263,
+        "id": 3002264,
         "schema": "better_supabase",
         "name": "update_care_plan_problem",
         "language": "plpgsql",
@@ -231804,7 +231844,7 @@
         }
       },
       {
-        "id": 3002264,
+        "id": 3002265,
         "schema": "better_supabase",
         "name": "update_case",
         "language": "plpgsql",
@@ -231838,7 +231878,7 @@
         }
       },
       {
-        "id": 3002265,
+        "id": 3002266,
         "schema": "better_supabase",
         "name": "update_channel",
         "language": "plpgsql",
@@ -231872,7 +231912,7 @@
         }
       },
       {
-        "id": 3002266,
+        "id": 3002267,
         "schema": "better_supabase",
         "name": "update_content_entry",
         "language": "plpgsql",
@@ -231906,7 +231946,7 @@
         }
       },
       {
-        "id": 3002267,
+        "id": 3002268,
         "schema": "better_supabase",
         "name": "update_contract",
         "language": "plpgsql",
@@ -231940,7 +231980,7 @@
         }
       },
       {
-        "id": 3002268,
+        "id": 3002269,
         "schema": "better_supabase",
         "name": "update_deals",
         "language": "plpgsql",
@@ -231968,7 +232008,7 @@
         }
       },
       {
-        "id": 3002269,
+        "id": 3002270,
         "schema": "better_supabase",
         "name": "update_employees",
         "language": "plpgsql",
@@ -232002,7 +232042,7 @@
         }
       },
       {
-        "id": 3002270,
+        "id": 3002271,
         "schema": "better_supabase",
         "name": "update_expense_line",
         "language": "plpgsql",
@@ -232072,7 +232112,7 @@
         }
       },
       {
-        "id": 3002271,
+        "id": 3002272,
         "schema": "better_supabase",
         "name": "update_form",
         "language": "plpgsql",
@@ -232124,7 +232164,7 @@
         }
       },
       {
-        "id": 3002272,
+        "id": 3002273,
         "schema": "better_supabase",
         "name": "update_inbox",
         "language": "plpgsql",
@@ -232158,7 +232198,7 @@
         }
       },
       {
-        "id": 3002273,
+        "id": 3002274,
         "schema": "better_supabase",
         "name": "update_incident",
         "language": "plpgsql",
@@ -232192,7 +232232,7 @@
         }
       },
       {
-        "id": 3002274,
+        "id": 3002275,
         "schema": "better_supabase",
         "name": "update_inspection",
         "language": "plpgsql",
@@ -232226,7 +232266,7 @@
         }
       },
       {
-        "id": 3002275,
+        "id": 3002276,
         "schema": "better_supabase",
         "name": "update_inspection_finding",
         "language": "plpgsql",
@@ -232260,7 +232300,7 @@
         }
       },
       {
-        "id": 3002276,
+        "id": 3002277,
         "schema": "better_supabase",
         "name": "update_invitation",
         "language": "plpgsql",
@@ -232306,7 +232346,7 @@
         }
       },
       {
-        "id": 3002277,
+        "id": 3002278,
         "schema": "better_supabase",
         "name": "update_invoice",
         "language": "plpgsql",
@@ -232340,7 +232380,7 @@
         }
       },
       {
-        "id": 3002278,
+        "id": 3002279,
         "schema": "better_supabase",
         "name": "update_knowledge_collection",
         "language": "plpgsql",
@@ -232374,7 +232414,7 @@
         }
       },
       {
-        "id": 3002279,
+        "id": 3002280,
         "schema": "better_supabase",
         "name": "update_legal_entity",
         "language": "plpgsql",
@@ -232408,7 +232448,7 @@
         }
       },
       {
-        "id": 3002280,
+        "id": 3002281,
         "schema": "better_supabase",
         "name": "update_mail_account",
         "language": "plpgsql",
@@ -232448,7 +232488,7 @@
         }
       },
       {
-        "id": 3002281,
+        "id": 3002282,
         "schema": "better_supabase",
         "name": "update_maintenance_plan",
         "language": "plpgsql",
@@ -232482,7 +232522,7 @@
         }
       },
       {
-        "id": 3002282,
+        "id": 3002283,
         "schema": "better_supabase",
         "name": "update_maintenance_requests",
         "language": "plpgsql",
@@ -232516,7 +232556,7 @@
         }
       },
       {
-        "id": 3002283,
+        "id": 3002284,
         "schema": "better_supabase",
         "name": "update_medication_order",
         "language": "plpgsql",
@@ -232550,7 +232590,7 @@
         }
       },
       {
-        "id": 3002284,
+        "id": 3002285,
         "schema": "better_supabase",
         "name": "update_meeting",
         "language": "plpgsql",
@@ -232584,7 +232624,7 @@
         }
       },
       {
-        "id": 3002285,
+        "id": 3002286,
         "schema": "better_supabase",
         "name": "update_member_role",
         "language": "plpgsql",
@@ -232624,7 +232664,7 @@
         }
       },
       {
-        "id": 3002286,
+        "id": 3002287,
         "schema": "better_supabase",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -232652,7 +232692,7 @@
         }
       },
       {
-        "id": 3002287,
+        "id": 3002288,
         "schema": "better_supabase",
         "name": "update_organization",
         "language": "plpgsql",
@@ -232686,7 +232726,7 @@
         }
       },
       {
-        "id": 3002288,
+        "id": 3002289,
         "schema": "better_supabase",
         "name": "update_organization_domain",
         "language": "plpgsql",
@@ -232726,7 +232766,7 @@
         }
       },
       {
-        "id": 3002289,
+        "id": 3002290,
         "schema": "better_supabase",
         "name": "update_pledge",
         "language": "plpgsql",
@@ -232772,7 +232812,7 @@
         }
       },
       {
-        "id": 3002290,
+        "id": 3002291,
         "schema": "better_supabase",
         "name": "update_post",
         "language": "plpgsql",
@@ -232806,7 +232846,7 @@
         }
       },
       {
-        "id": 3002291,
+        "id": 3002292,
         "schema": "better_supabase",
         "name": "update_product_media",
         "language": "plpgsql",
@@ -232846,7 +232886,7 @@
         }
       },
       {
-        "id": 3002292,
+        "id": 3002293,
         "schema": "better_supabase",
         "name": "update_quote",
         "language": "plpgsql",
@@ -232880,7 +232920,7 @@
         }
       },
       {
-        "id": 3002293,
+        "id": 3002294,
         "schema": "better_supabase",
         "name": "update_rfq",
         "language": "plpgsql",
@@ -232920,7 +232960,7 @@
         }
       },
       {
-        "id": 3002294,
+        "id": 3002295,
         "schema": "better_supabase",
         "name": "update_risk",
         "language": "plpgsql",
@@ -232954,7 +232994,7 @@
         }
       },
       {
-        "id": 3002295,
+        "id": 3002296,
         "schema": "better_supabase",
         "name": "update_tag",
         "language": "plpgsql",
@@ -232988,7 +233028,7 @@
         }
       },
       {
-        "id": 3002296,
+        "id": 3002297,
         "schema": "better_supabase",
         "name": "update_team",
         "language": "plpgsql",
@@ -233034,7 +233074,7 @@
         }
       },
       {
-        "id": 3002297,
+        "id": 3002298,
         "schema": "better_supabase",
         "name": "update_till",
         "language": "plpgsql",
@@ -233068,7 +233108,7 @@
         }
       },
       {
-        "id": 3002298,
+        "id": 3002299,
         "schema": "better_supabase",
         "name": "update_time_entry",
         "language": "plpgsql",
@@ -233102,7 +233142,7 @@
         }
       },
       {
-        "id": 3002299,
+        "id": 3002300,
         "schema": "better_supabase",
         "name": "update_webhook_endpoint",
         "language": "plpgsql",
@@ -233136,7 +233176,7 @@
         }
       },
       {
-        "id": 3002300,
+        "id": 3002301,
         "schema": "better_supabase",
         "name": "update_work_items",
         "language": "plpgsql",
@@ -233170,7 +233210,7 @@
         }
       },
       {
-        "id": 3002301,
+        "id": 3002302,
         "schema": "better_supabase",
         "name": "update_work_order",
         "language": "plpgsql",
@@ -233234,7 +233274,7 @@
         }
       },
       {
-        "id": 3002302,
+        "id": 3002303,
         "schema": "better_supabase",
         "name": "upsert_ai_models",
         "language": "plpgsql",
@@ -233268,7 +233308,7 @@
         }
       },
       {
-        "id": 3002303,
+        "id": 3002304,
         "schema": "better_supabase",
         "name": "upsert_message_template",
         "language": "plpgsql",
@@ -233302,7 +233342,7 @@
         }
       },
       {
-        "id": 3002304,
+        "id": 3002305,
         "schema": "better_supabase",
         "name": "usage_breakdown",
         "language": "plpgsql",
@@ -233336,7 +233376,7 @@
         }
       },
       {
-        "id": 3002305,
+        "id": 3002306,
         "schema": "better_supabase",
         "name": "usage_history",
         "language": "plpgsql",
@@ -233382,7 +233422,7 @@
         }
       },
       {
-        "id": 3002306,
+        "id": 3002307,
         "schema": "better_supabase",
         "name": "usage_meters",
         "language": "sql",
@@ -233403,7 +233443,7 @@
         }
       },
       {
-        "id": 3002307,
+        "id": 3002308,
         "schema": "better_supabase",
         "name": "usage_overview",
         "language": "plpgsql",
@@ -233431,7 +233471,7 @@
         }
       },
       {
-        "id": 3002308,
+        "id": 3002309,
         "schema": "better_supabase",
         "name": "usage_quota",
         "language": "sql",
@@ -233477,7 +233517,7 @@
         }
       },
       {
-        "id": 3002309,
+        "id": 3002310,
         "schema": "better_supabase",
         "name": "usage_status",
         "language": "plpgsql",
@@ -233511,7 +233551,7 @@
         }
       },
       {
-        "id": 3002310,
+        "id": 3002311,
         "schema": "better_supabase",
         "name": "usage_used",
         "language": "sql",
@@ -233551,7 +233591,7 @@
         }
       },
       {
-        "id": 3002311,
+        "id": 3002312,
         "schema": "better_supabase",
         "name": "usage_window",
         "language": "plpgsql",
@@ -233597,7 +233637,7 @@
         }
       },
       {
-        "id": 3002312,
+        "id": 3002313,
         "schema": "better_supabase",
         "name": "usage_window_start",
         "language": "plpgsql",
@@ -233637,7 +233677,7 @@
         }
       },
       {
-        "id": 3002313,
+        "id": 3002314,
         "schema": "better_supabase",
         "name": "user_disabled",
         "language": "sql",
@@ -233665,7 +233705,7 @@
         }
       },
       {
-        "id": 3002314,
+        "id": 3002315,
         "schema": "better_supabase",
         "name": "validate_document_template",
         "language": "plpgsql",
@@ -233705,7 +233745,7 @@
         }
       },
       {
-        "id": 3002315,
+        "id": 3002316,
         "schema": "better_supabase",
         "name": "validate_workflow_graph",
         "language": "plpgsql",
@@ -233733,7 +233773,7 @@
         }
       },
       {
-        "id": 3002316,
+        "id": 3002317,
         "schema": "better_supabase",
         "name": "variant_identifiers",
         "language": "sql",
@@ -233761,7 +233801,7 @@
         }
       },
       {
-        "id": 3002317,
+        "id": 3002318,
         "schema": "better_supabase",
         "name": "variant_price",
         "language": "sql",
@@ -233807,7 +233847,7 @@
         }
       },
       {
-        "id": 3002318,
+        "id": 3002319,
         "schema": "better_supabase",
         "name": "variant_relations",
         "language": "sql",
@@ -233841,7 +233881,7 @@
         }
       },
       {
-        "id": 3002319,
+        "id": 3002320,
         "schema": "better_supabase",
         "name": "verify_api_key",
         "language": "plpgsql",
@@ -233875,7 +233915,7 @@
         }
       },
       {
-        "id": 3002320,
+        "id": 3002321,
         "schema": "better_supabase",
         "name": "verify_course_certificate",
         "language": "sql",
@@ -233903,7 +233943,7 @@
         }
       },
       {
-        "id": 3002321,
+        "id": 3002322,
         "schema": "better_supabase",
         "name": "verify_organization_domain",
         "language": "plpgsql",
@@ -233937,7 +233977,7 @@
         }
       },
       {
-        "id": 3002322,
+        "id": 3002323,
         "schema": "better_supabase",
         "name": "version_insert",
         "language": "plpgsql",
@@ -234013,7 +234053,7 @@
         }
       },
       {
-        "id": 3002323,
+        "id": 3002324,
         "schema": "better_supabase",
         "name": "void_donation_receipt",
         "language": "plpgsql",
@@ -234047,7 +234087,7 @@
         }
       },
       {
-        "id": 3002324,
+        "id": 3002325,
         "schema": "better_supabase",
         "name": "void_invoice",
         "language": "plpgsql",
@@ -234087,7 +234127,7 @@
         }
       },
       {
-        "id": 3002325,
+        "id": 3002326,
         "schema": "better_supabase",
         "name": "vote",
         "language": "plpgsql",
@@ -234139,7 +234179,7 @@
         }
       },
       {
-        "id": 3002326,
+        "id": 3002327,
         "schema": "better_supabase",
         "name": "vote_on_post",
         "language": "plpgsql",
@@ -234173,7 +234213,7 @@
         }
       },
       {
-        "id": 3002327,
+        "id": 3002328,
         "schema": "better_supabase",
         "name": "vote_summary",
         "language": "sql",
@@ -234213,7 +234253,7 @@
         }
       },
       {
-        "id": 3002328,
+        "id": 3002329,
         "schema": "better_supabase",
         "name": "vote_tally",
         "language": "sql",
@@ -234253,7 +234293,7 @@
         }
       },
       {
-        "id": 3002329,
+        "id": 3002330,
         "schema": "better_supabase",
         "name": "waitlist_admit",
         "language": "plpgsql",
@@ -234287,7 +234327,7 @@
         }
       },
       {
-        "id": 3002330,
+        "id": 3002331,
         "schema": "better_supabase",
         "name": "wake_snoozed_conversations",
         "language": "plpgsql",
@@ -234308,7 +234348,7 @@
         }
       },
       {
-        "id": 3002331,
+        "id": 3002332,
         "schema": "better_supabase",
         "name": "watch_maintenance_request",
         "language": "plpgsql",
@@ -234342,7 +234382,7 @@
         }
       },
       {
-        "id": 3002332,
+        "id": 3002333,
         "schema": "better_supabase",
         "name": "watch_work_item",
         "language": "plpgsql",
@@ -234376,7 +234416,7 @@
         }
       },
       {
-        "id": 3002333,
+        "id": 3002334,
         "schema": "better_supabase",
         "name": "webhook_secrets",
         "language": "sql",
@@ -234404,7 +234444,7 @@
         }
       },
       {
-        "id": 3002334,
+        "id": 3002335,
         "schema": "better_supabase",
         "name": "wip_valuation",
         "language": "plpgsql",
@@ -234438,7 +234478,7 @@
         }
       },
       {
-        "id": 3002335,
+        "id": 3002336,
         "schema": "better_supabase",
         "name": "withdraw_consent",
         "language": "plpgsql",
@@ -234472,7 +234512,7 @@
         }
       },
       {
-        "id": 3002336,
+        "id": 3002337,
         "schema": "better_supabase",
         "name": "withdraw_quote",
         "language": "plpgsql",
@@ -234512,7 +234552,7 @@
         }
       },
       {
-        "id": 3002337,
+        "id": 3002338,
         "schema": "better_supabase",
         "name": "withdraw_rfq_quote",
         "language": "plpgsql",
@@ -234540,7 +234580,7 @@
         }
       },
       {
-        "id": 3002338,
+        "id": 3002339,
         "schema": "better_supabase",
         "name": "within_quota",
         "language": "plpgsql",
@@ -234580,7 +234620,7 @@
         }
       },
       {
-        "id": 3002339,
+        "id": 3002340,
         "schema": "better_supabase",
         "name": "work_item_tree",
         "language": "sql",
@@ -234608,7 +234648,7 @@
         }
       },
       {
-        "id": 3002340,
+        "id": 3002341,
         "schema": "better_supabase",
         "name": "workflow_admission_active",
         "language": "sql",
@@ -234636,7 +234676,7 @@
         }
       },
       {
-        "id": 3002341,
+        "id": 3002342,
         "schema": "better_supabase",
         "name": "workflow_alerts_list",
         "language": "sql",
@@ -234664,7 +234704,7 @@
         }
       },
       {
-        "id": 3002342,
+        "id": 3002343,
         "schema": "better_supabase",
         "name": "workflow_claim_run_key",
         "language": "plpgsql",
@@ -234710,7 +234750,7 @@
         }
       },
       {
-        "id": 3002343,
+        "id": 3002344,
         "schema": "better_supabase",
         "name": "workflow_credential_get",
         "language": "sql",
@@ -234738,7 +234778,7 @@
         }
       },
       {
-        "id": 3002344,
+        "id": 3002345,
         "schema": "better_supabase",
         "name": "workflow_credentials_list",
         "language": "sql",
@@ -234766,7 +234806,7 @@
         }
       },
       {
-        "id": 3002345,
+        "id": 3002346,
         "schema": "better_supabase",
         "name": "workflow_definition_get",
         "language": "sql",
@@ -234794,7 +234834,7 @@
         }
       },
       {
-        "id": 3002346,
+        "id": 3002347,
         "schema": "better_supabase",
         "name": "workflow_definition_grants_list",
         "language": "sql",
@@ -234822,7 +234862,7 @@
         }
       },
       {
-        "id": 3002347,
+        "id": 3002348,
         "schema": "better_supabase",
         "name": "workflow_definitions_list",
         "language": "sql",
@@ -234856,7 +234896,7 @@
         }
       },
       {
-        "id": 3002348,
+        "id": 3002349,
         "schema": "better_supabase",
         "name": "workflow_graph_permissions",
         "language": "sql",
@@ -234884,7 +234924,7 @@
         }
       },
       {
-        "id": 3002349,
+        "id": 3002350,
         "schema": "better_supabase",
         "name": "workflow_node_kinds_list",
         "language": "sql",
@@ -234905,7 +234945,7 @@
         }
       },
       {
-        "id": 3002350,
+        "id": 3002351,
         "schema": "better_supabase",
         "name": "workflow_node_runs_list",
         "language": "sql",
@@ -234933,7 +234973,7 @@
         }
       },
       {
-        "id": 3002351,
+        "id": 3002352,
         "schema": "better_supabase",
         "name": "workflow_open_hooks",
         "language": "sql",
@@ -235015,7 +235055,7 @@
         }
       },
       {
-        "id": 3002352,
+        "id": 3002353,
         "schema": "better_supabase",
         "name": "workflow_purge_runs",
         "language": "plpgsql",
@@ -235055,7 +235095,7 @@
         }
       },
       {
-        "id": 3002353,
+        "id": 3002354,
         "schema": "better_supabase",
         "name": "workflow_release_run_key",
         "language": "sql",
@@ -235083,7 +235123,7 @@
         }
       },
       {
-        "id": 3002354,
+        "id": 3002355,
         "schema": "better_supabase",
         "name": "workflow_run_get",
         "language": "sql",
@@ -235111,7 +235151,7 @@
         }
       },
       {
-        "id": 3002355,
+        "id": 3002356,
         "schema": "better_supabase",
         "name": "workflow_run_principal",
         "language": "plpgsql",
@@ -235145,7 +235185,7 @@
         }
       },
       {
-        "id": 3002356,
+        "id": 3002357,
         "schema": "better_supabase",
         "name": "workflow_runs_list",
         "language": "sql",
@@ -235215,7 +235255,7 @@
         }
       },
       {
-        "id": 3002357,
+        "id": 3002358,
         "schema": "better_supabase",
         "name": "workflow_schedules_list",
         "language": "sql",
@@ -235243,7 +235283,7 @@
         }
       },
       {
-        "id": 3002358,
+        "id": 3002359,
         "schema": "better_supabase",
         "name": "workflow_set_run_key",
         "language": "sql",
@@ -235277,7 +235317,7 @@
         }
       },
       {
-        "id": 3002359,
+        "id": 3002360,
         "schema": "better_supabase",
         "name": "workflow_start_target",
         "language": "plpgsql",
@@ -235311,7 +235351,7 @@
         }
       },
       {
-        "id": 3002360,
+        "id": 3002361,
         "schema": "better_supabase",
         "name": "workflow_steps_list",
         "language": "sql",
@@ -235332,7 +235372,7 @@
         }
       },
       {
-        "id": 3002361,
+        "id": 3002362,
         "schema": "better_supabase",
         "name": "workflow_subject_start_target",
         "language": "plpgsql",
@@ -235378,7 +235418,7 @@
         }
       },
       {
-        "id": 3002362,
+        "id": 3002363,
         "schema": "better_supabase",
         "name": "workflow_triggers_list",
         "language": "sql",
@@ -235406,7 +235446,7 @@
         }
       },
       {
-        "id": 3002363,
+        "id": 3002364,
         "schema": "better_supabase",
         "name": "workflow_version_get",
         "language": "sql",
@@ -235434,7 +235474,7 @@
         }
       },
       {
-        "id": 3002364,
+        "id": 3002365,
         "schema": "better_supabase",
         "name": "workflow_versions_list",
         "language": "sql",
@@ -235462,7 +235502,7 @@
         }
       },
       {
-        "id": 3002365,
+        "id": 3002366,
         "schema": "better_supabase",
         "name": "workflow_webhook_target",
         "language": "sql",
@@ -235490,7 +235530,7 @@
         }
       },
       {
-        "id": 3002366,
+        "id": 3002367,
         "schema": "better_supabase",
         "name": "write_knowledge_chunks",
         "language": "plpgsql",
@@ -235530,7 +235570,7 @@
         }
       },
       {
-        "id": 3002367,
+        "id": 3002368,
         "schema": "better_supabase",
         "name": "write_off_invoice",
         "language": "plpgsql",
@@ -235570,7 +235610,7 @@
         }
       },
       {
-        "id": 3002368,
+        "id": 3002369,
         "schema": "better_supabase",
         "name": "yearly_giving_summary",
         "language": "plpgsql",
@@ -235616,7 +235656,7 @@
         }
       },
       {
-        "id": 3002369,
+        "id": 3002370,
         "schema": "public",
         "name": "app_table_set",
         "language": "plpgsql",
@@ -235662,7 +235702,7 @@
         }
       },
       {
-        "id": 3002370,
+        "id": 3002371,
         "schema": "public",
         "name": "client_notes_reveal",
         "language": "sql",
@@ -235708,7 +235748,7 @@
         }
       },
       {
-        "id": 3002371,
+        "id": 3002372,
         "schema": "public",
         "name": "customer_note_counts",
         "language": "sql",
@@ -235754,7 +235794,7 @@
         }
       },
       {
-        "id": 3002372,
+        "id": 3002373,
         "schema": "public",
         "name": "customers_by_status",
         "language": "sql",
@@ -235788,7 +235828,7 @@
         }
       },
       {
-        "id": 3002373,
+        "id": 3002374,
         "schema": "public",
         "name": "import_customer",
         "language": "plpgsql",
@@ -235828,7 +235868,7 @@
         }
       },
       {
-        "id": 3002374,
+        "id": 3002375,
         "schema": "public",
         "name": "import_customer_updated_at",
         "language": "sql",
@@ -235856,7 +235896,7 @@
         }
       },
       {
-        "id": 3002375,
+        "id": 3002376,
         "schema": "public",
         "name": "island_counts",
         "language": "sql",
@@ -235884,7 +235924,7 @@
         }
       },
       {
-        "id": 3002376,
+        "id": 3002377,
         "schema": "public",
         "name": "my_organizations",
         "language": "sql",
@@ -235942,7 +235982,7 @@
         }
       },
       {
-        "id": 3002377,
+        "id": 3002378,
         "schema": "public",
         "name": "my_profile",
         "language": "plpgsql",
@@ -235994,7 +236034,7 @@
         }
       },
       {
-        "id": 3002378,
+        "id": 3002379,
         "schema": "public",
         "name": "organization_invitations",
         "language": "sql",
@@ -236058,7 +236098,7 @@
         }
       },
       {
-        "id": 3002379,
+        "id": 3002380,
         "schema": "public",
         "name": "organization_members",
         "language": "sql",
@@ -236128,7 +236168,7 @@
         }
       },
       {
-        "id": 3002380,
+        "id": 3002381,
         "schema": "public",
         "name": "rs_workspace_summary",
         "language": "sql",
@@ -236156,7 +236196,7 @@
         }
       },
       {
-        "id": 3002381,
+        "id": 3002382,
         "schema": "public",
         "name": "search_notes",
         "language": "plpgsql",
@@ -236190,7 +236230,7 @@
         }
       },
       {
-        "id": 3002382,
+        "id": 3002383,
         "schema": "public",
         "name": "search_notes_scores",
         "language": "plpgsql",
@@ -236236,7 +236276,7 @@
         }
       },
       {
-        "id": 3002383,
+        "id": 3002384,
         "schema": "public",
         "name": "set_my_avatar_path",
         "language": "plpgsql",
@@ -236264,7 +236304,7 @@
         }
       },
       {
-        "id": 3002384,
+        "id": 3002385,
         "schema": "public",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -358036,6 +358076,18 @@
         "execute": [
           "authenticated"
         ]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "time_week_approved",
+        "signature": "tenant uuid, user_id uuid, at timestamp with time zone",
+        "language": "sql",
+        "volatility": "stable",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
       },
       {
         "schema": "better_supabase",
