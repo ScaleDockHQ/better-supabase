@@ -156,6 +156,12 @@ decision. A `before` hook can refuse it.
 | `CARE_RULE_NOT_FOUND`        | no rule with that id                                     |
 | `CARE_ENGINE_FAILED`         | an external engine threw                                 |
 
+## CDS Hooks
+
+An EHR can ask for these alerts through CDS Hooks. `cdsCardOfAlert` and
+`createCdsHooksServer` in [`better-supabase/fhir`](/docs/concepts/fhir) turn
+an alert into a card and serve the service API.
+
 ## Without the client
 
 `db.clinicalDecisionSupport` is this client. Code that does not go through

@@ -296,6 +296,12 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0178: E-prescribing keeps prescriptions in SQL that only their prescriber signs, and delivers them through a versioned `PrescriptionGateway` port.
 - 0179: Adapters start from tested templates in `tests/adapter-templates` and a Write an adapter docs page, one per port.
 - 0181: Warehouse suggests putaway and slotting, orders pick routes through the RouteOptimizer port and closes the picking task.
+- 0184: Courses verify LTI 1.3 launches, write xAPI statements and export unsigned Open Badges.
+- 0185: SMART App Launch and CDS Hooks helpers sit in `better-supabase/fhir` behind versioned ports.
+- 0186: Berlin Group XS2A is a `BankFeed` adapter over fetch.
+- 0187: DAM reads C2PA manifests through a port and exports usage rights as ODRL.
+- 0188: Content writes sitemaps, robots.txt and JSON-LD as pure functions.
+- 0189: Maintenance ingests meter telemetry through a Fetch handler.
 
 ## Pre-release pins
 

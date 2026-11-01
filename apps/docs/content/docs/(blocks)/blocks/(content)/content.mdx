@@ -186,6 +186,37 @@ The block writes `content_entry.created`, `content_entry.updated`,
 | `CONTENT_MEDIA_UNSUPPORTED`  | a cover is set without the attachments block                       |
 | `APPROVAL_PENDING`           | a publish request for the entry is already open                    |
 
+## SEO helpers
+
+The helpers write what a search engine reads from published entries. They are
+pure functions: you pass the URL of each page, so they work with any router.
+
+```ts
+import {
+  articleJsonLd,
+  jsonLdScript,
+  robotsTxt,
+  sitemapXml,
+} from "better-supabase/blocks/content";
+
+const entries = await content.published({ type: "post" }).orThrow();
+
+export const sitemap = sitemapXml(entries, {
+  urlFor: (entry) => `https://example.com/${entry.locale}/${entry.slug}`,
+  translationUrlFor: (_entry, t) => `https://example.com/${t.locale}/${t.slug}`,
+});
+```
+
+`sitemapXml` follows the sitemaps.org 0.9 protocol: `lastmod` comes from the
+entry's update time and `hreflang` alternates from its translations. URLs are
+escaped, must be absolute `http` or `https`, and more than 50,000 entries
+throw: split them with `sitemapChunks` and list the files with
+`sitemapIndexXml`. `robotsTxt` writes an RFC 9309 file and refuses a line with
+a line break. `articleJsonLd` and `breadcrumbJsonLd` write schema.org JSON-LD.
+Put the text of `jsonLdScript` in a `script` element of type
+`application/ld+json`: it escapes `<`, `>` and `&`, so a title containing
+`</script>` cannot close the element.
+
 ## Without the client
 
 `db.content` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:

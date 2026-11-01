@@ -276,6 +276,39 @@ returns.
 `bank_transaction.unmatched`. The [events page](/docs/extending/events)
 lists their payloads.
 
+## Berlin Group feed
+
+`berlinGroupFeed` is a `BankFeed` over the Berlin Group NextGenPSD2 XS2A
+framework (1.3.12), which most European banks offer. It lists the accounts of
+a consent, reads booked transactions from a date with `bookingStatus=booked`,
+follows `_links.next` (only on the bank's own host) and maps each transaction:
+the amount keeps the bank's sign, the counterparty is the creditor of a debit
+and the debtor of a credit, and `transactionId` becomes the `externalId`.
+
+```ts
+import { berlinGroupFeed } from "better-supabase/blocks/banking";
+
+const feed = berlinGroupFeed({
+  baseUrl: "https://api.bank.example/xs2a/v1",
+  consentId: consent.id,
+  headers: async () => ({ authorization: `Bearer ${await tppToken()}` }),
+});
+
+await banking
+  .syncFeed(accountId, feed, {
+    accountRef: "bank-account-id",
+    since: "2026-01-01",
+  })
+  .orThrow();
+```
+
+Creating the consent needs the account holder's strong customer
+authentication in a browser redirect, which the adapter does not run: create
+it through the bank's flow and pass its id. Banks that require message
+signing take the `Digest`, `Signature` and certificate headers through
+`headers`. A transaction without an amount, currency or date is skipped, and
+HTTP 401, 403 and 429 answers become `unauthorized` and `rate_limited` errors.
+
 ## Without the client
 
 `db.banking` is this client. Code that does not go through `bsb.db()` builds

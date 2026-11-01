@@ -87,3 +87,8 @@ export type {
   BankTransactionEventData,
   BankTransactionMatchedEventData,
 } from "./events.ts";
+
+export {
+  berlinGroupFeed,
+  type BerlinGroupFeedOptions,
+} from "./berlin-group.ts";
